@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 8
+names: ['Boots', 'Ear-protection', 'Glass', 'Glove', 'Helmet', 'Mask', 'Person', 'Vest']
+
+roboflow:
+  workspace: bambaaaa
+  project: safety-pyazl-sc7ei
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/bambaaaa/safety-pyazl-sc7ei/dataset/1
