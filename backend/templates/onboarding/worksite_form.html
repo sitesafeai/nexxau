@@ -1,0 +1,271 @@
+{% extends 'onboarding/base.html' %}
+
+{% block title %}Add Worksite - {{ client.name }}{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <h2 class="mb-4">Add Worksite for {{ client.name }}</h2>
+    
+    <div class="step-indicator">
+        <div class="step-line"></div>
+        <div class="step active">
+            <i class="fas fa-building"></i>
+            <div>Worksite Details</div>
+        </div>
+        <div class="step">
+            <i class="fas fa-video"></i>
+            <div>Camera Setup</div>
+        </div>
+        <div class="step">
+            <i class="fas fa-users"></i>
+            <div>Workers</div>
+        </div>
+    </div>
+
+    <form method="post" id="worksiteForm">
+        {% csrf_token %}
+        
+        <div class="mb-3">
+            <label for="{{ form.name.id_for_label }}" class="form-label">Worksite Name</label>
+            {{ form.name }}
+        </div>
+
+        <div class="mb-3">
+            <label for="{{ form.address.id_for_label }}" class="form-label">Address</label>
+            {{ form.address }}
+        </div>
+
+        <div class="mb-4">
+            <label for="{{ form.camera_system_type.id_for_label }}" class="form-label">Camera System Type</label>
+            {{ form.camera_system_type }}
+        </div>
+
+        <!-- Dynamic camera configuration forms -->
+        <div id="milestoneConfig" class="camera-config" style="display: none;">
+            <h4 class="mb-3">Milestone XProtect Configuration</h4>
+            <div class="mb-3">
+                <label class="form-label">Server Address</label>
+                <input type="text" class="form-control" name="milestone_server" placeholder="e.g., 192.168.1.100">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Port</label>
+                <input type="number" class="form-control" name="milestone_port" placeholder="e.g., 8080">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">API Key</label>
+                <input type="text" class="form-control" name="milestone_api_key" placeholder="Enter your Milestone API key">
+            </div>
+            <button type="button" class="btn btn-outline-primary" onclick="testMilestoneConnection()">
+                Test Connection
+            </button>
+        </div>
+
+        <div id="cloudConfig" class="camera-config" style="display: none;">
+            <h4 class="mb-3">Cloud Camera Configuration</h4>
+            <div class="mb-3">
+                <label class="form-label">Cloud Provider</label>
+                <select class="form-select" name="cloud_provider">
+                    <option value="">Select Provider</option>
+                    <option value="aws">AWS</option>
+                    <option value="azure">Azure</option>
+                    <option value="gcp">Google Cloud</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">API Endpoint</label>
+                <input type="url" class="form-control" name="cloud_api_url" placeholder="https://api.example.com">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">API Key</label>
+                <input type="text" class="form-control" name="cloud_api_key" placeholder="Enter your API key">
+            </div>
+            <button type="button" class="btn btn-outline-primary" onclick="testCloudConnection()">
+                Test Connection
+            </button>
+        </div>
+
+        <div id="rtspConfig" class="camera-config" style="display: none;">
+            <h4 class="mb-3">RTSP Camera Configuration</h4>
+            <div class="mb-3">
+                <label class="form-label">Camera Name</label>
+                <input type="text" class="form-control" name="camera_name" placeholder="e.g., Front Entrance">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">RTSP URL</label>
+                <input type="url" class="form-control" name="rtsp_url" placeholder="rtsp://username:password@ip:port/stream">
+            </div>
+            <button type="button" class="btn btn-outline-primary" onclick="testRTSPConnection()">
+                Test Connection
+            </button>
+        </div>
+
+        <div id="onvifConfig" class="camera-config" style="display: none;">
+            <h4 class="mb-3">ONVIF Camera Configuration</h4>
+            <div class="mb-3">
+                <label class="form-label">Camera Name</label>
+                <input type="text" class="form-control" name="camera_name" placeholder="e.g., Back Entrance">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">IP Address</label>
+                <input type="text" class="form-control" name="ip_address" placeholder="e.g., 192.168.1.100">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Port</label>
+                <input type="number" class="form-control" name="port" placeholder="e.g., 80">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                <input type="text" class="form-control" name="username" placeholder="Enter username">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input type="password" class="form-control" name="password" placeholder="Enter password">
+            </div>
+            <button type="button" class="btn btn-outline-primary" onclick="testONVIFConnection()">
+                Test Connection
+            </button>
+        </div>
+
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary">Continue to Worker Setup</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const cameraSystemSelect = document.querySelector('#{{ form.camera_system_type.id_for_label }}');
+    const configDivs = document.querySelectorAll('.camera-config');
+
+    function showConfig(type) {
+        configDivs.forEach(div => div.style.display = 'none');
+        const selectedConfig = document.getElementById(type + 'Config');
+        if (selectedConfig) {
+            selectedConfig.style.display = 'block';
+        }
+    }
+
+    cameraSystemSelect.addEventListener('change', function() {
+        showConfig(this.value.toLowerCase());
+    });
+
+    // Show initial config if a value is selected
+    if (cameraSystemSelect.value) {
+        showConfig(cameraSystemSelect.value.toLowerCase());
+    }
+});
+
+function testMilestoneConnection() {
+    const server = document.querySelector('input[name="milestone_server"]').value;
+    const port = document.querySelector('input[name="milestone_port"]').value;
+    const apiKey = document.querySelector('input[name="milestone_api_key"]').value;
+
+    fetch('/test-camera-connection/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            camera_type: 'MILESTONE',
+            server: server,
+            port: port,
+            api_key: apiKey
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Connection successful!');
+        } else {
+            alert('Connection failed: ' + data.error);
+        }
+    });
+}
+
+function testCloudConnection() {
+    const provider = document.querySelector('select[name="cloud_provider"]').value;
+    const apiUrl = document.querySelector('input[name="cloud_api_url"]').value;
+    const apiKey = document.querySelector('input[name="cloud_api_key"]').value;
+
+    fetch('/test-camera-connection/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            camera_type: 'CLOUD',
+            provider: provider,
+            api_url: apiUrl,
+            api_key: apiKey
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Connection successful!');
+        } else {
+            alert('Connection failed: ' + data.error);
+        }
+    });
+}
+
+function testRTSPConnection() {
+    const rtspUrl = document.querySelector('input[name="rtsp_url"]').value;
+
+    fetch('/test-camera-connection/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            camera_type: 'RTSP',
+            rtsp_url: rtspUrl
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Connection successful!');
+        } else {
+            alert('Connection failed: ' + data.error);
+        }
+    });
+}
+
+function testONVIFConnection() {
+    const ip = document.querySelector('input[name="ip_address"]').value;
+    const port = document.querySelector('input[name="port"]').value;
+    const username = document.querySelector('input[name="username"]').value;
+    const password = document.querySelector('input[name="password"]').value;
+
+    fetch('/test-camera-connection/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            camera_type: 'ONVIF',
+            ip: ip,
+            port: port,
+            username: username,
+            password: password
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Connection successful!');
+        } else {
+            alert('Connection failed: ' + data.error);
+        }
+    });
+}
+</script>
+{% endblock %} 

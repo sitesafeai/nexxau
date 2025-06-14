@@ -1,0 +1,6 @@
+fastapi==0.115.12
+uvicorn[standard]==0.34.3
+python-multipart==0.0.20
+ultralytics==8.3.149
+opencv-python==4.11.0.86
+websockets==12.0 
