@@ -68,7 +68,7 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800">
       <Transition.Root show={sidebarOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50 lg:hidden" onClose={setSidebarOpen}>
           <Transition.Child
@@ -80,7 +80,7 @@ export default function DashboardLayout({
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
-            <div className="fixed inset-0 bg-gray-900/80" />
+            <div className="fixed inset-0 bg-gray-900/90 backdrop-blur-sm" />
           </Transition.Child>
 
           <div className="fixed inset-0 flex">
@@ -94,12 +94,12 @@ export default function DashboardLayout({
               leaveTo="-translate-x-full"
             >
               <Dialog.Panel className="relative mr-16 flex w-full max-w-xs flex-1">
-                <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
+                <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-gray-900/95 backdrop-blur-md border-r border-gray-700/50 px-6 pb-4">
                   <div className="flex h-16 shrink-0 items-center">
                     <img
                       className="h-8 w-auto"
                       src="/logo.png"
-                      alt="SiteSafe"
+                      alt="Nexxau"
                     />
                   </div>
                   <nav className="flex flex-1 flex-col">
@@ -111,16 +111,16 @@ export default function DashboardLayout({
                               <Link
                                 href={item.href}
                                 className={`
-                                  group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold
+                                  group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-200
                                   ${pathname === item.href
-                                    ? 'bg-blue-50 text-primary-600'
-                                    : 'text-gray-700 hover:text-primary-600 hover:bg-blue-50'
+                                    ? 'bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20'
+                                    : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
                                   }
                                 `}
                               >
                                 <item.icon
                                   className={`h-6 w-6 shrink-0 ${
-                                    pathname === item.href ? 'text-primary-600' : 'text-gray-400 group-hover:text-primary-600'
+                                    pathname === item.href ? 'text-blue-400' : 'text-gray-400 group-hover:text-white'
                                   }`}
                                   aria-hidden="true"
                                 />
@@ -141,12 +141,12 @@ export default function DashboardLayout({
 
       {/* Static sidebar for desktop */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6 pb-4">
+        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-700/50 bg-gray-900/95 backdrop-blur-md px-6 pb-4">
           <div className="flex h-16 shrink-0 items-center">
             <img
               className="h-8 w-auto"
               src="/logo.png"
-              alt="SiteSafe"
+              alt="Nexxau"
             />
           </div>
           <nav className="flex flex-1 flex-col">
@@ -158,16 +158,16 @@ export default function DashboardLayout({
                       <Link
                         href={item.href}
                         className={`
-                          group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold
+                          group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-200
                           ${pathname === item.href
-                            ? 'bg-blue-50 text-primary-600'
-                            : 'text-gray-700 hover:text-primary-600 hover:bg-blue-50'
+                            ? 'bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
                           }
                         `}
                       >
                         <item.icon
                           className={`h-6 w-6 shrink-0 ${
-                            pathname === item.href ? 'text-primary-600' : 'text-gray-400 group-hover:text-primary-600'
+                            pathname === item.href ? 'text-blue-400' : 'text-gray-400 group-hover:text-white'
                           }`}
                           aria-hidden="true"
                         />
@@ -180,10 +180,10 @@ export default function DashboardLayout({
               <li className="mt-auto">
                 <button
                   onClick={() => signOut()}
-                  className="group -mx-2 flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-700 hover:bg-blue-50 hover:text-primary-600"
+                  className="group -mx-2 flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 text-gray-400 hover:bg-gray-700/50 hover:text-white transition-colors duration-200"
                 >
                   <XMarkIcon
-                    className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-primary-600"
+                    className="h-6 w-6 shrink-0 text-gray-400 group-hover:text-white"
                     aria-hidden="true"
                   />
                   Sign out
@@ -195,10 +195,10 @@ export default function DashboardLayout({
       </div>
 
       <div className="lg:pl-72">
-        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-700/50 bg-gray-900/95 backdrop-blur-md px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
           <button
             type="button"
-            className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
+            className="-m-2.5 p-2.5 text-gray-400 hover:text-white transition-colors duration-200 lg:hidden"
             onClick={() => setSidebarOpen(true)}
           >
             <span className="sr-only">Open sidebar</span>
@@ -206,7 +206,7 @@ export default function DashboardLayout({
           </button>
 
           {/* Separator */}
-          <div className="h-6 w-px bg-gray-200 lg:hidden" aria-hidden="true" />
+          <div className="h-6 w-px bg-gray-700/50 lg:hidden" aria-hidden="true" />
 
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1" />
@@ -215,18 +215,18 @@ export default function DashboardLayout({
               <div className="relative">
                 <button
                   type="button"
-                  className="-m-1.5 flex items-center p-1.5"
+                  className="-m-1.5 flex items-center p-1.5 hover:bg-gray-700/50 rounded-full transition-colors duration-200"
                   id="user-menu-button"
                 >
                   <span className="sr-only">Open user menu</span>
                   <img
-                    className="h-8 w-8 rounded-full bg-gray-50"
+                    className="h-8 w-8 rounded-full bg-gray-800 ring-1 ring-gray-700"
                     src={session?.user?.image || "https://avatars.githubusercontent.com/u/1?v=4"}
                     alt=""
                   />
                   <span className="hidden lg:flex lg:items-center">
                     <span
-                      className="ml-4 text-sm font-semibold leading-6 text-gray-900"
+                      className="ml-4 text-sm font-semibold leading-6 text-white"
                       aria-hidden="true"
                     >
                       {session?.user?.name || 'User'}

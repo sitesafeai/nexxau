@@ -63,7 +63,7 @@ export default function Impact() {
             Proven Impact
           </h2>
           <p className="mt-6 text-lg leading-8 text-gray-300">
-            See how SiteSafe's AI-powered safety solutions are transforming workplace safety across industries.
+            See how Nexxau's AI-powered safety solutions are transforming workplace safety across industries.
           </p>
         </div>
 

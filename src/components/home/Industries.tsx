@@ -82,7 +82,7 @@ export default function Industries() {
             Industries We Serve
           </h2>
           <p className="mt-6 text-lg leading-8 text-gray-300">
-            SiteSafe's AI-powered safety solutions are tailored for high-risk industries that demand the highest standards of safety and compliance.
+            Nexxau's AI-powered safety solutions are tailored for high-risk industries that demand the highest standards of safety and compliance.
           </p>
         </div>
 

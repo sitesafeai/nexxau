@@ -52,7 +52,7 @@ export default function EnergyPage() {
               Energy Safety Solutions
             </h1>
             <p className="mt-6 text-lg leading-8 text-gray-600">
-              Protect critical energy infrastructure with SiteSafe's advanced safety monitoring systems. Our AI-powered solutions help you maintain the highest safety standards in power generation and distribution.
+              Protect critical energy infrastructure with Nexxau's advanced safety monitoring systems. Our AI-powered solutions help you maintain the highest safety standards in power generation and distribution.
             </p>
             <div className="mt-10 flex items-center gap-x-6">
               <Link
@@ -154,7 +154,7 @@ export default function EnergyPage() {
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Ready to transform your energy safety standards?
             <br />
-            Start using SiteSafe today.
+            Start using Nexxau today.
           </h2>
           <div className="mt-10 flex items-center gap-x-6">
             <Link

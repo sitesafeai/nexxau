@@ -65,7 +65,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
       images: [post.image],
     },
     alternates: {
-      canonical: `https://sitesafe.com/blog/${post.slug}`,
+      canonical: `https://nexxau.com/blog/${post.slug}`,
     },
   };
 }
@@ -101,7 +101,7 @@ export default async function BlogPost({ params }: BlogPostProps) {
           </span>
           <span className="inline-flex items-center">
             <UserIcon className="h-4 w-4 mr-1" />
-            {post.author?.name || 'SiteSafe Team'}
+            {post.author?.name || 'Nexxau Team'}
           </span>
           <span className="inline-flex items-center">
             <TagIcon className="h-4 w-4 mr-1" />

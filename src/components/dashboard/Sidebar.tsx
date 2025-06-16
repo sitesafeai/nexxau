@@ -90,7 +90,7 @@ export default function Sidebar({ selected, onSelect }: SidebarProps) {
             <img
               className="h-8 w-auto"
               src="/logo.png"
-              alt="SiteSafe"
+              alt="Nexxau"
             />
           </div>
           <nav className="mt-5 flex-1 space-y-1 bg-white px-2">

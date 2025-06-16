@@ -8,7 +8,7 @@ import DndProvider from "@/src/components/providers/DndProvider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "SiteSafe",
+  title: "Nexxau",
   description: "Your comprehensive solution for site safety and security management.",
 };
 

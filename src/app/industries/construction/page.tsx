@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { ShieldCheckIcon, ChartBarIcon, ClockIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 export const metadata: Metadata = {
-  title: 'AI-Powered Safety Solutions for Construction | SiteSafe',
-  description: 'Transform construction site safety with SiteSafe\'s AI-powered monitoring. Reduce accidents, ensure compliance, and protect your workforce with real-time safety solutions.',
+  title: 'AI-Powered Safety Solutions for Construction | Nexxau',
+  description: 'Transform construction site safety with Nexxau\'s AI-powered monitoring. Reduce accidents, ensure compliance, and protect your workforce with real-time safety solutions.',
   keywords: 'construction safety, AI safety monitoring, construction site safety, safety compliance, construction risk management',
 };
 
@@ -139,7 +139,7 @@ export default function ConstructionPage() {
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Ready to transform your construction site safety?
             <br />
-            Start using SiteSafe today.
+            Start using Nexxau today.
           </h2>
           <div className="mt-10 flex items-center gap-x-6">
             <Link

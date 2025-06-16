@@ -4,7 +4,7 @@ import Navbar from '../../components/Navbar';
 import { BuildingOfficeIcon, ShieldCheckIcon, ChartBarIcon, ClockIcon, VideoCameraIcon, WrenchScrewdriverIcon, BellAlertIcon, BanknotesIcon } from '@heroicons/react/24/outline';
 
 export const metadata: Metadata = {
-  title: 'Construction Industry Solutions | SiteSafe',
+  title: 'Construction Industry Solutions | Nexxau',
   description: 'Transform construction site safety with AI-powered monitoring and real-time hazard detection. Reduce incidents by 75% and improve response time by 90%.',
 };
 
@@ -184,7 +184,7 @@ export default function ConstructionPage() {
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Ready to transform your construction site safety?
             <br />
-            Start using SiteSafe today.
+            Start using Nexxau today.
           </h2>
           <div className="mt-10 flex items-center gap-x-6">
             <Link

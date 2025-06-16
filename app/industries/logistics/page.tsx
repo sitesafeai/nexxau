@@ -52,7 +52,7 @@ export default function LogisticsPage() {
               Logistics Safety Solutions
             </h1>
             <p className="mt-6 text-lg leading-8 text-gray-600">
-              Optimize logistics safety with SiteSafe's comprehensive fleet and warehouse monitoring solutions. Our AI-powered platform helps you maintain the highest safety standards across your entire supply chain.
+              Optimize logistics safety with Nexxau's comprehensive fleet and warehouse monitoring solutions. Our AI-powered platform helps you maintain the highest safety standards across your entire supply chain.
             </p>
             <div className="mt-10 flex items-center gap-x-6">
               <Link
@@ -141,7 +141,7 @@ export default function LogisticsPage() {
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Ready to transform your logistics safety standards?
             <br />
-            Start using SiteSafe today.
+            Start using Nexxau today.
           </h2>
           <div className="mt-10 flex items-center gap-x-6">
             <Link

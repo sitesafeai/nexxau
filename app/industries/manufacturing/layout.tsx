@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Manufacturing Industry Solutions | SiteSafe',
+  title: 'Manufacturing Industry Solutions | Nexxau',
   description: 'Enhance manufacturing safety with automated monitoring and predictive analytics. Reduce incidents and improve compliance.',
 };
 

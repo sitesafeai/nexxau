@@ -2,30 +2,30 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: {
-    template: '%s | SiteSafe Blog',
-    default: 'SiteSafe Blog - Industrial Safety Insights & Best Practices',
+    template: '%s | Nexxau Blog',
+    default: 'Nexxau Blog - Industrial Safety Insights & Best Practices',
   },
   description: 'Expert insights, industry news, and best practices for industrial safety. Learn about AI-powered safety monitoring, compliance, and workplace protection.',
   keywords: ['industrial safety', 'workplace safety', 'safety monitoring', 'AI safety', 'construction safety', 'manufacturing safety', 'safety compliance', 'safety best practices'],
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://sitesafe.com/blog',
-    siteName: 'SiteSafe Blog',
-    title: 'SiteSafe Blog - Industrial Safety Insights & Best Practices',
+    url: 'https://nexxau.com/blog',
+    siteName: 'Nexxau Blog',
+    title: 'Nexxau Blog - Industrial Safety Insights & Best Practices',
     description: 'Expert insights, industry news, and best practices for industrial safety. Learn about AI-powered safety monitoring, compliance, and workplace protection.',
     images: [
       {
         url: '/images/blog-og-image.jpg',
         width: 1200,
         height: 630,
-        alt: 'SiteSafe Blog',
+        alt: 'Nexxau Blog',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'SiteSafe Blog - Industrial Safety Insights & Best Practices',
+    title: 'Nexxau Blog - Industrial Safety Insights & Best Practices',
     description: 'Expert insights, industry news, and best practices for industrial safety. Learn about AI-powered safety monitoring, compliance, and workplace protection.',
     images: ['/images/blog-og-image.jpg'],
   },

@@ -84,7 +84,7 @@ export default function Features() {
             Powerful Features
           </h2>
           <p className="mt-6 text-lg leading-8 text-gray-300">
-            Discover how SiteSafe's comprehensive suite of features transforms safety management.
+            Discover how Nexxau's comprehensive suite of features transforms safety management.
           </p>
         </div>
 

@@ -63,7 +63,7 @@ export default function WhoItsFor() {
       <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Who Benefits from SiteSafe?
+            Who Benefits from Nexxau?
           </h2>
           <p className="mt-6 text-lg leading-8 text-gray-300">
             Our AI-powered safety platform is designed to support everyone involved in maintaining a safe work environment.

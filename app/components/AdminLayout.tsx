@@ -78,7 +78,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <img
                       className="h-8 w-auto"
                       src="/logo.png"
-                      alt="SiteSafe"
+                      alt="Nexxau"
                     />
                   </div>
                   <nav className="flex flex-1 flex-col">
@@ -139,7 +139,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <img
               className="h-8 w-auto"
               src="/logo.png"
-              alt="SiteSafe"
+              alt="Nexxau"
             />
           </div>
           <nav className="flex flex-1 flex-col">

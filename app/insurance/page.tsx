@@ -1,6 +1,6 @@
 'use client';
 
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import DashboardLayout from '@/src/components/dashboard/DashboardLayout';
 import {
   ChartBarIcon,
   ExclamationTriangleIcon,
@@ -8,7 +8,14 @@ import {
   UserGroupIcon,
   ShieldCheckIcon,
   CurrencyDollarIcon,
+  CogIcon,
+  ArrowPathIcon,
+  EllipsisVerticalIcon,
 } from '@heroicons/react/24/outline';
+import Link from 'next/link';
+import Navbar from '@/src/components/Navbar';
+import SmoothScrollLink from '@/app/components/SmoothScrollLink';
+import PasswordProtect from '@/app/components/PasswordProtect';
 
 const stats = [
   { name: 'Total Clients', value: '89', icon: UserGroupIcon },
@@ -71,139 +78,218 @@ const recentClaims = [
   },
 ];
 
+const features = [
+  {
+    name: 'Risk Reduction',
+    description: 'Proactively identify and mitigate safety risks before they result in claims, reducing your exposure and improving loss ratios.',
+    icon: ShieldCheckIcon,
+  },
+  {
+    name: 'Data-Driven Insights',
+    description: 'Access comprehensive analytics and reporting tools to better understand risk patterns and make informed underwriting decisions.',
+    icon: ChartBarIcon,
+  },
+  {
+    name: 'Customizable Solutions',
+    description: 'Tailor our platform to your specific needs with flexible integration options and customizable risk assessment parameters.',
+    icon: CogIcon,
+  },
+  {
+    name: 'Real-Time Monitoring',
+    description: 'Monitor safety conditions in real-time, enabling proactive intervention and reducing the likelihood of incidents.',
+    icon: ArrowPathIcon,
+  },
+  {
+    name: 'Client Success',
+    description: 'Help your clients improve their safety performance, leading to better retention and stronger relationships.',
+    icon: UserGroupIcon,
+  },
+];
+
+const metrics = [
+  { id: 1, stat: '30%', label: 'Average reduction in workplace incidents' },
+  { id: 2, stat: '45%', label: 'Decrease in safety-related claims' },
+  { id: 3, stat: '60%', label: 'Faster incident response time' },
+  { id: 4, stat: '85%', label: 'Client satisfaction rate' },
+];
+
+const integrationSteps = [
+  {
+    id: 1,
+    name: 'Assessment',
+    description: 'We evaluate your current risk management processes and identify integration opportunities.',
+  },
+  {
+    id: 2,
+    name: 'Customization',
+    description: 'Tailor our platform to your specific needs and risk assessment criteria.',
+  },
+  {
+    id: 3,
+    name: 'Integration',
+    description: 'Seamlessly integrate with your existing systems and workflows.',
+  },
+  {
+    id: 4,
+    name: 'Training',
+    description: 'Comprehensive training for your team and client support.',
+  },
+  {
+    id: 5,
+    name: 'Launch',
+    description: 'Go live with your customized safety monitoring solution.',
+  },
+];
+
 export default function InsuranceDashboard() {
   return (
-    <DashboardLayout userRole="insurance">
-      <div className="space-y-8">
-        <div>
-          <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
-            Insurance Dashboard
-          </h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Client risk analysis and claims management.
-          </p>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <div
-              key={stat.name}
-              className="relative overflow-hidden rounded-lg bg-white px-4 pb-12 pt-5 shadow sm:px-6 sm:pt-6"
-            >
-              <div className="flex items-center space-x-4">
-                <div className="flex-shrink-0">
-                  <div className="rounded-md bg-blue-50 p-3">
-                    <stat.icon className="h-6 w-6 text-primary-600" aria-hidden="true" />
+    <PasswordProtect>
+      <div className="min-h-screen bg-gray-900">
+        <Navbar />
+        
+        {/* Hero section */}
+        <div className="relative isolate overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]" />
+          <div className="absolute inset-0 bg-[radial-gradient(45%_45%_at_50%_50%,rgba(59,130,246,0.1),rgba(255,255,255,0))]" />
+          <div className="mx-auto max-w-7xl pb-24 pt-10 sm:pb-32 lg:grid lg:grid-cols-2 lg:gap-x-8 lg:px-8 lg:py-40 relative z-10">
+            <div className="px-6 lg:px-0 lg:pt-4">
+              <div className="mx-auto max-w-2xl">
+                <div className="max-w-lg">
+                  <h1 className="mt-10 text-4xl font-bold tracking-tight text-white sm:text-6xl">
+                    Transform Your Risk Management with Nexxau
+                  </h1>
+                  <p className="mt-6 text-lg leading-8 text-gray-300">
+                    Partner with us to revolutionize how you manage risk, reduce claims, and protect your clients. Our AI-powered safety monitoring platform helps you stay ahead of risks and build stronger client relationships.
+                  </p>
+                  <div className="mt-10 flex flex-col sm:flex-row gap-4">
+                    <Link
+                      href="/contact/sales"
+                      className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 md:py-4 md:text-lg md:px-10 transition-colors"
+                    >
+                      Schedule a Demo
+                    </Link>
+                    <SmoothScrollLink
+                      href="#features"
+                      className="inline-flex items-center justify-center px-8 py-3 border border-white text-base font-medium rounded-md text-white hover:bg-white/10 md:py-4 md:text-lg md:px-10 transition-colors"
+                    >
+                      Learn more <span aria-hidden="true">→</span>
+                    </SmoothScrollLink>
                   </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-500">{stat.name}</p>
-                </div>
-              </div>
-              <div className="flex items-baseline">
-                <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
               </div>
             </div>
-          ))}
-        </div>
-
-        {/* Risk Analysis */}
-        <div className="bg-white shadow sm:rounded-lg">
-          <div className="px-4 py-5 sm:px-6">
-            <h3 className="text-lg font-medium leading-6 text-gray-900">Risk Analysis</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Current risk levels and trends for your clients.
-            </p>
-          </div>
-          <div className="border-t border-gray-200">
-            <ul role="list" className="divide-y divide-gray-200">
-              {riskAnalysis.map((client) => (
-                <li key={client.id} className="px-4 py-4 sm:px-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        {client.riskLevel === 'Low' && (
-                          <ShieldCheckIcon className="h-5 w-5 text-green-400" aria-hidden="true" />
-                        )}
-                        {client.riskLevel === 'Medium' && (
-                          <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" aria-hidden="true" />
-                        )}
-                        {client.riskLevel === 'High' && (
-                          <ExclamationTriangleIcon className="h-5 w-5 text-red-400" aria-hidden="true" />
-                        )}
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-900">{client.client}</p>
-                        <div className="flex items-center space-x-2">
-                          <p className="text-sm text-gray-500">
-                            Risk Level: {client.riskLevel}
-                          </p>
-                          <span className="text-sm text-gray-500">•</span>
-                          <p className="text-sm text-gray-500">
-                            Violations: {client.violations}
-                          </p>
-                          <span className="text-sm text-gray-500">•</span>
-                          <p className="text-sm text-gray-500">
-                            Trend: {client.trend}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="ml-2 flex flex-shrink-0">
-                      <p className="text-sm text-gray-500">{client.lastUpdated}</p>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
           </div>
         </div>
 
-        {/* Recent Claims */}
-        <div className="bg-white shadow sm:rounded-lg">
-          <div className="px-4 py-5 sm:px-6">
-            <h3 className="text-lg font-medium leading-6 text-gray-900">Recent Claims</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Latest insurance claims and their status.
+        {/* Features section */}
+        <div id="features" className="mx-auto max-w-7xl px-6 lg:px-8 py-24 sm:py-32">
+          <div className="mx-auto max-w-2xl lg:text-center">
+            <h2 className="text-base font-semibold leading-7 text-blue-400">Why Partner With Us</h2>
+            <p className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              Everything you need to enhance your risk management
+            </p>
+            <p className="mt-6 text-lg leading-8 text-gray-300">
+              Our platform is designed to help insurance companies reduce risk, improve client relationships, and make data-driven decisions.
             </p>
           </div>
-          <div className="border-t border-gray-200">
-            <ul role="list" className="divide-y divide-gray-200">
-              {recentClaims.map((claim) => (
-                <li key={claim.id} className="px-4 py-4 sm:px-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <CurrencyDollarIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-900">{claim.client}</p>
-                        <div className="flex items-center space-x-2">
-                          <p className="text-sm text-gray-500">
-                            {claim.type}
-                          </p>
-                          <span className="text-sm text-gray-500">•</span>
-                          <p className="text-sm text-gray-500">
-                            Amount: {claim.amount}
-                          </p>
-                          <span className="text-sm text-gray-500">•</span>
-                          <p className="text-sm text-gray-500">
-                            Status: {claim.status}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="ml-2 flex flex-shrink-0">
-                      <p className="text-sm text-gray-500">{claim.date}</p>
-                    </div>
-                  </div>
-                </li>
+          <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
+            <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-3">
+              {features.map((feature) => (
+                <div key={feature.name} className="flex flex-col">
+                  <dt className="flex items-center gap-x-3 text-base font-semibold leading-7 text-white">
+                    <feature.icon className="h-5 w-5 flex-none text-blue-400" aria-hidden="true" />
+                    {feature.name}
+                  </dt>
+                  <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-300">
+                    <p className="flex-auto">{feature.description}</p>
+                  </dd>
+                </div>
               ))}
-            </ul>
+            </dl>
+          </div>
+        </div>
+
+        {/* Stats section */}
+        <div className="bg-gray-800 py-24 sm:py-32">
+          <div className="mx-auto max-w-7xl px-6 lg:px-8">
+            <div className="mx-auto max-w-2xl lg:max-w-none">
+              <div className="text-center">
+                <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                  Software Trusted By Leading Insurance Companies
+                </h2>
+                <p className="mt-4 text-lg leading-8 text-gray-300">
+                  Our platform is designed to help insurance companies reduce risk and improve safety outcomes
+                </p>
+              </div>
+              <dl className="mt-16 grid grid-cols-1 gap-0.5 overflow-hidden rounded-2xl text-center sm:grid-cols-2 lg:grid-cols-4">
+                {metrics.map((item) => (
+                  <div key={item.id} className="flex flex-col bg-gray-400/5 p-8">
+                    <dt className="text-sm font-semibold leading-6 text-gray-300">{item.label}</dt>
+                    <dd className="order-first text-3xl font-semibold tracking-tight text-white">{item.stat}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </div>
+        </div>
+
+        {/* How it works section */}
+        <div className="bg-gray-900 py-24 sm:py-32">
+          <div className="mx-auto max-w-7xl px-6 lg:px-8">
+            <div className="mx-auto max-w-2xl lg:text-center">
+              <h2 className="text-base font-semibold leading-7 text-blue-400">Integration Process</h2>
+              <p className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                Simple, seamless integration
+              </p>
+              <p className="mt-6 text-lg leading-8 text-gray-300">
+                Our team will guide you through every step of the integration process, ensuring a smooth transition to enhanced risk management.
+              </p>
+            </div>
+            <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
+              <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-5">
+                {integrationSteps.map((step) => (
+                  <div key={step.id} className="flex flex-col">
+                    <dt className="text-base font-semibold leading-7 text-white">
+                      {step.id}. {step.name}
+                    </dt>
+                    <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-300">
+                      <p className="flex-auto">{step.description}</p>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </div>
+        </div>
+
+        {/* CTA section */}
+        <div className="bg-gray-900">
+          <div className="mx-auto max-w-7xl py-24 sm:px-6 sm:py-32 lg:px-8">
+            <div className="relative isolate overflow-hidden bg-gray-800 px-6 py-24 text-center shadow-2xl sm:rounded-3xl sm:px-16">
+              <h2 className="mx-auto max-w-2xl text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                Ready to transform your risk management?
+              </h2>
+              <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-gray-300">
+                Schedule a demo to see how Nexxau can help you reduce risk, improve client relationships, and make data-driven decisions.
+              </p>
+              <div className="mt-10 flex items-center justify-center gap-x-6">
+                <Link
+                  href="/contact/sales"
+                  className="rounded-md bg-white px-3.5 py-2.5 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white transition-colors duration-200"
+                >
+                  Schedule a Demo
+                </Link>
+                <Link 
+                  href="/contact/sales" 
+                  className="text-sm font-semibold leading-6 text-white hover:text-blue-400 transition-colors duration-200"
+                >
+                  Contact Sales <span aria-hidden="true">→</span>
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </PasswordProtect>
   );
 } 
