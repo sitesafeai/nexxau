@@ -72,7 +72,7 @@ export default function ContactPage() {
               Get in Touch
             </h1>
             <p className="mt-6 text-lg leading-8 text-gray-300">
-              Have questions about SiteSafe? We're here to help. Reach out to us and we'll get back to you as soon as possible.
+              Have questions about Nexxau? We're here to help. Reach out to us and we'll get back to you as soon as possible.
             </p>
           </div>
         </div>
@@ -197,8 +197,8 @@ export default function ContactPage() {
                   name="industry"
                   value={formData.industry}
                   onChange={handleChange}
-                  className="block w-full rounded-md border-0 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:max-w-xs sm:text-sm sm:leading-6"
-                  style={{ padding: '8px 40px 8px 40px' }}
+                  className="block w-full rounded-md border-0 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:max-w-xs sm:text-sm sm:leading-6 py-2"
+                  style={{ paddingLeft: '12px' }}
                 >
                   <option value="">Select an industry</option>
                   <option value="construction">Construction</option>
@@ -251,11 +251,11 @@ export default function ContactPage() {
             <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-2">
               <div className="flex flex-col">
                 <dt className="text-base font-semibold leading-7 text-white">
-                  How quickly can I get started with SiteSafe?
+                  How quickly can I get started with Nexxau?
                 </dt>
                 <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-300">
                   <p className="flex-auto">
-                    We can have you up and running within 3 days to a week. Our team will guide you through the setup process and provide comprehensive training.
+                    We can have you up and running within 3 days to a week. Our team will work closely with your safety and project managers to ensure your success with Nexxau.
                   </p>
                 </dd>
               </div>
@@ -265,17 +265,17 @@ export default function ContactPage() {
                 </dt>
                 <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-300">
                   <p className="flex-auto">
-                    We provide 24/7 technical support, regular training sessions, and dedicated account managers to ensure your success with SiteSafe.
+                    We provide 24/7 technical support, regular training sessions, and dedicated account managers to ensure your success with Nexxau.
                   </p>
                 </dd>
               </div>
               <div className="flex flex-col">
                 <dt className="text-base font-semibold leading-7 text-white">
-                  Is SiteSafe suitable for my industry?
+                  Is Nexxau suitable for my industry?
                 </dt>
                 <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-300">
                   <p className="flex-auto">
-                    SiteSafe is designed to work across various industries including construction, manufacturing, logistics, and energy. Our AI technology adapts to your specific safety requirements.
+                    Nexxau is designed to work across various industries including construction, manufacturing, logistics, and energy. Our AI technology adapts to your specific safety requirements.
                   </p>
                 </dd>
               </div>

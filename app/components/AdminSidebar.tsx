@@ -28,7 +28,7 @@ export default function AdminSidebar() {
   return (
     <div className="flex h-full w-64 flex-col bg-gray-900">
       <div className="flex h-16 flex-shrink-0 items-center bg-gray-800 px-4">
-        <h1 className="text-xl font-bold text-white">SiteSafe Admin</h1>
+        <h1 className="text-xl font-bold text-white">Nexxau Admin</h1>
       </div>
       <div className="flex flex-1 flex-col overflow-y-auto">
         <nav className="flex-1 space-y-1 px-2 py-4">

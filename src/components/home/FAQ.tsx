@@ -5,12 +5,12 @@ import { ChevronDownIcon } from '@heroicons/react/24/outline';
 
 const faqs = [
   {
-    question: 'How does SiteSafe\'s AI detect safety violations?',
-    answer: 'Our AI uses computer vision to analyze video feeds in real-time, detecting PPE violations, unsafe behaviors, and hazardous conditions. The system is trained on millions of safety scenarios and continuously improves its accuracy.'
+    question: 'How does Nexxau\'s AI detect safety violations?',
+    answer: 'Nexxau works with most IP cameras and can be integrated with your existing security infrastructure. We also offer complete hardware bundles with AI-ready cameras and mounting equipment.'
   },
   {
     question: 'What kind of hardware do I need?',
-    answer: 'SiteSafe works with most IP cameras and can be integrated with your existing security infrastructure. We also offer complete hardware bundles with AI-ready cameras and mounting equipment.'
+    answer: 'Nexxau works with most IP cameras and can be integrated with your existing security infrastructure. We also offer complete hardware bundles with AI-ready cameras and mounting equipment.'
   },
   {
     question: 'How long does it take to implement?',
@@ -44,7 +44,7 @@ export default function FAQ() {
             Frequently Asked Questions
           </h2>
           <p className="mt-6 text-lg leading-8 text-gray-300">
-            Get answers to common questions about SiteSafe's AI-powered safety solutions.
+            Get answers to common questions about Nexxau's AI-powered safety solutions.
           </p>
         </div>
 

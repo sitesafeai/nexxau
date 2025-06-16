@@ -8,8 +8,8 @@ interface FAQ {
 
 const faqs: FAQ[] = [
   {
-    question: "What is SiteSafe?",
-    answer: "SiteSafe is an AI-powered safety monitoring system that helps construction sites maintain compliance with safety regulations and prevent accidents."
+    question: "What is Nexxau?",
+    answer: "Nexxau is an AI-powered safety monitoring system that helps construction sites maintain compliance with safety regulations and prevent accidents."
   },
   {
     question: "How does the AI detection work?",

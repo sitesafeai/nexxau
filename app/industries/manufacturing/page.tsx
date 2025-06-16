@@ -110,7 +110,7 @@ export default function ManufacturingPage() {
               Ready to Transform Your Manufacturing Safety?
             </h2>
             <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-gray-300">
-              Join leading manufacturers who trust SiteSafe to protect their workforce and maintain compliance.
+              Join leading manufacturers who trust Nexxau to protect their workforce and maintain compliance.
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
               <Link

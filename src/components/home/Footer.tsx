@@ -54,7 +54,7 @@ export default function Footer() {
         </div>
         <div className="mt-8 md:order-1 md:mt-0">
           <p className="text-center text-base leading-5 text-gray-300">
-            &copy; {new Date().getFullYear()} SiteSafe. All rights reserved.
+            &copy; {new Date().getFullYear()} Nexxau. All rights reserved.
           </p>
           <div className="mt-4 flex justify-center space-x-6">
             {navigation.main.map((item) => (

@@ -13,56 +13,64 @@ export default function DemoPage() {
         <div className="mx-auto max-w-4xl px-6 lg:px-8 text-center">
           <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl mb-4">Watch a Demo</h1>
           <p className="mt-2 text-lg text-gray-300 mb-2">
-            See how SiteSafe works in action. Explore our demo videos to understand the platform's features and user experience.
+            See how Nexxau works in action. Explore our demo videos to understand the platform's features and user experience.
           </p>
           <p className="text-sm text-gray-400 mb-8">
-            *Disclaimer: The following demo videos are from a third-party platform. SiteSafe will look and function almost identically, but some branding and minor details may differ.
+            *Disclaimer: The following demo videos are from a third-party platform. Nexxau will look and function almost identically, but some branding and minor details may differ.
           </p>
         </div>
         <div className="mx-auto max-w-4xl px-6 grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-          {/* Video 1 */}
-          <div className="aspect-w-16 aspect-h-9 w-full">
-            <iframe
-              src="https://www.youtube.com/embed/dQw4w9WgXcQ"
-              title="Demo Video 1"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="rounded-lg w-full h-64 md:h-72"
-            ></iframe>
-            <p className="mt-2 text-gray-300 text-sm">Demo 1: Platform Overview</p>
+          {/* Video 1: fast-machine-demo.mov */}
+          <div className="aspect-w-16 aspect-h-9 w-full rounded-lg overflow-hidden">
+            <video
+              src="/fast-machine-demo.mov"
+              title="Fast Machine Demo"
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+            ></video>
+            <p className="mt-2 text-gray-300 text-sm">Demo 1: Fast Machine Operations</p>
           </div>
-          {/* Video 2 */}
-          <div className="aspect-w-16 aspect-h-9 w-full">
-            <iframe
-              src="https://www.youtube.com/embed/9bZkp7q19f0"
-              title="Demo Video 2"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="rounded-lg w-full h-64 md:h-72"
-            ></iframe>
-            <p className="mt-2 text-gray-300 text-sm">Demo 2: Real-Time Safety Monitoring</p>
+          {/* Video 2: forklift-close-call.mov */}
+          <div className="aspect-w-16 aspect-h-9 w-full rounded-lg overflow-hidden">
+            <video
+              src="/forklift-close-call.mov"
+              title="Forklift Close Call"
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+            ></video>
+            <p className="mt-2 text-gray-300 text-sm">Demo 2: Forklift Close Call</p>
           </div>
-          {/* Video 3 */}
-          <div className="aspect-w-16 aspect-h-9 w-full">
-            <iframe
-              src="https://www.youtube.com/embed/tgbNymZ7vqY"
-              title="Demo Video 3"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="rounded-lg w-full h-64 md:h-72"
-            ></iframe>
-            <p className="mt-2 text-gray-300 text-sm">Demo 3: Incident Reporting</p>
+          {/* Video 3: worker-posture-danger.mov */}
+          <div className="aspect-w-16 aspect-h-9 w-full rounded-lg overflow-hidden">
+            <video
+              src="/worker-posture-danger.mov"
+              title="Worker Posture Danger"
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+            ></video>
+            <p className="mt-2 text-gray-300 text-sm">Demo 3: Worker Posture Danger</p>
           </div>
-          {/* Video 4 */}
-          <div className="aspect-w-16 aspect-h-9 w-full">
-            <iframe
-              src="https://www.youtube.com/embed/oHg5SJYRHA0"
-              title="Demo Video 4"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="rounded-lg w-full h-64 md:h-72"
-            ></iframe>
-            <p className="mt-2 text-gray-300 text-sm">Demo 4: Analytics & Reporting</p>
+          {/* Video 4: forklift-danger-preview.mov */}
+          <div className="aspect-w-16 aspect-h-9 w-full rounded-lg overflow-hidden">
+            <video
+              src="/forklift-danger-preview.mov"
+              title="Forklift Danger Preview"
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+            ></video>
+            <p className="mt-2 text-gray-300 text-sm">Demo 4: Forklift Danger Preview</p>
           </div>
         </div>
         <div className="mx-auto max-w-4xl px-6 text-center">

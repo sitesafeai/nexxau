@@ -38,7 +38,7 @@ export default function ImageUpload({ onUploadComplete, folder = 'blog' }: Image
 
     return (
         <CldUploadWidget
-            uploadPreset="sitesafe"
+            uploadPreset="nexxau"
             options={{
                 maxFiles: 1,
                 resourceType: 'image',

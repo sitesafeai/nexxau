@@ -83,7 +83,7 @@ export default function SalesContactPage() {
               Schedule a Demo
             </h1>
             <p className="mt-6 text-lg leading-8 text-gray-300">
-              Ready to transform your workplace safety with AI? Schedule a demo with our team and see how SiteSafe can help your business.
+              Ready to transform your workplace safety with AI? Schedule a demo with our team and see how Nexxau can help your business.
             </p>
           </div>
         </div>
@@ -98,7 +98,7 @@ export default function SalesContactPage() {
               Contact Information
             </h2>
             <p className="mt-6 text-lg leading-8 text-gray-300">
-              Our sales team is ready to help you implement SiteSafe in your organization. Get in touch to learn more about our solutions.
+              Our sales team is ready to help you implement Nexxau in your organization. Get in touch to learn more about our solutions.
             </p>
             
             <dl className="mt-10 space-y-6 text-base leading-7 text-gray-300">

@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
     // Prepare email content
     const mailOptions = {
-      from: `"SiteSafe Contact Form" <${process.env.GMAIL_USER}>`,
+      from: `"Nexxau Contact Form" <${process.env.GMAIL_USER}>`,
       to: process.env.GMAIL_USER,
       subject: `New Contact Form Submission from ${name}`,
       html: `

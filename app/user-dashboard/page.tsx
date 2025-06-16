@@ -1,9 +1,9 @@
 "use client";
 import { useState } from 'react';
-import Sidebar from '@/components/dashboard/Sidebar';
-import WorkflowBuilder from '@/components/workflow/WorkflowBuilder';
-import PublicActiveAlertsTable from '@/components/dashboard/PublicActiveAlertsTable';
-import PublicAlertRulesConfig from '@/components/dashboard/PublicAlertRulesConfig';
+import Sidebar from '@/src/components/dashboard/Sidebar';
+import WorkflowBuilder from '@/src/components/dashboard/WorkflowBuilder';
+import PublicActiveAlertsTable from '@/src/components/dashboard/PublicActiveAlertsTable';
+import PublicAlertRulesConfig from '@/src/components/dashboard/PublicAlertRulesConfig';
 import ErrorBoundary from '@/components/ErrorBoundary';
 
 function Placeholder({ title }: { title: string }) {

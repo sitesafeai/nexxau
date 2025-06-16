@@ -52,7 +52,7 @@ export default function OilAndGasPage() {
               Oil & Gas Safety Solutions
             </h1>
             <p className="mt-6 text-lg leading-8 text-gray-600">
-              Ensure critical safety in oil and gas operations with SiteSafe's advanced monitoring systems. Our AI-powered solutions help you maintain the highest safety standards in one of the most demanding industries.
+              Ensure critical safety in oil and gas operations with Nexxau's advanced monitoring systems. Our AI-powered solutions help you maintain the highest safety standards in one of the most demanding industries.
             </p>
             <div className="mt-10 flex items-center gap-x-6">
               <Link
@@ -154,7 +154,7 @@ export default function OilAndGasPage() {
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Ready to transform your oil and gas safety standards?
             <br />
-            Start using SiteSafe today.
+            Start using Nexxau today.
           </h2>
           <div className="mt-10 flex items-center gap-x-6">
             <Link

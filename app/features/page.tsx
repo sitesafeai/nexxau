@@ -45,9 +45,9 @@ const features = [
     ]
   },
   {
-    name: 'SiteSafe Copilot',
+    name: 'Nexxau Copilot',
     description: 'Your AI assistant for smarter safety management, from creating alerts to actionable feedback.',
-    longDescription: 'SiteSafe Copilot is your intelligent AI assistant designed to help you manage site safety with ease. Copilot can create custom alerts, analyze your site data, and provide actionable feedback such as identifying the most dangerous worksites, the most frequently repeated alerts, and more. It empowers you to make data-driven decisions and continuously improve safety outcomes.',
+    longDescription: 'Nexxau Copilot is your intelligent AI assistant designed to help you manage site safety with ease. Copilot can create custom alerts, analyze your site data, and provide actionable feedback such as identifying the most dangerous worksites, the most frequently repeated alerts, and more. It empowers you to make data-driven decisions and continuously improve safety outcomes.',
     icon: ShieldCheckIcon,
     benefits: [
       'AI-powered alert creation',
@@ -108,7 +108,7 @@ export default function FeaturesPage() {
               Powerful Features for Modern Safety
             </h1>
             <p className="mt-6 text-lg leading-8 text-gray-300">
-              Discover how SiteSafe's comprehensive suite of features can transform your construction site safety management.
+              Discover how Nexxau's comprehensive suite of features can transform your construction site safety management.
             </p>
           </div>
         </div>
@@ -148,7 +148,7 @@ export default function FeaturesPage() {
               Ready to Transform Your Site Safety?
             </h2>
             <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-gray-300">
-              Join leading construction companies who trust SiteSafe to protect their workers and improve compliance.
+              Join leading construction companies who trust Nexxau to protect their workers and improve compliance.
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
               <Link

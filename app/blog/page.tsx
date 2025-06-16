@@ -69,15 +69,15 @@ export default function BlogPage() {
   const structuredData = {
     '@context': 'https://schema.org',
     '@type': 'Blog',
-    name: 'SiteSafe Blog',
+    name: 'Nexxau Blog',
     description: 'Expert insights, industry news, and best practices for industrial safety.',
-    url: 'https://sitesafe.com/blog',
+    url: 'https://nexxau.com/blog',
     publisher: {
       '@type': 'Organization',
-      name: 'SiteSafe',
+      name: 'Nexxau',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://sitesafe.com/logo.png'
+        url: 'https://nexxau.com/logo.png'
       }
     },
     blogPost: featuredPosts.map(post => ({
@@ -87,10 +87,10 @@ export default function BlogPage() {
       datePublished: post.publishedAt,
       author: {
         '@type': 'Person',
-        name: post.author?.name || 'SiteSafe Team'
+        name: post.author?.name || 'Nexxau Team'
       },
       image: post.featuredImage,
-      url: `https://sitesafe.com/blog/${post.slug}`
+      url: `https://nexxau.com/blog/${post.slug}`
     }))
   };
 
@@ -148,7 +148,7 @@ export default function BlogPage() {
         </div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            SiteSafe Blog
+            Nexxau Blog
           </h1>
           <p className="mt-4 text-xl text-gray-300 max-w-3xl">
             Insights, updates, and best practices for industrial safety and AI-powered monitoring solutions.
@@ -178,7 +178,7 @@ export default function BlogPage() {
                     </span>
                     <span className="inline-flex items-center">
                       <UserIcon className="h-4 w-4 mr-1" />
-                      {post.author?.name || 'SiteSafe Team'}
+                      {post.author?.name || 'Nexxau Team'}
                     </span>
                   </div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">

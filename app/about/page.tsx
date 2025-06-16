@@ -63,7 +63,7 @@ export default function AboutPage() {
             <div className="aspect-[3/2] overflow-hidden rounded-2xl bg-gray-800">
               <CloudinaryImage
                 src="https://res.cloudinary.com/dvab4kk60/image/upload/v1717890000/about/founder.jpg"
-                alt="Luiz Carneiro, Founder of SiteSafe"
+                alt="Luiz Carneiro, Founder of Nexxau"
                 width={800}
                 height={600}
                 className="object-cover"
@@ -78,7 +78,7 @@ export default function AboutPage() {
               Born in Rio de Janeiro and raised in Miami, I've always been passionate about two things: technology and helping people. Growing up, I witnessed firsthand how technology could transform lives and solve complex problems. But it wasn't until I saw the challenges faced by blue-collar workers across various industries that I found my true calling.
             </p>
             <p className="mt-6 text-lg leading-8 text-gray-300">
-              After years of working in tech and seeing the devastating impact of workplace accidents, I realized there had to be a better way. Why couldn't we use the same AI technology that powers self-driving cars to protect workers in industrial settings? This question led to the creation of SiteSafe.
+              After years of working in tech and seeing the devastating impact of workplace accidents, I realized there had to be a better way. Why couldn't we use the same AI technology that powers self-driving cars to protect workers in industrial settings? This question led to the creation of Nexxau.
             </p>
             <div className="mt-10 flex items-center gap-x-6">
               <Link

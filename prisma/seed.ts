@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 const blogPosts = [
   {
     title: "Top 10 PPE Mistakes Workers Still Make (And How to Prevent Them)",
-    description: "Break down the most common PPE errors found on construction and industrial sites, like improper helmet fit or missing vests, and explain how tech like SiteSafe can catch them instantly.",
+    description: "Break down the most common PPE errors found on construction and industrial sites, like improper helmet fit or missing vests, and explain how tech like Nexxau can catch them instantly.",
     content: "Detailed content about PPE mistakes...",
     category: "Safety Tips",
     featured: true,
@@ -17,7 +17,7 @@ const blogPosts = [
   },
   {
     title: "How to Create a Safety-First Culture on Your Worksite",
-    description: "Explore practical steps site managers can take to shift mindset, including daily briefings, visual reminders, and gamification using compliance tracking tools like SiteSafe.",
+    description: "Explore practical steps site managers can take to shift mindset, including daily briefings, visual reminders, and gamification using compliance tracking tools like Nexxau.",
     content: "Detailed content about safety culture...",
     category: "Safety Tips",
     featured: false,
@@ -28,7 +28,7 @@ const blogPosts = [
   },
   {
     title: "The Rise of AI in Construction Safety: What 2025 Will Look Like",
-    description: "Review the latest developments in AI safety tools and where the industry is heading—highlight SiteSafe's role in this larger transformation.",
+    description: "Review the latest developments in AI safety tools and where the industry is heading—highlight Nexxau's role in this larger transformation.",
     content: "Detailed content about AI in construction...",
     category: "Industry News",
     featured: true,
@@ -39,7 +39,7 @@ const blogPosts = [
   },
   {
     title: "OSHA's New Focus Areas for 2025: What Contractors Need to Know",
-    description: "Summarize recent OSHA initiatives or emphasis programs, and how proactive firms can use SiteSafe to stay ahead of regulatory changes.",
+    description: "Summarize recent OSHA initiatives or emphasis programs, and how proactive firms can use Nexxau to stay ahead of regulatory changes.",
     content: "Detailed content about OSHA updates...",
     category: "Industry News",
     featured: false,
@@ -50,7 +50,7 @@ const blogPosts = [
   },
   {
     title: "How Computer Vision is Changing Worksite Safety Forever",
-    description: "A deep dive into how object detection, AI, and real-time video analysis are enabling safer environments—include diagrams or visual examples of SiteSafe in action.",
+    description: "A deep dive into how object detection, AI, and real-time video analysis are enabling safer environments—include diagrams or visual examples of Nexxau in action.",
     content: "Detailed content about computer vision...",
     category: "Technology",
     featured: true,

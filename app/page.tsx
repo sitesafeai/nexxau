@@ -39,7 +39,7 @@ const features = [
 const stats = [
   {
     name: '60% Reduction in Safety Incidents',
-    description: 'Companies using SiteSafe have seen a dramatic decrease in workplace accidents and near-misses.',
+    description: 'Companies using Nexxau have seen a dramatic decrease in workplace accidents and near-misses.',
     icon: ExclamationTriangleIcon,
   },
   {
