@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/app/lib/prisma';
 import slugify from 'slugify';
 
 export async function POST(req: Request) {
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { title, description, content, featuredImage, category, tags } = body;
+    const { title, description, content, featuredImage, category } = body;
 
     const slug = slugify(title, { lower: true, strict: true });
 
@@ -24,7 +24,6 @@ export async function POST(req: Request) {
         content,
         featuredImage,
         category,
-        tags,
         status: 'draft',
         authorId: session.user.id,
       },
@@ -45,7 +44,7 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json();
-    const { id, title, description, content, featuredImage, category, tags } = body;
+    const { id, title, description, content, featuredImage, category } = body;
 
     const post = await prisma.blogPost.update({
       where: { id },
@@ -55,7 +54,6 @@ export async function PUT(req: Request) {
         content,
         featuredImage,
         category,
-        tags,
         status: 'draft',
       },
     });
