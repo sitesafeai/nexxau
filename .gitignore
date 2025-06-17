@@ -114,3 +114,48 @@ logs/
 *.caffemodel.tfl
 *.caffemodel.mlmodel
 *.caffemodel.mlpackage
+
+# Node.js
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+ENV/
+backend/venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# YOLO training files
+runs/
+*.pt
+images-for-yolo/
+
+# Logs
+logs/
+*.log
+
+# Large files
+*.dylib
+*.so
+*.dll
+*.bin
+*.model
+*.weights
+*.onnx
+*.h5
+*.pkl
+*.joblib
+*.npy
+*.npz
+*.pt
+*.pth
+*.ckpt
+*.safetensors
