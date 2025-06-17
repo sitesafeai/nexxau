@@ -39,6 +39,7 @@
     "@tiptap/react": "^2.14.0",
     "@tiptap/starter-kit": "^2.14.0",
     "@types/bcryptjs": "^3.0.0",
+    "axios": "^1.10.0",
     "bcryptjs": "^3.0.2",
     "chart.js": "^4.4.9",
     "cloudinary": "^2.6.1",
@@ -61,8 +62,6 @@
     "slugify": "^1.6.6",
     "zod": "^3.25.34"
   },
-
-
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.8",
     "@types/node": "^20",
