@@ -14,6 +14,7 @@ import {
 import PasswordProtect from '@/app/components/PasswordProtect';
 import { Fragment } from 'react';
 import { Menu } from '@headlessui/react';
+import { Transition } from '@headlessui/react/transition';
 import { classNames } from '@/lib/utils';
 
 interface PendingUser {
