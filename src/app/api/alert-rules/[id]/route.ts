@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import prisma from '@/prisma';
-import { authOptions } from '../../auth/[...nextauth]/route';
+import { prisma } from '@/app/lib/prisma';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 // GET /api/alert-rules/[id] - Get a single alert rule
 export async function GET(
