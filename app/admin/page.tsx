@@ -13,8 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 import PasswordProtect from '@/app/components/PasswordProtect';
 import { Fragment } from 'react';
-import { Menu } from '@headlessui/react';
-import { Transition } from '@headlessui/react/transition';
+import { Menu, Transition } from '@headlessui/react';
 import { classNames } from '@/lib/utils';
 
 interface PendingUser {
