@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import Navbar from '@/src/components/Navbar';
 import Footer from '@/src/components/home/Footer';
-import { CloudinaryImage } from '../lib/cloudinary';
+import { CloudinaryImage } from '@/app/lib/cloudinary';
 import { 
   HeartIcon, 
   LightBulbIcon, 
