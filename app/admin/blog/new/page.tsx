@@ -277,7 +277,7 @@ export default function NewBlogPost() {
                         { value: 'First.Name', title: 'First Name' },
                         { value: 'Email', title: 'Email' },
                       ],
-                      ai_request: (request, respondWith) => respondWith.string(() => Promise.reject('See docs to implement AI Assistant')),
+                      ai_request: (request: { prompt: string }, respondWith: { string: (callback: () => Promise<string>) => void }) => respondWith.string(() => Promise.reject('See docs to implement AI Assistant')),
                       content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }'
                     }}
                     onEditorChange={(content: string) => setContent(content)}
