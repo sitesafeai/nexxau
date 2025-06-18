@@ -756,7 +756,7 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm">
                         <button
-                          onClick={() => handleToggleRule(rule.id, !rule.enabled)}
+                          onClick={() => handleToggleRule(rule.id ?? '', !rule.enabled)}
                           className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
                             rule.enabled
                               ? 'bg-green-100 text-green-800'
@@ -768,7 +768,7 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-center">
                         <button
-                          onClick={() => handleDeleteRule(rule.id)}
+                          onClick={() => handleDeleteRule(rule.id ?? '')}
                           className="text-red-600 hover:text-red-900 inline-flex items-center justify-center"
                         >
                           <TrashIcon className="h-5 w-5" />
