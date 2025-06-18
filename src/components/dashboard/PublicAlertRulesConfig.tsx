@@ -4,11 +4,11 @@ import { useState } from 'react';
 import { PlusIcon, TrashIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import type { AlertRule } from '@/src/types/alert';
 
-type AlertType = 'proximity' | 'speed' | 'area_entry' | 'area_exit' | 'idle_time' | 'unauthorized_access' | 'equipment_usage' | 'safety_zone' | 'crowd_density' | 'ppe_detection' | 'ai';
+type AlertType = 'proximity' | 'speed' | 'area_entry' | 'area_exit' | 'idle_time' | 'unauthorized_access' | 'equipment_usage' | 'safety_zone' | 'crowd_density' | 'ppe_detection';
 
 type ParameterConfig = {
   label: string;
-  type?: 'number';
+  type?: 'string' | 'number';
   options?: string[];
 };
 
@@ -18,7 +18,7 @@ type AlertTypeConfig = {
   parameters: Record<string, ParameterConfig>;
 };
 
-const ALERT_TYPES: Record<AlertType, { label: string; parameters: Record<string, { label: string; type: 'string' | 'number' }> }> = {
+const ALERT_TYPES = {
   proximity: {
     label: 'Proximity Alert',
     parameters: {
@@ -136,203 +136,89 @@ const ALERT_TYPES: Record<AlertType, { label: string; parameters: Record<string,
         options: ['construction_zone', 'warehouse', 'loading_dock', 'maintenance_area']
       }
     }
-  },
-  ai: {
-    label: 'AI Alert',
-    description: 'AI-powered alert based on a prompt',
-    parameters: {
-      prompt: { label: 'AI Prompt', type: 'string' }
-    }
   }
 };
 
-// Mock data for demonstration
-const mockRules: AlertRule[] = [
-  {
-    id: '1',
-    name: 'Forklift Speed Limit',
-    description: 'Alert when forklifts exceed 10 mph in warehouse zones',
-    condition: {
-      type: 'speed',
-      parameters: {
-        object1: 'forklift',
-        operator: '>',
-        threshold: 10,
-        unit: 'mph'
-      }
-    },
-    severity: 'HIGH',
-    isActive: true
-  },
-  {
-    id: '2',
-    name: 'Pedestrian Safety Zone',
-    description: 'Alert when forklifts get within 5 feet of pedestrians in high-traffic areas',
-    condition: {
-      type: 'proximity',
-      parameters: {
-        object1: 'forklift',
-        object2: 'person',
-        operator: '<',
-        threshold: 5,
-        unit: 'ft'
-      }
-    },
-    severity: 'CRITICAL',
-    isActive: true
-  }
-];
-
-// Mock AI rules
-const mockAIRules: AlertRule[] = [
-  {
-    id: 'ai-1',
-    name: 'Smart Zone Monitoring',
-    description: 'AI-powered detection of unusual movement patterns in restricted areas',
-    condition: {
-      type: 'area_entry',
-      parameters: {
-        object1: 'person',
-        area: 'restricted_area'
-      }
-    },
-    severity: 'HIGH',
-    isActive: true
-  },
-  {
-    id: 'ai-2',
-    name: 'Behavioral Analysis',
-    description: 'AI detection of unsafe equipment operation patterns',
-    condition: {
-      type: 'equipment_usage',
-      parameters: {
-        equipment: 'forklift',
-        operator: 'unauthorized'
-      }
-    },
-    severity: 'CRITICAL',
-    isActive: true
-  }
-];
-
 export default function PublicAlertRulesConfig() {
-  const [activeTab, setActiveTab] = useState<'regular' | 'ai'>('regular');
-  const [rules, setRules] = useState<AlertRule[]>(mockRules);
-  const [aiRules, setAIRules] = useState<AlertRule[]>(mockAIRules);
+  const [activeTab, setActiveTab] = useState<'regular'>('regular');
+  const [rules, setRules] = useState<AlertRule[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newRule, setNewRule] = useState<AlertRule>({
     id: '',
     name: '',
     description: '',
+    type: 'proximity',
     condition: {
-      type: 'proximity',
-      parameters: {
-        object1: 'forklift',
-        object2: 'person',
-        operator: '>',
-        threshold: 10,
-        unit: 'ft'
-      }
+      object1: 'forklift',
+      object2: 'person',
+      operator: '>',
+      threshold: 10,
+      unit: 'ft'
     },
     severity: 'MEDIUM',
-    isActive: true
+    enabled: true
   });
 
   const handleCreateRule = () => {
-    const newId = activeTab === 'regular' 
-      ? (rules.length + 1).toString()
-      : `ai-${aiRules.length + 1}`;
-    
-    const ruleToAdd: AlertRule = activeTab === 'regular' ? {
+    const ruleToAdd: AlertRule = {
       ...newRule,
-      id: newId
-    } : {
-      id: newId,
-      name: newRule.name,
-      description: newRule.description,
-      condition: {
-        type: 'ai' as AlertType,
-        parameters: {
-          prompt: newRule.description
-        }
-      },
-      severity: 'HIGH',
-      isActive: true
+      id: (rules.length + 1).toString()
     };
 
-    if (activeTab === 'regular') {
-      setRules([...rules, ruleToAdd]);
-    } else {
-      setAIRules([...aiRules, ruleToAdd]);
-    }
-
+    setRules([...rules, ruleToAdd]);
     setIsCreating(false);
     setNewRule({
       id: '',
       name: '',
       description: '',
+      type: 'proximity',
       condition: {
-        type: 'proximity',
-        parameters: {
-          object1: 'forklift',
-          object2: 'person',
-          operator: '>',
-          threshold: 10,
-          unit: 'ft'
-        }
+        object1: 'forklift',
+        object2: 'person',
+        operator: '>',
+        threshold: 10,
+        unit: 'ft'
       },
       severity: 'MEDIUM',
-      isActive: true
+      enabled: true
     });
   };
 
   const handleDeleteRule = (id: string) => {
-    if (activeTab === 'regular') {
-      setRules(rules.filter(rule => rule.id !== id));
-    } else {
-      setAIRules(aiRules.filter(rule => rule.id !== id));
-    }
+    setRules(rules.filter(rule => rule.id !== id));
   };
 
-  const handleToggleRule = (id: string, isActive: boolean) => {
-    if (activeTab === 'regular') {
-      setRules(rules.map(rule => 
-        rule.id === id ? { ...rule, isActive } : rule
-      ));
-    } else {
-      setAIRules(aiRules.map(rule => 
-        rule.id === id ? { ...rule, isActive } : rule
-      ));
-    }
+  const handleToggleRule = (id: string, enabled: boolean) => {
+    setRules(rules.map(rule => 
+      rule.id === id ? { ...rule, enabled } : rule
+    ));
   };
 
   const formatCondition = (rule: AlertRule): string => {
-    const { type, parameters } = rule.condition;
+    const { type, condition } = rule;
     const config = ALERT_TYPES[type];
     
     switch (type) {
       case 'proximity':
-        return `${parameters.object1} ${parameters.operator} ${parameters.threshold} ${parameters.unit} from ${parameters.object2}`;
+        return `${condition.object1} ${condition.operator} ${condition.threshold} ${condition.unit} from ${condition.object2}`;
       case 'speed':
-        return `${parameters.object1} speed ${parameters.operator} ${parameters.threshold} ${parameters.unit}`;
+        return `${condition.object1} speed ${condition.operator} ${condition.threshold} ${condition.unit}`;
       case 'area_entry':
-        return `${parameters.object1} enters ${parameters.area}`;
+        return `${condition.object1} enters ${condition.area}`;
       case 'area_exit':
-        return `${parameters.object1} exits ${parameters.area}`;
+        return `${condition.object1} exits ${condition.area}`;
       case 'idle_time':
-        return `${parameters.equipment} idle for ${parameters.duration} ${parameters.unit}`;
+        return `${condition.equipment} idle for ${condition.duration} ${condition.unit}`;
       case 'unauthorized_access':
-        return `Unauthorized access to ${parameters.area}`;
+        return `Unauthorized access to ${condition.area}`;
       case 'equipment_usage':
-        return `${parameters.operator} use of ${parameters.equipment}`;
+        return `${condition.operator} use of ${condition.equipment}`;
       case 'safety_zone':
-        return `${parameters.object1} in ${parameters.area}`;
+        return `${condition.object1} in ${condition.area}`;
       case 'crowd_density':
-        return `More than ${parameters.max_count} people in ${parameters.area}`;
+        return `More than ${condition.max_count} people in ${condition.area}`;
       case 'ppe_detection':
-        return `Missing ${parameters.ppe_type} in ${parameters.area}`;
-      case 'ai':
-        return parameters.prompt || 'No prompt provided';
+        return `Missing ${condition.ppe_type} in ${condition.area}`;
       default:
         return 'Unknown condition';
     }
@@ -372,17 +258,6 @@ export default function PublicAlertRulesConfig() {
           >
             Regular Rules
           </button>
-          <button
-            onClick={() => setActiveTab('ai')}
-            className={`${
-              activeTab === 'ai'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-            } whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium flex items-center`}
-          >
-            <SparklesIcon className="h-5 w-5 mr-2" />
-            AI Rules
-          </button>
         </nav>
       </div>
 
@@ -390,108 +265,72 @@ export default function PublicAlertRulesConfig() {
         <div className="mt-8 bg-white shadow sm:rounded-lg">
           <div className="px-6 py-8 sm:p-8">
             <h3 className="text-xl font-semibold leading-6 text-gray-900 mb-6">
-              Create New {activeTab === 'ai' ? 'AI' : ''} Alert Rule
+              Create New Alert Rule
             </h3>
             <div className="mt-4 space-y-6">
-              {activeTab === 'ai' ? (
-                <>
-                  <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                      Rule Name
-                    </label>
-                    <input
-                      type="text"
-                      id="name"
-                      value={newRule.name}
-                      onChange={(e) => setNewRule({ ...newRule, name: e.target.value })}
-                      className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-3"
-                      placeholder="e.g., Smart Zone Monitoring"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="ai-prompt" className="block text-sm font-medium text-gray-700 mb-2">
-                      AI Rule Description
-                    </label>
-                    <textarea
-                      id="ai-prompt"
-                      value={newRule.description}
-                      onChange={(e) => setNewRule({ ...newRule, description: e.target.value })}
-                      className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-3"
-                      rows={4}
-                      placeholder="Describe the AI-powered alert in natural language. For example: 'Alert me when there are unusual movement patterns in restricted areas' or 'Notify me if someone is operating equipment without proper safety gear'"
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                      Rule Name
-                    </label>
-                    <input
-                      type="text"
-                      id="name"
-                      value={newRule.name}
-                      onChange={(e) => setNewRule({ ...newRule, name: e.target.value })}
-                      className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-3"
-                      placeholder="e.g., Speed Limit Alert"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-                      Description
-                    </label>
-                    <textarea
-                      id="description"
-                      value={newRule.description}
-                      onChange={(e) => setNewRule({ ...newRule, description: e.target.value })}
-                      className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-3"
-                      rows={3}
-                      placeholder="Describe the alert condition and its purpose..."
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-2">
-                      Alert Type
-                    </label>
-                    <select
-                      id="type"
-                      value={newRule.condition.type}
-                      onChange={(e) => setNewRule({
-                        ...newRule,
-                        condition: {
-                          ...newRule.condition,
-                          type: e.target.value as AlertType,
-                          parameters: ALERT_TYPES[e.target.value as AlertType].parameters
-                        }
-                      })}
-                      className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-3"
-                    >
-                      {Object.entries(ALERT_TYPES).map(([type, config]) => (
-                        <option key={type} value={type}>
-                          {config.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="severity" className="block text-sm font-medium text-gray-700 mb-2">
-                      Severity
-                    </label>
-                    <select
-                      id="severity"
-                      value={newRule.severity}
-                      onChange={(e) => setNewRule({ ...newRule, severity: e.target.value as AlertRule['severity'] })}
-                      className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-3"
-                    >
-                      <option value="LOW">Low</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="HIGH">High</option>
-                      <option value="CRITICAL">Critical</option>
-                    </select>
-                  </div>
-                </>
-              )}
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                  Rule Name
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  value={newRule.name}
+                  onChange={(e) => setNewRule({ ...newRule, name: e.target.value })}
+                  className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-3"
+                  placeholder="e.g., Speed Limit Alert"
+                />
+              </div>
+              <div>
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  id="description"
+                  value={newRule.description}
+                  onChange={(e) => setNewRule({ ...newRule, description: e.target.value })}
+                  className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-3"
+                  rows={3}
+                  placeholder="Describe the alert condition and its purpose..."
+                />
+              </div>
+              <div>
+                <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-2">
+                  Alert Type
+                </label>
+                <select
+                  id="type"
+                  value={newRule.type}
+                  onChange={(e) => setNewRule({
+                    ...newRule,
+                    type: e.target.value as AlertType,
+                    condition: ALERT_TYPES[e.target.value as AlertType].parameters
+                  })}
+                  className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-3"
+                >
+                  {Object.entries(ALERT_TYPES).map(([type, config]) => (
+                    <option key={type} value={type}>
+                      {config.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="severity" className="block text-sm font-medium text-gray-700 mb-2">
+                  Severity
+                </label>
+                <select
+                  id="severity"
+                  value={newRule.severity}
+                  onChange={(e) => setNewRule({ ...newRule, severity: e.target.value as AlertRule['severity'] })}
+                  className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-3"
+                >
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option>
+                  <option value="CRITICAL">Critical</option>
+                </select>
+              </div>
             </div>
             <div className="mt-8 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3">
               <button
@@ -538,7 +377,7 @@ export default function PublicAlertRulesConfig() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {(activeTab === 'regular' ? rules : aiRules).map((rule) => (
+                  {rules.map((rule) => (
                     <tr key={rule.id} className="hover:bg-gray-50">
                       <td className="whitespace-nowrap py-5 pl-6 pr-3 text-sm">
                         <div className="font-medium text-gray-900">{rule.name}</div>
@@ -558,14 +397,14 @@ export default function PublicAlertRulesConfig() {
                       </td>
                       <td className="whitespace-nowrap px-4 py-5 text-sm text-gray-500">
                         <button
-                          onClick={() => handleToggleRule(rule.id, !rule.isActive)}
+                          onClick={() => handleToggleRule(rule.id, !rule.enabled)}
                           className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold leading-5 ${
-                            rule.isActive
+                            rule.enabled
                               ? 'bg-green-100 text-green-800'
                               : 'bg-gray-100 text-gray-800'
                           }`}
                         >
-                          {rule.isActive ? 'Active' : 'Inactive'}
+                          {rule.enabled ? 'Active' : 'Inactive'}
                         </button>
                       </td>
                       <td className="relative whitespace-nowrap py-5 pl-3 pr-6 text-right text-sm font-medium">
