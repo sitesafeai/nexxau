@@ -4,7 +4,7 @@ import Sidebar from '@/src/components/dashboard/Sidebar';
 import WorkflowBuilder from '@/src/components/dashboard/WorkflowBuilder';
 import PublicActiveAlertsTable from '@/src/components/dashboard/PublicActiveAlertsTable';
 import PublicAlertRulesConfig from '@/src/components/dashboard/PublicAlertRulesConfig';
-import ErrorBoundary from '@/components/ErrorBoundary';
+import ErrorBoundary from '@/src/components/ErrorBoundary';
 
 function Placeholder({ title }: { title: string }) {
   return (
