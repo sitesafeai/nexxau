@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { prisma } from '@/app/lib/prisma';
+import prisma from '@/lib/prisma';
 import bcrypt from "bcryptjs";
 import crypto from 'crypto';
 import { z } from 'zod';
 import { withRateLimit } from '@/lib/rate-limit';
+import { SignupResponse } from '@/types/auth';
 
 const signupSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -13,9 +14,6 @@ const signupSchema = z.object({
 });
 
 export const runtime = 'edge';
-
-type SignupResponse = { message: string } | { error: string; details?: any };
-
 
 async function signupHandler(req: Request): Promise<NextResponse<SignupResponse>> {
   try {
