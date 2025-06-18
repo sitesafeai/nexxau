@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/src/lib/theme.tsx";
+import { ThemeProvider } from "@/src/lib/theme";
 import SessionProviderWrapper from "@/src/components/SessionProviderWrapper";
 import DndProvider from "@/src/components/providers/DndProvider";
 
