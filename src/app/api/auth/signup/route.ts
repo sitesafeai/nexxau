@@ -58,4 +58,4 @@ async function signupHandler(req: Request) {
 
 // Apply rate limiting to the signup handler
 // Allow 5 requests per minute per IP
-export const POST = withRateLimit(signupHandler, 5, 60_000); 
+export const POST = withRateLimit(signupHandler, 'signup', { limit: 5, window: 60 }); 
