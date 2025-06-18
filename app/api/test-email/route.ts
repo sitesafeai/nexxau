@@ -23,6 +23,9 @@ export async function GET() {
     return NextResponse.json({ message: 'Test email sent successfully' });
   } catch (error) {
     console.error('Test email error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to send test email' },
+      { status: 500 }
+    );
   }
 } 
