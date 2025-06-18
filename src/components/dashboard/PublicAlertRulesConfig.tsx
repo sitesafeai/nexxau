@@ -397,7 +397,7 @@ export default function PublicAlertRulesConfig() {
                       </td>
                       <td className="whitespace-nowrap px-4 py-5 text-sm text-gray-500">
                         <button
-                          onClick={() => handleToggleRule(rule.id, !rule.enabled)}
+                          onClick={() => handleToggleRule(rule.id!, !rule.enabled)}
                           className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold leading-5 ${
                             rule.enabled
                               ? 'bg-green-100 text-green-800'
@@ -409,7 +409,7 @@ export default function PublicAlertRulesConfig() {
                       </td>
                       <td className="relative whitespace-nowrap py-5 pl-3 pr-6 text-right text-sm font-medium">
                         <button
-                          onClick={() => handleDeleteRule(rule.id)}
+                          onClick={() => handleDeleteRule(rule.id!)}
                           className="text-red-600 hover:text-red-900 p-2 rounded-full hover:bg-red-50"
                         >
                           <TrashIcon className="h-5 w-5" aria-hidden="true" />

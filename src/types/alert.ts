@@ -13,7 +13,7 @@ export type AlertType =
   | 'ppe_detection';
 
 export interface AlertRule {
-  id?: string;
+  id: string;
   name: string;
   description: string;
   type: AlertType;
