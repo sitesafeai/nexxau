@@ -3,11 +3,11 @@
 import { useState, useRef, useEffect } from 'react';
 
 interface VideoFeedProps {
-  cameraId: string;
+  cameraId?: string;
   onAlert?: (alert: { type: string; message: string }) => void;
 }
 
-export default function VideoFeed({ cameraId, onAlert }: VideoFeedProps) {
+export default function VideoFeed({ cameraId = 'test-camera', onAlert }: VideoFeedProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
