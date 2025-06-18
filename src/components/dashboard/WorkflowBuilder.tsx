@@ -13,7 +13,6 @@ import ReactFlow, {
   useEdgesState,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { CustomNode } from './CustomNode';
 
 interface WorkflowNodeData {
   label: string;
