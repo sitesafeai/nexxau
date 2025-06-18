@@ -36,7 +36,7 @@ function checkRateLimit(identifier: string, limit: number = 5, windowMs: number 
  * @param key The identifier for rate limiting (e.g., 'signup', 'login')
  * @param options Rate limiting options
  */
-export function withRateLimit<T extends Record<string, any>>(
+export function withRateLimit<T>(
   handler: (req: Request) => Promise<NextResponse<T>>,
   key: string,
   options: { limit: number; window: number } = { limit: 5, window: 60 }
