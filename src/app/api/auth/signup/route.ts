@@ -3,7 +3,7 @@ import { prisma } from '@/app/lib/prisma';
 import bcrypt from "bcryptjs";
 import crypto from 'crypto';
 import { z } from 'zod';
-import { withRateLimit } from '@/lib/rate-limit';
+import { rateLimit } from '@/lib/rate-limit';
 
 const signupSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -110,4 +110,6 @@ async function signupHandler(req: Request) {
   }
 }
 
-export const POST = withRateLimit(signupHandler, 'auth'); 
+// Apply rate limiting to the signup handler
+// Allow 5 requests per minute per IP
+export const POST = rateLimit(signupHandler, 5, 60_000); 
