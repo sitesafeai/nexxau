@@ -3,7 +3,6 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import Hero from '@/src/components/home/Hero';
 import Industries from '@/src/components/home/Industries';
 import FAQ from '@/src/components/home/FAQ';
 import Footer from '@/src/components/home/Footer';
