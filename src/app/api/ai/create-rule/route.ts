@@ -51,7 +51,12 @@ export async function POST(request: Request) {
       response_format: { type: "json_object" },
     });
 
-    const rule = JSON.parse(completion.choices[0].message.content);
+    const content = completion.choices[0].message.content;
+    if (!content) {
+      throw new Error('No content received from OpenAI');
+    }
+
+    const rule = JSON.parse(content);
 
     return NextResponse.json(rule);
   } catch (error) {
