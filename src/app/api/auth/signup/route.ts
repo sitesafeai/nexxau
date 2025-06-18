@@ -14,7 +14,8 @@ const signupSchema = z.object({
 
 export const runtime = 'edge';
 
-type SignupResponse = { message: string; error?: string } | { error: string; details?: any };
+type SignupResponse = { message: string } | { error: string; details?: any };
+
 
 async function signupHandler(req: Request): Promise<NextResponse<SignupResponse>> {
   try {
@@ -60,4 +61,4 @@ async function signupHandler(req: Request): Promise<NextResponse<SignupResponse>
 
 // Apply rate limiting to the signup handler
 // Allow 5 requests per minute per IP
-export const POST = withRateLimit<SignupResponse>(signupHandler, 'signup', { limit: 5, window: 60 }); 
+export const POST = withRateLimit<SignupResponse>(signupHandler, 'signup', { limit: 5, window: 60 });

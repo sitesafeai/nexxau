@@ -125,4 +125,4 @@ const signupHandler = async (req: Request) => {
   }
 };
 
-export const POST = withRateLimit(signupHandler, 'signup', { limit: 5, window: 60 }); 
+export const POST = withRateLimit<SignupResponse>(signupHandler, 'signup', { limit: 5, window: 60 });
