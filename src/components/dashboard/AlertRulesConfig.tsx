@@ -6,6 +6,7 @@ import Toast, { ToastType } from '../ui/Toast';
 import AIRuleCreator from './AIRuleCreator';
 import WorkflowBuilder from './WorkflowBuilder';
 import SavedWorkflows from './SavedWorkflows';
+import type { AlertRule } from '@/src/types/alert';
 
 type AlertType = 
   | 'proximity' 
@@ -194,30 +195,6 @@ const ALERT_TYPES: Record<AlertType, AlertTypeConfig> = {
   }
 };
 
-interface AlertRule {
-  id: string;
-  name: string;
-  description: string;
-  condition: {
-    type: AlertType;
-    parameters: {
-      object1?: string;
-      object2?: string;
-      operator?: string;
-      threshold?: number;
-      unit?: string;
-      area?: string;
-      duration?: number;
-      equipment?: string;
-      ppe_type?: string;
-      max_count?: number;
-      [key: string]: string | number | undefined;
-    };
-  };
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  isActive: boolean;
-}
-
 interface AlertRulesConfigProps {
   onRuleCreated?: (rule: AlertRule) => void;
 }
@@ -233,18 +210,16 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
     id: '',
     name: '',
     description: '',
+    type: 'proximity',
     condition: {
-      type: 'proximity',
-      parameters: {
-        object1: 'forklift',
-        object2: 'person',
-        operator: '>',
-        threshold: 10,
-        unit: 'ft'
-      }
+      object1: 'forklift',
+      object2: 'person',
+      operator: '>',
+      threshold: 10,
+      unit: 'ft'
     },
     severity: 'MEDIUM',
-    isActive: true
+    enabled: true
   });
   const [showWorkflowBuilder, setShowWorkflowBuilder] = useState(false);
 
@@ -272,7 +247,7 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
-    const alertType = ALERT_TYPES[newRule.condition.type];
+    const alertType = ALERT_TYPES[newRule.type];
 
     if (!newRule.name.trim()) {
       errors.name = 'Rule name is required';
@@ -282,7 +257,7 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
       errors.description = 'Description is required';
     }
 
-    if (!newRule.condition.type) {
+    if (!newRule.type) {
       errors.type = 'Alert type is required';
     }
 
@@ -293,7 +268,7 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
     // Validate parameters based on alert type
     if (alertType) {
       Object.entries(alertType.parameters).forEach(([key, config]) => {
-        const value = newRule.condition.parameters[key];
+        const value = newRule.condition[key];
         if (!value && value !== 0) {
           errors[key] = `${config.label} is required`;
         }
@@ -332,18 +307,16 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
         id: '',
         name: '',
         description: '',
+        type: 'proximity',
         condition: {
-          type: 'proximity',
-          parameters: {
-            object1: 'forklift',
-            object2: 'person',
-            operator: '>',
-            threshold: 10,
-            unit: 'ft'
-          }
+          object1: 'forklift',
+          object2: 'person',
+          operator: '>',
+          threshold: 10,
+          unit: 'ft'
         },
         severity: 'MEDIUM',
-        isActive: true
+        enabled: true
       });
       setFormErrors({});
       setIsCreating(false);
@@ -356,14 +329,14 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
     }
   };
 
-  const handleToggleRule = async (id: string, isActive: boolean) => {
+  const handleToggleRule = async (id: string, enabled: boolean) => {
     try {
       const response = await fetch(`/api/alert-rules/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ isActive }),
+        body: JSON.stringify({ enabled }),
       });
 
       if (!response.ok) {
@@ -371,10 +344,10 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
       }
 
       setRules(rules.map(rule => 
-        rule.id === id ? { ...rule, isActive } : rule
+        rule.id === id ? { ...rule, enabled } : rule
       ));
       
-      if (isActive) {
+      if (enabled) {
         setToast({ 
           message: 'Alert rule activated. System will now monitor for this condition.', 
           type: 'info' 
@@ -412,30 +385,30 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
   };
 
   const formatCondition = (rule: AlertRule): string => {
-    const { type, parameters } = rule.condition;
+    const { type, condition } = rule;
     const alertType = ALERT_TYPES[type];
 
     switch (type) {
       case 'proximity':
-        return `IF ${parameters.object1} ${parameters.operator} ${parameters.threshold}${parameters.unit} TO ${parameters.object2}`;
+        return `IF ${condition.object1} ${condition.operator} ${condition.threshold}${condition.unit} TO ${condition.object2}`;
       case 'speed':
-        return `IF ${parameters.object1} SPEED ${parameters.operator} ${parameters.threshold}${parameters.unit}`;
+        return `IF ${condition.object1} SPEED ${condition.operator} ${condition.threshold}${condition.unit}`;
       case 'area_entry':
-        return `IF ${parameters.object1} ENTERS ${parameters.area}`;
+        return `IF ${condition.object1} ENTERS ${condition.area}`;
       case 'area_exit':
-        return `IF ${parameters.object1} LEAVES ${parameters.area}`;
+        return `IF ${condition.object1} LEAVES ${condition.area}`;
       case 'idle_time':
-        return `IF ${parameters.equipment} IDLE > ${parameters.duration} ${parameters.unit}`;
+        return `IF ${condition.equipment} IDLE > ${condition.duration} ${condition.unit}`;
       case 'unauthorized_access':
-        return `IF UNAUTHORIZED ACCESS TO ${parameters.area}`;
+        return `IF UNAUTHORIZED ACCESS TO ${condition.area}`;
       case 'equipment_usage':
-        return `IF ${parameters.equipment} USED BY ${parameters.operator}`;
+        return `IF ${condition.equipment} USED BY ${condition.operator}`;
       case 'safety_zone':
-        return `IF ${parameters.object1} VIOLATES ${parameters.area}`;
+        return `IF ${condition.object1} VIOLATES ${condition.area}`;
       case 'crowd_density':
-        return `IF CROWD IN ${parameters.area} > ${parameters.max_count} PEOPLE`;
+        return `IF CROWD IN ${condition.area} > ${condition.max_count} PEOPLE`;
       case 'ppe_detection':
-        return `IF ${parameters.ppe_type} NOT WORN IN ${parameters.area}`;
+        return `IF ${condition.ppe_type} NOT WORN IN ${condition.area}`;
       default:
         return 'Unknown condition';
     }
@@ -444,10 +417,8 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
   const handleConditionTypeChange = (type: AlertType) => {
     setNewRule(prev => ({
       ...prev,
-      condition: {
-        type,
-        parameters: {}
-      }
+      type,
+      condition: {}
     }));
   };
 
@@ -456,16 +427,28 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
       ...prev,
       condition: {
         ...prev.condition,
-        parameters: {
-          ...prev.condition.parameters,
-          [key]: value
-        }
+        [key]: value
       }
     }));
   };
 
+  const handleWorkflowCreated = (workflow: any) => {
+    // Convert workflow to alert rules
+    const rules = workflow.rules.map((rule: any) => ({
+      name: rule.config.name || 'Workflow Rule',
+      description: rule.config.description || 'Created from workflow',
+      type: rule.type,
+      severity: rule.config.severity || 'MEDIUM',
+      condition: rule.config,
+    }));
+    
+    setRules([...rules, ...rules]);
+    setShowWorkflowBuilder(false);
+    setToast({ message: 'Workflow rules created successfully', type: 'success' });
+  };
+
   const renderParameterInputs = () => {
-    const alertType = ALERT_TYPES[newRule.condition.type];
+    const alertType = ALERT_TYPES[newRule.type];
     if (!alertType) return null;
 
     return Object.entries(alertType.parameters).map(([key, config]) => {
@@ -479,7 +462,7 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
               type="number"
               name={key}
               id={key}
-              value={newRule.condition.parameters[key] || ''}
+              value={newRule.condition[key] ?? ''}
               onChange={(e) => handleParameterChange(key, Number(e.target.value))}
               className={`block w-full rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
                 formErrors[key] ? 'border-red-300' : 'border-gray-300'
@@ -502,7 +485,7 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
           <select
             id={key}
             name={key}
-            value={newRule.condition.parameters[key] || ''}
+            value={newRule.condition[key] ?? ''}
             onChange={(e) => handleParameterChange(key, e.target.value)}
             className={`block w-full rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
               formErrors[key] ? 'border-red-300' : 'border-gray-300'
@@ -522,21 +505,6 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
         </div>
       );
     });
-  };
-
-  const handleWorkflowCreated = (workflow: any) => {
-    // Convert workflow to alert rules
-    const rules = workflow.rules.map((rule: any) => ({
-      name: rule.config.name || 'Workflow Rule',
-      description: rule.config.description || 'Created from workflow',
-      type: rule.type,
-      severity: rule.config.severity || 'MEDIUM',
-      condition: rule.config,
-    }));
-    
-    setRules([...rules, ...rules]);
-    setShowWorkflowBuilder(false);
-    setToast({ message: 'Workflow rules created successfully', type: 'success' });
   };
 
   if (isLoading) {
@@ -666,7 +634,7 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
                   <select
                     id="type"
                     name="type"
-                    value={newRule.condition.type}
+                    value={newRule.type}
                     onChange={(e) => handleConditionTypeChange(e.target.value as AlertType)}
                     className={`block w-full rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
                       formErrors.type ? 'border-red-300' : 'border-gray-300'
@@ -788,14 +756,14 @@ export default function AlertRulesConfig({ onRuleCreated }: AlertRulesConfigProp
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm">
                         <button
-                          onClick={() => handleToggleRule(rule.id, !rule.isActive)}
+                          onClick={() => handleToggleRule(rule.id, !rule.enabled)}
                           className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                            rule.isActive
+                            rule.enabled
                               ? 'bg-green-100 text-green-800'
                               : 'bg-gray-100 text-gray-800'
                           }`}
                         >
-                          {rule.isActive ? 'Active' : 'Inactive'}
+                          {rule.enabled ? 'Active' : 'Inactive'}
                         </button>
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-center">
