@@ -6,7 +6,11 @@ import ReactFlow, {
   Controls,
   MiniMap,
   Node,
-  Edge
+  Edge,
+  NodeChange,
+  EdgeChange,
+  applyNodeChanges,
+  applyEdgeChanges
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -27,27 +31,11 @@ const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={(changes) => {
-          setNodes((nds) => {
-            return nds.map((node) => {
-              const change = changes.find((c) => c.id === node.id);
-              if (change) {
-                return { ...node, ...change };
-              }
-              return node;
-            });
-          });
+        onNodesChange={(changes: NodeChange[]) => {
+          setNodes((nds) => applyNodeChanges(changes, nds));
         }}
-        onEdgesChange={(changes) => {
-          setEdges((eds) => {
-            return eds.map((edge) => {
-              const change = changes.find((c) => c.id === edge.id);
-              if (change) {
-                return { ...edge, ...change };
-              }
-              return edge;
-            });
-          });
+        onEdgesChange={(changes: EdgeChange[]) => {
+          setEdges((eds) => applyEdgeChanges(changes, eds));
         }}
       >
         <Background />
