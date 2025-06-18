@@ -36,7 +36,7 @@ function checkRateLimit(identifier: string, limit: number = 5, windowMs: number 
  * @param key The identifier for rate limiting (e.g., 'signup', 'login')
  * @param options Rate limiting options
  */
-export function withRateLimit<T extends { error?: string }>(
+export function withRateLimit<T>(
   handler: (req: Request) => Promise<NextResponse<T>>,
   key: string,
   options: { limit: number; window: number } = { limit: 5, window: 60 }
@@ -47,7 +47,7 @@ export function withRateLimit<T extends { error?: string }>(
     
     if (!checkRateLimit(identifier, options.limit, options.window * 1000)) {
       return NextResponse.json(
-        { error: 'Too many requests' } as T,
+        { error: 'Too many requests' } as unknown as T,
         { status: 429 }
       );
     }
