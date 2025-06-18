@@ -36,12 +36,12 @@ function checkRateLimit(identifier: string, limit: number = 5, windowMs: number 
  * @param key The identifier for rate limiting (e.g., 'signup', 'login')
  * @param options Rate limiting options
  */
-export function withRateLimit(
-  handler: (req: Request) => Promise<NextResponse>,
+export function withRateLimit<T extends Record<string, any>>(
+  handler: (req: Request) => Promise<NextResponse<T>>,
   key: string,
   options: { limit: number; window: number } = { limit: 5, window: 60 }
 ) {
-  return async function (req: Request): Promise<NextResponse> {
+  return async function (req: Request): Promise<NextResponse<T | { error: string }>> {
     const ip = req.headers.get('x-forwarded-for') || 'unknown';
     const identifier = `${key}:${ip}`;
     
