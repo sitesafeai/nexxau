@@ -8,22 +8,22 @@ const ipCache = new Map<string, { count: number; lastRequest: number }>();
 
 /**
  * Check if a request should be rate limited
- * @param ip The IP address to rate limit
+ * @param identifier The identifier to rate limit (e.g., 'signup:ip')
  * @param limit Maximum number of requests allowed in the time window
  * @param windowMs Time window in milliseconds
  * @returns boolean indicating if the request should be allowed
  */
-function checkRateLimit(ip: string, limit: number = 5, windowMs: number = 60_000): boolean {
+function checkRateLimit(identifier: string, limit: number = 5, windowMs: number = 60_000): boolean {
   const now = Date.now();
-  const entry = ipCache.get(ip);
+  const entry = ipCache.get(identifier);
 
   if (!entry || now - entry.lastRequest > windowMs) {
-    ipCache.set(ip, { count: 1, lastRequest: now });
+    ipCache.set(identifier, { count: 1, lastRequest: now });
     return true;
   }
 
   if (entry.count < limit) {
-    ipCache.set(ip, { count: entry.count + 1, lastRequest: now });
+    ipCache.set(identifier, { count: entry.count + 1, lastRequest: now });
     return true;
   }
 
@@ -33,50 +33,23 @@ function checkRateLimit(ip: string, limit: number = 5, windowMs: number = 60_000
 /**
  * Higher-order function to wrap API route handlers with rate limiting
  * @param handler The API route handler to wrap
- * @param key Unique identifier for the rate limit
- * @param options Rate limit configuration
+ * @param key The identifier for rate limiting (e.g., 'signup', 'login')
+ * @param options Rate limiting options
  */
-export function withRateLimit<T>(
-  handler: (req: Request) => Promise<NextResponse<T>>,
+export function withRateLimit(
+  handler: (req: Request) => Promise<NextResponse>,
   key: string,
   options: { limit: number; window: number } = { limit: 5, window: 60 }
 ) {
-  return async function (req: Request): Promise<NextResponse<T>> {
+  return async function (req: Request): Promise<NextResponse> {
     const ip = req.headers.get('x-forwarded-for') || 'unknown';
-    const windowKey = `${ip}:${key}`;
-    const now = Date.now();
-    const windowData = rateLimitStore.get(windowKey);
-
-    // Initialize or reset window if needed
-    if (!windowData || now > windowData.resetTime) {
-      rateLimitStore.set(windowKey, {
-        count: 1,
-        resetTime: now + options.window * 1000,
-      });
-    } else if (windowData.count >= options.limit) {
-      // Rate limit exceeded
+    const identifier = `${key}:${ip}`;
+    
+    if (!checkRateLimit(identifier, options.limit, options.window * 1000)) {
       return NextResponse.json(
-        { error: 'Too many requests' } as T,
-        { 
-          status: 429,
-          headers: {
-            'Retry-After': Math.ceil((windowData.resetTime - now) / 1000).toString(),
-          }
-        }
+        { error: 'Too many requests' },
+        { status: 429 }
       );
-    } else {
-      // Increment counter
-      windowData.count++;
-      rateLimitStore.set(windowKey, windowData);
-    }
-
-    // Clean up old entries periodically
-    if (Math.random() < 0.1) { // 10% chance to clean up
-      for (const [key, data] of rateLimitStore.entries()) {
-        if (now > data.resetTime) {
-          rateLimitStore.delete(key);
-        }
-      }
     }
 
     return handler(req);
