@@ -1,19 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { prisma } from '@/app/lib/prisma';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const workflows = await prisma.workflow.findMany({
-      where: {
-        userId: session.user.id,
-      },
       orderBy: {
         createdAt: 'desc',
       },
@@ -31,11 +21,6 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { name, description, nodes, edges, rules } = await request.json();
 
     if (!name || !nodes || !edges || !rules) {
@@ -52,7 +37,6 @@ export async function POST(request: Request) {
         nodes,
         edges,
         rules,
-        userId: session.user.id,
       },
     });
 
