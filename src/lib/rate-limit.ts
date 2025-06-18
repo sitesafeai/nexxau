@@ -7,13 +7,13 @@ const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 const ipCache = new Map<string, { count: number; lastRequest: number }>();
 
 /**
- * Rate limiting middleware for API routes
+ * Check if a request should be rate limited
  * @param ip The IP address to rate limit
  * @param limit Maximum number of requests allowed in the time window
  * @param windowMs Time window in milliseconds
  * @returns boolean indicating if the request should be allowed
  */
-export function withRateLimit(ip: string, limit: number = 5, windowMs: number = 60_000): boolean {
+function checkRateLimit(ip: string, limit: number = 5, windowMs: number = 60_000): boolean {
   const now = Date.now();
   const entry = ipCache.get(ip);
 
@@ -36,18 +36,18 @@ export function withRateLimit(ip: string, limit: number = 5, windowMs: number = 
  * @param limit Maximum number of requests allowed in the time window
  * @param windowMs Time window in milliseconds
  */
-export function rateLimit(
-  handler: (req: Request) => Promise<Response>,
+export function withRateLimit(
+  handler: (req: Request) => Promise<NextResponse>,
   limit: number = 5,
   windowMs: number = 60_000
 ) {
-  return async (req: Request) => {
+  return async function (req: Request): Promise<NextResponse> {
     const ip = req.headers.get('x-forwarded-for') || 'unknown';
     
-    if (!withRateLimit(ip, limit, windowMs)) {
-      return new Response(
-        JSON.stringify({ error: 'Too many requests' }),
-        { status: 429, headers: { 'Content-Type': 'application/json' } }
+    if (!checkRateLimit(ip, limit, windowMs)) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429 }
       );
     }
 
