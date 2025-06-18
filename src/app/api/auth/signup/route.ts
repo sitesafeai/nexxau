@@ -14,7 +14,7 @@ const signupSchema = z.object({
 
 export const runtime = 'edge';
 
-type SignupResponse = { message: string } | { error: string; details?: any };
+type SignupResponse = { message: string; error?: string } | { error: string; details?: any };
 
 async function signupHandler(req: Request): Promise<NextResponse<SignupResponse>> {
   try {
