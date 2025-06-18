@@ -1,40 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Simple in-memory store for rate limiting
+// In-memory store for rate limiting counters
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
-// In-memory cache for rate limiting
-const ipCache = new Map<string, { count: number; lastRequest: number }>();
-
 /**
- * Check if a request should be rate limited
- * @param identifier The identifier to rate limit (e.g., 'signup:ip')
- * @param limit Maximum number of requests allowed in the time window
+ * Check if a request identified by `identifier` should be allowed under rate limiting.
+ * @param identifier Unique key (e.g. 'signup:IP') to track rate limit count
+ * @param limit Maximum allowed requests in the window
  * @param windowMs Time window in milliseconds
- * @returns boolean indicating if the request should be allowed
+ * @returns true if allowed, false if limit exceeded
  */
 function checkRateLimit(identifier: string, limit: number = 5, windowMs: number = 60_000): boolean {
   const now = Date.now();
-  const entry = ipCache.get(identifier);
+  const entry = rateLimitStore.get(identifier);
 
-  if (!entry || now - entry.lastRequest > windowMs) {
-    ipCache.set(identifier, { count: 1, lastRequest: now });
+  if (!entry || now > entry.resetTime) {
+    // No entry or window expired — start new window
+    rateLimitStore.set(identifier, { count: 1, resetTime: now + windowMs });
     return true;
   }
 
   if (entry.count < limit) {
-    ipCache.set(identifier, { count: entry.count + 1, lastRequest: now });
+    // Increment count within window
+    entry.count++;
+    rateLimitStore.set(identifier, entry);
     return true;
   }
 
+  // Limit exceeded
   return false;
 }
 
 /**
- * Higher-order function to wrap API route handlers with rate limiting
- * @param handler The API route handler to wrap
- * @param key The identifier for rate limiting (e.g., 'signup', 'login')
- * @param options Rate limiting options
+ * Higher-order function to wrap API handlers with rate limiting.
+ * @param handler API route handler function (req: Request) => Promise<NextResponse<T>>
+ * @param key Identifier prefix for rate limiting (e.g. 'signup')
+ * @param options Rate limiting options: limit (requests) and window (seconds)
+ * @returns Wrapped handler function with rate limiting applied
  */
 export function withRateLimit<T>(
   handler: (req: Request) => Promise<NextResponse<T>>,
@@ -42,13 +44,19 @@ export function withRateLimit<T>(
   options: { limit: number; window: number } = { limit: 5, window: 60 }
 ): (req: Request) => Promise<NextResponse<T>> {
   return async function (req: Request): Promise<NextResponse<T>> {
-    const ip = req.headers.get('x-forwarded-for') || 'unknown';
+    // Get client IP (supports proxies via x-forwarded-for header)
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown';
     const identifier = `${key}:${ip}`;
-    
+
     if (!checkRateLimit(identifier, options.limit, options.window * 1000)) {
       return NextResponse.json(
         { error: 'Too many requests' } as unknown as T,
-        { status: 429 }
+        {
+          status: 429,
+          headers: {
+            'Retry-After': options.window.toString(),
+          },
+        }
       );
     }
 
@@ -56,25 +64,31 @@ export function withRateLimit<T>(
   };
 }
 
+/**
+ * Middleware variant for NextRequest / NextResponse handlers with rate limiting.
+ * (Optional, in case you want to use Next.js middleware-style handlers)
+ * @param handler Next.js middleware handler
+ * @param key Rate limiting key prefix
+ * @param options limit and window (seconds)
+ * @returns Rate limited middleware handler
+ */
 export function withRateLimitMiddleware(
   handler: (req: NextRequest) => Promise<NextResponse>,
   key: string,
-  options = { limit: 10, window: 60 } // 10 requests per minute by default
+  options: { limit: number; window: number } = { limit: 10, window: 60 }
 ) {
-  return async function rateLimitedHandler(req: NextRequest) {
-    const ip = req.headers.get('x-forwarded-for') || 'unknown';
+  return async function rateLimitedHandler(req: NextRequest): Promise<NextResponse> {
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown';
     const now = Date.now();
     const windowKey = `${ip}:${key}`;
     const windowData = rateLimitStore.get(windowKey);
 
-    // Initialize or reset window if needed
     if (!windowData || now > windowData.resetTime) {
       rateLimitStore.set(windowKey, {
         count: 1,
         resetTime: now + options.window * 1000,
       });
     } else if (windowData.count >= options.limit) {
-      // Rate limit exceeded
       return new NextResponse('Too Many Requests', {
         status: 429,
         headers: {
@@ -82,13 +96,12 @@ export function withRateLimitMiddleware(
         },
       });
     } else {
-      // Increment counter
       windowData.count++;
       rateLimitStore.set(windowKey, windowData);
     }
 
-    // Clean up old entries periodically
-    if (Math.random() < 0.1) { // 10% chance to clean up
+    // Optional cleanup of expired entries (run randomly ~10% of the time)
+    if (Math.random() < 0.1) {
       for (const [key, data] of rateLimitStore.entries()) {
         if (now > data.resetTime) {
           rateLimitStore.delete(key);
@@ -98,4 +111,4 @@ export function withRateLimitMiddleware(
 
     return handler(req);
   };
-} 
+}
