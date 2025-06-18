@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { PlusIcon, TrashIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import type { AlertRule } from '@/src/types/alert';
 
 type AlertType = 'proximity' | 'speed' | 'area_entry' | 'area_exit' | 'idle_time' | 'unauthorized_access' | 'equipment_usage' | 'safety_zone' | 'crowd_density' | 'ppe_detection' | 'ai';
 
@@ -144,30 +145,6 @@ const ALERT_TYPES: Record<AlertType, { label: string; parameters: Record<string,
     }
   }
 };
-
-interface AlertRule {
-  id: string;
-  name: string;
-  description: string;
-  condition: {
-    type: AlertType;
-    parameters: {
-      object1?: string;
-      object2?: string;
-      operator?: string;
-      threshold?: number;
-      unit?: string;
-      area?: string;
-      equipment?: string;
-      prompt?: string;
-      duration?: number;
-      ppe_type?: string;
-      max_count?: number;
-    };
-  };
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  isActive: boolean;
-}
 
 // Mock data for demonstration
 const mockRules: AlertRule[] = [

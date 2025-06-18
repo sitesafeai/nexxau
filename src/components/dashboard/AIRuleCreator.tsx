@@ -3,17 +3,7 @@
 import { useState } from 'react';
 import { SparklesIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import Toast, { ToastType } from '../ui/Toast';
-
-interface AlertRule {
-  id: string;
-  name: string;
-  description: string;
-  type: string;
-  severity: 'low' | 'medium' | 'high';
-  enabled: boolean;
-  conditions: Record<string, unknown>;
-  actions: Record<string, unknown>;
-}
+import type { AlertRule } from '@/src/types/alert';
 
 interface AIRuleCreatorProps {
   onRuleCreated?: (rule: AlertRule) => void;
