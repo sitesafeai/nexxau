@@ -2,73 +2,60 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/app/lib/prisma';
 import { authOptions } from '@/app/lib/auth';
+import { Prisma, AlertSeverity, AlertStatus } from '@prisma/client';
 
 // GET /api/alerts - Get all alerts with optional filters
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status');
-    const severity = searchParams.get('severity');
-    const siteId = searchParams.get('siteId');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
     const search = searchParams.get('search');
+    const siteId = searchParams.get('siteId');
+    const severity = searchParams.get('severity') as AlertSeverity | null;
+    const status = searchParams.get('status') as AlertStatus | null;
 
-    const where = {
-      ...(status && { status }),
-      ...(severity && { severity }),
-      ...(siteId && { siteId }),
+    const where: Prisma.AlertWhereInput = {
       ...(search && {
         OR: [
-          { title: { contains: search, mode: 'insensitive' } },
-          { description: { contains: search, mode: 'insensitive' } },
+          {
+            title: {
+              contains: search,
+              mode: Prisma.QueryMode.insensitive,
+            } as Prisma.StringFilter,
+          },
+          {
+            description: {
+              contains: search,
+              mode: Prisma.QueryMode.insensitive,
+            } as Prisma.StringFilter,
+          },
         ],
       }),
+      ...(siteId && { siteId }),
+      ...(severity && { severity }),
+      ...(status && { status }),
     };
 
-    const [alerts, total] = await Promise.all([
-      prisma.alert.findMany({
-        where,
-        include: {
-          site: true,
-          rule: true,
-          responses: {
-            include: {
-              user: {
-                select: {
-                  name: true,
-                  email: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.alert.count({ where }),
-    ]);
-
-    return NextResponse.json({
-      alerts,
-      pagination: {
-        total,
-        pages: Math.ceil(total / limit),
-        page,
-        limit,
+    const alerts = await prisma.alert.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        site: true,
+        rule: true,
       },
     });
+
+    return NextResponse.json(alerts);
   } catch (error) {
     console.error('Error fetching alerts:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch alerts' },
+      { status: 500 }
+    );
   }
 }
 
@@ -76,23 +63,15 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { title, description, severity, source, location, metadata, ruleId, siteId } = body;
-
+    const data = await request.json();
     const alert = await prisma.alert.create({
       data: {
-        title,
-        description,
-        severity,
-        source,
-        location,
-        metadata,
-        ruleId,
-        siteId,
+        ...data,
+        userId: session.user.id,
       },
       include: {
         site: true,
@@ -103,6 +82,9 @@ export async function POST(request: Request) {
     return NextResponse.json(alert);
   } catch (error) {
     console.error('Error creating alert:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to create alert' },
+      { status: 500 }
+    );
   }
 } 
