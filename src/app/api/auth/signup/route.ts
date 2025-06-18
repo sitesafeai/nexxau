@@ -14,12 +14,7 @@ const signupSchema = z.object({
 
 export const runtime = 'edge';
 
-export async function POST(req: Request) {
-  const ip = req.headers.get('x-forwarded-for') || 'unknown';
-  if (!withRateLimit(ip, 5, 60_000)) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
-  }
-
+async function signupHandler(req: Request) {
   try {
     // Parse request body
     let body;
@@ -59,4 +54,8 @@ export async function POST(req: Request) {
     const err = error as Error;
     return NextResponse.json({ error: "An unexpected error occurred", details: err.message }, { status: 500 });
   }
-} 
+}
+
+// Apply rate limiting to the signup handler
+// Allow 5 requests per minute per IP
+export const POST = withRateLimit(signupHandler, 5, 60_000); 
