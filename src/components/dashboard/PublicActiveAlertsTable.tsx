@@ -63,7 +63,7 @@ const mockAlerts: Alert[] = [
     source: 'Proximity Sensor',
     location: 'Loading Dock',
     createdAt: new Date(Date.now() - 3600000).toISOString(),
-    site: { name: 'Loading Area' },
+    site: { name: 'Loading Area', id: 'site-002' },
     videoUrl: 'https://example.com/stream2',
     metadata: {
       cameraId: 'CAM-002',
@@ -82,7 +82,7 @@ const mockAlerts: Alert[] = [
     source: 'Maintenance System',
     location: 'Equipment Bay',
     createdAt: new Date(Date.now() - 7200000).toISOString(),
-    site: { name: 'Main Warehouse' },
+    site: { name: 'Main Warehouse', id: 'site-001' },
     videoUrl: 'https://example.com/stream3',
     metadata: {
       cameraId: 'CAM-003',
