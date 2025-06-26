@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = "force-dynamic";
+
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -8,8 +10,6 @@ interface PasswordProtectProps {
 }
 
 const CORRECT_PASSWORD = 'Flamengo';
-
-export const dynamic = "force-dynamic";
 
 export default function PasswordProtect({ children }: PasswordProtectProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

@@ -1,6 +1,6 @@
-export const dynamic = "force-dynamic";
-
 'use client';
+
+export const dynamic = "force-dynamic";
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -9,11 +9,11 @@ import { ExclamationCircleIcon } from '@heroicons/react/24/outline';
 import { Editor } from '@tinymce/tinymce-react';
 import DashboardLayout from "@/src/components/dashboard/DashboardLayout";
 import ImageUpload from '../../../components/ImageUpload';
-import dynamic from 'next/dynamic';
+import dynamicImport from 'next/dynamic';
 import { CldImage } from 'next-cloudinary';
 
 // Dynamically import the rich text editor to avoid SSR issues
-const RichTextEditor = dynamic(() => import('../../../components/RichTextEditor'), {
+const RichTextEditor = dynamicImport(() => import('../../../components/RichTextEditor'), {
   ssr: false,
   loading: () => <p>Loading editor...</p>,
 });
