@@ -9,6 +9,8 @@ interface PasswordProtectProps {
 
 const CORRECT_PASSWORD = 'Flamengo';
 
+export const dynamic = "force-dynamic";
+
 export default function PasswordProtect({ children }: PasswordProtectProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
