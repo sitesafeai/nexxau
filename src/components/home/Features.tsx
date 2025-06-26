@@ -105,7 +105,7 @@ export default function Features() {
                   style={{ transitionDelay: `${index * 200}ms` }}
                 >
                   <div className={`${feature.color} p-8 rounded-2xl shadow-lg transform hover:scale-105 transition-transform duration-300`}>
-                    <feature.icon className="h-12 w-12 text-white" aria-hidden="true" />
+                    <feature.icon className="h-8 w-8 text-white" aria-hidden="true" />
                   </div>
                 </div>
 
