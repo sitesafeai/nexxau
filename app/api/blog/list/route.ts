@@ -27,8 +27,3 @@ export async function GET() {
     );
   }
 }
-
-const posts = await prisma.blogPost.findMany({
-  where: { status: 'published' },
-});
-console.log(posts);
