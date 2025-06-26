@@ -35,6 +35,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Video streaming server (separate service)
+/video-streaming-server/
+
 # Python
 __pycache__/
 *.py[cod]
