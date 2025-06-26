@@ -7,7 +7,6 @@ import ActiveAlertsTable from '@/src/components/dashboard/ActiveAlertsTable';
 import AlertRulesConfig from '@/src/components/dashboard/AlertRulesConfig';
 import { useRouter } from 'next/navigation';
 import ErrorBoundary from '@/src/components/ErrorBoundary';
-import PasswordProtect from '@/app/components/PasswordProtect';
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -102,26 +101,24 @@ export default function DashboardPage() {
   }
 
   return (
-    <PasswordProtect>
-      <ErrorBoundary fallback={<ErrorDisplay error="Something went wrong" onRetry={() => window.location.reload()} />}>
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800">
-          <Sidebar
-            selected={selected}
-            onSelect={(key) => setSelected(key)}
-          />
-          <main className="pl-64">
-            <div className="py-6">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-                {selected === 'active-alerts' && <ActiveAlertsTable />}
-                {selected === 'alert-rules' && <AlertRulesConfig />}
-                {selected === 'workflow' && <WorkflowBuilder />}
-                {selected === 'sites' && <Placeholder title="Sites Management" />}
-                {selected === 'reports' && <Placeholder title="Reports" />}
-              </div>
+    <ErrorBoundary fallback={<ErrorDisplay error="Something went wrong" onRetry={() => window.location.reload()} />}>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800">
+        <Sidebar
+          selected={selected}
+          onSelect={(key) => setSelected(key)}
+        />
+        <main className="pl-64">
+          <div className="py-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+              {selected === 'active-alerts' && <ActiveAlertsTable />}
+              {selected === 'alert-rules' && <AlertRulesConfig />}
+              {selected === 'workflow' && <WorkflowBuilder />}
+              {selected === 'sites' && <Placeholder title="Sites Management" />}
+              {selected === 'reports' && <Placeholder title="Reports" />}
             </div>
-          </main>
-        </div>
-      </ErrorBoundary>
-    </PasswordProtect>
+          </div>
+        </main>
+      </div>
+    </ErrorBoundary>
   );
 } 
