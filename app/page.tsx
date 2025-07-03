@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -16,6 +14,7 @@ import { ShieldCheckIcon, ChartBarIcon, BellIcon, CameraIcon, ExclamationTriangl
 import HowItWorks from '@/src/components/home/HowItWorks';
 import { CloudinaryImage } from './lib/cloudinary';
 import { ArrowRightIcon } from '@heroicons/react/24/outline';
+import type { Metadata } from 'next';
 
 const features = [
   {
@@ -70,6 +69,11 @@ const steps = [
     icon: ChartBarIcon,
   },
 ];
+
+export const metadata: Metadata = {
+  title: 'Nexxau | AI-Powered Site Safety Platform',
+  description: 'Transform your site safety with Nexxau. AI-powered monitoring, real-time alerts, compliance tracking, and comprehensive reporting for modern construction sites.',
+};
 
 export default function HomePage() {
   return (

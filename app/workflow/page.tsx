@@ -4,6 +4,12 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import WorkflowBuilder from '@/components/workflow/WorkflowBuilder';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Workflow Builder | Nexxau',
+  description: 'Build and manage your site safety workflows with Nexxau's intuitive workflow builder.',
+};
 
 export default function WorkflowPage() {
   const { data: session, status } = useSession();

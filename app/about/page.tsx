@@ -13,6 +13,12 @@ import {
   ShieldCheckIcon,
   ChartBarIcon
 } from '@heroicons/react/24/outline';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'About | Nexxau',
+  description: 'Learn about Nexxau\'s mission, vision, and the team dedicated to revolutionizing construction safety through AI technology.',
+};
 
 const values = [
   {

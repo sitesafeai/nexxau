@@ -5,6 +5,12 @@ import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/src/components/home/Footer';
 import { EnvelopeIcon, PhoneIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Contact | Nexxau',
+  description: 'Get in touch with Nexxau for site safety and security solutions. Contact us for support, sales, or general inquiries.',
+};
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({

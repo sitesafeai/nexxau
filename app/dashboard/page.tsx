@@ -7,6 +7,12 @@ import ActiveAlertsTable from '@/src/components/dashboard/ActiveAlertsTable';
 import AlertRulesConfig from '@/src/components/dashboard/AlertRulesConfig';
 import { useRouter } from 'next/navigation';
 import ErrorBoundary from '@/src/components/ErrorBoundary';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Dashboard | Nexxau',
+  description: 'Access your Nexxau dashboard for real-time safety alerts, compliance tracking, and workflow management.',
+};
 
 function Placeholder({ title }: { title: string }) {
   return (

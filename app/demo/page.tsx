@@ -4,6 +4,12 @@ import React from 'react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/src/components/home/Footer';
 import Link from 'next/link';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Demo | Nexxau',
+  description: 'Watch demo videos to see Nexxau's AI-powered safety platform in action and learn how it can transform your site safety.',
+};
 
 export default function DemoPage() {
   return (
