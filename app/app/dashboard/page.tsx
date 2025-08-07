@@ -5,6 +5,7 @@ import { DashboardProvider, useDashboard, useSiteManagement, useNotifications } 
 import { useAlerts, useCameras, useAnalytics } from '../lib/hooks/useApi';
 import CameraFeed from '../components/CameraFeed';
 import { NotificationContainer } from '../components/NotificationToast';
+import { useRouter } from 'next/navigation';
 
 // Wrapper component that provides the dashboard context
 export default function DashboardPage() {
@@ -230,6 +231,7 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
 }
 
 function OverviewTab({ currentSite }: { currentSite: any }) {
+  const router = useRouter();
   const [cameras] = useState([
     {
       id: '1',
@@ -309,6 +311,21 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
     setShowCameraManager(true);
     // In a real app, this would open camera management
     console.log('Opening camera management for site:', currentSite.name);
+  };
+
+  const navigateToReports = () => {
+    setShowReportModal(false);
+    router.push('/dashboard/reports');
+  };
+
+  const navigateToAlerts = () => {
+    setShowAlertConfig(false);
+    router.push('/dashboard/alerts');
+  };
+
+  const navigateToCameras = () => {
+    setShowCameraManager(false);
+    router.push('/dashboard/cameras');
   };
 
   return (
@@ -486,10 +503,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
                 Cancel
               </button>
               <button 
-                onClick={() => {
-                  console.log('Report generated for:', currentSite.name);
-                  setShowReportModal(false);
-                }}
+                onClick={navigateToReports}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
               >
                 Generate Report
@@ -522,10 +536,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
                 Cancel
               </button>
               <button 
-                onClick={() => {
-                  console.log('Alert config opened for:', currentSite.name);
-                  setShowAlertConfig(false);
-                }}
+                onClick={navigateToAlerts}
                 className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
               >
                 Open Settings
@@ -558,10 +569,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
                 Cancel
               </button>
               <button 
-                onClick={() => {
-                  console.log('Camera manager opened for:', currentSite.name);
-                  setShowCameraManager(false);
-                }}
+                onClick={navigateToCameras}
                 className="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
               >
                 Open Manager
