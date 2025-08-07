@@ -230,6 +230,66 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
 }
 
 function OverviewTab({ currentSite }: { currentSite: any }) {
+  const [cameras] = useState([
+    {
+      id: '1',
+      name: 'Main Construction Site Camera',
+      status: 'online',
+      lastSeen: '2 minutes ago',
+      alerts: 0,
+      streamUrl: 'http://localhost:5001/video_feed',
+      hasVideo: true
+    },
+    {
+      id: '2',
+      name: 'Safety Zone A Camera',
+      status: 'online',
+      lastSeen: '1 minute ago',
+      alerts: 2,
+      streamUrl: 'http://localhost:5001/video_feed',
+      hasVideo: false
+    },
+    {
+      id: '3',
+      name: 'Loading Dock Camera',
+      status: 'offline',
+      lastSeen: '5 minutes ago',
+      alerts: 0,
+      streamUrl: 'http://localhost:5001/video_feed',
+      hasVideo: false
+    },
+    {
+      id: '4',
+      name: 'Warehouse B Camera',
+      status: 'online',
+      lastSeen: '30 seconds ago',
+      alerts: 1,
+      streamUrl: 'http://localhost:5001/video_feed',
+      hasVideo: false
+    }
+  ]);
+
+  const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
+
+  const currentCamera = cameras[currentCameraIndex];
+
+  const nextCamera = () => {
+    setCurrentCameraIndex((prev) => (prev + 1) % cameras.length);
+  };
+
+  const previousCamera = () => {
+    setCurrentCameraIndex((prev) => (prev - 1 + cameras.length) % cameras.length);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'online': return 'bg-green-900 text-green-300';
+      case 'offline': return 'bg-red-900 text-red-300';
+      case 'maintenance': return 'bg-yellow-900 text-yellow-300';
+      default: return 'bg-gray-700 text-gray-300';
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Key Metrics */}
@@ -252,11 +312,53 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
         </div>
       </div>
 
-      {/* Live Stream */}
+      {/* Live Stream with Camera Navigation */}
       <div className="bg-gray-800 p-6 rounded-lg">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={previousCamera}
+              className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-700"
+              title="Previous Camera"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="flex items-center space-x-2">
+              <h3 className="text-lg font-semibold text-white">{currentCamera.name}</h3>
+              <div className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(currentCamera.status)}`}>
+                {currentCamera.status}
+              </div>
+            </div>
+            <button
+              onClick={nextCamera}
+              className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-700"
+              title="Next Camera"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+          <div className="flex items-center space-x-2 text-sm text-gray-400">
+            <span>Camera {currentCameraIndex + 1} of {cameras.length}</span>
+            <div className="flex space-x-1">
+              {cameras.map((_, index) => (
+                <div
+                  key={index}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    index === currentCameraIndex ? 'bg-blue-500' : 'bg-gray-600'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        
         <CameraFeed 
-          title="Main Construction Site Camera"
-          streamUrl="http://localhost:5001/video_feed"
+          title={currentCamera.name}
+          streamUrl={currentCamera.streamUrl}
           fallbackVideo="/demo-third-aprty-sitesafe.mov"
           showControls={true}
           autoPlay={true}
