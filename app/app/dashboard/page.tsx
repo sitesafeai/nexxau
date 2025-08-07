@@ -270,6 +270,9 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
   ]);
 
   const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showAlertConfig, setShowAlertConfig] = useState(false);
+  const [showCameraManager, setShowCameraManager] = useState(false);
 
   const currentCamera = cameras[currentCameraIndex];
 
@@ -288,6 +291,24 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
       case 'maintenance': return 'bg-yellow-900 text-yellow-300';
       default: return 'bg-gray-700 text-gray-300';
     }
+  };
+
+  const handleGenerateReport = () => {
+    setShowReportModal(true);
+    // In a real app, this would trigger report generation
+    console.log('Generating safety report for site:', currentSite.name);
+  };
+
+  const handleConfigureAlerts = () => {
+    setShowAlertConfig(true);
+    // In a real app, this would open alert configuration
+    console.log('Opening alert configuration for site:', currentSite.name);
+  };
+
+  const handleManageCameras = () => {
+    setShowCameraManager(true);
+    // In a real app, this would open camera management
+    console.log('Opening camera management for site:', currentSite.name);
   };
 
   return (
@@ -367,22 +388,188 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
 
       {/* Quick Actions */}
       <div className="bg-gray-800 p-6 rounded-lg">
-        <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg text-center transition-colors">
-            <div className="text-2xl mb-2">📊</div>
-            <div className="font-medium">Generate Report</div>
+        <h3 className="text-lg font-semibold text-white mb-6">Quick Actions</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Generate Report Button */}
+          <button 
+            onClick={handleGenerateReport}
+            className="group relative bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-6 rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-xl border border-blue-500/20"
+          >
+            <div className="flex items-center space-x-4">
+              <div className="flex-shrink-0">
+                <svg className="w-8 h-8 text-blue-200 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="font-semibold text-lg">Generate Report</div>
+                <div className="text-blue-200 text-sm opacity-80">Safety analytics & insights</div>
+              </div>
+            </div>
+            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
           </button>
-          <button className="bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg text-center transition-colors">
-            <div className="text-2xl mb-2">⚙️</div>
-            <div className="font-medium">Configure Alerts</div>
+
+          {/* Configure Alerts Button */}
+          <button 
+            onClick={handleConfigureAlerts}
+            className="group relative bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white p-6 rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-xl border border-green-500/20"
+          >
+            <div className="flex items-center space-x-4">
+              <div className="flex-shrink-0">
+                <svg className="w-8 h-8 text-green-200 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="font-semibold text-lg">Configure Alerts</div>
+                <div className="text-green-200 text-sm opacity-80">Set up safety notifications</div>
+              </div>
+            </div>
+            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
           </button>
-          <button className="bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-lg text-center transition-colors">
-            <div className="text-2xl mb-2">📹</div>
-            <div className="font-medium">Manage Cameras</div>
+
+          {/* Manage Cameras Button */}
+          <button 
+            onClick={handleManageCameras}
+            className="group relative bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white p-6 rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-xl border border-purple-500/20"
+          >
+            <div className="flex items-center space-x-4">
+              <div className="flex-shrink-0">
+                <svg className="w-8 h-8 text-purple-200 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="font-semibold text-lg">Manage Cameras</div>
+                <div className="text-purple-200 text-sm opacity-80">Camera settings & controls</div>
+              </div>
+            </div>
+            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
           </button>
         </div>
       </div>
+
+      {/* Modals for functionality */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-white">Generate Safety Report</h3>
+              <button 
+                onClick={() => setShowReportModal(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <p className="text-gray-300 mb-6">Generate a comprehensive safety report for {currentSite.name} including camera analytics, alert history, and compliance metrics.</p>
+            <div className="flex space-x-3">
+              <button 
+                onClick={() => setShowReportModal(false)}
+                className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  console.log('Report generated for:', currentSite.name);
+                  setShowReportModal(false);
+                }}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Generate Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAlertConfig && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-white">Configure Alerts</h3>
+              <button 
+                onClick={() => setShowAlertConfig(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <p className="text-gray-300 mb-6">Configure safety alert settings, notification preferences, and detection sensitivity for {currentSite.name}.</p>
+            <div className="flex space-x-3">
+              <button 
+                onClick={() => setShowAlertConfig(false)}
+                className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  console.log('Alert config opened for:', currentSite.name);
+                  setShowAlertConfig(false);
+                }}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Open Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCameraManager && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-white">Manage Cameras</h3>
+              <button 
+                onClick={() => setShowCameraManager(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <p className="text-gray-300 mb-6">Access camera management interface for {currentSite.name} to configure settings, adjust positioning, and monitor camera health.</p>
+            <div className="flex space-x-3">
+              <button 
+                onClick={() => setShowCameraManager(false)}
+                className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  console.log('Camera manager opened for:', currentSite.name);
+                  setShowCameraManager(false);
+                }}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Open Manager
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
