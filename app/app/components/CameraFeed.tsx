@@ -25,6 +25,8 @@ export default function CameraFeed({
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [streamMode, setStreamMode] = useState<'stream' | 'fallback'>('stream');
+  const [showSettings, setShowSettings] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -34,6 +36,7 @@ export default function CameraFeed({
     setLoading(false);
     setError(false);
     setStreamMode('stream');
+    setIsRetrying(false);
   };
 
   // Handle stream image error
@@ -42,18 +45,21 @@ export default function CameraFeed({
     setStreamMode('fallback');
     setError(false);
     setLoading(false);
+    setIsRetrying(false);
   };
 
   // Handle video load
   const handleVideoLoad = () => {
     setLoading(false);
     setError(false);
+    setIsRetrying(false);
   };
 
   // Handle video error
   const handleVideoError = () => {
     setError(true);
     setLoading(false);
+    setIsRetrying(false);
   };
 
   // Toggle play/pause
@@ -84,12 +90,22 @@ export default function CameraFeed({
     }
   };
 
-  // Retry connection
+  // Retry connection (more subtle)
   const retryConnection = () => {
-    setLoading(true);
+    setIsRetrying(true);
     setError(false);
     setStreamMode('stream');
     setReloadKey(prev => prev + 1);
+    
+    // Add a small delay to make the retry more visible but not jarring
+    setTimeout(() => {
+      setLoading(true);
+    }, 100);
+  };
+
+  // Toggle settings
+  const toggleSettings = () => {
+    setShowSettings(!showSettings);
   };
 
   // Listen for fullscreen changes
@@ -127,14 +143,58 @@ export default function CameraFeed({
             </>
           )}
           <button
-            onClick={retryConnection}
+            onClick={toggleSettings}
             className="p-2 text-gray-400 hover:text-white transition-colors"
-            title="Retry Connection"
+            title="Camera Settings"
           >
             <Cog6ToothIcon className="h-5 w-5" />
           </button>
         </div>
       </div>
+
+      {/* Settings Panel */}
+      {showSettings && (
+        <div className="bg-gray-800 border-b border-gray-700 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-medium text-white">Camera Settings</h4>
+            <button
+              onClick={toggleSettings}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              ×
+            </button>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-300">Connection Status</span>
+              <span className={`text-sm px-2 py-1 rounded ${
+                error ? 'bg-red-900 text-red-300' : 
+                loading ? 'bg-yellow-900 text-yellow-300' : 
+                'bg-green-900 text-green-300'
+              }`}>
+                {error ? 'Offline' : loading ? 'Connecting...' : 'Connected'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-300">Stream Mode</span>
+              <span className="text-sm text-gray-400">
+                {streamMode === 'stream' ? 'Live Stream' : 'Demo Video'}
+              </span>
+            </div>
+            <button
+              onClick={retryConnection}
+              disabled={isRetrying}
+              className={`w-full px-3 py-2 text-sm rounded transition-colors ${
+                isRetrying 
+                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+            >
+              {isRetrying ? 'Retrying...' : 'Retry Connection'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Video Container */}
       <div className="relative">
@@ -143,7 +203,8 @@ export default function CameraFeed({
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
               <p className="text-gray-400">
-                {streamMode === 'stream' ? 'Connecting to camera stream...' : 'Loading video...'}
+                {isRetrying ? 'Retrying connection...' : 
+                 streamMode === 'stream' ? 'Connecting to camera stream...' : 'Loading video...'}
               </p>
             </div>
           </div>
@@ -157,9 +218,14 @@ export default function CameraFeed({
               <p className="text-gray-400 mb-4">Unable to connect to camera feed</p>
               <button
                 onClick={retryConnection}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                disabled={isRetrying}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  isRetrying 
+                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                }`}
               >
-                Retry Connection
+                {isRetrying ? 'Retrying...' : 'Retry Connection'}
               </button>
             </div>
           </div>
@@ -210,7 +276,7 @@ export default function CameraFeed({
             }`}></div>
             <span className="text-gray-400">
               {error ? 'Offline' : 
-               loading ? 'Connecting...' : 
+               loading ? (isRetrying ? 'Retrying...' : 'Connecting...') : 
                streamMode === 'stream' ? 'Live Stream' : 'Demo Video'}
             </span>
           </div>
