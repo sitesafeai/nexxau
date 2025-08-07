@@ -39,6 +39,15 @@ function DashboardContent() {
     }
   }, [selectedSite, state.isUsingMockData, addNotification]);
 
+  // Test notification function
+  const testNotification = (type: 'success' | 'error' | 'warning' | 'info') => {
+    addNotification({
+      type,
+      title: `${type.charAt(0).toUpperCase() + type.slice(1)} Notification`,
+      message: `This is a test ${type} notification that will auto-dismiss in 5 seconds.`
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800">
       {/* Notifications */}
@@ -84,10 +93,10 @@ function DashboardContent() {
                     <span className="ml-2 text-xs text-gray-400">
                       Safety: {selectedSite.safetyScore}%
                     </span>
-                  </div>
-                </div>
-              )}
-            </div>
+        </div>
+        </div>
+      )}
+    </div>
 
             <nav className="mt-5 flex-1 space-y-1 bg-gray-900 px-2">
               {[
@@ -114,21 +123,52 @@ function DashboardContent() {
               ))}
             </nav>
 
-            {/* User Info */}
-            <div className="px-4 mt-4">
-              <div className="bg-gray-800 rounded-lg p-3">
-                <p className="text-xs text-gray-400">Logged in as</p>
-                <p className="text-sm font-medium text-white">{state.currentUser?.name || 'Loading...'}</p>
-                <p className="text-xs text-gray-400">{state.currentUser?.email || 'Loading...'}</p>
-                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${
-                  state.currentUser?.role === 'admin' ? 'bg-purple-900 text-purple-300' :
-                  state.currentUser?.role === 'site-manager' ? 'bg-blue-900 text-blue-300' :
-                  'bg-green-900 text-green-300'
-                }`}>
-                  {state.currentUser?.role || 'Loading...'}
-                </span>
-              </div>
-            </div>
+                                {/* User Info */}
+                    <div className="px-4 mt-4">
+                      <div className="bg-gray-800 rounded-lg p-3">
+                        <p className="text-xs text-gray-400">Logged in as</p>
+                        <p className="text-sm font-medium text-white">{state.currentUser?.name || 'Loading...'}</p>
+                        <p className="text-xs text-gray-400">{state.currentUser?.email || 'Loading...'}</p>
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${
+                          state.currentUser?.role === 'admin' ? 'bg-purple-900 text-purple-300' :
+                          state.currentUser?.role === 'site-manager' ? 'bg-blue-900 text-blue-300' :
+                          'bg-green-900 text-green-300'
+                        }`}>
+                          {state.currentUser?.role || 'Loading...'}
+                        </span>
+                      </div>
+                      
+                      {/* Test Notification Buttons */}
+                      <div className="mt-3 bg-gray-800 rounded-lg p-3">
+                        <p className="text-xs text-gray-400 mb-2">Test Notifications</p>
+                        <div className="grid grid-cols-2 gap-1">
+                          <button
+                            onClick={() => testNotification('success')}
+                            className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded transition-colors"
+                          >
+                            Success
+                          </button>
+                          <button
+                            onClick={() => testNotification('error')}
+                            className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded transition-colors"
+                          >
+                            Error
+                          </button>
+                          <button
+                            onClick={() => testNotification('warning')}
+                            className="text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded transition-colors"
+                          >
+                            Warning
+                          </button>
+                          <button
+                            onClick={() => testNotification('info')}
+                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors"
+                          >
+                            Info
+                          </button>
+                        </div>
+                      </div>
+                    </div>
           </div>
         </div>
       </div>
