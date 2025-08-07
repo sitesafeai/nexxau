@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, ReactNode, useCallback } from 'react';
 import { useCurrentUser, useSites } from '../hooks/useApi';
 
 // Types
@@ -62,6 +62,15 @@ function dashboardReducer(state: DashboardState, action: DashboardAction): Dashb
       return { ...state, realTimeUpdates: action.payload };
     
     case 'ADD_NOTIFICATION':
+      // Check if notification with same title and message already exists
+      const isDuplicate = state.notifications.some(
+        n => n.title === action.payload.title && n.message === action.payload.message
+      );
+      
+      if (isDuplicate) {
+        return state; // Don't add duplicate
+      }
+      
       return {
         ...state,
         notifications: [action.payload, ...state.notifications].slice(0, 10) // Keep only last 10
@@ -167,7 +176,7 @@ export function DashboardProvider({ children }: DashboardProviderProps) {
     dispatch({ type: 'SET_SELECTED_SITE', payload: siteId });
   };
 
-  const addNotification = (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
+  const addNotification = useCallback((notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
     const newNotification: Notification = {
       ...notification,
       id: Date.now().toString(),
@@ -175,7 +184,7 @@ export function DashboardProvider({ children }: DashboardProviderProps) {
       read: false
     };
     dispatch({ type: 'ADD_NOTIFICATION', payload: newNotification });
-  };
+  }, [dispatch]);
 
   const removeNotification = (id: string) => {
     dispatch({ type: 'REMOVE_NOTIFICATION', payload: id });

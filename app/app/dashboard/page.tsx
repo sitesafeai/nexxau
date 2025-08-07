@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect } from 'react';
-import React, { useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { DashboardProvider, useDashboard, useSiteManagement, useNotifications } from '../lib/context/DashboardContext';
 import { useAlerts, useCameras, useAnalytics } from '../lib/hooks/useApi';
 import CameraFeed from '../components/CameraFeed';
@@ -20,6 +20,7 @@ function DashboardContent() {
   const { state, selectSite, hasPermission, addNotification } = useDashboard();
   const { selectedSiteId, selectedSite, accessibleSites } = useSiteManagement();
   const { notifications, removeNotification } = useNotifications();
+  const welcomeNotificationShown = useRef(false);
 
   // Update selected site when context changes
   useEffect(() => {
@@ -28,9 +29,10 @@ function DashboardContent() {
     }
   }, [selectedSiteId, accessibleSites, selectSite]);
 
-  // Show welcome notification
+  // Show welcome notification (only once)
   useEffect(() => {
-    if (selectedSite && !state.isUsingMockData) {
+    if (selectedSite && !state.isUsingMockData && !welcomeNotificationShown.current) {
+      welcomeNotificationShown.current = true;
       addNotification({
         type: 'info',
         title: 'Camera Feed Status',
