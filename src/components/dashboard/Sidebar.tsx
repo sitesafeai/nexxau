@@ -8,71 +8,47 @@ import {
   BellIcon,
   ChartBarIcon,
   CogIcon,
-  UserGroupIcon,
   BuildingOfficeIcon,
-  ShieldCheckIcon,
   VideoCameraIcon,
   WrenchScrewdriverIcon,
-  DocumentTextIcon,
-  ArrowLeftOnRectangleIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
   selected: string;
-  onSelect: (key: string, tab?: string) => void;
+  onSelect: (key: string) => void;
 }
 
 const navigation = [
   {
-    name: 'Site Overview',
-    key: 'site-overview',
+    name: 'Overview',
+    key: 'overview',
     icon: HomeIcon,
-    tabs: [
-      { name: 'Overview', key: 'overview' },
-      { name: 'Alerts', key: 'alerts' },
-      { name: 'Monitoring', key: 'monitoring' },
-      { name: 'Reports', key: 'reports' },
-      { name: 'Sites', key: 'sites' },
-    ],
   },
   {
-    name: 'Active Alerts',
-    key: 'active-alerts',
-    icon: BellIcon,
+    name: 'Sites',
+    key: 'sites',
+    icon: BuildingOfficeIcon,
   },
   {
-    name: 'Alert Rules',
-    key: 'alert-rules',
-    icon: WrenchScrewdriverIcon,
-  },
-  {
-    name: 'Alert History',
-    key: 'alert-history',
-    icon: ArrowLeftOnRectangleIcon,
-  },
-  {
-    name: 'Camera Feed',
-    key: 'camera-feed',
+    name: 'Cameras',
+    key: 'cameras',
     icon: VideoCameraIcon,
   },
   {
-    name: 'Reports & Analytics',
-    key: 'reports-analytics',
+    name: 'Alerts',
+    key: 'alerts',
+    icon: BellIcon,
+  },
+  {
+    name: 'Reports',
+    key: 'reports',
     icon: ChartBarIcon,
   },
   {
-    name: 'Workflow Builder',
-    key: 'workflow',
-    icon: DocumentTextIcon,
-  },
-  {
-    name: 'Blog',
-    key: 'blog',
-    icon: DocumentTextIcon,
-    tabs: [
-      { name: 'All Posts', key: 'all-posts' },
-      { name: 'Create Blog', key: 'create' },
-    ],
+    name: 'Workflows',
+    key: 'workflows',
+    icon: WrenchScrewdriverIcon,
   },
   {
     name: 'Settings',
@@ -84,77 +60,37 @@ const navigation = [
 export default function Sidebar({ selected, onSelect }: SidebarProps) {
   return (
     <div className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col">
-      <div className="flex min-h-0 flex-1 flex-col border-r border-gray-200 bg-white">
+      <div className="flex min-h-0 flex-1 flex-col border-r border-gray-700 bg-gray-900">
         <div className="flex flex-1 flex-col overflow-y-auto pt-5 pb-4">
           <div className="flex flex-shrink-0 items-center px-4">
             <img
               className="h-8 w-auto"
-              src="/logo.png"
+              src="/nexxau-logo.png"
               alt="Nexxau"
             />
+            <span className="ml-2 text-xl font-bold text-white">Nexxau</span>
           </div>
-          <nav className="mt-5 flex-1 space-y-1 bg-white px-2">
+          <nav className="mt-5 flex-1 space-y-1 bg-gray-900 px-2">
             {navigation.map((item) => (
-              <div key={item.key}>
-                {item.tabs ? (
-                  <div>
                     <button
-                      onClick={() => onSelect(item.key)}
-                      className={`group flex w-full items-center px-2 py-2 text-sm font-medium rounded-md ${
-                        selected.startsWith(item.key)
-                          ? 'bg-gray-100 text-gray-900'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
-                    >
-                      <item.icon
-                        className={`mr-3 h-6 w-6 flex-shrink-0 ${
-                          selected.startsWith(item.key)
-                            ? 'text-gray-500'
-                            : 'text-gray-400 group-hover:text-gray-500'
-                        }`}
-                        aria-hidden="true"
-                      />
-                      {item.name}
-                    </button>
-                    {selected.startsWith(item.key) && (
-                      <div className="mt-1 space-y-1 px-2">
-                        {item.tabs.map((tab) => (
-                          <button
-                            key={tab.key}
-                            onClick={() => onSelect(item.key, tab.key)}
-                            className={`group flex w-full items-center px-2 py-2 text-sm font-medium rounded-md ${
-                              selected === `${item.key}-${tab.key}`
-                                ? 'bg-gray-100 text-gray-900'
-                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                            }`}
-                          >
-                            {tab.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <button
+                key={item.key}
                     onClick={() => onSelect(item.key)}
                     className={`group flex w-full items-center px-2 py-2 text-sm font-medium rounded-md ${
                       selected === item.key
-                        ? 'bg-gray-100 text-gray-900'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-gray-800 text-white'
+                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
                     }`}
                   >
                     <item.icon
                       className={`mr-3 h-6 w-6 flex-shrink-0 ${
                         selected === item.key
-                          ? 'text-gray-500'
-                          : 'text-gray-400 group-hover:text-gray-500'
+                      ? 'text-blue-400'
+                      : 'text-gray-400 group-hover:text-gray-300'
                       }`}
                       aria-hidden="true"
                     />
                     {item.name}
                   </button>
-                )}
-              </div>
             ))}
           </nav>
         </div>
