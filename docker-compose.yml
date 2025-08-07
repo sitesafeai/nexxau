@@ -1,0 +1,50 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: ./app/Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./prisma:/app/prisma
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=file:/app/prisma/dev.db
+    depends_on:
+      - mediamtx
+      - yolo
+
+  yolo:
+    build:
+      context: ./ai-detection
+    ports:
+      - "5000:5000"
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: mediamtx
+    restart: unless-stopped
+    ports:
+      - "8554:8554"   # RTSP
+      - "8888:8888"   # HLS
+      - "8889:8889"   # API/metrics
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml # Optional: mount your config
+    environment:
+      - MTX_PATHS_ALL_SOURCE=rtsp://your_rtsp_source
+
+networks:
+  default:
+    driver: bridge 

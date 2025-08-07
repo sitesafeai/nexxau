@@ -1,272 +1,289 @@
-# SiteSafe Project TODO List
+# Nexxau Development TODO
 
-## Landing Page
-- [x] Create home page with modern design
-- [x] Add hero section
-- [x] Add features overview
-- [x] Add call-to-action section
-- [x] Add "How It Works" section
-- [x] Add Industries section
-- [x] Add FAQ section
-- [x] Add Footer
-- [ ] Add testimonials section
-- [ ] Add pricing section
-- [ ] Add blog section
-- [ ] Add case studies section
+## 🔐 Role-Based Access Control (RBAC) Implementation
 
-## Authentication System
-- [x] Set up NextAuth.js
-- [x] Create login page
-- [x] Create signup page
-- [x] Create password reset page
-- [x] Implement email verification
-- [ ] Add social authentication (Google, GitHub)
-- [ ] Add two-factor authentication
+### High Priority
+- [ ] **Authentication System**
+  - [ ] Implement NextAuth.js with custom providers
+  - [ ] Add user registration and login pages
+  - [ ] Create user management in admin dashboard
+  - [ ] Add password reset functionality
 - [ ] Implement session management
-- [ ] Add role-based access control
 
-## Dashboard Features
-- [x] Create dashboard layout component
-- [x] Create User Dashboard page structure with tabs
-- [x] Implement Site Overview tab content (stats, graph, camera feed)
-- [x] Implement Active Alerts tab content (table, filters)
-- [x] Implement Site Monitoring tab content (camera feeds, site info)
-- [ ] Add safety metrics overview
-- [ ] Implement real-time alerts display
-- [ ] Add compliance status widget
-- [ ] Create incident timeline
-- [ ] Add safety score visualization
-- [ ] Implement notification center
-- [ ] Add quick actions menu
-- [ ] Lets them have a drag and drop workplace to make worflows on safety, like setting up an alarm that rings when a forklift gets too close to a person, or when a forklift goes too fast, you would drag a forklift widget and connect it to a person element and add rules
+- [ ] **User Roles & Permissions**
+  - [ ] Define role hierarchy: `admin`, `site-manager`, `viewer`
+  - [ ] Create role-based middleware for route protection
+  - [ ] Implement permission system for worksite access
+  - [ ] Add role assignment in user management
+  - [ ] Create role-based UI components (show/hide based on permissions)
 
-## Sites Management
-- [ ] Create sites list view
-- [ ] Add site details page
-- [ ] Implement site creation flow
-- [ ] Add site configuration options
-- [ ] Create camera management interface
-- [ ] Add site access control
-- [ ] Implement site analytics
-- [ ] Add site documentation section
+- [ ] **Worksite Access Control**
+  - [ ] Implement worksite-to-user assignment system
+  - [ ] Add worksite manager assignment functionality
+  - [ ] Create worksite access validation middleware
+  - [ ] Implement worksite filtering based on user permissions
+  - [ ] Add audit logging for worksite access
 
-## Reports & Analytics
-- [ ] Create reports dashboard
-- [ ] Implement safety violation reports
-- [ ] Add compliance reports
-- [ ] Create custom report builder
-- [ ] Add export functionality
-- [ ] Implement data visualization
-- [ ] Add trend analysis
-- [ ] Create automated report scheduling
+### Medium Priority
+- [ ] **Database Schema Updates**
+  - [ ] Add users table with role and permissions
+  - [ ] Create worksite_users junction table
+  - [ ] Add audit_logs table for tracking access
+  - [ ] Update existing tables to support RBAC
 
-## Alerts System
-- [ ] Implement real-time alert generation
-- [ ] Create alert management interface
-- [ ] Add alert notification system
+- [ ] **API Security**
+  - [ ] Add authentication middleware to all API routes
+  - [ ] Implement role-based API access control
+  - [ ] Add rate limiting for API endpoints
+  - [ ] Create API key management for external integrations
+
+- [ ] **UI/UX Improvements**
+  - [ ] Add role-based navigation items
+  - [ ] Implement permission-based button visibility
+  - [ ] Create user profile management page
+  - [ ] Add role indicator in user interface
+
+### Low Priority
+- [ ] **Advanced Features**
+  - [ ] Implement multi-factor authentication (MFA)
+  - [ ] Add SSO integration (Google, Microsoft)
+  - [ ] Create user activity monitoring
+  - [ ] Implement automated role assignment based on worksite creation
+
+## 🏗️ Worksite Management Features
+
+### High Priority
+- [ ] **Worksite CRUD Operations**
+  - [ ] Create worksite creation form
+  - [ ] Implement worksite editing functionality
+  - [ ] Add worksite deletion with confirmation
+  - [ ] Create worksite status management
+
+- [ ] **Worksite Assignment**
+  - [ ] Add worksite manager assignment interface
+  - [ ] Implement bulk user assignment to worksites
+  - [ ] Create worksite access request system
+  - [ ] Add worksite transfer functionality
+
+### Medium Priority
+- [ ] **Worksite Analytics**
+  - [ ] Create worksite-specific dashboards
+  - [ ] Implement worksite performance metrics
+  - [ ] Add worksite comparison features
+  - [ ] Create worksite health scoring
+
+## 📹 Camera Management
+
+### High Priority
+- [ ] **Camera Integration**
+  - [ ] Implement ONVIF camera discovery
+  - [ ] Add camera configuration interface
+  - [ ] Create camera status monitoring
+  - [ ] Implement camera feed management
+
+- [ ] **AI Detection Integration**
+  - [ ] Connect YOLOv8 stream to camera feeds
+  - [ ] Implement real-time object detection
+  - [ ] Add detection rule configuration
+  - [ ] Create alert generation from detections
+
+### Medium Priority
+- [ ] **Advanced Camera Features**
+  - [ ] Add camera grouping by worksite
+  - [ ] Implement camera scheduling
+  - [ ] Create camera maintenance tracking
+  - [ ] Add camera analytics and reporting
+
+## 🚨 Alert System
+
+### High Priority
+- [ ] **Alert Management**
+  - [ ] Create alert rule configuration
 - [ ] Implement alert severity levels
-- [ ] Add alert response tracking
-- [ ] Create alert history view
-- [ ] Implement alert rules configuration
-- [ ] Add alert analytics
+  - [ ] Add alert acknowledgment system
+  - [ ] Create alert escalation workflows
 
-## User Management
-- [ ] Create user management interface
-- [ ] Implement user roles and permissions
-- [ ] Add user activity tracking
-- [ ] Create user profile pages
-- [ ] Implement team management
-- [ ] Add user onboarding flow
-- [ ] Create user settings page
-- [ ] Implement user audit logs
+- [ ] **Real-time Notifications**
+  - [ ] Implement WebSocket connections for real-time alerts
+  - [ ] Add email notification system
+  - [ ] Create SMS notification integration
+  - [ ] Add push notification support
 
-## Settings & Configuration
-- [ ] Create system settings page
-- [ ] Add notification preferences
-- [ ] Implement API key management
-- [ ] Add integration settings
-- [ ] Create backup and restore options
-- [ ] Implement system logs
-- [ ] Add customization options
-- [ ] Create system health monitoring
+### Medium Priority
+- [ ] **Alert Analytics**
+  - [ ] Create alert trend analysis
+  - [ ] Implement alert response time tracking
+  - [ ] Add alert effectiveness metrics
+  - [ ] Create alert optimization suggestions
 
-## General Tasks
-- [x] Set up Next.js project
-- [x] Configure TypeScript
-- [x] Set up Tailwind CSS
-- [x] Configure Prisma
-- [x] Set up database
-- [ ] Add error handling
-- [ ] Implement logging system
-- [ ] Add automated testing
-- [ ] Set up CI/CD pipeline
-- [ ] Add documentation
-- [ ] Implement performance monitoring
-- [ ] Add security measures
-- [ ] Create deployment strategy
+## 📊 Reporting & Analytics
 
-## Admin Features
-- [ ] Add user approval section to admin dashboard (list unapproved users, approve button)
-- [ ] Update user dashboard to show content only if user is approved
+### High Priority
+- [ ] **Report Generation**
+  - [ ] Create customizable report templates
+  - [ ] Implement automated report scheduling
+  - [ ] Add report export functionality (PDF, Excel)
+  - [ ] Create report sharing system
 
-# SiteSafe Camera and AI Detection System Implementation
+- [ ] **Dashboard Analytics**
+  - [ ] Implement real-time dashboard updates
+  - [ ] Add interactive charts and graphs
+  - [ ] Create performance metrics tracking
+  - [ ] Add trend analysis features
 
-## Hardware Requirements
+### Medium Priority
+- [ ] **Advanced Analytics**
+  - [ ] Implement predictive analytics
+  - [ ] Add machine learning for safety prediction
+  - [ ] Create anomaly detection algorithms
+  - [ ] Add performance benchmarking
 
-### Per Site
-1. **Server Requirements** (Option A - Single Server)
-   - CPU: 8+ cores (for YOLO processing)
-   - RAM: 16GB+ (8GB for YOLO, 4GB for streaming)
-   - GPU: NVIDIA GPU with 4GB+ VRAM (for YOLO)
-   - Storage: 1TB+ SSD
-   - OS: Ubuntu Server 20.04 LTS
+## 🔧 System Configuration
 
-   OR
+### High Priority
+- [ ] **System Settings**
+  - [ ] Create global system configuration
+  - [ ] Implement backup and restore functionality
+  - [ ] Add system health monitoring
+  - [ ] Create maintenance mode functionality
 
-   **Server Requirements** (Option B - Two Servers)
-   - Server 1 (Video Streaming):
-     - CPU: 4 cores
-     - RAM: 8GB
-     - Storage: 500GB SSD
-   - Server 2 (AI Processing):
-     - CPU: 8+ cores
-     - RAM: 16GB
-     - GPU: NVIDIA GPU with 4GB+ VRAM
+- [ ] **Integration Management**
+  - [ ] Add third-party API integrations
+  - [ ] Implement webhook system
+  - [ ] Create API documentation
+  - [ ] Add integration testing
 
-2. **Network Requirements**
-   - Router/Switch with sufficient ports
-   - Ethernet cables or WiFi for camera connections
-   - Minimum 10Mbps bandwidth per camera
-   - Firewall with proper security rules
-   - VLAN support for camera traffic isolation
+### Medium Priority
+- [ ] **Advanced Configuration**
+  - [ ] Implement environment-specific configurations
+  - [ ] Add feature flag system
+  - [ ] Create configuration validation
+  - [ ] Add configuration versioning
 
-3. **Camera Requirements**
-   - IP cameras with RTSP support
-   - Minimum 1080p resolution
-   - Night vision capability
-   - Weather resistance (if outdoor)
-   - Power over Ethernet (PoE) support
+## 🚀 Performance & Scalability
 
-## Software Setup
+### High Priority
+- [ ] **Performance Optimization**
+  - [ ] Implement database query optimization
+  - [ ] Add caching layer (Redis)
+  - [ ] Optimize image and video processing
+  - [ ] Implement lazy loading for large datasets
 
-### Server Setup
-1. **Initial Server Setup**
-   ```bash
-   # Copy setup script to server
-   scp setup-site-server.sh user@site-server:/tmp/
-   
-   # SSH into server
-   ssh user@site-server
-   
-   # Make script executable and run
-   chmod +x /tmp/setup-site-server.sh
-   sudo /tmp/setup-site-server.sh
-   ```
+- [ ] **Scalability**
+  - [ ] Add horizontal scaling support
+  - [ ] Implement load balancing
+  - [ ] Create microservices architecture
+  - [ ] Add container orchestration (Kubernetes)
 
-2. **Verify Installation**
-   - Check Node.js service status
-   - Check Python environment
-   - Verify Nginx configuration
-   - Test video streaming endpoints
+### Medium Priority
+- [ ] **Monitoring & Logging**
+  - [ ] Implement comprehensive logging
+  - [ ] Add application performance monitoring
+  - [ ] Create error tracking and alerting
+  - [ ] Add user activity analytics
 
-### Camera Configuration
-1. **Network Setup**
-   - Assign static IPs to cameras
-   - Configure VLAN for camera traffic
-   - Set up firewall rules
-   - Test network connectivity
+## 🧪 Testing & Quality Assurance
 
-2. **Camera Setup**
-   - Install cameras at strategic locations
-   - Configure RTSP streams
-   - Test video quality
-   - Verify night vision
-   - Check power supply
+### High Priority
+- [ ] **Testing Infrastructure**
+  - [ ] Set up unit testing framework
+  - [ ] Implement integration testing
+  - [ ] Add end-to-end testing
+  - [ ] Create automated testing pipeline
 
-3. **Stream Configuration**
-   - Update camera URLs in `config.json`
-   - Test RTSP connections
-   - Verify HLS conversion
-   - Check stream quality
+- [ ] **Code Quality**
+  - [ ] Implement code linting and formatting
+  - [ ] Add type checking (TypeScript)
+  - [ ] Create code review guidelines
+  - [ ] Add automated code quality checks
 
-### AI Detection Setup
-1. **Model Setup**
-   - Download YOLO model
-   - Configure detection parameters
-   - Test detection accuracy
-   - Fine-tune for specific use cases
+### Medium Priority
+- [ ] **Advanced Testing**
+  - [ ] Add performance testing
+  - [ ] Implement security testing
+  - [ ] Create accessibility testing
+  - [ ] Add cross-browser compatibility testing
 
-2. **Alert Configuration**
-   - Set up alert thresholds
-   - Configure notification endpoints
-   - Test alert generation
-   - Verify alert delivery
+## 📱 Mobile & Accessibility
 
-## Implementation Steps
+### Medium Priority
+- [ ] **Mobile Responsiveness**
+  - [ ] Optimize dashboard for mobile devices
+  - [ ] Create mobile-specific navigation
+  - [ ] Add touch-friendly interactions
+  - [ ] Implement mobile notifications
 
-### Phase 1: Infrastructure
-- [ ] Set up server hardware
-- [ ] Configure network infrastructure
-- [ ] Install and configure cameras
-- [ ] Set up video streaming server
-- [ ] Configure Nginx for streaming
+- [ ] **Accessibility**
+  - [ ] Add ARIA labels and roles
+  - [ ] Implement keyboard navigation
+  - [ ] Add screen reader support
+  - [ ] Create high contrast mode
 
-### Phase 2: AI Integration
-- [ ] Install AI detection service
-- [ ] Configure YOLO model
-- [ ] Set up detection rules
-- [ ] Test detection accuracy
-- [ ] Configure alert system
+## 🔒 Security & Compliance
 
-### Phase 3: Testing
-- [ ] Test video streaming
-- [ ] Verify AI detection
-- [ ] Test alert generation
-- [ ] Check system performance
-- [ ] Validate security measures
+### High Priority
+- [ ] **Security Measures**
+  - [ ] Implement input validation and sanitization
+  - [ ] Add CSRF protection
+  - [ ] Create secure file upload handling
+  - [ ] Implement data encryption
 
-### Phase 4: Deployment
-- [ ] Deploy to production
-- [ ] Monitor system performance
-- [ ] Set up backup systems
-- [ ] Configure monitoring
-- [ ] Document system
+- [ ] **Compliance**
+  - [ ] Add GDPR compliance features
+  - [ ] Implement data retention policies
+  - [ ] Create audit trail functionality
+  - [ ] Add privacy controls
 
-## Maintenance Tasks
+### Medium Priority
+- [ ] **Advanced Security**
+  - [ ] Implement API rate limiting
+  - [ ] Add IP whitelisting
+  - [ ] Create security monitoring
+  - [ ] Add penetration testing
 
-### Daily
-- [ ] Check system logs
-- [ ] Monitor camera status
-- [ ] Verify alert system
-- [ ] Check storage usage
+## 📚 Documentation
 
-### Weekly
-- [ ] Review detection accuracy
-- [ ] Check system performance
-- [ ] Verify backup systems
-- [ ] Update security measures
+### Medium Priority
+- [ ] **User Documentation**
+  - [ ] Create user manual
+  - [ ] Add video tutorials
+  - [ ] Create FAQ section
+  - [ ] Add contextual help
 
-### Monthly
-- [ ] Clean storage
-- [ ] Update software
-- [ ] Review system logs
-- [ ] Check hardware status
+- [ ] **Technical Documentation**
+  - [ ] Create API documentation
+  - [ ] Add deployment guide
+  - [ ] Create troubleshooting guide
+  - [ ] Add architecture documentation
 
-## Future Enhancements
-1. **AI Improvements**
-   - Add more detection types
-   - Improve detection accuracy
-   - Add behavior analysis
-   - Implement predictive alerts
+---
 
-2. **System Improvements**
-   - Add redundancy
-   - Improve scalability
-   - Enhance monitoring
-   - Add analytics dashboard
+## 🎯 Current Sprint Focus
 
-3. **Feature Additions**
-   - Mobile app integration
-   - Real-time notifications
-   - Advanced reporting
-   - Integration with other systems 
+### Week 1-2: Role-Based Access Control
+1. Implement NextAuth.js authentication
+2. Create user management system
+3. Add role-based middleware
+4. Implement worksite access control
+
+### Week 3-4: Worksite Management
+1. Create worksite CRUD operations
+2. Implement worksite assignment system
+3. Add worksite-specific dashboards
+4. Create worksite analytics
+
+### Week 5-6: Camera Integration
+1. Implement ONVIF camera discovery
+2. Add camera configuration interface
+3. Connect YOLOv8 detection system
+4. Create camera status monitoring
+
+---
+
+## 📝 Notes
+
+- **Priority Levels**: High (Critical), Medium (Important), Low (Nice to have)
+- **Estimated Timeline**: 6-8 weeks for core features
+- **Dependencies**: Authentication system must be implemented first
+- **Testing**: Each feature should have corresponding tests
+- **Documentation**: Update documentation as features are implemented 

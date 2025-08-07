@@ -76,6 +76,81 @@ async function main() {
     },
   });
 
+  // Clear existing worksites and clients
+  await prisma.worksite.deleteMany({});
+  await prisma.client.deleteMany({});
+
+  // Create fake clients and worksites
+  const fakeClients = [
+    {
+      name: 'Acme Construction',
+      email: 'contact@acmeconstruction.com',
+      phone: '555-1234',
+      address: '100 Main St, Metropolis',
+      worksites: [
+        {
+          name: 'Downtown Tower',
+          address: '200 Center Ave, Metropolis',
+          cameraSystemType: 'IP',
+        },
+        {
+          name: 'Riverfront Plaza',
+          address: '300 Riverside Dr, Metropolis',
+          cameraSystemType: 'RTSP',
+        },
+      ],
+    },
+    {
+      name: 'Beta Logistics',
+      email: 'info@betalogistics.com',
+      phone: '555-5678',
+      address: '400 Warehouse Rd, Gotham',
+      worksites: [
+        {
+          name: 'Warehouse Alpha',
+          address: '500 Storage Ln, Gotham',
+          cameraSystemType: 'RTSP',
+        },
+      ],
+    },
+    {
+      name: 'Gamma Energy',
+      email: 'hello@gammaenergy.com',
+      phone: '555-9012',
+      address: '600 Power Plant Rd, Star City',
+      worksites: [
+        {
+          name: 'Solar Farm One',
+          address: '700 Sunlight Blvd, Star City',
+          cameraSystemType: 'IP',
+        },
+      ],
+    },
+  ];
+
+  for (const client of fakeClients) {
+    const createdClient = await prisma.client.upsert({
+      where: { email: client.email },
+      update: {},
+      create: {
+        name: client.name,
+        email: client.email,
+        phone: client.phone,
+        address: client.address,
+      },
+    });
+    for (const ws of client.worksites) {
+      await prisma.worksite.create({
+        data: {
+          name: ws.name,
+          address: ws.address,
+          clientId: createdClient.id,
+          cameraSystemType: ws.cameraSystemType,
+        },
+      });
+    }
+  }
+
   // Add blog posts
   for (const post of blogPosts) {
     const slug = slugify(post.title);

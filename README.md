@@ -1,36 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Nexxau: Camera Streaming & AI Detection Platform
 
-## Getting Started
+## Overview
+This project is a full-stack platform for live camera streaming, AI detection (YOLO), and dashboard management. It uses:
+- **Next.js** frontend (app/)
+- **FastAPI/Flask** backend (backend/)
+- **YOLOv8 Inference Service** (ai-detection/)
+- **MediaMTX** for RTSP/HLS streaming
+- **Docker Compose** for orchestration
 
-First, run the development server:
+---
 
+## Quick Start (Local Development)
+
+### 1. Clone the Repo
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <your-repo-url>
+cd nexxau
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Set Up Environment Variables
+- Copy `.env.example` to `.env` in each service directory as needed.
+- Fill in secrets (DB URL, API keys, etc.).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Build & Run All Services
+```bash
+docker-compose up --build
+```
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- Backend API: [http://localhost:8000](http://localhost:8000)
+- YOLO Inference: [http://localhost:5000](http://localhost:5000)
+- MediaMTX: [http://localhost:8888](http://localhost:8888)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 4. Seed the Database (if needed)
+```bash
+docker-compose exec backend npx prisma db seed
+```
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Service Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `app/` - Next.js frontend (user dashboard, camera feeds)
+- `backend/` - FastAPI/Flask backend (API, DB access)
+- `ai-detection/` - YOLOv8 inference (Flask or FastAPI)
+- `prisma/` - Prisma schema and migrations
+- `mediamtx.yml` - MediaMTX config (RTSP/HLS streaming)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Environment Variables
+- Each service uses its own `.env` file for secrets/config.
+- **Never commit real secrets to git!**
+- Example for backend:
+  ```env
+  DATABASE_URL=file:/app/prisma/dev.db
+  JWT_SECRET=your_jwt_secret
+  ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Logs & Troubleshooting
+- View logs for all services:
+  ```bash
+  docker-compose logs -f
+  ```
+- Restart a service:
+  ```bash
+  docker-compose restart <service-name>
+  ```
+- Common issues:
+  - Build context too large? Check `.dockerignore` files.
+  - Service not starting? Check logs and env vars.
+
+---
+
+## Production Tips
+- Use a real database (Postgres, MySQL) in production.
+- Add HTTPS/reverse proxy (e.g., Traefik, Nginx).
+- Use a secrets manager for sensitive config.
+- Add centralized logging/monitoring (Loki, Prometheus, Grafana).
+- Restrict public ports and secure endpoints.
+
+---
+
+## Contributing
+Pull requests welcome! Please open issues for bugs or feature requests.
+
+---
+
+## License
+MIT
+
