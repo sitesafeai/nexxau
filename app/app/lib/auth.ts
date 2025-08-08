@@ -1,22 +1,52 @@
-import { getServerSession } from 'next-auth/next';
-import { AuthOptions } from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import { PrismaAdapter } from '@auth/prisma-adapter';
-import { prisma } from '@/app/lib/prisma';
-import bcrypt from 'bcryptjs';
+import { NextAuthOptions } from "next-auth";
+import { PrismaAdapter } from "@auth/prisma-adapter";
+import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
+import { getServerSession } from "next-auth/next";
+import { prisma } from "./prisma";
+import bcrypt from "bcryptjs";
 
-export const authOptions: AuthOptions = {
-  adapter: PrismaAdapter(prisma),
+// Extend the built-in session types
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      role: string;
+    };
+  }
+  
+  interface User {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    role: string;
+  }
+}
+
+export const authOptions: NextAuthOptions = {
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
     CredentialsProvider({
-      name: 'credentials',
+      name: "credentials",
       credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' }
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error('Invalid credentials');
+          return null;
         }
 
         const user = await prisma.user.findUnique({
@@ -25,29 +55,50 @@ export const authOptions: AuthOptions = {
           }
         });
 
-        if (!user || !user?.password) {
-          throw new Error('Invalid credentials');
+        if (!user || !user.password) {
+          return null;
         }
 
-        const isCorrectPassword = await bcrypt.compare(
+        const isPasswordValid = await bcrypt.compare(
           credentials.password,
           user.password
         );
 
-        if (!isCorrectPassword) {
-          throw new Error('Invalid credentials');
+        if (!isPasswordValid) {
+          return null;
         }
 
-        return user;
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name || "",
+          role: user.role || "viewer",
+        };
       }
     })
   ],
-  pages: {
-    signIn: '/login',
-  },
-  debug: process.env.NODE_ENV === 'development',
   session: {
-    strategy: 'jwt',
+    strategy: "jwt",
+  },
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.role = user.role;
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user.id = token.id;
+        session.user.role = token.role;
+      }
+      return session;
+    },
+  },
+  pages: {
+    signIn: "/login",
+    error: "/login",
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

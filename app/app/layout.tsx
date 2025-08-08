@@ -78,7 +78,7 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className={inter.className} suppressHydrationWarning>
-        {children}
+              {children}
       </body>
     </html>
   );
