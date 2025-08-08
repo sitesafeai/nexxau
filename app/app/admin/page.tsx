@@ -1,764 +1,503 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import AdminLayout from '@/app/components/AdminLayout';
-import { 
-  BuildingOfficeIcon, 
-  VideoCameraIcon, 
-  BellIcon, 
-  UserGroupIcon, 
-  ChartBarIcon, 
-  CogIcon,
-  PlusIcon,
-  EyeIcon,
-  PencilIcon,
-  TrashIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  ClockIcon
-} from '@heroicons/react/24/outline';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 
-interface Site {
+interface Company {
   id: string;
   name: string;
+  companyUsername: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  worksites: Worksite[];
+}
+
+interface Worksite {
+  id: string;
+  name: string;
+  worksiteName: string;
   address: string;
-  status: 'active' | 'inactive' | 'maintenance';
-  cameras: number;
-  alerts: number;
-  lastActivity: string;
-  safetyScore: number;
+  cameraSystemType: string;
+  workers: Worker[];
 }
 
-interface Camera {
-  id: string;
-  name: string;
-  site: string;
-  status: 'online' | 'offline' | 'maintenance';
-  lastSeen: string;
-  alerts: number;
-}
-
-interface Alert {
-  id: string;
-  type: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  site: string;
-  camera: string;
-  timestamp: string;
-  status: 'active' | 'resolved' | 'acknowledged';
-  description: string;
-}
-
-interface User {
+interface Worker {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'manager' | 'viewer';
-  status: 'active' | 'inactive';
-  lastLogin: string;
+  role: string;
+  isClaimed: boolean;
 }
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('overview');
-  const [sites, setSites] = useState<Site[]>([]);
-  const [cameras, setCameras] = useState<Camera[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [selectedWorksite, setSelectedWorksite] = useState<Worksite | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('companies');
 
+  // Form states
+  const [showCompanyForm, setShowCompanyForm] = useState(false);
+  const [showWorksiteForm, setShowWorksiteForm] = useState(false);
+  const [showWorkerForm, setShowWorkerForm] = useState(false);
+
+  const [companyForm, setCompanyForm] = useState({
+    name: '',
+    companyUsername: '',
+    email: '',
+    phone: '',
+    address: ''
+  });
+
+  const [worksiteForm, setWorksiteForm] = useState({
+    name: '',
+    worksiteName: '',
+    address: '',
+    cameraSystemType: 'standard'
+  });
+
+  const [workerForm, setWorkerForm] = useState({
+    name: '',
+    email: '',
+    role: 'worker'
+  });
+
+  // Check authentication and admin role
   useEffect(() => {
-    // Simulate loading data
-    setTimeout(() => {
-      setSites([
-        {
-          id: '1',
-          name: 'Downtown Construction Site',
-          address: '123 Main St, Downtown, NY',
-          status: 'active',
-          cameras: 8,
-          alerts: 2,
-          lastActivity: '2 hours ago',
-          safetyScore: 85
-        },
-        {
-          id: '2',
-          name: 'Industrial Warehouse',
-          address: '456 Industrial Blvd, Queens, NY',
-          status: 'active',
-          cameras: 12,
-          alerts: 0,
-          lastActivity: '1 hour ago',
-          safetyScore: 92
-        },
-        {
-          id: '3',
-          name: 'Highway Bridge Project',
-          address: '789 Bridge Rd, Brooklyn, NY',
-          status: 'maintenance',
-          cameras: 6,
-          alerts: 1,
-          lastActivity: '30 minutes ago',
-          safetyScore: 78
-        }
-      ]);
+    if (status === 'loading') return;
 
-      setCameras([
-        {
-          id: '1',
-          name: 'Main Entrance',
-          site: 'Downtown Construction Site',
-          status: 'online',
-          lastSeen: '2 minutes ago',
-          alerts: 0
-        },
-        {
-          id: '2',
-          name: 'Safety Zone A',
-          site: 'Downtown Construction Site',
-          status: 'online',
-          lastSeen: '1 minute ago',
-          alerts: 2
-        },
-        {
-          id: '3',
-          name: 'Loading Dock',
-          site: 'Industrial Warehouse',
-          status: 'offline',
-          lastSeen: '5 minutes ago',
-          alerts: 0
-        }
-      ]);
+    if (!session) {
+      router.push('/login');
+      return;
+    }
 
-      setAlerts([
-        {
-          id: '1',
-          type: 'Safety Violation',
-          severity: 'high',
-          site: 'Downtown Construction Site',
-          camera: 'Safety Zone A',
-          timestamp: '2 minutes ago',
-          status: 'active',
-          description: 'Worker not wearing hard hat in restricted area'
-        },
-        {
-          id: '2',
-          type: 'Equipment Malfunction',
-          severity: 'medium',
-          site: 'Highway Bridge Project',
-          camera: 'Crane Camera',
-          timestamp: '15 minutes ago',
-          status: 'acknowledged',
-          description: 'Crane movement detected outside operational hours'
-        }
-      ]);
+    if (session.user.role !== 'admin') {
+      router.push('/dashboard');
+      return;
+    }
 
-      setUsers([
-        {
-          id: '1',
-          name: 'John Smith',
-          email: 'john@nexxau.com',
-          role: 'admin',
-          status: 'active',
-          lastLogin: '1 hour ago'
-        },
-        {
-          id: '2',
-          name: 'Sarah Johnson',
-          email: 'sarah@nexxau.com',
-          role: 'manager',
-          status: 'active',
-          lastLogin: '30 minutes ago'
-        },
-        {
-          id: '3',
-          name: 'Mike Wilson',
-          email: 'mike@nexxau.com',
-          role: 'viewer',
-          status: 'active',
-          lastLogin: '2 hours ago'
-        }
-      ]);
+    fetchCompanies();
+  }, [session, status, router]);
 
-      setLoading(false);
-    }, 1000);
-  }, []);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-      case 'online':
-        return 'bg-green-900 text-green-300';
-      case 'inactive':
-      case 'offline':
-        return 'bg-red-900 text-red-300';
-      case 'maintenance':
-        return 'bg-yellow-900 text-yellow-300';
-      default:
-        return 'bg-gray-700 text-gray-300';
+  const fetchCompanies = async () => {
+    try {
+      const response = await fetch('/api/admin/companies');
+      if (response.ok) {
+        const data = await response.json();
+        setCompanies(data);
+      }
+    } catch (error) {
+      console.error('Error fetching companies:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical':
-        return 'bg-red-900 text-red-300';
-      case 'high':
-        return 'bg-orange-900 text-orange-300';
-      case 'medium':
-        return 'bg-yellow-900 text-yellow-300';
-      case 'low':
-        return 'bg-blue-900 text-blue-300';
-      default:
-        return 'bg-gray-700 text-gray-300';
+  const handleCreateCompany = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await fetch('/api/admin/companies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(companyForm)
+      });
+
+      if (response.ok) {
+        setShowCompanyForm(false);
+        setCompanyForm({ name: '', companyUsername: '', email: '', phone: '', address: '' });
+        fetchCompanies();
+      }
+    } catch (error) {
+      console.error('Error creating company:', error);
     }
   };
 
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'bg-purple-900 text-purple-300';
-      case 'manager':
-        return 'bg-blue-900 text-blue-300';
-      case 'viewer':
-        return 'bg-green-900 text-green-300';
-      default:
-        return 'bg-gray-700 text-gray-300';
+  const handleCreateWorksite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCompany) return;
+
+    try {
+      const response = await fetch('/api/admin/worksites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...worksiteForm,
+          companyId: selectedCompany.id
+        })
+      });
+
+      if (response.ok) {
+        setShowWorksiteForm(false);
+        setWorksiteForm({ name: '', worksiteName: '', address: '', cameraSystemType: 'standard' });
+        fetchCompanies();
+      }
+    } catch (error) {
+      console.error('Error creating worksite:', error);
     }
   };
 
-  if (loading) {
+  const handleAddWorker = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedWorksite) return;
+
+    try {
+      const response = await fetch('/api/admin/workers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...workerForm,
+          worksiteId: selectedWorksite.id
+        })
+      });
+
+      if (response.ok) {
+        setShowWorkerForm(false);
+        setWorkerForm({ name: '', email: '', role: 'worker' });
+        fetchCompanies();
+      }
+    } catch (error) {
+      console.error('Error adding worker:', error);
+    }
+  };
+
+  if (status === 'loading' || isLoading) {
     return (
-      <AdminLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
-      </AdminLayout>
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      </div>
     );
   }
 
   return (
-    <AdminLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-white">🔐 Nexxau Operations Center</h1>
-            <p className="text-gray-300">Internal command center for platform management & client support</p>
-          </div>
-          <div className="flex space-x-3">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center">
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Add New Site
-            </button>
-          </div>
-        </div>
-
-        {/* Navigation Tabs */}
-        <div className="border-b border-gray-700">
-          <nav className="-mb-px flex space-x-8">
-            {[
-              { key: 'overview', name: 'Operations', icon: ChartBarIcon },
-              { key: 'sites', name: 'Worksites', icon: BuildingOfficeIcon },
-              { key: 'cameras', name: 'Camera Mgmt', icon: VideoCameraIcon },
-              { key: 'alerts', name: 'Alert History', icon: BellIcon },
-              { key: 'users', name: 'User Mgmt', icon: UserGroupIcon },
-              { key: 'settings', name: 'System Config', icon: CogIcon },
-            ].map((tab) => (
+    <div className="min-h-screen bg-gray-900">
+      {/* Header */}
+      <div className="bg-gray-800 border-b border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <h1 className="text-xl font-semibold text-white">Nexxau Admin Dashboard</h1>
+            <div className="flex items-center space-x-4">
+              <span className="text-gray-300">Welcome, {session?.user?.name}</span>
               <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab.key
-                    ? 'border-blue-400 text-blue-400'
-                    : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
-                }`}
+                onClick={() => router.push('/dashboard')}
+                className="text-gray-400 hover:text-white"
               >
-                <tab.icon className="h-5 w-5 mr-2" />
-                {tab.name}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Content */}
-        <div className="mt-6">
-          {activeTab === 'overview' && <OverviewTab sites={sites} cameras={cameras} alerts={alerts} users={users} />}
-          {activeTab === 'sites' && <SitesTab sites={sites} getStatusColor={getStatusColor} />}
-          {activeTab === 'cameras' && <CamerasTab cameras={cameras} getStatusColor={getStatusColor} />}
-          {activeTab === 'alerts' && <AlertsTab alerts={alerts} getSeverityColor={getSeverityColor} />}
-          {activeTab === 'users' && <UsersTab users={users} getRoleColor={getRoleColor} />}
-          {activeTab === 'settings' && <SettingsTab />}
-        </div>
-
-        {/* Internal Operations Panel */}
-        <div className="mt-8 bg-gray-800 rounded-lg shadow border border-gray-700">
-          <div className="px-6 py-4 border-b border-gray-700">
-            <h3 className="text-lg font-medium text-white">🔧 Internal Operations</h3>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <button className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg text-center transition-colors">
-                <div className="text-2xl mb-2">📊</div>
-                <div className="font-medium">System Logs</div>
-                <div className="text-sm text-blue-200">View backend logs & errors</div>
-              </button>
-              <button className="bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg text-center transition-colors">
-                <div className="text-2xl mb-2">🤖</div>
-                <div className="font-medium">AI Model Config</div>
-                <div className="text-sm text-green-200">YOLO settings & thresholds</div>
-              </button>
-              <button className="bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-lg text-center transition-colors">
-                <div className="text-2xl mb-2">💳</div>
-                <div className="font-medium">Billing & Licensing</div>
-                <div className="text-sm text-purple-200">Client subscriptions & payments</div>
+                Go to Dashboard
               </button>
             </div>
           </div>
         </div>
       </div>
-    </AdminLayout>
-  );
-}
 
-function OverviewTab({ sites, cameras, alerts, users }: { sites: Site[], cameras: Camera[], alerts: Alert[], users: User[] }) {
-  const activeSites = sites.filter(site => site.status === 'active').length;
-  const onlineCameras = cameras.filter(camera => camera.status === 'online').length;
-  const activeAlerts = alerts.filter(alert => alert.status === 'active').length;
-  const activeUsers = users.filter(user => user.status === 'active').length;
-
-  return (
-    <div className="space-y-6">
-      {/* System Health Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-gray-800 p-6 rounded-lg shadow border border-gray-700">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-900 rounded-lg">
-              <BuildingOfficeIcon className="h-6 w-6 text-blue-400" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-300">Active Worksites</p>
-              <p className="text-2xl font-bold text-white">{activeSites}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gray-800 p-6 rounded-lg shadow border border-gray-700">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-900 rounded-lg">
-              <VideoCameraIcon className="h-6 w-6 text-green-400" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-300">Online Cameras</p>
-              <p className="text-2xl font-bold text-white">{onlineCameras}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gray-800 p-6 rounded-lg shadow border border-gray-700">
-          <div className="flex items-center">
-            <div className="p-2 bg-red-900 rounded-lg">
-              <BellIcon className="h-6 w-6 text-red-400" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-300">Unresolved Alerts</p>
-              <p className="text-2xl font-bold text-white">{activeAlerts}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gray-800 p-6 rounded-lg shadow border border-gray-700">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-900 rounded-lg">
-              <UserGroupIcon className="h-6 w-6 text-purple-400" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-300">Client Accounts</p>
-              <p className="text-2xl font-bold text-white">{activeUsers}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* System Activity Log */}
-      <div className="bg-gray-800 rounded-lg shadow border border-gray-700">
-        <div className="px-6 py-4 border-b border-gray-700">
-          <h3 className="text-lg font-medium text-white">🔧 System Activity Log</h3>
-        </div>
-        <div className="p-6">
-          <div className="space-y-4">
-            {alerts.slice(0, 5).map((alert) => (
-              <div key={alert.id} className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className={`p-2 rounded-full ${alert.severity === 'high' || alert.severity === 'critical' ? 'bg-red-900' : 'bg-yellow-900'}`}>
-                    <ExclamationTriangleIcon className="h-4 w-4 text-red-400" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-white">{alert.type}</p>
-                    <p className="text-sm text-gray-400">{alert.site} - {alert.camera}</p>
-                  </div>
-                </div>
-                <div className="flex items-center text-sm text-gray-400">
-                  <ClockIcon className="h-4 w-4 mr-1" />
-                  {alert.timestamp}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SitesTab({ sites, getStatusColor }: { sites: Site[], getStatusColor: (status: string) => string }) {
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-white">🏗️ Worksite Management</h2>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center">
-          <PlusIcon className="h-5 w-5 mr-2" />
-          Add Worksite
-        </button>
-      </div>
-
-      <div className="bg-gray-800 shadow border border-gray-700 rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-700">
-          <h3 className="text-lg font-medium text-white">All Worksites</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-700">
-            <thead className="bg-gray-900">
-              <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Worksite</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Cameras</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Alerts</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Safety Score</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Last Activity</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-gray-800 divide-y divide-gray-700">
-              {sites.map((site) => (
-                <tr key={site.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-white">{site.name}</div>
-                      <div className="text-sm text-gray-400">{site.address}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(site.status)}`}>
-                      {site.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{site.cameras}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{site.alerts}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="w-16 bg-gray-600 rounded-full h-2 mr-2">
-                        <div 
-                          className={`h-2 rounded-full ${site.safetyScore >= 90 ? 'bg-green-400' : site.safetyScore >= 70 ? 'bg-yellow-400' : 'bg-red-400'}`}
-                          style={{ width: `${site.safetyScore}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-sm text-white">{site.safetyScore}%</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{site.lastActivity}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button className="text-blue-400 hover:text-blue-300">
-                        <EyeIcon className="h-4 w-4" />
-                      </button>
-                      <button className="text-indigo-400 hover:text-indigo-300">
-                        <PencilIcon className="h-4 w-4" />
-                      </button>
-                      <button className="text-red-400 hover:text-red-300">
-                        <TrashIcon className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CamerasTab({ cameras, getStatusColor }: { cameras: Camera[], getStatusColor: (status: string) => string }) {
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-white">📹 Camera Management</h2>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center">
-          <PlusIcon className="h-5 w-5 mr-2" />
-          Add Camera
-        </button>
-      </div>
-
-      <div className="bg-gray-800 shadow border border-gray-700 rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-700">
-          <h3 className="text-lg font-medium text-white">All Cameras</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-700">
-            <thead className="bg-gray-900">
-              <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Camera</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Site</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Alerts</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Last Seen</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-gray-800 divide-y divide-gray-700">
-              {cameras.map((camera) => (
-                <tr key={camera.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-white">{camera.name}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{camera.site}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(camera.status)}`}>
-                      {camera.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{camera.alerts}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{camera.lastSeen}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button className="text-blue-400 hover:text-blue-300">
-                        <EyeIcon className="h-4 w-4" />
-                      </button>
-                      <button className="text-indigo-400 hover:text-indigo-300">
-                        <PencilIcon className="h-4 w-4" />
-                      </button>
-                      <button className="text-red-400 hover:text-red-300">
-                        <TrashIcon className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AlertsTab({ alerts, getSeverityColor }: { alerts: Alert[], getSeverityColor: (severity: string) => string }) {
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-white">🚨 Alert History</h2>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center">
-          <PlusIcon className="h-5 w-5 mr-2" />
-          Create Alert Rule
-        </button>
-      </div>
-
-      <div className="bg-gray-800 shadow border border-gray-700 rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-700">
-          <h3 className="text-lg font-medium text-white">All Alerts</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-700">
-            <thead className="bg-gray-900">
-              <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Severity</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Site</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Camera</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Time</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-gray-800 divide-y divide-gray-700">
-              {alerts.map((alert) => (
-                <tr key={alert.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-white">{alert.type}</div>
-                    <div className="text-sm text-gray-400">{alert.description}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getSeverityColor(alert.severity)}`}>
-                      {alert.severity}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{alert.site}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{alert.camera}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      alert.status === 'active' ? 'bg-red-900 text-red-300' :
-                      alert.status === 'resolved' ? 'bg-green-900 text-green-300' :
-                      'bg-yellow-900 text-yellow-300'
-                    }`}>
-                      {alert.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{alert.timestamp}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button className="text-blue-400 hover:text-blue-300">
-                        <EyeIcon className="h-4 w-4" />
-                      </button>
-                      <button className="text-green-400 hover:text-green-300">
-                        <CheckCircleIcon className="h-4 w-4" />
-                      </button>
-                      <button className="text-red-400 hover:text-red-300">
-                        <TrashIcon className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function UsersTab({ users, getRoleColor }: { users: User[], getRoleColor: (role: string) => string }) {
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-white">👥 User Management</h2>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center">
-          <PlusIcon className="h-5 w-5 mr-2" />
-          Add User
-        </button>
-      </div>
-
-      <div className="bg-gray-800 shadow border border-gray-700 rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-700">
-          <h3 className="text-lg font-medium text-white">All Users</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-700">
-            <thead className="bg-gray-900">
-              <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">User</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Role</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Last Login</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-gray-800 divide-y divide-gray-700">
-              {users.map((user) => (
-                <tr key={user.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-white">{user.name}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{user.email}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(user.role)}`}>
-                      {user.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      user.status === 'active' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'
-                    }`}>
-                      {user.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{user.lastLogin}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button className="text-blue-400 hover:text-blue-300">
-                        <EyeIcon className="h-4 w-4" />
-                      </button>
-                      <button className="text-indigo-400 hover:text-indigo-300">
-                        <PencilIcon className="h-4 w-4" />
-                      </button>
-                      <button className="text-red-400 hover:text-red-300">
-                        <TrashIcon className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SettingsTab() {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white">🔧 System Configuration</h2>
-      
-      <div className="bg-gray-800 shadow border border-gray-700 rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-700">
-          <h3 className="text-lg font-medium text-white">General Settings</h3>
-        </div>
-        <div className="p-6 space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-300">System Name</label>
-            <input
-              type="text"
-              className="mt-1 block w-full border border-gray-600 bg-gray-700 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              defaultValue="Nexxau Safety System"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-300">Alert Notification Email</label>
-            <input
-              type="email"
-              className="mt-1 block w-full border border-gray-600 bg-gray-700 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              defaultValue="alerts@nexxau.com"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-300">Data Retention (days)</label>
-            <input
-              type="number"
-              className="mt-1 block w-full border border-gray-600 bg-gray-700 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              defaultValue="90"
-            />
-          </div>
-          
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-600 rounded bg-gray-700"
-              defaultChecked
-            />
-            <label className="ml-2 block text-sm text-gray-300">Enable real-time alerts</label>
-          </div>
-          
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-600 rounded bg-gray-700"
-              defaultChecked
-            />
-            <label className="ml-2 block text-sm text-gray-300">Enable automatic backups</label>
-          </div>
-          
-          <div className="pt-4">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
-              Save Settings
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Tabs */}
+        <div className="flex space-x-1 bg-gray-800 rounded-lg p-1 mb-8">
+          {[
+            { id: 'companies', name: 'Companies' },
+            { id: 'worksites', name: 'Worksites' },
+            { id: 'workers', name: 'Workers' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
+              }`}
+            >
+              {tab.name}
             </button>
-          </div>
+          ))}
         </div>
+
+        {/* Companies Tab */}
+        {activeTab === 'companies' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-white">Companies</h2>
+              <button
+                onClick={() => setShowCompanyForm(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Add Company
+              </button>
+            </div>
+
+            <div className="grid gap-6">
+              {companies.map((company) => (
+                <div key={company.id} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">{company.name}</h3>
+                      <p className="text-gray-400">Username: {company.companyUsername}</p>
+                      <p className="text-gray-400">{company.email}</p>
+                      <p className="text-gray-400">{company.worksites.length} worksites</p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedCompany(company)}
+                      className="text-blue-400 hover:text-blue-300"
+                    >
+                      View Details
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Worksites Tab */}
+        {activeTab === 'worksites' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-white">Worksites</h2>
+              <button
+                onClick={() => setShowWorksiteForm(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Add Worksite
+              </button>
+            </div>
+
+            <div className="grid gap-6">
+              {companies.flatMap(company => 
+                company.worksites.map(worksite => (
+                  <div key={worksite.id} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">{worksite.name}</h3>
+                        <p className="text-gray-400">Worksite ID: {worksite.worksiteName}</p>
+                        <p className="text-gray-400">Company: {company.name}</p>
+                        <p className="text-gray-400">{worksite.workers.length} workers</p>
+                      </div>
+                      <button
+                        onClick={() => setSelectedWorksite(worksite)}
+                        className="text-blue-400 hover:text-blue-300"
+                      >
+                        View Workers
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Workers Tab */}
+        {activeTab === 'workers' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-white">Workers</h2>
+              <button
+                onClick={() => setShowWorkerForm(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Add Worker
+              </button>
+            </div>
+
+            <div className="grid gap-4">
+              {companies.flatMap(company => 
+                company.worksites.flatMap(worksite => 
+                  worksite.workers.map(worker => (
+                    <div key={worker.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-white font-medium">{worker.name}</h3>
+                          <p className="text-gray-400">{worker.email}</p>
+                          <p className="text-gray-400">Role: {worker.role}</p>
+                          <p className="text-gray-400">Worksite: {worksite.name}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            worker.isClaimed 
+                              ? 'bg-green-900 text-green-300' 
+                              : 'bg-yellow-900 text-yellow-300'
+                          }`}>
+                            {worker.isClaimed ? 'Claimed' : 'Pending'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Modals */}
+        {showCompanyForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+              <h3 className="text-xl font-semibold text-white mb-4">Add Company</h3>
+              <form onSubmit={handleCreateCompany} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Company Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={companyForm.name}
+                    onChange={(e) => setCompanyForm({...companyForm, name: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Company Username</label>
+                  <input
+                    type="text"
+                    required
+                    value={companyForm.companyUsername}
+                    onChange={(e) => setCompanyForm({...companyForm, companyUsername: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={companyForm.email}
+                    onChange={(e) => setCompanyForm({...companyForm, email: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  />
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowCompanyForm(false)}
+                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+                  >
+                    Create
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showWorksiteForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+              <h3 className="text-xl font-semibold text-white mb-4">Add Worksite</h3>
+              <form onSubmit={handleCreateWorksite} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Worksite Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={worksiteForm.name}
+                    onChange={(e) => setWorksiteForm({...worksiteForm, name: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Worksite ID</label>
+                  <input
+                    type="text"
+                    required
+                    value={worksiteForm.worksiteName}
+                    onChange={(e) => setWorksiteForm({...worksiteForm, worksiteName: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Address</label>
+                  <input
+                    type="text"
+                    required
+                    value={worksiteForm.address}
+                    onChange={(e) => setWorksiteForm({...worksiteForm, address: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  />
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowWorksiteForm(false)}
+                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+                  >
+                    Create
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showWorkerForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+              <h3 className="text-xl font-semibold text-white mb-4">Add Worker</h3>
+              <form onSubmit={handleAddWorker} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={workerForm.name}
+                    onChange={(e) => setWorkerForm({...workerForm, name: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={workerForm.email}
+                    onChange={(e) => setWorkerForm({...workerForm, email: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Role</label>
+                  <select
+                    value={workerForm.role}
+                    onChange={(e) => setWorkerForm({...workerForm, role: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  >
+                    <option value="worker">Worker</option>
+                    <option value="site-manager">Site Manager</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowWorkerForm(false)}
+                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+                  >
+                    Add
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
+  output   = "./node_modules/.prisma/client"
 }
 
 model Account {
@@ -44,10 +45,14 @@ model User {
   phoneNumber   String?
   accounts      Account[]
   sessions      Session[]
-  role          String    @default("user")
-  company       String?
+  role          String    @default("worker") // admin, site-manager, worker, viewer
+  companyId     String?
+  company       Company?  @relation(fields: [companyId], references: [id])
+  worksiteId    String?
+  worksite      Worksite? @relation(fields: [worksiteId], references: [id])
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  isActivated   Boolean   @default(false) // For account claiming flow
   approved      Boolean   @default(false)
   verificationToken String? @unique
   alertResponses AlertResponse[]
@@ -64,6 +69,51 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+model Company {
+  id              String    @id @default(cuid())
+  name            String
+  companyUsername String    @unique // e.g., "buildsafeinc"
+  email           String    @unique
+  phone           String?
+  address         String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  worksites       Worksite[]
+  users           User[]
+}
+
+model Worksite {
+  id                String            @id @default(cuid())
+  name              String
+  worksiteName      String            @unique // e.g., "downtown-site-a" or "b93xa2"
+  address           String
+  companyId         String
+  company           Company           @relation(fields: [companyId], references: [id])
+  cameraSystemType  String
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  cameraSystemConfig CameraSystemConfig?
+  workers           Worker[]
+  users             User[]
+  cameras           Camera[]
+  alerts            Alert[]
+  alertRules        AlertRule[]
+}
+
+model Worker {
+  id        String    @id @default(cuid())
+  name      String
+  email     String
+  role      String    @default("worker")
+  worksiteId String
+  worksite   Worksite @relation(fields: [worksiteId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  isClaimed Boolean   @default(false) // Track if worker has claimed their account
+
+  @@unique([worksiteId, email]) // Ensure unique email per worksite
+}
+
 model Alert {
   id          String      @id @default(cuid())
   title       String
@@ -78,8 +128,8 @@ model Alert {
   resolvedAt  DateTime?
   rule        AlertRule?  @relation(fields: [ruleId], references: [id])
   ruleId      String?
-  site        Site?       @relation(fields: [siteId], references: [id])
-  siteId      String?
+  worksite    Worksite?   @relation(fields: [worksiteId], references: [id])
+  worksiteId  String?
   responses   AlertResponse[]
 }
 
@@ -93,48 +143,46 @@ model AlertRule {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   alerts      Alert[]
-  site        Site?     @relation(fields: [siteId], references: [id])
-  siteId      String?
+  worksite    Worksite? @relation(fields: [worksiteId], references: [id])
+  worksiteId  String?
   userId      String?
   user        User?     @relation(fields: [userId], references: [id])
 }
 
 model AlertResponse {
   id        String   @id @default(cuid())
-  alert     Alert    @relation(fields: [alertId], references: [id])
   alertId   String
-  action    String   // e.g., "acknowledged", "resolved", "escalated"
+  alert     Alert    @relation(fields: [alertId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  response  String   // e.g., "acknowledged", "investigating", "resolved"
   notes     String?
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
 }
 
 model Site {
-  id          String      @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   description String?
   location    String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  alerts      Alert[]
-  alertRules  AlertRule[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  workflows   Workflow[]
 }
 
 model Workflow {
   id          String   @id @default(cuid())
   name        String
   description String?
-  nodes       Json     // Stores the workflow nodes
-  edges       Json     // Stores the workflow edges
-  rules       Json     // Stores the generated rules
-  enabled     Boolean  @default(true)
+  nodes       Json     // Workflow nodes configuration
+  connections Json     // Workflow connections
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  userId      String? // Make this Optional
-  user        User?     @relation(fields: [userId], references: [id])
-
-  @@index([userId])
+  site        Site?    @relation(fields: [siteId], references: [id])
+  siteId      String?
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
 }
 
 enum AlertSeverity {
@@ -149,31 +197,6 @@ enum AlertStatus {
   ACKNOWLEDGED
   RESOLVED
   ESCALATED
-}
-
-model Client {
-  id        String     @id @default(cuid())
-  name      String
-  email     String     @unique
-  phone     String?
-  address   String?
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  worksites Worksite[]
-}
-
-model Worksite {
-  id                String            @id @default(cuid())
-  name              String
-  address           String
-  clientId          String
-  client            Client            @relation(fields: [clientId], references: [id])
-  cameraSystemType  String
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  cameraSystemConfig CameraSystemConfig?
-  workers           Worker[]
-  cameras           Camera[]
 }
 
 model Camera {
@@ -203,17 +226,6 @@ model CameraSystemConfig {
   config     Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
-
-model Worker {
-  id        String    @id @default(cuid())
-  name      String
-  email     String    @unique
-  role      String
-  worksiteId String
-  worksite   Worksite @relation(fields: [worksiteId], references: [id])
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
 }
 
 model BlogPost {
