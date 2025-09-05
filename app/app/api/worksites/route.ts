@@ -8,7 +8,7 @@ export async function GET() {
   try {
     const worksites = await prisma.worksite.findMany({
       include: {
-        client: true,
+        company: true,
       },
       orderBy: {
         createdAt: 'desc',

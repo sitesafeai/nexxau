@@ -1,0 +1,331 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  phoneNumber   String?
+  accounts      Account[]
+  sessions      Session[]
+  role          String    @default("worker") // admin, site-manager, worker, viewer
+  companyId     String?
+  company       Company?  @relation(fields: [companyId], references: [id])
+  worksiteId    String?
+  worksite      Worksite? @relation(fields: [worksiteId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  isActivated   Boolean   @default(false) // For account claiming flow
+  approved      Boolean   @default(false)
+  verificationToken String? @unique
+  alertResponses AlertResponse[]
+  alertRules    AlertRule[]
+  workflows     Workflow[]
+  blogPosts     BlogPost[]
+  
+  // Security fields
+  lastLoginAt   DateTime?
+  failedLoginAttempts Int @default(0)
+  lockedUntil   DateTime?
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret String?
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Company {
+  id              String    @id @default(cuid())
+  name            String
+  companyUsername String    @unique // e.g., "buildsafeinc"
+  email           String    @unique
+  phone           String?
+  address         String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  worksites       Worksite[]
+  users           User[]
+  
+  // Company settings
+  subscriptionTier String @default("basic") // basic, professional, enterprise
+  maxUsers        Int    @default(10)
+  maxWorksites    Int    @default(3)
+  features        Json?  // Store feature flags
+}
+
+model Worksite {
+  id                String            @id @default(cuid())
+  name              String
+  worksiteName      String            @unique // e.g., "downtown-site-a" or "b93xa2"
+  address           String
+  companyId         String
+  company           Company           @relation(fields: [companyId], references: [id])
+  cameraSystemType  String
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  cameraSystemConfig CameraSystemConfig?
+  workers           Worker[]
+  users             User[]
+  cameras           Camera[]
+  alerts            Alert[]
+  alertRules        AlertRule[]
+  
+  // Worksite settings
+  status            String @default("active") // active, maintenance, inactive
+  safetyScore       Int    @default(100)
+  maxWorkers        Int    @default(50)
+  timezone          String @default("UTC")
+  coordinates       Json?  // Store lat/lng
+}
+
+model Worker {
+  id          String   @id @default(cuid())
+  name        String
+  email       String?  @unique
+  phoneNumber String?
+  role        String   @default("worker")
+  worksiteId  String
+  worksite    Worksite @relation(fields: [worksiteId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Worker tracking
+  isOnSite    Boolean  @default(false)
+  lastCheckIn DateTime?
+  certifications Json?  // Store certification data
+}
+
+model Alert {
+  id          String      @id @default(cuid())
+  type        String      // violation, incident, warning
+  severity    AlertSeverity
+  status      AlertStatus @default("open")
+  message     String
+  worksiteId  String
+  worksite    Worksite   @relation(fields: [worksiteId], references: [id])
+  cameraId    String?
+  camera      Camera?    @relation(fields: [cameraId], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+  alertResponses AlertResponse[]
+  
+  // Alert metadata
+  location   String?     // Where the alert occurred
+  evidence   Json?       // Store image/video references
+  aiConfidence Float?    // AI detection confidence score
+  manualReview Boolean @default(false)
+}
+
+model AlertRule {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   // ppe_violation, unauthorized_access, etc.
+  severity    AlertSeverity
+  conditions  Json     // Store rule conditions
+  actions     Json     // Store actions (sms, email, etc.)
+  isActive    Boolean  @default(true)
+  worksiteId  String
+  worksite    Worksite @relation(fields: [worksiteId], references: [id])
+  createdBy   String
+  user        User     @relation(fields: [createdBy], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Rule settings
+  threshold   Int      @default(1) // How many violations before alert
+  cooldown   Int      @default(300) // Seconds between alerts
+}
+
+model AlertResponse {
+  id        String   @id @default(cuid())
+  alertId   String
+  alert     Alert    @relation(fields: [alertId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String   // acknowledged, escalated, resolved
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+model Site {
+  id          String   @id @default(cuid())
+  name        String
+  address     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Workflow {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  steps       Json     // Store workflow steps
+  isActive    Boolean  @default(true)
+  worksiteId  String
+  worksite    Worksite @relation(fields: [worksiteId], references: [id])
+  createdBy   String
+  user        User     @relation(fields: [createdBy], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Workflow settings
+  triggerType String   @default("manual") // manual, scheduled, event-based
+  schedule    String?  // Cron expression for scheduled workflows
+}
+
+enum AlertSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+enum AlertStatus {
+  open
+  acknowledged
+  resolved
+  closed
+}
+
+model Camera {
+  id          String   @id @default(cuid())
+  name        String
+  location    String?
+  ipAddress   String?
+  rtspUrl     String?
+  status      String   @default("offline") // online, offline, maintenance
+  worksiteId  String
+  worksite    Worksite @relation(fields: [worksiteId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  alerts      Alert[]
+  
+  // Camera settings
+  model       String?
+  resolution  String?  // e.g., "1920x1080"
+  fps         Int?     // Frames per second
+  recordingEnabled Boolean @default(true)
+  aiDetectionEnabled Boolean @default(true)
+  lastMaintenance DateTime?
+}
+
+model CameraSystemConfig {
+  id          String   @id @default(cuid())
+  worksiteId  String   @unique
+  worksite    Worksite @relation(fields: [worksiteId], references: [id])
+  config      Json     // Store camera system configuration
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BlogPost {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  slug        String   @unique
+  published   Boolean  @default(false)
+  authorId    String
+  user        User     @relation(fields: [authorId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Blog metadata
+  excerpt     String?
+  tags        String[]
+  featuredImage String?
+  seoTitle    String?
+  seoDescription String?
+}
+
+// Audit trail for security
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String   // login, logout, create, update, delete
+  entityType  String   // user, alert, camera, etc.
+  entityId    String?
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  details     Json?    // Store additional details
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+}
+
+// Add audit relation to User
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  phoneNumber   String?
+  accounts      Account[]
+  sessions      Session[]
+  role          String    @default("worker") // admin, site-manager, worker, viewer
+  companyId     String?
+  company       Company?  @relation(fields: [companyId], references: [id])
+  worksiteId    String?
+  worksite      Worksite? @relation(fields: [worksiteId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  isActivated   Boolean   @default(false) // For account claiming flow
+  approved      Boolean   @default(false)
+  verificationToken String? @unique
+  alertResponses AlertResponse[]
+  alertRules    AlertRule[]
+  workflows     Workflow[]
+  blogPosts     BlogPost[]
+  auditLogs     AuditLog[]
+  
+  // Security fields
+  lastLoginAt   DateTime?
+  failedLoginAttempts Int @default(0)
+  lockedUntil   DateTime?
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret String?
+} 

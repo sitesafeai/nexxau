@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { TruckIcon, ShieldCheckIcon, ChartBarIcon, ClockIcon } from '@heroicons/react/24/outline';
-import Navbar from '@/src/components/Navbar';
+import Navbar from '../../components/Navbar';
 
 export default function LogisticsPage() {
   const router = useRouter();

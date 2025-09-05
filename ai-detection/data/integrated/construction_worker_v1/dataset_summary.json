@@ -1,0 +1,40 @@
+{
+  "dataset_name": "construction_worker_v1",
+  "integration_date": "/Users/luizcarneiro/nexxau/ai-detection",
+  "source_path": "data/integrated/construction_worker_v1",
+  "statistics": {
+    "total_images": 4998,
+    "total_labels": 0,
+    "label_coverage": "0.0%"
+  },
+  "class_mapping": {
+    "boots": "work_boots",
+    "gloves": "safety_gloves",
+    "helmet": "hard_hat",
+    "human": "worker",
+    "vest": "safety_vest"
+  },
+  "safety_classes": [
+    "hard_hat",
+    "safety_vest",
+    "safety_glasses",
+    "work_boots",
+    "safety_gloves",
+    "forklift",
+    "crane",
+    "excavator",
+    "truck",
+    "vehicle",
+    "worker",
+    "unauthorized_person",
+    "fire",
+    "spill",
+    "hazard_zone"
+  ],
+  "next_steps": [
+    "Review integrated dataset",
+    "Validate label conversions",
+    "Split into train/validation sets",
+    "Start YOLO training"
+  ]
+}

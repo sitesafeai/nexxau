@@ -1,0 +1,20 @@
+names:
+- hard_hat
+- safety_vest
+- safety_glasses
+- work_boots
+- safety_gloves
+- forklift
+- crane
+- excavator
+- truck
+- vehicle
+- worker
+- unauthorized_person
+- fire
+- spill
+- hazard_zone
+nc: 15
+path: /Users/luizcarneiro/nexxau/ai-detection/data/integrated/construction_worker_v1
+train: images
+val: images

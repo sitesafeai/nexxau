@@ -1,0 +1,19 @@
+names:
+- hard_hat
+- safety_vest
+- safety_glasses
+- work_boots
+- forklift
+- crane
+- excavator
+- truck
+- worker
+- unauthorized_person
+- vehicle
+- fire
+- spill
+- hazard_zone
+nc: 14
+path: /Users/luizcarneiro/nexxau/ai-detection/data
+train: train/images
+val: val/images

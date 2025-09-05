@@ -6,12 +6,12 @@ import {
   CogIcon,
   BellIcon,
   ShieldCheckIcon,
-  DatabaseIcon,
   GlobeAltIcon,
   KeyIcon,
   DocumentTextIcon,
   CheckIcon
 } from '@heroicons/react/24/outline';
+import { ServerIcon } from '@heroicons/react/24/outline';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
@@ -26,7 +26,7 @@ export default function SettingsPage() {
     { key: 'general', name: 'General', icon: CogIcon },
     { key: 'notifications', name: 'Notifications', icon: BellIcon },
     { key: 'security', name: 'Security', icon: ShieldCheckIcon },
-    { key: 'data', name: 'Data Management', icon: DatabaseIcon },
+    { key: 'data', name: 'Data Management', icon: ServerIcon },
     { key: 'integrations', name: 'Integrations', icon: GlobeAltIcon },
   ];
 

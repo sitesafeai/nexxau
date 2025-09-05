@@ -4,7 +4,7 @@ import Navbar from '../../components/Navbar';
 import Link from 'next/link';
 import { CalendarIcon, UserIcon, TagIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { CloudinaryImage } from '../../lib/cloudinary';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '../../lib/prisma';
 
 // This would typically come from your CMS or database
 const getBlogPost = async (slug: string) => {

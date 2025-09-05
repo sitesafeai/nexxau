@@ -1,7 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import WorkflowBuilder from '@/app/components/workflow/WorkflowBuilder';
+import Copilot from '@/app/components/Copilot';
+import RuleBuilder from '@/app/components/RuleBuilder';
 
 interface WorkflowNode {
   id: string;
@@ -40,224 +43,80 @@ export default function AlertsPage() {
   const [selectedRule, setSelectedRule] = useState<Rule | null>(null);
   const [workflowNodes, setWorkflowNodes] = useState<WorkflowNode[]>([]);
   const [workflowConnections, setWorkflowConnections] = useState<WorkflowConnection[]>([]);
-  const [draggedNode, setDraggedNode] = useState<WorkflowNode | null>(null);
-  const [showAddRule, setShowAddRule] = useState(false);
-  const [newRule, setNewRule] = useState({
-    name: '',
-    description: '',
-    severity: 'medium',
-    camera: 'All Cameras',
-    threshold: 0.8
-  });
+  const [showRuleBuilder, setShowRuleBuilder] = useState(false);
+  const [cameraOptions, setCameraOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [showCopilot, setShowCopilot] = useState(false);
 
-  const alertRules: Rule[] = [
-    {
-      id: '1',
-      name: 'No Hard Hat Detection',
-      description: 'Detect workers without safety helmets',
-      severity: 'high',
-      enabled: true,
-      camera: 'All Cameras',
-      threshold: 0.8,
-      workflow: {
-        nodes: [
-          {
-            id: 'trigger-1',
-            type: 'trigger',
-            title: 'Person Detected',
-            description: 'Trigger when a person is detected',
-            config: { confidence: 0.8 },
-            position: { x: 100, y: 100 }
-          },
-          {
-            id: 'condition-1',
-            type: 'condition',
-            title: 'No Hard Hat',
-            description: 'Check if person is wearing hard hat',
-            config: { object: 'hard_hat', present: false },
-            position: { x: 300, y: 100 }
-          },
-          {
-            id: 'action-1',
-            type: 'action',
-            title: 'Send Alert',
-            description: 'Send notification to safety team',
-            config: { notification: 'email', recipients: ['safety@company.com'] },
-            position: { x: 500, y: 100 }
-          }
-        ],
-        connections: [
-          { id: 'conn-1', from: 'trigger-1', to: 'condition-1' },
-          { id: 'conn-2', from: 'condition-1', to: 'action-1' }
-        ]
-      }
-    },
-    {
-      id: '2',
-      name: 'Unauthorized Access',
-      description: 'Detect unauthorized personnel in restricted areas',
-      severity: 'critical',
-      enabled: true,
-      camera: 'Perimeter Cameras',
-      threshold: 0.9,
-      workflow: {
-        nodes: [
-          {
-            id: 'trigger-2',
-            type: 'trigger',
-            title: 'Person in Restricted Area',
-            description: 'Trigger when person enters restricted zone',
-            config: { zone: 'restricted_area' },
-            position: { x: 100, y: 200 }
-          },
-          {
-            id: 'action-2',
-            type: 'action',
-            title: 'Immediate Alert',
-            description: 'Send critical alert immediately',
-            config: { notification: 'sms', recipients: ['security@company.com'] },
-            position: { x: 300, y: 200 }
-          }
-        ],
-        connections: [
-          { id: 'conn-3', from: 'trigger-2', to: 'action-2' }
-        ]
-      }
-    },
-    {
-      id: '3',
-      name: 'Equipment Malfunction',
-      description: 'Detect equipment operating outside normal parameters',
-      severity: 'medium',
-      enabled: false,
-      camera: 'Equipment Cameras',
-      threshold: 0.7,
-      workflow: {
-        nodes: [],
-        connections: []
-      }
-    },
-    {
-      id: '4',
-      name: 'Speed Violation',
-      description: 'Detect vehicles exceeding speed limits',
-      severity: 'high',
-      enabled: true,
-      camera: 'Vehicle Cameras',
-      threshold: 0.85,
-      workflow: {
-        nodes: [],
-        connections: []
-      }
-    }
-  ];
+  const [rules, setRules] = useState<Rule[]>([]);
 
-  const [rules, setRules] = useState<Rule[]>(alertRules);
-
-  const notificationSettings = [
-    { id: 'email', name: 'Email Notifications', enabled: true },
-    { id: 'sms', name: 'SMS Alerts', enabled: false },
-    { id: 'push', name: 'Push Notifications', enabled: true },
-    { id: 'webhook', name: 'Webhook Integration', enabled: false }
-  ];
-
-  const availableNodes = [
-    {
-      type: 'trigger',
-      title: 'Person Detected',
-      description: 'Trigger when a person is detected',
-      icon: '👤'
-    },
-    {
-      type: 'trigger',
-      title: 'Vehicle Detected',
-      description: 'Trigger when a vehicle is detected',
-      icon: '🚗'
-    },
-    {
-      type: 'trigger',
-      title: 'Motion Detected',
-      description: 'Trigger when motion is detected',
-      icon: '📹'
-    },
-    {
-      type: 'condition',
-      title: 'No Safety Gear',
-      description: 'Check if safety gear is missing',
-      icon: '⛑️'
-    },
-    {
-      type: 'condition',
-      title: 'Speed Check',
-      description: 'Check if speed exceeds limit',
-      icon: '⚡'
-    },
-    {
-      type: 'condition',
-      title: 'Area Violation',
-      description: 'Check if person is in restricted area',
-      icon: '🚫'
-    },
-    {
-      type: 'action',
-      title: 'Send Email',
-      description: 'Send email notification',
-      icon: '📧'
-    },
-    {
-      type: 'action',
-      title: 'Send SMS',
-      description: 'Send SMS alert',
-      icon: '📱'
-    },
-    {
-      type: 'action',
-      title: 'Record Video',
-      description: 'Start video recording',
-      icon: '🎥'
-    },
-    {
-      type: 'action',
-      title: 'Sound Alarm',
-      description: 'Trigger audible alarm',
-      icon: '🔊'
-    }
-  ];
-
-  const handleSaveSettings = async () => {
-    setSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setSaving(false);
-    console.log('Alert settings saved');
-  };
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical': return 'bg-red-900 text-red-300';
-      case 'high': return 'bg-orange-900 text-orange-300';
-      case 'medium': return 'bg-yellow-900 text-yellow-300';
-      case 'low': return 'bg-blue-900 text-blue-300';
-      default: return 'bg-gray-700 text-gray-300';
-    }
-  };
-
-  const handleAddRule = () => {
-    const newRuleData: Rule = {
-      id: Date.now().toString(),
-      name: newRule.name,
-      description: newRule.description,
-      severity: newRule.severity,
-      enabled: true,
-      camera: newRule.camera,
-      threshold: newRule.threshold,
-      workflow: {
-        nodes: [],
-        connections: []
-      }
+  // Load rules from API
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch('/api/alerts/rules', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          const mapped = (data || []).map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            description: r.description || '',
+            severity: r.severity,
+            enabled: r.isActive,
+            camera: r.condition?.camera ?? 'All Cameras',
+            threshold: r.condition?.threshold ?? 0.8,
+            workflow: r.condition?.workflow ?? { nodes: [], connections: [] },
+          }));
+          setRules(mapped);
+        }
+      } catch (e) { console.error('Failed to load rules', e); }
     };
-    setRules([...rules, newRuleData]);
-    setShowAddRule(false);
-    setNewRule({ name: '', description: '', severity: 'medium', camera: 'All Cameras', threshold: 0.8 });
+    load();
+  }, []);
+
+  // Load cameras for dropdown
+  useEffect(() => {
+    const loadCameras = async () => {
+      try {
+        const res = await fetch('/api/cameras', { cache: 'no-store' });
+        if (res.ok) {
+          const cams = await res.json();
+          setCameraOptions(cams.map((c: any) => ({ id: c.id, name: c.name })));
+        }
+      } catch {}
+    };
+    loadCameras();
+  }, []);
+
+  const handleWorkflowChange = (nodes: WorkflowNode[], connections: WorkflowConnection[]) => {
+    setWorkflowNodes(nodes);
+    setWorkflowConnections(connections);
+  };
+
+  const handleSaveWorkflow = async () => {
+    if (!selectedRule) return;
+    
+    try {
+      const res = await fetch(`/api/alerts/rules/${selectedRule.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workflow: { nodes: workflowNodes, connections: workflowConnections }
+        }),
+      });
+      
+      if (res.ok) {
+        // Update local state
+        setRules(prev => prev.map(r => 
+          r.id === selectedRule.id 
+            ? { ...r, workflow: { nodes: workflowNodes, connections: workflowConnections } }
+            : r
+        ));
+        setSelectedRule(null);
+        setShowWorkflowBuilder(false);
+      }
+    } catch (e) {
+      console.error('Failed to save workflow', e);
+    }
   };
 
   const handleEditRule = (rule: Rule) => {
@@ -267,637 +126,505 @@ export default function AlertsPage() {
     setShowWorkflowBuilder(true);
   };
 
-  const handleDeleteRule = (ruleId: string) => {
-    setRules(rules.filter(rule => rule.id !== ruleId));
-  };
-
-  const handleDragStart = (e: React.DragEvent, nodeType: string, nodeData: any) => {
-    setDraggedNode({
-      id: `new-${Date.now()}`,
-      type: nodeType as 'trigger' | 'condition' | 'action',
-      title: nodeData.title,
-      description: nodeData.description,
-      config: {},
-      position: { x: 0, y: 0 }
-    });
-  };
-
-  const handleWorkflowDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (draggedNode) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+  const handleAddRule = async (ruleData: any) => {
+    try {
+      console.log('Creating rule with data:', ruleData);
       
-      const newNode = {
-        ...draggedNode,
-        position: { x, y }
-      };
+      const res = await fetch('/api/alerts/rules', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: ruleData.name,
+          description: ruleData.description,
+          category: ruleData.category,
+          severity: ruleData.severity,
+          targetType: ruleData.targetType,
+          targetZones: ruleData.targetZones,
+          targetCameras: ruleData.targetCameras,
+          targetWorkerRoles: ruleData.targetWorkerRoles,
+          condition: {
+            ...ruleData.conditions,
+            workflow: { nodes: [], connections: [] }
+          },
+          actions: ruleData.actions,
+          escalationEnabled: ruleData.escalationEnabled,
+          escalationDelay: ruleData.escalationDelay,
+          webhookUrl: ruleData.webhookUrl,
+          isActive: ruleData.isActive
+        }),
+      });
       
-      setWorkflowNodes([...workflowNodes, newNode]);
-      setDraggedNode(null);
+      if (res.ok) {
+        const r = await res.json();
+        console.log('Rule created successfully:', r);
+        
+        // Add the new rule to the list
+        const newRuleData = {
+          id: r.id,
+          name: r.name,
+          description: r.description || '',
+          severity: r.severity.toLowerCase(),
+          enabled: r.isActive,
+          camera: r.condition?.camera ?? 'All Cameras',
+          threshold: r.condition?.threshold ?? 0.8,
+          workflow: r.condition?.workflow ?? { nodes: [], connections: [] },
+        };
+        
+        setRules((prev) => [...prev, newRuleData]);
+        setShowRuleBuilder(false);
+        
+        // Show success message
+        alert('Rule created successfully!');
+      } else {
+        const errorData = await res.json();
+        console.error('Failed to create rule:', errorData);
+        alert(`Failed to create rule: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (e) {
+      console.error('Failed to add rule:', e);
+      alert('Failed to create rule. Please try again.');
     }
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
+  const handleDeleteRule = async (ruleId: string) => {
+    try {
+      const res = await fetch(`/api/alerts/rules/${ruleId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setRules(prev => prev.filter(r => r.id !== ruleId));
+      }
+    } catch (e) {
+      console.error('Failed to delete rule', e);
+    }
   };
 
-  const handleNodeDrag = (nodeId: string, x: number, y: number) => {
-    setWorkflowNodes(nodes => 
-      nodes.map(node => 
-        node.id === nodeId ? { ...node, position: { x, y } } : node
-      )
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'low': return 'border-green-500 text-green-400';
+      case 'medium': return 'border-yellow-500 text-yellow-400';
+      case 'high': return 'border-orange-500 text-orange-400';
+      case 'critical': return 'border-red-500 text-red-400';
+      default: return 'border-gray-500 text-gray-400';
+    }
+  };
+
+  const notificationSettings = [
+    { id: 'email', name: 'Email Notifications', enabled: true },
+    { id: 'sms', name: 'SMS Alerts', enabled: true },
+    { id: 'push', name: 'Push Notifications', enabled: false },
+    { id: 'webhook', name: 'Webhook Integration', enabled: false }
+  ];
+
+  if (showWorkflowBuilder) {
+    return (
+      <div className="min-h-screen bg-gray-900 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold text-white">Workflow Builder</h1>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowWorkflowBuilder(false);
+                  setSelectedRule(null);
+                }}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveWorkflow}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                Save Workflow
+              </button>
+            </div>
+          </div>
+          
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h2 className="text-xl font-semibold text-white mb-4">
+              {selectedRule ? `Editing: ${selectedRule.name}` : 'Create New Workflow'}
+            </h2>
+            <WorkflowBuilder
+              initialNodes={workflowNodes}
+              initialConnections={workflowConnections}
+              onWorkflowChange={handleWorkflowChange}
+            />
+          </div>
+        </div>
+      </div>
     );
-  };
-
-  const handleSaveWorkflow = () => {
-    if (selectedRule) {
-      const updatedRule = {
-        ...selectedRule,
-        workflow: {
-          nodes: workflowNodes,
-          connections: workflowConnections
-        }
-      };
-      setRules(rules.map(rule => 
-        rule.id === selectedRule.id ? updatedRule : rule
-      ));
-      setShowWorkflowBuilder(false);
-      setSelectedRule(null);
-    }
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gray-900 p-6">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <button
-              onClick={() => router.back()}
-              className="flex items-center text-gray-400 hover:text-white transition-colors mb-4"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Back to Dashboard
-            </button>
-            <h1 className="text-3xl font-bold text-white">Alert Configuration</h1>
-            <p className="text-gray-400 mt-2">Configure safety alert rules and notification preferences</p>
+            <h1 className="text-3xl font-bold text-white mb-2">Safety Alerts & Workflows</h1>
+            <p className="text-gray-400">Monitor safety violations and create intelligent response workflows</p>
           </div>
-          <button
-            onClick={handleSaveSettings}
-            disabled={saving}
-            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-              saving
-                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                : 'bg-green-600 hover:bg-green-700 text-white'
-            }`}
-          >
-            {saving ? 'Saving...' : 'Save Settings'}
-          </button>
+          <div className="flex space-x-3">
+            <button
+              onClick={() => setShowCopilot(true)}
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 transform hover:scale-105 flex items-center space-x-2"
+            >
+              <span className="text-xl">🤖</span>
+              <span>Ask Copilot</span>
+            </button>
+            <button
+              onClick={() => setShowRuleBuilder(true)}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors"
+            >
+              Add Rule
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex space-x-1 bg-gray-800 rounded-lg p-1 mb-8">
+        <div className="flex space-x-1 bg-gray-800 rounded-xl p-1 mb-8">
           {[
-            { id: 'rules', name: 'Alert Rules' },
-            { id: 'workflows', name: 'Workflow Builder' },
-            { id: 'notifications', name: 'Notifications' },
-            { id: 'sensitivity', name: 'Detection Sensitivity' }
+            { id: 'rules', label: 'Alert Rules', icon: '🚨' },
+            { id: 'workflows', label: 'Workflows', icon: '🔄' },
+            { id: 'analytics', label: 'Analytics', icon: '📊' }
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
+              className={`flex-1 flex items-center justify-center space-x-2 px-6 py-3 rounded-lg transition-all duration-200 ${
                 activeTab === tab.id
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-blue-600 text-white shadow-lg'
                   : 'text-gray-400 hover:text-white hover:bg-gray-700'
               }`}
             >
-              {tab.name}
+              <span>{tab.icon}</span>
+              <span>{tab.label}</span>
             </button>
           ))}
         </div>
 
-        {/* Tab Content */}
+        {/* Rules Tab */}
         {activeTab === 'rules' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-white">Alert Rules</h2>
-              <button 
-                onClick={() => setShowAddRule(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+              <button
+                onClick={() => setShowRuleBuilder(true)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center space-x-2"
               >
-                Add New Rule
+                <span>➕</span>
+                <span>Add Rule</span>
               </button>
             </div>
             
-            <div className="grid gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {rules.map((rule) => (
-                <div key={rule.id} className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="text-lg font-semibold text-white">{rule.name}</h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getSeverityColor(rule.severity)}`}>
-                          {rule.severity}
-                        </span>
-                        <label className="flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={rule.enabled}
-                            onChange={(e) => {
-                              setRules(rules.map(r => 
-                                r.id === rule.id ? { ...r, enabled: e.target.checked } : r
-                              ));
-                            }}
-                            className="rounded text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="ml-2 text-sm text-gray-300">Enabled</span>
-                        </label>
-                      </div>
-                      <p className="text-gray-400 mb-3">{rule.description}</p>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-500">Camera:</span>
-                          <span className="text-white ml-2">{rule.camera}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Threshold:</span>
-                          <span className="text-white ml-2">{rule.threshold}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Workflow Nodes:</span>
-                          <span className="text-white ml-2">{rule.workflow.nodes.length}</span>
-                        </div>
-                      </div>
+                <div key={rule.id} className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-gray-600 transition-colors">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className={`px-3 py-1 rounded-full text-xs font-medium border ${getSeverityColor(rule.severity)}`}>
+                      {rule.severity}
                     </div>
                     <div className="flex space-x-2">
-                      <button 
+                      <button
                         onClick={() => handleEditRule(rule)}
-                        className="text-blue-400 hover:text-blue-300 transition-colors"
-                        title="Edit Workflow"
+                        className="p-2 text-gray-400 hover:text-blue-400 transition-colors"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDeleteRule(rule.id)}
-                        className="text-red-400 hover:text-red-300 transition-colors"
-                        title="Delete Rule"
+                        className="p-2 text-gray-400 hover:text-red-400 transition-colors"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                       </button>
                     </div>
                   </div>
+                  
+                  <h3 className="text-lg font-semibold text-white mb-2">{rule.name}</h3>
+                  <p className="text-gray-400 text-sm mb-4">{rule.description}</p>
+                  
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Camera:</span>
+                      <span className="text-white">{rule.camera}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Threshold:</span>
+                      <span className="text-white">{Math.round(rule.threshold * 100)}%</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Status:</span>
+                      <span className={`${rule.enabled ? 'text-green-400' : 'text-red-400'}`}>
+                        {rule.enabled ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {rule.workflow.nodes.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-700">
+                      <div className="flex items-center space-x-2 text-sm text-gray-400">
+                        <span>🔄</span>
+                        <span>Workflow: {rule.workflow.nodes.length} nodes</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           </div>
         )}
 
+        {/* Workflows Tab */}
         {activeTab === 'workflows' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-white">Workflow Builder</h2>
               <div className="text-gray-400 text-sm">
-                Drag and drop nodes to create custom alert workflows
+                Create intelligent workflows that automatically respond to safety events
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              {/* Available Nodes */}
-              <div className="lg:col-span-1">
-                <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                  <h3 className="text-lg font-semibold text-white mb-4">Available Nodes</h3>
-                  <div className="space-y-3">
-                    {availableNodes.map((node, index) => (
-                      <div
-                        key={index}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, node.type, node)}
-                        className="bg-gray-700 rounded-lg p-3 cursor-move hover:bg-gray-600 transition-colors"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <span className="text-2xl">{node.icon}</span>
-                          <div>
-                            <div className="text-white font-medium text-sm">{node.title}</div>
-                            <div className="text-gray-400 text-xs">{node.description}</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+            {/* Workflow Instructions */}
+            <div className="bg-blue-900/20 border border-blue-700 rounded-xl p-4">
+              <h3 className="text-blue-300 font-medium mb-2">🎯 How to Build Workflows</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-blue-200">
+                <div>
+                  <div className="font-medium mb-1">1. Start with Triggers</div>
+                  <div className="text-blue-300">🔴 Red nodes start the workflow (e.g., Person Detected)</div>
                 </div>
-              </div>
-
-              {/* Workflow Canvas */}
-              <div className="lg:col-span-3">
-                <div 
-                  className="bg-gray-800 rounded-xl p-6 border border-gray-700 min-h-96"
-                  onDrop={handleWorkflowDrop}
-                  onDragOver={handleDragOver}
-                >
-                  <h3 className="text-lg font-semibold text-white mb-4">Workflow Canvas</h3>
-                  <div className="relative min-h-80 bg-gray-900 rounded-lg border-2 border-dashed border-gray-600">
-                    {workflowNodes.map((node) => (
-                      <div
-                        key={node.id}
-                        className="absolute bg-gray-700 rounded-lg p-3 border border-gray-600 cursor-move"
-                        style={{ left: node.position.x, top: node.position.y }}
-                        draggable
-                        onDragEnd={(e) => {
-                          const rect = e.currentTarget.parentElement?.getBoundingClientRect();
-                          if (rect) {
-                            const x = e.clientX - rect.left;
-                            const y = e.clientY - rect.top;
-                            handleNodeDrag(node.id, x, y);
-                          }
-                        }}
-                      >
-                        <div className="flex items-center space-x-2">
-                          <span className="text-lg">
-                            {node.type === 'trigger' ? '🔴' : node.type === 'condition' ? '🟡' : '🟢'}
-                          </span>
-                          <div>
-                            <div className="text-white font-medium text-sm">{node.title}</div>
-                            <div className="text-gray-400 text-xs">{node.description}</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    
-                    {workflowNodes.length === 0 && (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="text-center">
-                          <div className="text-gray-600 text-6xl mb-4">📋</div>
-                          <p className="text-gray-400">Drag nodes here to build your workflow</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                <div>
+                  <div className="font-medium mb-1">2. Add Conditions</div>
+                  <div className="text-blue-300">🟡 Yellow nodes check conditions (e.g., No Hard Hat)</div>
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'notifications' && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-white">Notification Settings</h2>
-            
-            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-              <div className="space-y-4">
-                {notificationSettings.map((setting) => (
-                  <div key={setting.id} className="flex items-center justify-between">
-                    <div>
-                      <div className="text-white font-medium">{setting.name}</div>
-                      <div className="text-gray-400 text-sm">
-                        {setting.id === 'email' && 'Receive alerts via email'}
-                        {setting.id === 'sms' && 'Receive critical alerts via SMS'}
-                        {setting.id === 'push' && 'Receive real-time push notifications'}
-                        {setting.id === 'webhook' && 'Send alerts to external systems'}
-                      </div>
-                    </div>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={setting.enabled}
-                        className="rounded text-blue-600 focus:ring-blue-500"
-                      />
-                    </label>
-                  </div>
-                ))}
+                <div>
+                  <div className="font-medium mb-1">3. End with Actions</div>
+                  <div className="text-blue-300">🟢 Green nodes execute actions (e.g., Send Alert)</div>
+                </div>
               </div>
             </div>
 
             <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-              <h3 className="text-lg font-semibold text-white mb-4">Notification Schedule</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Quiet Hours</label>
-                  <div className="flex space-x-2">
-                    <input
-                      type="time"
-                      defaultValue="22:00"
-                      className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className="text-gray-400 self-center">to</span>
-                    <input
-                      type="time"
-                      defaultValue="06:00"
-                      className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Escalation Delay</label>
-                  <select className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option>5 minutes</option>
-                    <option>15 minutes</option>
-                    <option>30 minutes</option>
-                    <option>1 hour</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'sensitivity' && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-white">Detection Sensitivity</h2>
-            
-            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Overall Detection Sensitivity</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    defaultValue="75"
-                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                  />
-                  <div className="flex justify-between text-sm text-gray-400 mt-1">
-                    <span>Low</span>
-                    <span>Medium</span>
-                    <span>High</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-4">Object Detection</h3>
-                    <div className="space-y-3">
-                      {[
-                        { name: 'Person Detection', value: 85 },
-                        { name: 'Vehicle Detection', value: 90 },
-                        { name: 'Equipment Detection', value: 75 },
-                        { name: 'Safety Gear Detection', value: 80 }
-                      ].map((item) => (
-                        <div key={item.name}>
-                          <div className="flex justify-between text-sm text-gray-300 mb-1">
-                            <span>{item.name}</span>
-                            <span>{item.value}%</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            defaultValue={item.value}
-                            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-4">Behavior Analysis</h3>
-                    <div className="space-y-3">
-                      {[
-                        { name: 'Movement Speed', value: 70 },
-                        { name: 'Area Violations', value: 85 },
-                        { name: 'Equipment Usage', value: 75 },
-                        { name: 'Safety Compliance', value: 90 }
-                      ].map((item) => (
-                        <div key={item.name}>
-                          <div className="flex justify-between text-sm text-gray-300 mb-1">
-                            <span>{item.name}</span>
-                            <span>{item.value}%</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            defaultValue={item.value}
-                            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Add Rule Modal */}
-        {showAddRule && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-white">Add New Rule</h3>
-                <button 
-                  onClick={() => setShowAddRule(false)}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Rule Name</label>
-                  <input
-                    type="text"
-                    value={newRule.name}
-                    onChange={(e) => setNewRule({...newRule, name: e.target.value})}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter rule name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
-                  <textarea
-                    value={newRule.description}
-                    onChange={(e) => setNewRule({...newRule, description: e.target.value})}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter rule description"
-                    rows={3}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Severity</label>
-                    <select
-                      value={newRule.severity}
-                      onChange={(e) => setNewRule({...newRule, severity: e.target.value})}
-                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                      <option value="critical">Critical</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Camera</label>
-                    <select
-                      value={newRule.camera}
-                      onChange={(e) => setNewRule({...newRule, camera: e.target.value})}
-                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="All Cameras">All Cameras</option>
-                      <option value="Perimeter Cameras">Perimeter Cameras</option>
-                      <option value="Equipment Cameras">Equipment Cameras</option>
-                      <option value="Vehicle Cameras">Vehicle Cameras</option>
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Threshold</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={newRule.threshold}
-                    onChange={(e) => setNewRule({...newRule, threshold: parseFloat(e.target.value)})}
-                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                  />
-                  <div className="flex justify-between text-sm text-gray-400 mt-1">
-                    <span>0</span>
-                    <span>{newRule.threshold}</span>
-                    <span>1</span>
-                  </div>
-                </div>
-                <div className="flex space-x-3 pt-4">
-                  <button 
-                    onClick={() => setShowAddRule(false)}
-                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={handleAddRule}
-                    disabled={!newRule.name || !newRule.description}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:text-gray-400 text-white px-4 py-2 rounded-lg transition-colors"
-                  >
-                    Add Rule
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Workflow Builder Modal */}
-        {showWorkflowBuilder && selectedRule && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-xl p-6 max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-white">Workflow Builder - {selectedRule.name}</h3>
-                <button 
-                  onClick={() => setShowWorkflowBuilder(false)}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+              <h3 className="text-lg font-semibold text-white mb-4">Create New Workflow</h3>
+              <p className="text-gray-400 mb-6">
+                Build intelligent workflows that automatically respond to safety events. 
+                Start by creating a rule, then use the workflow builder to define the flow.
+              </p>
               
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Available Nodes */}
-                <div className="lg:col-span-1">
-                  <div className="bg-gray-700 rounded-lg p-4">
-                    <h4 className="text-lg font-semibold text-white mb-4">Available Nodes</h4>
-                    <div className="space-y-3">
-                      {availableNodes.map((node, index) => (
-                        <div
-                          key={index}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, node.type, node)}
-                          className="bg-gray-600 rounded-lg p-3 cursor-move hover:bg-gray-500 transition-colors"
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => setShowRuleBuilder(true)}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors"
+                >
+                  Create Rule First
+                </button>
+                <button
+                  onClick={() => setShowCopilot(true)}
+                  className="px-4 py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-xl transition-colors flex items-center space-x-2"
+                >
+                  <span>🤖</span>
+                  <span>Ask Copilot for Help</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Existing Workflows */}
+            {rules.filter(r => r.workflow.nodes.length > 0).length > 0 && (
+              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <h3 className="text-lg font-semibold text-white mb-4">Existing Workflows</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {rules.filter(r => r.workflow.nodes.length > 0).map((rule) => (
+                    <div key={rule.id} className="bg-gray-700 rounded-lg p-4 border border-gray-600">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-white">{rule.name}</h4>
+                        <button
+                          onClick={() => handleEditRule(rule)}
+                          className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
                         >
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xl">{node.icon}</span>
-                            <div>
-                              <div className="text-white font-medium text-sm">{node.title}</div>
-                              <div className="text-gray-300 text-xs">{node.description}</div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                          Edit
+                        </button>
+                      </div>
+                      <div className="flex items-center space-x-2 text-sm text-gray-400">
+                        <span>🔄</span>
+                        <span>{rule.workflow.nodes.length} nodes, {rule.workflow.connections.length} connections</span>
+                      </div>
                     </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-white">Analytics & Performance</h2>
+              <button
+                onClick={() => setShowRuleBuilder(true)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center space-x-2"
+              >
+                <span>➕</span>
+                <span>Add Rule</span>
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Total Alerts</p>
+                    <p className="text-2xl font-bold text-white">1,247</p>
+                  </div>
+                  <div className="w-12 h-12 bg-red-500/20 rounded-lg flex items-center justify-center">
+                    <span className="text-2xl">🚨</span>
                   </div>
                 </div>
-
-                {/* Workflow Canvas */}
-                <div className="lg:col-span-3">
-                  <div 
-                    className="bg-gray-700 rounded-lg p-4 min-h-96"
-                    onDrop={handleWorkflowDrop}
-                    onDragOver={handleDragOver}
-                  >
-                    <h4 className="text-lg font-semibold text-white mb-4">Workflow Canvas</h4>
-                    <div className="relative min-h-80 bg-gray-900 rounded-lg border-2 border-dashed border-gray-600">
-                      {workflowNodes.map((node) => (
-                        <div
-                          key={node.id}
-                          className="absolute bg-gray-600 rounded-lg p-3 border border-gray-500 cursor-move"
-                          style={{ left: node.position.x, top: node.position.y }}
-                          draggable
-                          onDragEnd={(e) => {
-                            const rect = e.currentTarget.parentElement?.getBoundingClientRect();
-                            if (rect) {
-                              const x = e.clientX - rect.left;
-                              const y = e.clientY - rect.top;
-                              handleNodeDrag(node.id, x, y);
-                            }
-                          }}
-                        >
-                          <div className="flex items-center space-x-2">
-                            <span className="text-lg">
-                              {node.type === 'trigger' ? '🔴' : node.type === 'condition' ? '🟡' : '🟢'}
-                            </span>
-                            <div>
-                              <div className="text-white font-medium text-sm">{node.title}</div>
-                              <div className="text-gray-300 text-xs">{node.description}</div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      
-                      {workflowNodes.length === 0 && (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="text-center">
-                            <div className="text-gray-600 text-6xl mb-4">📋</div>
-                            <p className="text-gray-400">Drag nodes here to build your workflow</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                <div className="mt-4">
+                  <div className="flex items-center text-sm">
+                    <span className="text-green-400">+12%</span>
+                    <span className="text-gray-400 ml-2">from last month</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex space-x-3 mt-6">
-                <button 
-                  onClick={() => setShowWorkflowBuilder(false)}
-                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleSaveWorkflow}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  Save Workflow
-                </button>
+              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Response Time</p>
+                    <p className="text-2xl font-bold text-white">2.3s</p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                    <span className="text-2xl">⚡</span>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="flex items-center text-sm">
+                    <span className="text-green-400">-8%</span>
+                    <span className="text-gray-400 ml-2">from last month</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Detection Rate</p>
+                    <p className="text-2xl font-bold text-white">94.2%</p>
+                  </div>
+                  <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                    <span className="text-2xl">🎯</span>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="flex items-center text-sm">
+                    <span className="text-green-400">+2.1%</span>
+                    <span className="text-gray-400 ml-2">from last month</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Active Rules</p>
+                    <p className="text-2xl font-bold text-white">{rules.filter(r => r.enabled).length}</p>
+                  </div>
+                  <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                    <span className="text-2xl">⚙️</span>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="flex items-center text-sm">
+                    <span className="text-gray-400">Currently active</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+              <h3 className="text-lg font-semibold text-white mb-4">Detection Performance</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="text-md font-medium text-gray-300 mb-3">Object Detection</h4>
+                  <div className="space-y-3">
+                    {[
+                      { name: 'Person Detection', value: 85 },
+                      { name: 'Vehicle Detection', value: 90 },
+                      { name: 'Equipment Detection', value: 75 },
+                      { name: 'Safety Gear Detection', value: 80 }
+                    ].map((item) => (
+                      <div key={item.name}>
+                        <div className="flex justify-between text-sm text-gray-300 mb-1">
+                          <span>{item.name}</span>
+                          <span>{item.value}%</span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div 
+                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${item.value}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-md font-medium text-gray-300 mb-3">Behavior Analysis</h4>
+                  <div className="space-y-3">
+                    {[
+                      { name: 'Movement Speed', value: 70 },
+                      { name: 'Area Violations', value: 85 },
+                      { name: 'Equipment Usage', value: 75 },
+                      { name: 'Safety Compliance', value: 90 }
+                    ].map((item) => (
+                      <div key={item.name}>
+                        <div className="flex justify-between text-sm text-gray-300 mb-1">
+                          <span>{item.name}</span>
+                          <span>{item.value}%</span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div 
+                            className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${item.value}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         )}
+
+        {/* Rule Builder Modal */}
+        {showRuleBuilder && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <RuleBuilder
+              onSave={handleAddRule}
+              onCancel={() => setShowRuleBuilder(false)}
+            />
+          </div>
+        )}
+
+        {/* Copilot */}
+        <Copilot 
+          isOpen={showCopilot} 
+          onClose={() => setShowCopilot(false)}
+          onAction={(action) => {
+            if (action === 'create-rule') {
+              setShowCopilot(false);
+              setShowRuleBuilder(true);
+            }
+          }}
+        />
       </div>
     </div>
   );

@@ -163,7 +163,7 @@ export function DashboardProvider({ children }: DashboardProviderProps) {
         dispatch({ type: 'SET_SELECTED_SITE', payload: accessibleSites[0].id });
       }
     }
-  }, [allSites, sitesLoading, currentUser, state.selectedSiteId]);
+  }, [allSites, sitesLoading, currentUser]); // Removed state.selectedSiteId to prevent infinite loop
 
   // Check mock data mode on mount
   useEffect(() => {

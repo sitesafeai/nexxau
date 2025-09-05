@@ -6,6 +6,8 @@ import { useAlerts, useCameras, useAnalytics } from '../lib/hooks/useApi';
 import CameraFeed from '../components/CameraFeed';
 import { NotificationContainer } from '../components/NotificationToast';
 import { useRouter } from 'next/navigation';
+import { Suspense } from 'react';
+import ActiveAlerts from '@/app/components/dashboard/ActiveAlerts';
 
 // Wrapper component that provides the dashboard context
 export default function DashboardPage() {
@@ -18,6 +20,7 @@ export default function DashboardPage() {
 
 function DashboardContent() {
   const [selected, setSelected] = useState('overview');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { state, selectSite, hasPermission, addNotification } = useDashboard();
   const { selectedSiteId, selectedSite, accessibleSites } = useSiteManagement();
   const { notifications, removeNotification } = useNotifications();
@@ -139,7 +142,110 @@ function DashboardContent() {
           </div>
         </div>
       </div>
-      <main className="pl-64">
+      <main className="md:pl-64">
+        {/* Mobile menu button */}
+        <div className="md:hidden fixed top-4 left-4 z-50">
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="bg-gray-800 text-white p-2 rounded-md border border-gray-700 hover:bg-gray-700"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Mobile menu overlay */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden fixed inset-0 z-40 bg-black bg-opacity-50" onClick={() => setIsMobileMenuOpen(false)}>
+            <div className="fixed inset-y-0 left-0 w-64 bg-gray-900 border-r border-gray-700 overflow-y-auto">
+              <div className="flex flex-col h-full pt-4 pb-4">
+                {/* Site Selector */}
+                <div className="px-4 mt-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Worksite Selector
+                  </label>
+                  <select
+                    value={selectedSiteId || ''}
+                    onChange={(e) => selectSite(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {accessibleSites.map((site) => (
+                      <option key={site.id} value={site.id}>
+                        {site.name}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedSite && (
+                    <div className="mt-2 p-2 bg-gray-800 rounded border border-gray-700">
+                      <p className="text-xs text-gray-400">Current Site</p>
+                      <p className="text-sm font-medium text-white">{selectedSite.name}</p>
+                      <p className="text-xs text-gray-400">{selectedSite.address}</p>
+                      <div className="flex items-center mt-1">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          selectedSite.status === 'active' ? 'bg-green-900 text-green-300' :
+                          selectedSite.status === 'maintenance' ? 'bg-yellow-900 text-yellow-300' :
+                          'bg-red-900 text-red-300'
+                        }`}>
+                          {selectedSite.status}
+                        </span>
+                        <span className="ml-2 text-xs text-gray-400">
+                          Safety: {selectedSite.safetyScore}%
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Navigation */}
+                <nav className="mt-5 flex-1 space-y-1 bg-gray-900 px-2">
+                  {[
+                    { key: 'overview', name: 'Overview', icon: '🏠' },
+                    { key: 'sites', name: 'Site Management', icon: '🏗️' },
+                    { key: 'cameras', name: 'Cameras', icon: '📹' },
+                    { key: 'alerts', name: 'Alerts', icon: '🚨' },
+                    { key: 'reports', name: 'Reports', icon: '📊' },
+                    { key: 'workflows', name: 'Workflows', icon: '⚙️' },
+                    { key: 'settings', name: 'Settings', icon: '🔧' },
+                  ].map((item) => (
+                    <button
+                      key={item.key}
+                      onClick={() => {
+                        setSelected(item.key);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={`group flex w-full items-center px-2 py-2 text-sm font-medium rounded-md ${
+                        selected === item.key
+                          ? 'bg-gray-800 text-white'
+                          : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                      }`}
+                    >
+                      <span className="mr-3 h-6 w-6 flex-shrink-0">{item.icon}</span>
+                      {item.name}
+                    </button>
+                  ))}
+                </nav>
+
+                {/* User Info */}
+                <div className="px-4 mt-4">
+                  <div className="bg-gray-800 rounded-lg p-3">
+                    <p className="text-xs text-gray-400">Logged in as</p>
+                    <p className="text-sm font-medium text-white">{state.currentUser?.name || 'Loading...'}</p>
+                    <p className="text-xs text-gray-400">{state.currentUser?.email || 'Loading...'}</p>
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${
+                      state.currentUser?.role === 'admin' ? 'bg-purple-900 text-purple-300' :
+                      state.currentUser?.role === 'site-manager' ? 'bg-blue-900 text-blue-300' :
+                      'bg-green-900 text-green-300'
+                    }`}>
+                      {state.currentUser?.role || 'Loading...'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="py-6">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
             {selected === 'overview' && <OverviewPage currentSite={selectedSite} />}
@@ -239,7 +345,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
       status: 'online',
       lastSeen: '2 minutes ago',
       alerts: 0,
-      streamUrl: 'http://localhost:5001/video_feed',
+      streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8',
       hasVideo: true
     },
     {
@@ -248,7 +354,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
       status: 'online',
       lastSeen: '1 minute ago',
       alerts: 2,
-      streamUrl: 'http://localhost:5001/video_feed',
+      streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8',
       hasVideo: false
     },
     {
@@ -257,7 +363,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
       status: 'offline',
       lastSeen: '5 minutes ago',
       alerts: 0,
-      streamUrl: 'http://localhost:5001/video_feed',
+      streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8',
       hasVideo: false
     },
     {
@@ -266,7 +372,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
       status: 'online',
       lastSeen: '30 seconds ago',
       alerts: 1,
-      streamUrl: 'http://localhost:5001/video_feed',
+      streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8',
       hasVideo: false
     }
   ]);
@@ -397,6 +503,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
         <CameraFeed 
           title={currentCamera.name}
           streamUrl={currentCamera.streamUrl}
+          cameraId={currentCamera.id}
           fallbackVideo="/demo-third-aprty-sitesafe.mov"
           showControls={true}
           autoPlay={true}
@@ -477,6 +584,21 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
             </div>
           </button>
         </div>
+      </div>
+
+      {/* Active Alerts */}
+      <div className="bg-gray-800 p-6 rounded-lg">
+        <Suspense fallback={
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-700 rounded w-1/4 mb-4"></div>
+            <div className="space-y-3">
+              <div className="h-16 bg-gray-700 rounded"></div>
+              <div className="h-16 bg-gray-700 rounded"></div>
+            </div>
+          </div>
+        }>
+          <ActiveAlerts />
+        </Suspense>
       </div>
 
       {/* Modals for functionality */}

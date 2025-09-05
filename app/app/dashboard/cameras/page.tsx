@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CameraFeed from '../../components/CameraFeed';
 
@@ -9,73 +9,35 @@ export default function CamerasPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedCamera, setSelectedCamera] = useState<any>(null);
   const [showAddCamera, setShowAddCamera] = useState(false);
+  const [cameras, setCameras] = useState<any[]>([]);
+  const [loadingCameras, setLoadingCameras] = useState(false);
+  const [errorCameras, setErrorCameras] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: '', location: '', rtspUrl: '' });
+  const [cameraKey, setCameraKey] = useState(0);
 
-  const cameras = [
-    {
-      id: '1',
-      name: 'Main Construction Site Camera',
-      location: 'Main Entrance',
-      status: 'online',
-      lastSeen: '2 minutes ago',
-      alerts: 0,
-      streamUrl: 'http://localhost:5001/video_feed',
-      hasVideo: true,
-      resolution: '1080p',
-      fps: 30,
-      uptime: '99.8%',
-      temperature: '42°C',
-      ipAddress: '192.168.1.101',
-      model: 'Hikvision DS-2CD2347G2-LU'
-    },
-    {
-      id: '2',
-      name: 'Safety Zone A Camera',
-      location: 'Safety Zone A',
-      status: 'online',
-      lastSeen: '1 minute ago',
-      alerts: 2,
-      streamUrl: 'http://localhost:5001/video_feed',
-      hasVideo: false,
-      resolution: '4K',
-      fps: 25,
-      uptime: '98.5%',
-      temperature: '45°C',
-      ipAddress: '192.168.1.102',
-      model: 'Dahua IPC-HFW4431R-Z'
-    },
-    {
-      id: '3',
-      name: 'Loading Dock Camera',
-      location: 'Loading Dock',
-      status: 'offline',
-      lastSeen: '5 minutes ago',
-      alerts: 0,
-      streamUrl: 'http://localhost:5001/video_feed',
-      hasVideo: false,
-      resolution: '720p',
-      fps: 15,
-      uptime: '85.2%',
-      temperature: 'N/A',
-      ipAddress: '192.168.1.103',
-      model: 'Axis M3045-V'
-    },
-    {
-      id: '4',
-      name: 'Warehouse B Camera',
-      location: 'Warehouse B',
-      status: 'online',
-      lastSeen: '30 seconds ago',
-      alerts: 1,
-      streamUrl: 'http://localhost:5001/video_feed',
-      hasVideo: false,
-      resolution: '1080p',
-      fps: 30,
-      uptime: '99.1%',
-      temperature: '41°C',
-      ipAddress: '192.168.1.104',
-      model: 'Hikvision DS-2CD2347G2-LU'
+  // Debug logging
+  console.log('showAddCamera state:', showAddCamera);
+
+  const refreshCameras = async () => {
+    setLoadingCameras(true);
+    setErrorCameras(null);
+    try {
+      const res = await fetch('/api/cameras');
+      if (!res.ok) throw new Error('Failed to load cameras');
+      const data = await res.json();
+      setCameras(data);
+      if (!selectedCamera && data.length > 0) setSelectedCamera(data[0]);
+    } catch (err: any) {
+      setErrorCameras(err.message || 'Failed to load cameras');
+    } finally {
+      setLoadingCameras(false);
     }
-  ];
+  };
+
+  useEffect(() => {
+    refreshCameras();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -88,6 +50,50 @@ export default function CamerasPage() {
 
   const handleCameraSelect = (camera: any) => {
     setSelectedCamera(camera);
+    setCameraKey(prev => prev + 1); // Force component remount when camera changes
+  };
+
+  const handleRetryCamera = () => {
+    setCameraKey(prev => prev + 1); // Force component remount to retry connection
+  };
+
+  const handleAddCamera = async () => {
+    try {
+      if (!form.name || !form.rtspUrl) {
+        alert('Please provide a name and RTSP URL');
+        return;
+      }
+      setShowAddCamera(false);
+
+      const createRes = await fetch('/api/cameras', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name,
+          location: form.location,
+          type: 'IP Camera',
+          streamUrl: form.rtspUrl
+        })
+      });
+      if (!createRes.ok) {
+        const err = await createRes.json().catch(() => ({}));
+        console.error('Camera creation failed:', err);
+        throw new Error(err?.details || err?.error || 'Failed to create camera');
+      }
+      const newCamera = await createRes.json();
+
+      const mediamtxPath = `camera-${newCamera.id}`;
+      await fetch('/api/mediamtx/update-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cameraId: newCamera.id, rtspUrl: form.rtspUrl, mediamtxPath })
+      }).catch(() => undefined);
+
+      setForm({ name: '', location: '', rtspUrl: '' });
+      await refreshCameras();
+    } catch (e: any) {
+      alert(e.message || 'Failed to add camera');
+    }
   };
 
   return (
@@ -107,13 +113,67 @@ export default function CamerasPage() {
             </button>
             <h1 className="text-3xl font-bold text-white">Camera Management</h1>
             <p className="text-gray-400 mt-2">Monitor and configure camera settings and performance</p>
+            {/* Debug info */}
+            <div className="text-xs text-gray-500 mt-1">
+              Debug: showAddCamera = {showAddCamera.toString()}
+            </div>
           </div>
-          <button
-            onClick={() => setShowAddCamera(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-          >
-            Add Camera
-          </button>
+                      <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  console.log('Add Camera button clicked!');
+                  setShowAddCamera(true);
+                  console.log('showAddCamera set to true');
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+              >
+                Add Camera
+              </button>
+              {/* Add Demo Camera button */}
+              <button
+                onClick={async () => {
+                  try {
+                    console.log('Adding demo camera...');
+                    const res = await fetch('/api/cameras', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        name: 'Demo Camera ' + (cameras.length + 1),
+                        location: 'Demo Location',
+                        type: 'IP Camera',
+                        streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8'
+                      })
+                    });
+                    if (res.ok) {
+                      console.log('Demo camera added successfully');
+                      await refreshCameras();
+                    } else {
+                      const error = await res.json();
+                      console.error('Failed to add demo camera:', error);
+                      alert('Failed to add demo camera: ' + (error.details || error.error));
+                    }
+                  } catch (e) {
+                    console.error('Error adding demo camera:', e);
+                    alert('Error adding demo camera: ' + e);
+                  }
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                title="Add a demo camera with working video stream"
+              >
+                Add Demo Camera
+              </button>
+              {/* Debug button */}
+              <button
+                onClick={() => {
+                  console.log('Debug button clicked!');
+                  setShowAddCamera(true);
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white px-3 py-3 rounded-lg font-medium transition-colors text-sm"
+                title="Force show modal for debugging"
+              >
+                Debug
+              </button>
+            </div>
         </div>
 
         {/* Tabs */}
@@ -144,6 +204,12 @@ export default function CamerasPage() {
             <div className="lg:col-span-1">
               <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
                 <h2 className="text-xl font-semibold text-white mb-4">Cameras</h2>
+                {loadingCameras && (
+                  <div className="text-gray-400 text-sm mb-3">Loading cameras...</div>
+                )}
+                {errorCameras && (
+                  <div className="text-red-400 text-sm mb-3">{errorCameras}</div>
+                )}
                 <div className="space-y-3">
                   {cameras.map((camera) => (
                     <button
@@ -157,16 +223,19 @@ export default function CamerasPage() {
                     >
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="font-medium">{camera.name}</h3>
-                        <div className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(camera.status)}`}>
-                          {camera.status}
+                        <div className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(camera.status || 'online')}`}>
+                          {camera.status || 'online'}
                         </div>
                       </div>
                       <div className="text-sm opacity-80">
-                        <div>{camera.location}</div>
-                        <div>Last seen: {camera.lastSeen}</div>
+                        <div>{camera.location || 'N/A'}</div>
+                        <div>Path: {camera.hlsUrl || camera.streamUrl || '—'}</div>
                       </div>
                     </button>
                   ))}
+                  {(!cameras || cameras.length === 0) && !loadingCameras && (
+                    <div className="text-gray-400 text-sm">No cameras yet. Click "Add Camera" to get started.</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -177,13 +246,24 @@ export default function CamerasPage() {
                 <div className="space-y-6">
                   {/* Camera Feed */}
                   <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-                    <h2 className="text-xl font-semibold text-white mb-4">{selectedCamera.name}</h2>
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-xl font-semibold text-white">{selectedCamera.name}</h2>
+                      <button
+                        onClick={handleRetryCamera}
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+                        title="Retry camera connection"
+                      >
+                        Retry Connection
+                      </button>
+                    </div>
                     <CameraFeed
+                      key={`camera-${selectedCamera.id}-${cameraKey}`}
                       title={selectedCamera.name}
-                      streamUrl={selectedCamera.streamUrl}
-                      fallbackVideo="/demo-third-aprty-sitesafe.mov"
+                      streamUrl={selectedCamera.hlsUrl || 'https://test-streams.mux.dev/bbb-360p.m3u8'}
+                      fallbackVideo="https://test-streams.mux.dev/bbb-360p.m3u8"
                       showControls={true}
                       autoPlay={true}
+                      cameraId={selectedCamera.id}
                     />
                   </div>
 
@@ -396,8 +476,8 @@ export default function CamerasPage() {
 
         {/* Add Camera Modal */}
         {showAddCamera && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[9999]">
+            <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 border-2 border-blue-500 shadow-2xl">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold text-white">Add New Camera</h3>
                 <button 
@@ -410,20 +490,18 @@ export default function CamerasPage() {
                 </button>
               </div>
               <div className="space-y-4">
+                {/* Debug message */}
+                <div className="text-green-400 text-sm text-center bg-green-900 p-2 rounded">
+                  Modal is visible! showAddCamera = {showAddCamera.toString()}
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Camera Name</label>
                   <input
                     type="text"
                     className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Enter camera name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">IP Address</label>
-                  <input
-                    type="text"
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="192.168.1.100"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   />
                 </div>
                 <div>
@@ -431,7 +509,19 @@ export default function CamerasPage() {
                   <input
                     type="text"
                     className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter location"
+                    placeholder="e.g., Main Entrance"
+                    value={form.location}
+                    onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">RTSP URL</label>
+                  <input
+                    type="text"
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="rtsp://user:pass@ip:554/path"
+                    value={form.rtspUrl}
+                    onChange={(e) => setForm((f) => ({ ...f, rtspUrl: e.target.value }))}
                   />
                 </div>
                 <div className="flex space-x-3 pt-4">
@@ -442,10 +532,7 @@ export default function CamerasPage() {
                     Cancel
                   </button>
                   <button 
-                    onClick={() => {
-                      console.log('Adding new camera');
-                      setShowAddCamera(false);
-                    }}
+                    onClick={handleAddCamera}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
                   >
                     Add Camera

@@ -1,0 +1,30 @@
+{
+  "camera_001": {
+    "name": "Main Entrance",
+    "stream_url": "rtsp://username:password@camera_ip:554/stream1",
+    "location": "Main entrance of worksite",
+    "type": "entrance_monitoring",
+    "focus_areas": ["PPE compliance", "unauthorized access", "vehicle safety"]
+  },
+  "camera_002": {
+    "name": "Construction Zone A",
+    "stream_url": "rtsp://username:password@camera_ip:554/stream1",
+    "location": "Construction zone A",
+    "type": "construction_monitoring",
+    "focus_areas": ["hard hat compliance", "safety vest usage", "equipment operation"]
+  },
+  "camera_003": {
+    "name": "Equipment Storage",
+    "stream_url": "rtsp://username:password@camera_ip:554/stream1",
+    "location": "Equipment storage area",
+    "type": "equipment_monitoring",
+    "focus_areas": ["unauthorized access", "equipment safety", "vehicle movement"]
+  },
+  "camera_004": {
+    "name": "Restricted Area",
+    "stream_url": "rtsp://username:password@camera_ip:554/stream1",
+    "location": "Restricted/dangerous zone",
+    "type": "safety_monitoring",
+    "focus_areas": ["zone access control", "safety violations", "emergency situations"]
+  }
+}

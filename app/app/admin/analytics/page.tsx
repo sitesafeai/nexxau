@@ -4,14 +4,13 @@ import { useState, useEffect } from 'react';
 import AdminLayout from '@/app/components/AdminLayout';
 import { 
   ChartBarIcon,
-  TrendingUpIcon,
-  TrendingDownIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
   ClockIcon,
   EyeIcon,
   UserGroupIcon
 } from '@heroicons/react/24/outline';
+import { ArrowTrendingUpIcon, ArrowTrendingDownIcon } from '@heroicons/react/24/outline';
 
 interface AnalyticsData {
   totalSites: number;
@@ -135,7 +134,7 @@ export default function AnalyticsPage() {
                 <p className="text-sm font-medium text-gray-600">Overall Safety Score</p>
                 <p className="text-2xl font-bold text-gray-900">{data.safetyScore}%</p>
                 <div className="flex items-center text-sm">
-                  <TrendingUpIcon className="h-4 w-4 text-green-500 mr-1" />
+                  <ArrowTrendingUpIcon className="h-4 w-4 text-green-500 mr-1" />
                   <span className="text-green-600">+5% from last month</span>
                 </div>
               </div>
@@ -166,7 +165,7 @@ export default function AnalyticsPage() {
                 <p className="text-sm font-medium text-gray-600">Active Alerts</p>
                 <p className="text-2xl font-bold text-gray-900">{data.activeAlerts}</p>
                 <div className="flex items-center text-sm">
-                  <TrendingDownIcon className="h-4 w-4 text-green-500 mr-1" />
+                  <ArrowTrendingDownIcon className="h-4 w-4 text-green-500 mr-1" />
                   <span className="text-green-600">-12% from last week</span>
                 </div>
               </div>

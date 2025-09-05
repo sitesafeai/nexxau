@@ -9,17 +9,17 @@ interface PageProps {
 }
 
 export default async function WorksitePage({ params }: PageProps) {
-  const client = await prisma.client.findUnique({
+  const company = await prisma.company.findUnique({
     where: { id: params.clientId },
   });
 
-  if (!client) {
+  if (!company) {
     notFound();
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <WorksiteForm clientId={client.id} clientName={client.name} />
+      <WorksiteForm clientId={company.id} clientName={company.name} />
     </div>
   );
 } 

@@ -1,0 +1,39 @@
+# MediaMTX Configuration for Nexxau
+# This file is managed by the Nexxau application
+
+# API configuration
+api: yes
+apiAddress: :9000
+
+# Metrics configuration
+metrics: yes
+metricsAddress: :9001
+
+# HLS configuration
+hls: yes
+hlsAddress: :8888
+hlsAllowOrigin: "*"
+hlsVariant: lowLatency
+hlsSegmentCount: 7
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+
+# RTSP configuration
+rtsp: yes
+rtspAddress: :8554
+
+# WebRTC configuration  
+webrtc: yes
+webrtcAddress: :9002
+webrtcAllowOrigin: "*"
+
+# Paths configuration - cameras will be added here dynamically
+paths:
+  # Demo camera path for testing
+  demo:
+    source: https://test-streams.mux.dev/bbb-360p.m3u8
+    sourceOnDemand: yes
+
+  camera-cmf3cadj20004p9shd6sfopo7:
+    source: rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mp4
+    sourceOnDemand: yes

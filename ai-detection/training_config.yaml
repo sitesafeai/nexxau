@@ -1,0 +1,78 @@
+# Nexxau AI Detection - YOLO Training Configuration
+
+# Model Configuration
+model_size: 'n'  # n, s, m, l, x (nano, small, medium, large, xlarge)
+pretrained_weights: 'yolov8n.pt'
+
+# Training Parameters
+epochs: 100
+batch_size: 16
+img_size: 640
+patience: 20  # Early stopping patience
+
+# Dataset Configuration
+data_yaml_path: 'data/data.yaml'
+project_dir: 'runs/train'
+
+# Safety Detection Classes
+classes:
+  - hard_hat
+  - safety_vest
+  - safety_glasses
+  - work_boots
+  - forklift
+  - crane
+  - excavator
+  - truck
+  - worker
+  - unauthorized_person
+  - vehicle
+  - fire
+  - spill
+  - hazard_zone
+
+# Training Hyperparameters
+learning_rate:
+  initial: 0.01
+  final: 0.01
+momentum: 0.937
+weight_decay: 0.0005
+warmup_epochs: 3.0
+
+# Loss Function Weights
+box_loss_weight: 7.5
+cls_loss_weight: 0.5
+dfl_loss_weight: 1.5
+
+# Data Augmentation
+augmentation:
+  hsv_h: 0.015  # HSV-Hue augmentation
+  hsv_s: 0.7    # HSV-Saturation augmentation
+  hsv_v: 0.4    # HSV-Value augmentation
+  degrees: 0.0   # Image rotation
+  translate: 0.1 # Image translation
+  scale: 0.5     # Image scaling
+  shear: 0.0     # Image shear
+  perspective: 0.0 # Perspective transform
+  flipud: 0.0    # Vertical flip
+  fliplr: 0.5    # Horizontal flip
+  mosaic: 1.0    # Mosaic augmentation
+  mixup: 0.0     # Mixup augmentation
+
+# Hardware Configuration
+device: 'auto'  # auto, cpu, 0, 1, 2, etc.
+workers: 4       # Number of data loading workers
+cache: false     # Cache images for faster training
+
+# Validation
+validation:
+  enabled: true
+  interval: 1    # Validate every N epochs
+  save_best: true
+  save_period: 10
+
+# Model Export
+export_formats:
+  - onnx
+  - tflite
+  - coreml

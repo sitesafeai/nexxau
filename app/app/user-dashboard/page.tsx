@@ -1,10 +1,10 @@
 "use client";
 import React, { useEffect, useRef, useState } from 'react';
-import Sidebar from '@/src/components/dashboard/Sidebar';
-import WorkflowBuilder from '@/src/components/dashboard/WorkflowBuilder';
-import PublicActiveAlertsTable from '@/src/components/dashboard/PublicActiveAlertsTable';
-import PublicAlertRulesConfig from '@/src/components/dashboard/PublicAlertRulesConfig';
-import ErrorBoundary from '@/src/components/ErrorBoundary';
+import Sidebar from '../../../src/components/dashboard/Sidebar';
+import WorkflowBuilder from '../../../src/components/dashboard/WorkflowBuilder';
+import PublicActiveAlertsTable from '../../../src/components/dashboard/PublicActiveAlertsTable';
+import PublicAlertRulesConfig from '../../../src/components/dashboard/PublicAlertRulesConfig';
+import ErrorBoundary from '../../../src/components/ErrorBoundary';
 
 const YOLO_STREAM_URL = 'http://localhost:5001/video_feed';
 

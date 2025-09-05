@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { PlusIcon, TrashIcon, SparklesIcon } from '@heroicons/react/24/outline';
-import type { AlertRule } from '@/src/types/alert';
+import type { AlertRule } from '../../types/alert';
 
 type AlertType = 'proximity' | 'speed' | 'area_entry' | 'area_exit' | 'idle_time' | 'unauthorized_access' | 'equipment_usage' | 'safety_zone' | 'crowd_density' | 'ppe_detection';
 

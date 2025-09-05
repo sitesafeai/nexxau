@@ -1,70 +1,39 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import SessionProviderWrapper from "./components/SessionProviderWrapper";
+import Navigation from "./components/Navigation";
+import ConditionalNavigation from "./components/ConditionalNavigation";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Nexxau",
-  description: "Your comprehensive solution for site safety and security management.",
-  manifest: "/manifest.json",
-  icons: {
-    icon: [
-      {
-        url: "/nexxau-logo.png",
-        sizes: "32x32",
-        type: "image/png",
-      },
-      {
-        url: "/nexxau-logo.png",
-        sizes: "16x16",
-        type: "image/png",
-      },
-    ],
-    apple: [
-      {
-        url: "/nexxau-logo.png",
-        sizes: "180x180",
-        type: "image/png",
-      },
-    ],
-  },
+  title: "Nexxau - AI-Powered Safety Monitoring",
+  description: "Advanced safety monitoring and compliance management for construction and industrial sites",
+  keywords: ["safety", "monitoring", "AI", "construction", "compliance", "workplace safety"],
+  authors: [{ name: "Nexxau Team" }],
+  creator: "Nexxau",
+  publisher: "Nexxau",
+  robots: "index, follow",
   openGraph: {
-    title: "Nexxau",
-    description: "Your comprehensive solution for site safety and security management.",
-    url: "https://nexxau.com",
-    siteName: "Nexxau",
-    images: [
-      {
-        url: "/nexxau-logo.png",
-        width: 1200,
-        height: 630,
-        alt: "Nexxau Logo",
-      },
-    ],
-    locale: "en_US",
     type: "website",
+    locale: "en_US",
+    url: "https://nexxau.com",
+    title: "Nexxau - AI-Powered Safety Monitoring",
+    description: "Advanced safety monitoring and compliance management for construction and industrial sites",
+    siteName: "Nexxau",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Nexxau",
-    description: "Your comprehensive solution for site safety and security management.",
-    images: ["/nexxau-logo.png"],
+    title: "Nexxau - AI-Powered Safety Monitoring",
+    description: "Advanced safety monitoring and compliance management for construction and industrial sites",
   },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-video-preview": -1,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-    },
-  },
-  verification: {
-    google: "your-google-verification-code", // Replace with your actual Google verification code
-  },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#3B82F6",
 };
 
 export default function RootLayout({
@@ -78,7 +47,10 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className={inter.className} suppressHydrationWarning>
-              {children}
+        <SessionProviderWrapper>
+          <ConditionalNavigation />
+          {children}
+        </SessionProviderWrapper>
       </body>
     </html>
   );

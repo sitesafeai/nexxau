@@ -45,7 +45,7 @@ export function useApi<T>(
     if (autoFetch) {
       fetchData();
     }
-  }, [autoFetch, fetchData, ...dependencies]);
+  }, [autoFetch, ...dependencies]); // Removed fetchData to prevent infinite loop
 
   // Refetch on window focus if enabled
   useEffect(() => {
@@ -60,7 +60,7 @@ export function useApi<T>(
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [refetchOnWindowFocus, lastFetched, cacheTime, fetchData]);
+  }, [refetchOnWindowFocus, lastFetched, cacheTime]); // Removed fetchData to prevent infinite loop
 
   return {
     data,

@@ -34,25 +34,35 @@ export async function POST(request: NextRequest) {
     // Check if worksite exists, if not create a demo one
     let worksiteId = body.worksiteId;
     if (!worksiteId) {
-      // Create a default client first
-      const defaultClient = await prisma.client.create({
-        data: {
-          name: 'Default Client',
-          email: 'default@client.com',
-          address: 'Default Address',
-        },
-      });
-      
-      // Create a default worksite
-      const defaultWorksite = await prisma.worksite.create({
-        data: {
-          name: 'Default Worksite',
-          address: 'Default Address',
-          clientId: defaultClient.id,
-          cameraSystemType: 'IP',
-        },
-      });
-      worksiteId = defaultWorksite.id;
+      // Try to find existing worksite first
+      const existingWorksite = await prisma.worksite.findFirst();
+      if (existingWorksite) {
+        worksiteId = existingWorksite.id;
+        console.log('Using existing worksite:', existingWorksite.id);
+      } else {
+        // Create a default company first
+        const defaultCompany = await prisma.company.create({
+          data: {
+            name: 'Default Company',
+            companyUsername: 'default-company',
+            email: 'default@company.com',
+            address: 'Default Address',
+          },
+        });
+        
+        // Create a default worksite
+        const defaultWorksite = await prisma.worksite.create({
+          data: {
+            name: 'Default Worksite',
+            worksiteName: 'default-worksite',
+            address: 'Default Address',
+            companyId: defaultCompany.id,
+            cameraSystemType: 'IP',
+          },
+        });
+        worksiteId = defaultWorksite.id;
+        console.log('Created default worksite:', worksiteId);
+      }
     } else {
       // Verify worksite exists
       const worksite = await prisma.worksite.findUnique({
@@ -61,11 +71,12 @@ export async function POST(request: NextRequest) {
       
       if (!worksite) {
         console.log('Worksite not found, creating default worksite');
-        // Create a default client first
-        const defaultClient = await prisma.client.create({
+        // Create a default company first
+        const defaultCompany = await prisma.company.create({
           data: {
-            name: 'Default Client',
-            email: 'default@client.com',
+            name: 'Default Company',
+            companyUsername: 'default-company',
+            email: 'default@company.com',
             address: 'Default Address',
           },
         });
@@ -73,8 +84,9 @@ export async function POST(request: NextRequest) {
         const defaultWorksite = await prisma.worksite.create({
           data: {
             name: 'Default Worksite',
+            worksiteName: 'default-worksite',
             address: 'Default Address',
-            clientId: defaultClient.id,
+            companyId: defaultCompany.id,
             cameraSystemType: 'IP',
           },
         });

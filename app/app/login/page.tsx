@@ -17,6 +17,8 @@ export default function LoginPage() {
     email: '',
     password: ''
   });
+  const [rememberMe, setRememberMe] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   // Account claiming form state
   const [claimData, setClaimData] = useState({
@@ -36,7 +38,8 @@ export default function LoginPage() {
       const result = await signIn('credentials', {
         email: loginData.email,
         password: loginData.password,
-        redirect: false
+        redirect: false,
+        callbackUrl: '/dashboard'
       });
 
       if (result?.error) {
@@ -170,16 +173,42 @@ export default function LoginPage() {
               <label htmlFor="password" className="block text-sm font-medium text-gray-300">
                 Password
               </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={loginData.password}
-                onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                className="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter your password"
-              />
+              <div className="relative mt-1">
+                <input
+                  id="password"
+                  name="password"
+                  type={showLoginPassword ? 'text' : 'password'}
+                  required
+                  value={loginData.password}
+                  onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                  className="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                  placeholder="Enter your password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPassword((s) => !s)}
+                  className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-white"
+                  aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showLoginPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <input
+                  id="remember-me"
+                  name="remember-me"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-600 rounded bg-gray-700"
+                />
+                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-300">
+                  Remember me
+                </label>
+              </div>
             </div>
 
             <div>
@@ -266,32 +295,52 @@ export default function LoginPage() {
               <label htmlFor="claimPassword" className="block text-sm font-medium text-gray-300">
                 Choose Password
               </label>
-              <input
-                id="claimPassword"
-                name="password"
-                type="password"
-                required
-                value={claimData.password}
-                onChange={(e) => setClaimData({ ...claimData, password: e.target.value })}
-                className="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Choose a password"
-              />
+              <div className="relative mt-1">
+                <input
+                  id="claimPassword"
+                  name="password"
+                  type={showLoginPassword ? 'text' : 'password'}
+                  required
+                  value={claimData.password}
+                  onChange={(e) => setClaimData({ ...claimData, password: e.target.value })}
+                  className="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                  placeholder="Choose a password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPassword((s) => !s)}
+                  className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-white"
+                  aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showLoginPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </div>
 
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300">
                 Confirm Password
               </label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                required
-                value={claimData.confirmPassword}
-                onChange={(e) => setClaimData({ ...claimData, confirmPassword: e.target.value })}
-                className="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Confirm your password"
-              />
+              <div className="relative mt-1">
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showLoginPassword ? 'text' : 'password'}
+                  required
+                  value={claimData.confirmPassword}
+                  onChange={(e) => setClaimData({ ...claimData, confirmPassword: e.target.value })}
+                  className="block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                  placeholder="Confirm your password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPassword((s) => !s)}
+                  className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-white"
+                  aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showLoginPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </div>
 
             <div>

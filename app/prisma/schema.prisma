@@ -1,0 +1,309 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  phoneNumber   String?
+  accounts      Account[]
+  sessions      Session[]
+  role          String    @default("worker") // admin, site-manager, worker, viewer
+  companyId     String?
+  company       Company?  @relation(fields: [companyId], references: [id])
+  worksiteId    String?
+  worksite      Worksite? @relation(fields: [worksiteId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  isActivated   Boolean   @default(false) // For account claiming flow
+  approved      Boolean   @default(false)
+  verificationToken String? @unique
+  alertResponses AlertResponse[]
+  alertRules    AlertRule[]
+  workflows     Workflow[]
+  blogPosts     BlogPost[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Company {
+  id              String    @id @default(cuid())
+  name            String
+  companyUsername String    @unique // e.g., "buildsafeinc"
+  email           String    @unique
+  phone           String?
+  address         String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  worksites       Worksite[]
+  users           User[]
+}
+
+model Worksite {
+  id                String            @id @default(cuid())
+  name              String
+  worksiteName      String            @unique // e.g., "downtown-site-a" or "b93xa2"
+  address           String
+  companyId         String
+  company           Company           @relation(fields: [companyId], references: [id])
+  cameraSystemType  String
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  cameraSystemConfig CameraSystemConfig?
+  workers           Worker[]
+  users             User[]
+  cameras           Camera[]
+  alerts            Alert[]
+  alertRules        AlertRule[]
+}
+
+model Worker {
+  id        String    @id @default(cuid())
+  name      String
+  email     String
+  role      String    @default("worker")
+  worksiteId String
+  worksite   Worksite @relation(fields: [worksiteId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  isClaimed Boolean   @default(false) // Track if worker has claimed their account
+
+  @@unique([worksiteId, email]) // Ensure unique email per worksite
+}
+
+model Alert {
+  id          String      @id @default(cuid())
+  title       String
+  description String
+  severity    AlertSeverity
+  status      AlertStatus  @default(ACTIVE)
+  source      String      // e.g., "camera", "sensor", "manual"
+  location    String?     // Optional location information
+  metadata    Json?       // Additional alert data
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  resolvedAt  DateTime?
+  rule        AlertRule?  @relation(fields: [ruleId], references: [id])
+  ruleId      String?
+  worksite    Worksite?   @relation(fields: [worksiteId], references: [id])
+  worksiteId  String?
+  responses   AlertResponse[]
+}
+
+model AlertRule {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  category    RuleCategory
+  severity    AlertSeverity
+  isActive    Boolean   @default(true)
+  
+  // Rule targeting
+  targetType  TargetType  @default(SITE_WIDE)
+  targetZones String[]    // Array of zone IDs
+  targetCameras String[]  // Array of camera IDs
+  targetWorkerRoles String[] // Array of worker role IDs
+  
+  // Rule conditions
+  condition   Json      // Stores the rule conditions (thresholds, triggers, etc.)
+  
+  // Alert actions
+  actions     Json      // Array of actions to take when rule is triggered
+  
+  // Escalation settings
+  escalationEnabled Boolean @default(false)
+  escalationDelay  Int     @default(300) // seconds
+  escalationLevels Json    // Array of escalation steps
+  
+  // Integration settings
+  webhookUrl  String?
+  apiEndpoint String?
+  
+  // Metadata
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  alerts      Alert[]
+  worksite    Worksite? @relation(fields: [worksiteId], references: [id])
+  worksiteId  String?
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id])
+  
+  // Rule performance tracking
+  triggerCount Int       @default(0)
+  lastTriggered DateTime?
+  averageResponseTime Int? // seconds
+}
+
+model AlertResponse {
+  id        String   @id @default(cuid())
+  alertId   String
+  alert     Alert    @relation(fields: [alertId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  response  String   // e.g., "acknowledged", "investigating", "resolved"
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+model Site {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  location    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  workflows   Workflow[]
+}
+
+model Workflow {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  nodes       Json     // Workflow nodes configuration
+  connections Json     // Workflow connections
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  site        Site?    @relation(fields: [siteId], references: [id])
+  siteId      String?
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+  EMERGENCY
+}
+
+enum RuleCategory {
+  PPE_COMPLIANCE
+  EQUIPMENT_SAFETY
+  SITE_HAZARDS
+  BEHAVIORAL_WORKFLOW
+  ENVIRONMENTAL_EMERGENCY
+  CUSTOM
+}
+
+enum TargetType {
+  SITE_WIDE
+  ZONE_SPECIFIC
+  CAMERA_SPECIFIC
+  ROLE_SPECIFIC
+  HYBRID
+}
+
+enum ActionType {
+  AUDIO_ALERT
+  PUSH_NOTIFICATION
+  DASHBOARD_FLAG
+  EMAIL_NOTIFICATION
+  SMS_ALERT
+  WEBHOOK_TRIGGER
+  API_CALL
+  RECORD_VIDEO
+  START_RECORDING
+  ESCALATE_ALERT
+  LOG_VIOLATION
+}
+
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+  ESCALATED
+}
+
+model Camera {
+  id                String            @id @default(cuid())
+  name              String
+  type              String
+  status            String            @default("active")
+  streamUrl         String?           // RTSP or HLS stream URL
+  location          String?           // Camera location description
+  ipAddress         String?           // Camera IP address
+  port              Int?              // Camera port
+  username          String?           // Camera username (if needed)
+  password          String?           // Camera password (if needed)
+  rtspPath          String?           // RTSP path (e.g., /stream1)
+  hlsUrl            String?           // Direct HLS URL (if available)
+  mediamtxPath      String?           // MediaMTX path name
+  worksiteId        String
+  worksite          Worksite          @relation(fields: [worksiteId], references: [id])
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+model CameraSystemConfig {
+  id        String   @id @default(cuid())
+  worksiteId String  @unique
+  worksite   Worksite @relation(fields: [worksiteId], references: [id])
+  config     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BlogPost {
+  id            String   @id @default(uuid())
+  title         String
+  description   String
+  content       String
+  category      String
+  featured      Boolean  @default(false)
+  publishedAt   DateTime?
+  status        String   @default("draft") // 'published' or 'draft'
+  author        User?    @relation(fields: [authorId], references: [id])
+  authorId      String?
+  featuredImage String?
+  slug          String   @unique
+  tags          String   @default("") // Store as comma-separated string
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+} 
+
