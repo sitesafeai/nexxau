@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import CameraFeed from '../../components/CameraFeed';
 
@@ -48,14 +48,23 @@ export default function CamerasPage() {
     }
   };
 
-  const handleCameraSelect = (camera: any) => {
+  const handleCameraSelect = useCallback((camera: any) => {
+    console.log('Camera selected:', camera.name);
     setSelectedCamera(camera);
     setCameraKey(prev => prev + 1); // Force component remount when camera changes
-  };
+  }, []);
 
-  const handleRetryCamera = () => {
+  const handleRetryCamera = useCallback(() => {
+    console.log('Retrying camera connection');
     setCameraKey(prev => prev + 1); // Force component remount to retry connection
-  };
+  }, []);
+
+  const handleToggleAddCamera = useCallback(() => {
+    setShowAddCamera(prev => {
+      console.log('showAddCamera state:', !prev);
+      return !prev;
+    });
+  }, []);
 
   const handleAddCamera = async () => {
     try {
@@ -119,16 +128,12 @@ export default function CamerasPage() {
             </div>
           </div>
                       <div className="flex space-x-3">
-              <button
-                onClick={() => {
-                  console.log('Add Camera button clicked!');
-                  setShowAddCamera(true);
-                  console.log('showAddCamera set to true');
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-              >
-                Add Camera
-              </button>
+                      <button
+          onClick={handleToggleAddCamera}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+        >
+          Add Camera
+        </button>
               {/* Add Demo Camera button */}
               <button
                 onClick={async () => {

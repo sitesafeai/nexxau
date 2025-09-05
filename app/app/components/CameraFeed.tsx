@@ -38,6 +38,15 @@ export default function CameraFeed({
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const [detections, setDetections] = useState<any[]>([]);
 
+  // Cleanup function
+  const cleanup = useCallback(() => {
+    if (hlsRef.current) {
+      console.log('Cleaning up HLS instance');
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+  }, []);
+
   // Initialize HLS playback when streamUrl is HLS (.m3u8)
   useEffect(() => {
     if (!videoRef.current) return;
@@ -45,39 +54,110 @@ export default function CameraFeed({
 
     const video = videoRef.current;
     console.log('Initializing HLS for:', streamUrl);
-
+    
     // Clean up previous HLS instance
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
+    cleanup();
+    
+    setLoading(true);
+    setError(false);
 
     let hls: Hls | null = null;
 
     if (Hls.isSupported()) {
       console.log('Using HLS.js');
       try {
-        hls = new Hls({ 
+        hls = new Hls({
+          debug: false, // Set to true only for debugging
           enableWorker: true,
-          debug: true
+          lowLatencyMode: false,
+          backBufferLength: 90,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 600,
+          maxBufferSize: 60 * 1000 * 1000,
+          maxBufferHole: 0.5,
+          lowBufferWatchdogPeriod: 0.5,
+          highBufferWatchdogPeriod: 3,
+          nudgeOffset: 0.1,
+          nudgeMaxRetry: 3,
+          maxFragLookUpTolerance: 0.25,
+          liveSyncDurationCount: 3,
+          liveMaxLatencyDurationCount: Infinity,
+          liveDurationInfinity: false,
+          enableSoftwareAES: true,
+          manifestLoadingTimeOut: 10000,
+          manifestLoadingMaxRetry: 1,
+          manifestLoadingRetryDelay: 1000,
+          manifestLoadingMaxRetryTimeout: 64000,
+          startLevel: -1,
+          capLevelToPlayerSize: false,
+          testBandwidth: true,
+          progressive: false,
         });
         hlsRef.current = hls;
-        
+
+        // Event listeners
+        hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+          console.log('HLS media attached');
+        });
+
+        hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+          console.log('HLS manifest parsed', data);
+          setLoading(false);
+          setError(false);
+          setStreamMode('stream');
+          setIsRetrying(false);
+          
+          if (autoPlay && video) {
+            video.play()
+              .then(() => {
+                console.log('Video playback started');
+                setIsPlaying(true);
+              })
+              .catch(err => {
+                console.log('Autoplay prevented, user interaction required:', err);
+                setError(true);
+              });
+          }
+        });
+
+        hls.on(Hls.Events.LEVEL_LOADED, (event, data) => {
+          console.log('Level loaded:', data.level);
+        });
+
+        hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
+          console.log('Fragment loaded:', data.frag.url);
+        });
+
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          console.error('HLS Error:', data);
+          
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.log('Fatal network error encountered, trying to recover...');
+                setError(true);
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.log('Fatal media error encountered, trying to recover...');
+                setError(true);
+                hls.recoverMediaError();
+                break;
+              default:
+                console.log('Fatal error, cannot recover');
+                setError(true);
+                cleanup();
+                break;
+            }
+          } else {
+            console.warn('Non-fatal HLS error:', data);
+          }
+        });
+
+        // Load the stream
         hls.loadSource(streamUrl);
         hls.attachMedia(video);
-        
-        // HLS.js event (manifest parsed) - only log, don't change UI state
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          console.log("✅ HLS manifest parsed");
-        });
-        
-        // Handle HLS.js errors
-        hls.on(Hls.Events.ERROR, (event: any, data: any) => {
-          console.error("❌ HLS error:", event, data);
-          setError(true);
-          setLoading(false);
-        });
-        
+
       } catch (error) {
         console.error('Failed to initialize HLS.js:', error);
         setError(true);
@@ -87,16 +167,33 @@ export default function CameraFeed({
       // Native HLS support (Safari, iOS)
       console.log('Using native HLS support');
       video.src = streamUrl;
+      setLoading(false);
+      setError(false);
+      setStreamMode('stream');
+      setIsRetrying(false);
+      
+      if (autoPlay) {
+        video.play()
+          .then(() => setIsPlaying(true))
+          .catch(err => {
+            console.log('Native autoplay prevented:', err);
+            setError(true);
+          });
+      }
+    } else {
+      console.error('HLS is not supported in this browser');
+      setError(true);
+      setLoading(false);
     }
 
     // Video element readiness events - this is where we control the UI state
     const onCanPlay = () => {
       console.log("🎥 Video can play");
-      setLoading(false);
-      setError(false);
-      setStreamMode('stream');
-      setIsRetrying(false);
-      if (autoPlay) {
+    setLoading(false);
+    setError(false);
+    setStreamMode('stream');
+    setIsRetrying(false);
+      if (autoPlay && !isPlaying) {
         video.play().catch(() => undefined);
       }
     };
@@ -104,9 +201,9 @@ export default function CameraFeed({
     const onError = () => {
       console.error("❌ Video element error");
       setError(true);
-      setLoading(false);
-      setIsRetrying(false);
-    };
+    setLoading(false);
+    setIsRetrying(false);
+  };
 
     video.addEventListener("canplay", onCanPlay);
     video.addEventListener("loadedmetadata", onCanPlay);
@@ -120,7 +217,7 @@ export default function CameraFeed({
         hls.destroy();
       }
     };
-  }, [streamUrl, autoPlay, reloadKey, isHls]);
+  }, [streamUrl, autoPlay, reloadKey, isHls, cleanup]);
 
   // Handle non-HLS direct video source
   useEffect(() => {
@@ -149,20 +246,40 @@ export default function CameraFeed({
   }, [isDirectVideo, autoPlay, reloadKey]);
 
   // Video element readiness events - this is where we control the UI state
-  const onVideoReady = () => {
+  const onVideoReady = useCallback(() => {
     console.log("🎥 Video ready to play");
     setLoading(false);
     setError(false);
     setStreamMode('stream');
     setIsRetrying(false);
-  };
+  }, []);
 
-  const onVideoError = () => {
+  const onVideoError = useCallback(() => {
     console.error("❌ Video element error");
     setError(true);
     setLoading(false);
     setIsRetrying(false);
-  };
+  }, []);
+
+  const handlePlayClick = useCallback(() => {
+    if (videoRef.current) {
+      if (videoRef.current.paused) {
+        videoRef.current.play()
+          .then(() => {
+            console.log('Video playback started');
+            setIsPlaying(true);
+            setError(false);
+          })
+          .catch(err => {
+            console.error('Play failed:', err);
+            setError(true);
+          });
+      } else {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      }
+    }
+  }, []);
 
   // Toggle play/pause
   const togglePlay = () => {
@@ -338,17 +455,17 @@ export default function CameraFeed({
               </span>
             </div>
             <div className="space-y-2">
-              <button
-                onClick={retryConnection}
-                disabled={isRetrying}
-                className={`w-full px-3 py-2 text-sm rounded transition-colors ${
-                  isRetrying 
-                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
-              >
-                {isRetrying ? 'Retrying...' : 'Retry Connection'}
-              </button>
+            <button
+              onClick={retryConnection}
+              disabled={isRetrying}
+              className={`w-full px-3 py-2 text-sm rounded transition-colors ${
+                isRetrying 
+                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+            >
+              {isRetrying ? 'Retrying...' : 'Retry Connection'}
+            </button>
               <button
                 onClick={() => {
                   console.log('Force fallback video');
@@ -366,8 +483,8 @@ export default function CameraFeed({
         </div>
       )}
 
-              {/* Video Container */}
-        <div className="relative">
+      {/* Video Container */}
+      <div className="relative">
           {/* Debug info */}
           <div className="absolute top-2 left-2 z-20 bg-black bg-opacity-75 text-white text-xs p-2 rounded">
             <div>Stream: {streamUrl || 'none'}</div>
@@ -377,35 +494,41 @@ export default function CameraFeed({
             <div>Error: {error.toString()}</div>
           </div>
 
-          {loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-900 z-10">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                <p className="text-gray-400">
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900 z-10">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className="text-gray-400">
                   {isRetrying ? 'Retrying connection...' : 'Connecting to camera stream...'}
-                </p>
-              </div>
+              </p>
             </div>
-          )}
+          </div>
+        )}
 
-          {error && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-900 z-10">
-              <div className="text-center">
-                <div className="text-red-400 text-6xl mb-4">📹</div>
-                <p className="text-red-400 font-semibold mb-2">Camera Unavailable</p>
-                <p className="text-gray-400 mb-4">Unable to connect to camera feed</p>
+        {error && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900 z-10">
+            <div className="text-center">
+              <div className="text-red-400 text-6xl mb-4">📹</div>
+              <p className="text-red-400 font-semibold mb-2">Camera Unavailable</p>
+              <p className="text-gray-400 mb-4">Unable to connect to camera feed</p>
                 <div className="space-y-2">
-                  <button
-                    onClick={retryConnection}
-                    disabled={isRetrying}
-                    className={`px-4 py-2 rounded-lg transition-colors ${
-                      isRetrying 
-                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
-                        : 'bg-blue-600 hover:bg-blue-700 text-white'
-                    }`}
-                  >
-                    {isRetrying ? 'Retrying...' : 'Retry Connection'}
-                  </button>
+              <button
+                onClick={retryConnection}
+                disabled={isRetrying}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  isRetrying 
+                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                }`}
+              >
+                {isRetrying ? 'Retrying...' : 'Retry Connection'}
+              </button>
+              <button
+                onClick={handlePlayClick}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+              >
+                Try Play Video
+              </button>
                   <button
                     onClick={() => {
                       console.log('Force fallback video');
@@ -419,9 +542,9 @@ export default function CameraFeed({
                     Force Demo Video
                   </button>
                 </div>
-              </div>
             </div>
-          )}
+          </div>
+        )}
 
         {/* Playback selection */}
         {isHls || isDirectVideo ? (
