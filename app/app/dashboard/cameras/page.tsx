@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import CameraFeed from '../../components/CameraFeed';
+import SimpleHLSTest from '../../components/SimpleHLSTest';
+import WorkingStreamsTest from '../../components/WorkingStreamsTest';
 
 export default function CamerasPage() {
   const router = useRouter();
@@ -146,7 +148,7 @@ export default function CamerasPage() {
                         name: 'Demo Camera ' + (cameras.length + 1),
                         location: 'Demo Location',
                         type: 'IP Camera',
-                        streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8'
+                        streamUrl: 'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8'
                       })
                     });
                     if (res.ok) {
@@ -167,6 +169,42 @@ export default function CamerasPage() {
               >
                 Add Demo Camera
               </button>
+
+              {/* Add People Detection Camera button */}
+              <button
+                onClick={async () => {
+                  try {
+                    console.log('Adding people detection camera...');
+                    const res = await fetch('/api/cameras', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        name: 'People Detection Camera ' + (cameras.length + 1),
+                        location: 'Construction Site',
+                        type: 'People Detection',
+                        streamUrl: 'rtsp://rtspstream:eExmoJQ2QwuuJyBYDWtLo@zephyr.rtsp.stream/people',
+                        hlsUrl: 'http://localhost:8888/people/index.m3u8'
+                      })
+                    });
+                    if (res.ok) {
+                      console.log('People detection camera added successfully');
+                      await refreshCameras();
+                    } else {
+                      const error = await res.json();
+                      console.error('Failed to add people detection camera:', error);
+                      alert('Failed to add people detection camera: ' + (error.details || error.error));
+                    }
+                  } catch (e) {
+                    console.error('Error adding people detection camera:', e);
+                    alert('Error adding people detection camera: ' + e);
+                  }
+                }}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                title="Add a people detection camera with live RTSP stream"
+              >
+                Add People Detection Camera
+              </button>
+
               {/* Debug button */}
               <button
                 onClick={() => {
@@ -263,12 +301,9 @@ export default function CamerasPage() {
                     </div>
                     <CameraFeed
                       key={`camera-${selectedCamera.id}-${cameraKey}`}
-                      title={selectedCamera.name}
-                      streamUrl={selectedCamera.hlsUrl || 'https://test-streams.mux.dev/bbb-360p.m3u8'}
-                      fallbackVideo="https://test-streams.mux.dev/bbb-360p.m3u8"
-                      showControls={true}
+                      streamUrl={selectedCamera.hlsUrl || 'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8'}
                       autoPlay={true}
-                      cameraId={selectedCamera.id}
+                      className="w-full h-auto"
                     />
                   </div>
 
@@ -547,6 +582,18 @@ export default function CamerasPage() {
             </div>
           </div>
         )}
+
+        {/* Simple HLS Test Component */}
+        <div className="mt-8 p-4 bg-blue-50 rounded-lg">
+          <h3 className="text-lg font-semibold mb-4 text-blue-800">HLS Debug Test</h3>
+          <SimpleHLSTest />
+        </div>
+
+        {/* Working Streams Test Component */}
+        <div className="mt-8 p-4 bg-green-50 rounded-lg">
+          <h3 className="text-lg font-semibold mb-4 text-green-800">Working Streams Test</h3>
+          <WorkingStreamsTest />
+        </div>
       </div>
     </div>
   );

@@ -31,8 +31,17 @@ webrtcAllowOrigin: "*"
 paths:
   # Demo camera path for testing
   demo:
-    source: https://test-streams.mux.dev/bbb-360p.m3u8
+    source: https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8
     sourceOnDemand: yes
+
+  # People detection stream
+  people:
+    source: rtsp://rtspstream:eExmoJQ2QwuuJyBYDWtLo@zephyr.rtsp.stream/people
+    sourceOnDemand: yes
+    sourceAnyPort: yes
+    sourceFingerprint: ""
+    sourceOnDemandStartTimeout: 10s
+    sourceOnDemandCloseAfter: 10s
 
   camera-cmf3cadj20004p9shd6sfopo7:
     source: rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mp4
