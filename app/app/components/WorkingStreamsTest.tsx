@@ -29,9 +29,9 @@ const WORKING_STREAMS = [
     description: 'Live people detection stream - requires RTSP to HLS conversion'
   },
   {
-    name: 'People Stream (HLS via MediaMTX)',
-    url: 'http://localhost:8888/people/index.m3u8',
-    description: 'Live people detection stream converted to HLS via MediaMTX'
+    name: 'People Stream (HLS via RTSP Server)',
+    url: 'http://localhost:8888/streams/people/index.m3u8',
+    description: 'Live people detection stream converted to HLS via RTSP server'
   },
   {
     name: 'Alternative People Stream',

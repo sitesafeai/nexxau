@@ -142,7 +142,7 @@ function DashboardContent() {
           </div>
         </div>
       </div>
-      <main className="md:pl-64">
+      <main classNeo is ame="md:pl-64">
         {/* Mobile menu button */}
         <div className="md:hidden fixed top-4 left-4 z-50">
           <button

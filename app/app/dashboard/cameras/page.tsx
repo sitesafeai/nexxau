@@ -183,7 +183,7 @@ export default function CamerasPage() {
                         location: 'Construction Site',
                         type: 'People Detection',
                         streamUrl: 'rtsp://rtspstream:eExmoJQ2QwuuJyBYDWtLo@zephyr.rtsp.stream/people',
-                        hlsUrl: 'http://localhost:8888/people/index.m3u8'
+                        hlsUrl: 'http://localhost:8888/streams/people/index.m3u8'
                       })
                     });
                     if (res.ok) {

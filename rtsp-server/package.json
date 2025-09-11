@@ -1,0 +1,24 @@
+{
+  "name": "rtsp-hls-server",
+  "version": "1.0.0",
+  "description": "RTSP to HLS conversion server for camera streams",
+  "main": "rtsp-server.js",
+  "scripts": {
+    "start": "node rtsp-server.js",
+    "dev": "nodemon rtsp-server.js",
+    "test": "curl http://localhost:8888/api/test"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": ["rtsp", "hls", "streaming", "camera", "ffmpeg"],
+  "author": "SiteSafe AI",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
