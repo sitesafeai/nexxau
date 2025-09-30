@@ -8,6 +8,7 @@ import { NotificationContainer } from '../components/NotificationToast';
 import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import ActiveAlerts from '@/app/components/dashboard/ActiveAlerts';
+import RealtimeDetectionOverlay from '../components/RealtimeDetectionOverlay';
 
 // Wrapper component that provides the dashboard context
 export default function DashboardPage() {
@@ -142,7 +143,7 @@ function DashboardContent() {
           </div>
         </div>
       </div>
-      <main classNeo is ame="md:pl-64">
+      <main className="md:pl-64">
         {/* Mobile menu button */}
         <div className="md:hidden fixed top-4 left-4 z-50">
           <button
@@ -340,17 +341,17 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
   const router = useRouter();
   const [cameras] = useState([
     {
-      id: '1',
-      name: 'Main Construction Site Camera',
+      id: 'cmfuh6d6f0005p9smp5h99ect',
+      name: 'People Detection Camera',
       status: 'online',
       lastSeen: '2 minutes ago',
       alerts: 0,
-      streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8',
+      streamUrl: 'http://localhost:8888/streams/people/index.m3u8',
       hasVideo: true
     },
     {
-      id: '2',
-      name: 'Safety Zone A Camera',
+      id: 'cmfergh960003p925blttc4ag',
+      name: 'Demo Camera 13',
       status: 'online',
       lastSeen: '1 minute ago',
       alerts: 2,
@@ -358,8 +359,8 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
       hasVideo: false
     },
     {
-      id: '3',
-      name: 'Loading Dock Camera',
+      id: 'cmfeu6qax0003p9epttd77m95',
+      name: 'Demo Camera 15',
       status: 'offline',
       lastSeen: '5 minutes ago',
       alerts: 0,
@@ -367,8 +368,8 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
       hasVideo: false
     },
     {
-      id: '4',
-      name: 'Warehouse B Camera',
+      id: 'cmfu4hz3c0001p9rohavqq2ra',
+      name: 'Demo Camera 16',
       status: 'online',
       lastSeen: '30 seconds ago',
       alerts: 1,
@@ -381,6 +382,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showAlertConfig, setShowAlertConfig] = useState(false);
   const [showCameraManager, setShowCameraManager] = useState(false);
+  const [enableDetection, setEnableDetection] = useState(false);
 
   const currentCamera = cameras[currentCameraIndex];
 
@@ -485,28 +487,38 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
               </svg>
             </button>
           </div>
-          <div className="flex items-center space-x-2 text-sm text-gray-400">
-            <span>Camera {currentCameraIndex + 1} of {cameras.length}</span>
-            <div className="flex space-x-1">
-              {cameras.map((_, index) => (
-                <div
-                  key={index}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    index === currentCameraIndex ? 'bg-blue-500' : 'bg-gray-600'
-                  }`}
-                />
-              ))}
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 text-sm text-gray-400">
+              <span>Camera {currentCameraIndex + 1} of {cameras.length}</span>
+              <div className="flex space-x-1">
+                {cameras.map((_, index) => (
+                  <div
+                    key={index}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      index === currentCameraIndex ? 'bg-blue-500' : 'bg-gray-600'
+                    }`}
+                  />
+                ))}
+              </div>
             </div>
+            <button
+              onClick={() => setEnableDetection(!enableDetection)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                enableDetection 
+                  ? 'bg-green-600 text-white' 
+                  : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+              }`}
+            >
+              AI {enableDetection ? 'ON' : 'OFF'}
+            </button>
           </div>
         </div>
         
         <CameraFeed 
-          title={currentCamera.name}
           streamUrl={currentCamera.streamUrl}
           cameraId={currentCamera.id}
-          fallbackVideo="/demo-third-aprty-sitesafe.mov"
-          showControls={true}
           autoPlay={true}
+          enableDetection={enableDetection}
         />
       </div>
 
@@ -982,42 +994,44 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
 function MonitoringTab({ currentSite }: { currentSite: any }) {
   const [cameras] = useState([
     {
-      id: '1',
-      name: 'Main Entrance',
+      id: 'cmfuh6d6f0005p9smp5h99ect',
+      name: 'People Detection Camera',
       status: 'online',
       lastSeen: '2 minutes ago',
       alerts: 0,
-      streamUrl: 'http://localhost:5001/video_feed',
+      streamUrl: 'http://localhost:8888/streams/people/index.m3u8',
       hasVideo: true
     },
     {
-      id: '2',
-      name: 'Safety Zone A',
+      id: 'cmfergh960003p925blttc4ag',
+      name: 'Demo Camera 13',
       status: 'online',
       lastSeen: '1 minute ago',
       alerts: 2,
-      streamUrl: 'http://localhost:5001/video_feed',
+      streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8',
       hasVideo: false
     },
     {
-      id: '3',
-      name: 'Loading Dock',
+      id: 'cmfeu6qax0003p9epttd77m95',
+      name: 'Demo Camera 15',
       status: 'offline',
       lastSeen: '5 minutes ago',
       alerts: 0,
-      streamUrl: 'http://localhost:5001/video_feed',
+      streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8',
       hasVideo: false
     },
     {
-      id: '4',
-      name: 'Warehouse B',
+      id: 'cmfu4hz3c0001p9rohavqq2ra',
+      name: 'Demo Camera 16',
       status: 'online',
       lastSeen: '30 seconds ago',
       alerts: 1,
-      streamUrl: 'http://localhost:5001/video_feed',
+      streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8',
       hasVideo: false
     }
   ]);
+
+  const [enableDetection, setEnableDetection] = useState(false);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -1032,9 +1046,21 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-white">Camera Monitoring - {currentSite.name}</h2>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
-          Add Camera
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setEnableDetection(!enableDetection)}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              enableDetection 
+                ? 'bg-green-600 hover:bg-green-700 text-white' 
+                : 'bg-gray-600 hover:bg-gray-500 text-gray-300'
+            }`}
+          >
+            AI Detection {enableDetection ? 'ON' : 'OFF'}
+          </button>
+          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+            Add Camera
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -1062,14 +1088,13 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
               </div>
             </div>
 
-            <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden">
+            <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden relative">
               <CameraFeed
-                title={camera.name}
                 streamUrl={camera.streamUrl}
-                fallbackVideo="/demo-third-aprty-sitesafe.mov"
-                showControls={false}
+                cameraId={camera.id}
                 autoPlay={camera.status === 'active'}
                 className="h-full"
+                enableDetection={enableDetection}
               />
             </div>
           </div>

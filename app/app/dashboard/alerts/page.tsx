@@ -309,7 +309,7 @@ export default function AlertsPage() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-white">Alert Rules</h2>
-              <button
+              <button 
                 onClick={() => setShowRuleBuilder(true)}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center space-x-2"
               >
@@ -323,10 +323,10 @@ export default function AlertsPage() {
                 <div key={rule.id} className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-gray-600 transition-colors">
                   <div className="flex items-start justify-between mb-4">
                     <div className={`px-3 py-1 rounded-full text-xs font-medium border ${getSeverityColor(rule.severity)}`}>
-                      {rule.severity}
+                          {rule.severity}
                     </div>
                     <div className="flex space-x-2">
-                      <button
+                      <button 
                         onClick={() => handleEditRule(rule)}
                         className="p-2 text-gray-400 hover:text-blue-400 transition-colors"
                       >
@@ -334,7 +334,7 @@ export default function AlertsPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
                       </button>
-                      <button
+                      <button 
                         onClick={() => handleDeleteRule(rule.id)}
                         className="p-2 text-gray-400 hover:text-red-400 transition-colors"
                       >
@@ -393,14 +393,14 @@ export default function AlertsPage() {
             <div className="bg-blue-900/20 border border-blue-700 rounded-xl p-4">
               <h3 className="text-blue-300 font-medium mb-2">🎯 How to Build Workflows</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-blue-200">
-                <div>
+                          <div>
                   <div className="font-medium mb-1">1. Start with Triggers</div>
                   <div className="text-blue-300">🔴 Red nodes start the workflow (e.g., Person Detected)</div>
-                </div>
+                          </div>
                 <div>
                   <div className="font-medium mb-1">2. Add Conditions</div>
                   <div className="text-blue-300">🟡 Yellow nodes check conditions (e.g., No Hard Hat)</div>
-                </div>
+                        </div>
                 <div>
                   <div className="font-medium mb-1">3. End with Actions</div>
                   <div className="text-blue-300">🟢 Green nodes execute actions (e.g., Send Alert)</div>
@@ -429,8 +429,8 @@ export default function AlertsPage() {
                   <span>🤖</span>
                   <span>Ask Copilot for Help</span>
                 </button>
-              </div>
-            </div>
+                          </div>
+                        </div>
 
             {/* Existing Workflows */}
             {rules.filter(r => r.workflow.nodes.length > 0).length > 0 && (
@@ -452,7 +452,7 @@ export default function AlertsPage() {
                         <span>🔄</span>
                         <span>{rule.workflow.nodes.length} nodes, {rule.workflow.connections.length} connections</span>
                       </div>
-                    </div>
+                  </div>
                   ))}
                 </div>
               </div>
@@ -475,16 +475,16 @@ export default function AlertsPage() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
                 <div className="flex items-center justify-between">
-                  <div>
+                    <div>
                     <p className="text-gray-400 text-sm">Total Alerts</p>
                     <p className="text-2xl font-bold text-white">1,247</p>
                   </div>
                   <div className="w-12 h-12 bg-red-500/20 rounded-lg flex items-center justify-center">
                     <span className="text-2xl">🚨</span>
-                  </div>
-                </div>
+                      </div>
+                    </div>
                 <div className="mt-4">
                   <div className="flex items-center text-sm">
                     <span className="text-green-400">+12%</span>
@@ -508,12 +508,12 @@ export default function AlertsPage() {
                     <span className="text-green-400">-8%</span>
                     <span className="text-gray-400 ml-2">from last month</span>
                   </div>
-                </div>
               </div>
+            </div>
 
-              <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
                 <div className="flex items-center justify-between">
-                  <div>
+                <div>
                     <p className="text-gray-400 text-sm">Detection Rate</p>
                     <p className="text-2xl font-bold text-white">94.2%</p>
                   </div>
@@ -531,7 +531,7 @@ export default function AlertsPage() {
 
               <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
                 <div className="flex items-center justify-between">
-                  <div>
+                <div>
                     <p className="text-gray-400 text-sm">Active Rules</p>
                     <p className="text-2xl font-bold text-white">{rules.filter(r => r.enabled).length}</p>
                   </div>
@@ -546,57 +546,57 @@ export default function AlertsPage() {
                 </div>
               </div>
             </div>
-
+            
             <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
               <h3 className="text-lg font-semibold text-white mb-4">Detection Performance</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <h4 className="text-md font-medium text-gray-300 mb-3">Object Detection</h4>
-                  <div className="space-y-3">
-                    {[
-                      { name: 'Person Detection', value: 85 },
-                      { name: 'Vehicle Detection', value: 90 },
-                      { name: 'Equipment Detection', value: 75 },
-                      { name: 'Safety Gear Detection', value: 80 }
-                    ].map((item) => (
-                      <div key={item.name}>
-                        <div className="flex justify-between text-sm text-gray-300 mb-1">
-                          <span>{item.name}</span>
-                          <span>{item.value}%</span>
-                        </div>
+                    <div className="space-y-3">
+                      {[
+                        { name: 'Person Detection', value: 85 },
+                        { name: 'Vehicle Detection', value: 90 },
+                        { name: 'Equipment Detection', value: 75 },
+                        { name: 'Safety Gear Detection', value: 80 }
+                      ].map((item) => (
+                        <div key={item.name}>
+                          <div className="flex justify-between text-sm text-gray-300 mb-1">
+                            <span>{item.name}</span>
+                            <span>{item.value}%</span>
+                          </div>
                         <div className="w-full bg-gray-700 rounded-full h-2">
                           <div 
                             className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                             style={{ width: `${item.value}%` }}
                           ></div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-md font-medium text-gray-300 mb-3">Behavior Analysis</h4>
-                  <div className="space-y-3">
-                    {[
-                      { name: 'Movement Speed', value: 70 },
-                      { name: 'Area Violations', value: 85 },
-                      { name: 'Equipment Usage', value: 75 },
-                      { name: 'Safety Compliance', value: 90 }
-                    ].map((item) => (
-                      <div key={item.name}>
-                        <div className="flex justify-between text-sm text-gray-300 mb-1">
-                          <span>{item.name}</span>
-                          <span>{item.value}%</span>
                         </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                  <h4 className="text-md font-medium text-gray-300 mb-3">Behavior Analysis</h4>
+                    <div className="space-y-3">
+                      {[
+                        { name: 'Movement Speed', value: 70 },
+                        { name: 'Area Violations', value: 85 },
+                        { name: 'Equipment Usage', value: 75 },
+                        { name: 'Safety Compliance', value: 90 }
+                      ].map((item) => (
+                        <div key={item.name}>
+                          <div className="flex justify-between text-sm text-gray-300 mb-1">
+                            <span>{item.name}</span>
+                            <span>{item.value}%</span>
+                          </div>
                         <div className="w-full bg-gray-700 rounded-full h-2">
                           <div 
                             className="bg-green-500 h-2 rounded-full transition-all duration-300"
                             style={{ width: `${item.value}%` }}
                           ></div>
                         </div>
-                      </div>
-                    ))}
+                        </div>
+                      ))}
                   </div>
                 </div>
               </div>

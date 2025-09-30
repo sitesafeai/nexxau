@@ -2,6 +2,7 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+  relationMode = "prisma"
 }
 
 generator client {
@@ -276,6 +277,7 @@ model Camera {
   mediamtxPath      String?           // MediaMTX path name
   worksiteId        String
   worksite          Worksite          @relation(fields: [worksiteId], references: [id])
+  detections        Detection[]
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 }
@@ -287,6 +289,20 @@ model CameraSystemConfig {
   config     Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Detection {
+  id          String   @id @default(cuid())
+  cameraId    String
+  camera      Camera   @relation(fields: [cameraId], references: [id])
+  timestamp   DateTime
+  detections  Json     // Array of detection objects
+  frameData   String?  // Base64 encoded frame image
+  frameWidth  Int?
+  frameHeight Int?
+  metadata    Json?    // Additional detection metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model BlogPost {

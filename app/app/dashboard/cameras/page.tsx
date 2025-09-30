@@ -16,6 +16,7 @@ export default function CamerasPage() {
   const [errorCameras, setErrorCameras] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', location: '', rtspUrl: '' });
   const [cameraKey, setCameraKey] = useState(0);
+  const [enableDetection, setEnableDetection] = useState(true);
 
   // Debug logging
   console.log('showAddCamera state:', showAddCamera);
@@ -130,12 +131,12 @@ export default function CamerasPage() {
             </div>
           </div>
                       <div className="flex space-x-3">
-                      <button
+          <button
           onClick={handleToggleAddCamera}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-        >
-          Add Camera
-        </button>
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+          >
+            Add Camera
+          </button>
               {/* Add Demo Camera button */}
               <button
                 onClick={async () => {
@@ -298,34 +299,54 @@ export default function CamerasPage() {
                       >
                         Retry Connection
                       </button>
+                      
+                      <button
+                        onClick={() => setEnableDetection(!enableDetection)}
+                        className={`px-3 py-1 text-sm rounded transition-colors ${
+                          enableDetection 
+                            ? 'bg-green-600 hover:bg-green-700 text-white' 
+                            : 'bg-gray-600 hover:bg-gray-700 text-white'
+                        }`}
+                        title={enableDetection ? 'Disable AI Detection' : 'Enable AI Detection'}
+                      >
+                        {enableDetection ? '🤖 AI ON' : '🤖 AI OFF'}
+                      </button>
                     </div>
                     <CameraFeed
                       key={`camera-${selectedCamera.id}-${cameraKey}`}
                       streamUrl={selectedCamera.hlsUrl || 'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8'}
                       autoPlay={true}
                       className="w-full h-auto"
+                      cameraId={selectedCamera.id}
+                      enableDetection={enableDetection}
                     />
                   </div>
 
                   {/* Camera Stats */}
                   <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
                     <h3 className="text-lg font-semibold text-white mb-4">Camera Statistics</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-400">{selectedCamera.resolution}</div>
+                        <div className="text-2xl font-bold text-blue-400">{selectedCamera.resolution || '1920x1080'}</div>
                         <div className="text-sm text-gray-400">Resolution</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-green-400">{selectedCamera.fps}</div>
+                        <div className="text-2xl font-bold text-green-400">{selectedCamera.fps || '30'}</div>
                         <div className="text-sm text-gray-400">FPS</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-yellow-400">{selectedCamera.uptime}</div>
+                        <div className="text-2xl font-bold text-yellow-400">{selectedCamera.uptime || '24h'}</div>
                         <div className="text-sm text-gray-400">Uptime</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-purple-400">{selectedCamera.temperature}</div>
+                        <div className="text-2xl font-bold text-purple-400">{selectedCamera.temperature || '45°C'}</div>
                         <div className="text-sm text-gray-400">Temperature</div>
+                      </div>
+                      <div className="text-center">
+                        <div className={`text-2xl font-bold ${enableDetection ? 'text-green-400' : 'text-gray-400'}`}>
+                          {enableDetection ? '🤖 ON' : '🤖 OFF'}
+                        </div>
+                        <div className="text-sm text-gray-400">AI Detection</div>
                       </div>
                     </div>
                   </div>

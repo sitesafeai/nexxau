@@ -1,16 +1,21 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import Hls from 'hls.js';
+import RealtimeDetectionOverlay from './RealtimeDetectionOverlay';
 
 interface CameraFeedProps {
   streamUrl: string;
   className?: string;
   autoPlay?: boolean;
+  cameraId?: string;
+  enableDetection?: boolean;
 }
 
 const CameraFeed: React.FC<CameraFeedProps> = ({ 
   streamUrl, 
   className = '',
-  autoPlay = false 
+  autoPlay = false,
+  cameraId,
+  enableDetection = false
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -250,25 +255,34 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
             <div className="text-white">Loading video stream...</div>
           </div>
         )}
-        
+
         {/* Error overlay */}
         {error && (
           <div className="absolute inset-0 flex items-center justify-center bg-red-500 bg-opacity-75">
             <div className="text-white text-center p-4">
               <div className="mb-2">{error}</div>
               {error.includes('autoplay') && (
-                <button 
+              <button
                   onClick={handlePlayClick}
                   className="bg-white text-black px-4 py-2 rounded"
                 >
                   Play Video
-                </button>
+              </button>
               )}
             </div>
           </div>
         )}
+
+          {/* Real-time YOLO Detection Overlay */}
+          {enableDetection && cameraId && !error && (
+            <RealtimeDetectionOverlay
+              cameraId={cameraId}
+              videoElement={videoRef.current}
+              isActive={isPlaying && !isLoading}
+            />
+          )}
       </div>
-      
+
       {/* Debug info (remove in production) - Client-side only to prevent hydration errors */}
       {typeof window !== 'undefined' && (
         <div className="mt-2 text-sm text-gray-600">

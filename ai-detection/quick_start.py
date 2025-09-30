@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+
 """
 Nexxau AI Detection - Quick Start Script
 Sets up the environment and provides easy commands for AI detection
