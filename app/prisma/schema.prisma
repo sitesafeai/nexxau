@@ -33,6 +33,11 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
+  ipAddress    String?
+  userAgent    String?
+  location     String?
+  isActive     Boolean  @default(true)
+  lastActivity DateTime @default(now())
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -56,10 +61,17 @@ model User {
   isActivated   Boolean   @default(false) // For account claiming flow
   approved      Boolean   @default(false)
   verificationToken String? @unique
+  // MFA fields
+  mfaEnabled    Boolean   @default(false)
+  mfaSecret     String?
+  mfaBackupCodes Json?
+  // Session management
+  lastLogin     DateTime?
   alertResponses AlertResponse[]
   alertRules    AlertRule[]
   workflows     Workflow[]
   blogPosts     BlogPost[]
+  mfaCodes      MFACode[]
 }
 
 model VerificationToken {
@@ -321,5 +333,19 @@ model BlogPost {
   tags          String   @default("") // Store as comma-separated string
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model MFACode {
+  id          String   @id @default(cuid())
+  userId      String
+  code        String
+  type        String   // 'sms', 'email', 'totp'
+  expiresAt   DateTime
+  used        Boolean  @default(false)
+  usedAt      DateTime?
+  phoneNumber String?
+  email       String?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 } 
 
