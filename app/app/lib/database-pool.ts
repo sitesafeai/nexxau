@@ -5,7 +5,7 @@ class DatabasePoolManager {
   private static instance: DatabasePoolManager;
   private prisma: PrismaClient;
   private connectionCount = 0;
-  private maxConnections = 20;
+  private maxConnections = 50;
   private isHealthy = true;
 
   private constructor() {

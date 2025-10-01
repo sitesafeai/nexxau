@@ -12,7 +12,7 @@ export const prisma = globalForPrisma.prisma ?? new PrismaClient({
     },
   },
   log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  // Connection pool optimization
+  // Connection pool optimization for production
   __internal: {
     engine: {
       connectTimeout: 20000, // 20 seconds
