@@ -1,0 +1,102 @@
+groups:
+  - name: nexxau_alerts
+    rules:
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: rate(errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors per second"
+
+      # Slow Response Time
+      - alert: SlowResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow response time detected"
+          description: "95th percentile response time is {{ $value }} seconds"
+
+      # Database Connection Issues
+      - alert: DatabaseConnectionFailure
+        expr: database_connections_active == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection failure"
+          description: "No active database connections"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: memory_usage_bytes{type="heapUsed"} / memory_usage_bytes{type="heapTotal"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+      # AI Detection Service Down
+      - alert: AIDetectionServiceDown
+        expr: up{job="ai-detection"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AI Detection service is down"
+          description: "AI Detection service has been down for more than 2 minutes"
+
+      # Camera Stream Issues
+      - alert: CameraStreamDown
+        expr: camera_stream_health == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Camera stream is down"
+          description: "Camera {{ $labels.camera_id }} stream is unhealthy"
+
+      # High Safety Violations
+      - alert: HighSafetyViolations
+        expr: rate(safety_violations_total[5m]) > 0.5
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High safety violation rate"
+          description: "Safety violation rate is {{ $value }} per second"
+
+      # Application Down
+      - alert: ApplicationDown
+        expr: up{job="nexxau-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Nexxau application is down"
+          description: "The Nexxau application has been down for more than 1 minute"
+
+      # Database Query Performance
+      - alert: SlowDatabaseQueries
+        expr: histogram_quantile(0.95, rate(database_query_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow database queries"
+          description: "95th percentile database query time is {{ $value }} seconds"
+
+      # High Alert Generation Rate
+      - alert: HighAlertGeneration
+        expr: rate(alerts_generated_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High alert generation rate"
+          description: "Alert generation rate is {{ $value }} alerts per second"

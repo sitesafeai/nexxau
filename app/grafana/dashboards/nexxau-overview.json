@@ -1,0 +1,183 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Nexxau System Overview",
+    "tags": ["nexxau", "monitoring"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "System Health",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"nexxau-app\"}",
+            "legendFormat": "Application Status"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "HTTP Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "{{method}} {{route}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Response Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "50th percentile"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 18, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "AI Detection Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(ai_detection_requests_total[5m])",
+            "legendFormat": "{{camera_id}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Database Connections",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "database_connections_active",
+            "legendFormat": "Active Connections"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "memory_usage_bytes{type=\"heapUsed\"}",
+            "legendFormat": "Heap Used"
+          },
+          {
+            "expr": "memory_usage_bytes{type=\"heapTotal\"}",
+            "legendFormat": "Heap Total"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 24, "y": 8}
+      },
+      {
+        "id": 7,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(errors_total[5m])",
+            "legendFormat": "{{type}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 8,
+        "title": "Active Camera Streams",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "camera_streams_active",
+            "legendFormat": "Active Streams"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      },
+      {
+        "id": 9,
+        "title": "Safety Violations",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(safety_violations_total[5m])",
+            "legendFormat": "{{violation_type}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 24, "y": 16}
+      },
+      {
+        "id": 10,
+        "title": "User Activity",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(user_actions_total[5m])",
+            "legendFormat": "{{action}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 11,
+        "title": "Alerts Generated",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(alerts_generated_total[5m])",
+            "legendFormat": "{{severity}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      },
+      {
+        "id": 12,
+        "title": "Database Query Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(database_query_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 24, "y": 24}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s",
+    "schemaVersion": 27,
+    "version": 1
+  }
+}
