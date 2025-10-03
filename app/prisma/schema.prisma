@@ -72,6 +72,9 @@ model User {
   workflows     Workflow[]
   blogPosts     BlogPost[]
   mfaCodes      MFACode[]
+  apiKeys       ApiKey[]
+  activities    UserActivity[]
+  notifications Notification[]
 }
 
 model VerificationToken {
@@ -226,6 +229,11 @@ model Workflow {
   siteId      String?
   userId      String?
   user        User?    @relation(fields: [userId], references: [id])
+  // Workflow execution tracking
+  executionCount Int      @default(0)
+  lastExecuted  DateTime?
+  successRate   Float?    // Success rate percentage
+  averageExecutionTime Int? // Average execution time in seconds
 }
 
 enum AlertSeverity {
@@ -290,6 +298,7 @@ model Camera {
   worksiteId        String
   worksite          Worksite          @relation(fields: [worksiteId], references: [id])
   detections        Detection[]
+  health           CameraHealth[]
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 }
@@ -347,5 +356,92 @@ model MFACode {
   email       String?
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  name        String
+  key         String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions Json     // Array of permissions
+  rateLimit   Int      @default(1000) // Requests per hour
+  isActive    Boolean  @default(true)
+  lastUsed    DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  // Usage tracking
+  requestCount Int      @default(0)
+  lastRequestAt DateTime?
+}
+
+model UserActivity {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action      String   // e.g., 'login', 'logout', 'view_dashboard', 'create_alert'
+  resource    String?  // Resource being acted upon
+  resourceId  String?  // ID of the resource
+  metadata    Json?    // Additional activity data
+  ipAddress   String?
+  userAgent   String?
+  location    String?
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  message     String
+  type        NotificationType
+  priority    NotificationPriority @default(MEDIUM)
+  isRead      Boolean  @default(false)
+  readAt      DateTime?
+  metadata    Json?    // Additional notification data
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CameraHealth {
+  id          String   @id @default(cuid())
+  cameraId    String
+  camera      Camera   @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+  status      CameraStatus
+  streamQuality Float?  // Stream quality percentage (0-100)
+  frameRate   Float?   // Current frame rate
+  resolution  String?  // Current resolution
+  bitrate     Int?     // Current bitrate
+  latency     Int?     // Stream latency in ms
+  errors      Json?    // Array of error messages
+  lastCheck   DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum NotificationType {
+  ALERT
+  SYSTEM
+  SECURITY
+  MAINTENANCE
+  WORKFLOW
+  CUSTOM
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum CameraStatus {
+  ONLINE
+  OFFLINE
+  DEGRADED
+  ERROR
+  MAINTENANCE
 } 
 
