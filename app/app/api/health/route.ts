@@ -125,7 +125,7 @@ async function checkAIServiceHealth() {
 
 async function checkMediaMTXHealth() {
   try {
-    const mediaMTXUrl = process.env.MEDIAMTX_URL || 'http://localhost:8888';
+    const mediaMTXUrl = process.env.MEDIAMTX_URL || 'http://localhost:8889';
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
     

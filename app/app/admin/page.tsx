@@ -1,504 +1,666 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { 
+  Settings, 
+  Users, 
+  Database, 
+  Server, 
+  Shield, 
+  Bell,
+  Camera,
+  Activity,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+  Download,
+  Upload,
+  Trash2,
+  Edit,
+  Plus,
+  Eye,
+  EyeOff,
+  Lock,
+  Unlock
+} from 'lucide-react';
 
-interface Company {
+interface SystemStatus {
+  database: 'healthy' | 'degraded' | 'unhealthy';
+  aiDetection: 'healthy' | 'degraded' | 'unhealthy';
+  mediaMTX: 'healthy' | 'degraded' | 'unhealthy';
+  websocket: 'healthy' | 'degraded' | 'unhealthy';
+  notifications: 'healthy' | 'degraded' | 'unhealthy';
+  uptime: string;
+  memoryUsage: number;
+  cpuUsage: number;
+  diskUsage: number;
+}
+
+interface User {
   id: string;
   name: string;
-  companyUsername: string;
   email: string;
-  phone?: string;
-  address?: string;
-  worksites: Worksite[];
+  role: 'admin' | 'manager' | 'operator' | 'viewer';
+  status: 'active' | 'inactive' | 'suspended';
+  lastLogin: string;
+  createdAt: string;
+  permissions: string[];
 }
 
-interface Worksite {
-  id: string;
-  name: string;
-  worksiteName: string;
-  address: string;
-  cameraSystemType: string;
-  workers: Worker[];
+interface SystemConfig {
+  general: {
+    siteName: string;
+    timezone: string;
+    language: string;
+    maintenanceMode: boolean;
+  };
+  security: {
+    sessionTimeout: number;
+    maxLoginAttempts: number;
+    passwordPolicy: {
+      minLength: number;
+      requireUppercase: boolean;
+      requireNumbers: boolean;
+      requireSymbols: boolean;
+    };
+    twoFactorAuth: boolean;
+  };
+  notifications: {
+    emailEnabled: boolean;
+    smsEnabled: boolean;
+    webhookEnabled: boolean;
+    defaultRecipients: string[];
+  };
+  ai: {
+    detectionEnabled: boolean;
+    confidenceThreshold: number;
+    alertThreshold: number;
+    modelVersion: string;
+  };
+  storage: {
+    maxFileSize: number;
+    retentionPeriod: number;
+    backupFrequency: string;
+  };
 }
 
-interface Worker {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  isClaimed: boolean;
-}
+const SystemAdministrationPanel: React.FC = () => {
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [config, setConfig] = useState<SystemConfig | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isEditingConfig, setIsEditingConfig] = useState(false);
 
-export default function AdminDashboard() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  const [selectedWorksite, setSelectedWorksite] = useState<Worksite | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('companies');
-
-  // Form states
-  const [showCompanyForm, setShowCompanyForm] = useState(false);
-  const [showWorksiteForm, setShowWorksiteForm] = useState(false);
-  const [showWorkerForm, setShowWorkerForm] = useState(false);
-
-  const [companyForm, setCompanyForm] = useState({
-    name: '',
-    companyUsername: '',
-    email: '',
-    phone: '',
-    address: ''
-  });
-
-  const [worksiteForm, setWorksiteForm] = useState({
-    name: '',
-    worksiteName: '',
-    address: '',
-    cameraSystemType: 'standard'
-  });
-
-  const [workerForm, setWorkerForm] = useState({
-    name: '',
-    email: '',
-    role: 'worker'
-  });
-
-  // Check authentication and admin role
   useEffect(() => {
-    if (status === 'loading') return;
+    fetchSystemData();
+    const interval = setInterval(fetchSystemData, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
 
-    if (!session) {
-      router.push('/login');
-      return;
-    }
-
-    if (session.user.role !== 'admin') {
-      router.push('/dashboard');
-      return;
-    }
-
-    fetchCompanies();
-  }, [session, status, router]);
-
-  const fetchCompanies = async () => {
+  const fetchSystemData = async () => {
     try {
-      const response = await fetch('/api/admin/companies');
-      if (response.ok) {
-        const data = await response.json();
-        setCompanies(data);
+      const [statusResponse, usersResponse, configResponse] = await Promise.all([
+        fetch('/api/admin/system-status'),
+        fetch('/api/admin/users'),
+        fetch('/api/admin/config')
+      ]);
+
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        setSystemStatus(statusData);
+      }
+
+      if (usersResponse.ok) {
+        const usersData = await usersResponse.json();
+        setUsers(usersData);
+      }
+
+      if (configResponse.ok) {
+        const configData = await configResponse.json();
+        setConfig(configData);
       }
     } catch (error) {
-      console.error('Error fetching companies:', error);
+      console.error('Failed to fetch system data:', error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleCreateCompany = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleUserAction = async (userId: string, action: string) => {
     try {
-      const response = await fetch('/api/admin/companies', {
+      const response = await fetch(`/api/admin/users/${userId}/${action}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(companyForm)
       });
 
       if (response.ok) {
-        setShowCompanyForm(false);
-        setCompanyForm({ name: '', companyUsername: '', email: '', phone: '', address: '' });
-        fetchCompanies();
+        await fetchSystemData();
       }
     } catch (error) {
-      console.error('Error creating company:', error);
+      console.error(`Failed to ${action} user:`, error);
     }
   };
 
-  const handleCreateWorksite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCompany) return;
-
+  const handleConfigUpdate = async (updatedConfig: Partial<SystemConfig>) => {
     try {
-      const response = await fetch('/api/admin/worksites', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...worksiteForm,
-          companyId: selectedCompany.id
-        })
+      const response = await fetch('/api/admin/config', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedConfig),
       });
 
       if (response.ok) {
-        setShowWorksiteForm(false);
-        setWorksiteForm({ name: '', worksiteName: '', address: '', cameraSystemType: 'standard' });
-        fetchCompanies();
+        await fetchSystemData();
+        setIsEditingConfig(false);
       }
     } catch (error) {
-      console.error('Error creating worksite:', error);
+      console.error('Failed to update config:', error);
     }
   };
 
-  const handleAddWorker = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedWorksite) return;
-
-    try {
-      const response = await fetch('/api/admin/workers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...workerForm,
-          worksiteId: selectedWorksite.id
-        })
-      });
-
-      if (response.ok) {
-        setShowWorkerForm(false);
-        setWorkerForm({ name: '', email: '', role: 'worker' });
-        fetchCompanies();
-      }
-    } catch (error) {
-      console.error('Error adding worker:', error);
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'healthy': return 'text-green-600 bg-green-100';
+      case 'degraded': return 'text-yellow-600 bg-yellow-100';
+      case 'unhealthy': return 'text-red-600 bg-red-100';
+      default: return 'text-gray-600 bg-gray-100';
     }
   };
 
-  if (status === 'loading' || isLoading) {
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'healthy': return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'degraded': return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
+      case 'unhealthy': return <XCircle className="h-4 w-4 text-red-600" />;
+      default: return <XCircle className="h-4 w-4 text-gray-600" />;
+    }
+  };
+
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <h1 className="text-xl font-semibold text-white">Nexxau Admin Dashboard</h1>
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-300">Welcome, {session?.user?.name}</span>
-              <button
-                onClick={() => router.push('/dashboard')}
-                className="text-gray-400 hover:text-white"
-              >
-                Go to Dashboard
-              </button>
-            </div>
-          </div>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">System Administration</h1>
+          <p className="text-gray-600">Manage system settings, users, and monitor system health</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchSystemData}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
+          <Button variant="outline">
+            <Download className="mr-2 h-4 w-4" />
+            Export Logs
+          </Button>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Tabs */}
-        <div className="flex space-x-1 bg-gray-800 rounded-lg p-1 mb-8">
-          {[
-            { id: 'companies', name: 'Companies' },
-            { id: 'worksites', name: 'Worksites' },
-            { id: 'workers', name: 'Workers' }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
-              }`}
-            >
-              {tab.name}
-            </button>
-          ))}
+      {/* System Status */}
+      {systemStatus && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Database</CardTitle>
+              {getStatusIcon(systemStatus.database)}
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                <Badge className={getStatusColor(systemStatus.database)}>
+                  {systemStatus.database}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">AI Detection</CardTitle>
+              {getStatusIcon(systemStatus.aiDetection)}
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                <Badge className={getStatusColor(systemStatus.aiDetection)}>
+                  {systemStatus.aiDetection}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">MediaMTX</CardTitle>
+              {getStatusIcon(systemStatus.mediaMTX)}
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                <Badge className={getStatusColor(systemStatus.mediaMTX)}>
+                  {systemStatus.mediaMTX}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">WebSocket</CardTitle>
+              {getStatusIcon(systemStatus.websocket)}
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                <Badge className={getStatusColor(systemStatus.websocket)}>
+                  {systemStatus.websocket}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
         </div>
+      )}
 
-        {/* Companies Tab */}
-        {activeTab === 'companies' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-white">Companies</h2>
-              <button
-                onClick={() => setShowCompanyForm(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Add Company
-              </button>
-            </div>
+      {/* System Metrics */}
+      {systemStatus && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">CPU Usage</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{systemStatus.cpuUsage}%</div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full" 
+                  style={{ width: `${systemStatus.cpuUsage}%` }}
+                ></div>
+              </div>
+            </CardContent>
+          </Card>
 
-            <div className="grid gap-6">
-              {companies.map((company) => (
-                <div key={company.id} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-white">{company.name}</h3>
-                      <p className="text-gray-400">Username: {company.companyUsername}</p>
-                      <p className="text-gray-400">{company.email}</p>
-                      <p className="text-gray-400">{company.worksites.length} worksites</p>
-                    </div>
-                    <button
-                      onClick={() => setSelectedCompany(company)}
-                      className="text-blue-400 hover:text-blue-300"
-                    >
-                      View Details
-                    </button>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Memory Usage</CardTitle>
+              <Database className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{systemStatus.memoryUsage}%</div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                <div 
+                  className="bg-green-600 h-2 rounded-full" 
+                  style={{ width: `${systemStatus.memoryUsage}%` }}
+                ></div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Disk Usage</CardTitle>
+              <Server className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{systemStatus.diskUsage}%</div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                <div 
+                  className="bg-orange-600 h-2 rounded-full" 
+                  style={{ width: `${systemStatus.diskUsage}%` }}
+                ></div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="logs">Logs</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>System Information</CardTitle>
+                <CardDescription>Current system configuration and status</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Uptime:</span>
+                    <span className="font-medium">{systemStatus?.uptime || 'Unknown'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Total Users:</span>
+                    <span className="font-medium">{users.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Active Users:</span>
+                    <span className="font-medium">
+                      {users.filter(u => u.status === 'active').length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">System Version:</span>
+                    <span className="font-medium">v1.0.0</span>
                   </div>
                 </div>
-              ))}
-            </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+                <CardDescription>Common administrative tasks</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Button className="w-full justify-start" variant="outline">
+                    <Users className="mr-2 h-4 w-4" />
+                    Add New User
+                  </Button>
+                  <Button className="w-full justify-start" variant="outline">
+                    <Database className="mr-2 h-4 w-4" />
+                    Backup Database
+                  </Button>
+                  <Button className="w-full justify-start" variant="outline">
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Restart Services
+                  </Button>
+                  <Button className="w-full justify-start" variant="outline">
+                    <Download className="mr-2 h-4 w-4" />
+                    Export Data
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        )}
+        </TabsContent>
 
-        {/* Worksites Tab */}
-        {activeTab === 'worksites' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-white">Worksites</h2>
-              <button
-                onClick={() => setShowWorksiteForm(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Add Worksite
-              </button>
-            </div>
-
-            <div className="grid gap-6">
-              {companies.flatMap(company => 
-                company.worksites.map(worksite => (
-                  <div key={worksite.id} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-                    <div className="flex items-center justify-between">
+        <TabsContent value="users" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>User Management</CardTitle>
+              <CardDescription>Manage system users and their permissions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {users.map((user) => (
+                  <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                        <Users className="h-5 w-5 text-gray-600" />
+                      </div>
                       <div>
-                        <h3 className="text-lg font-semibold text-white">{worksite.name}</h3>
-                        <p className="text-gray-400">Worksite ID: {worksite.worksiteName}</p>
-                        <p className="text-gray-400">Company: {company.name}</p>
-                        <p className="text-gray-400">{worksite.workers.length} workers</p>
+                        <div className="font-medium">{user.name}</div>
+                        <div className="text-sm text-gray-600">{user.email}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="secondary">{user.role}</Badge>
+                          <Badge className={getStatusColor(user.status)}>
+                            {user.status}
+                          </Badge>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => setSelectedWorksite(worksite)}
-                        className="text-blue-400 hover:text-blue-300"
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedUser(user)}
                       >
-                        View Workers
-                      </button>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      {user.status === 'active' ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleUserAction(user.id, 'suspend')}
+                        >
+                          <Lock className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleUserAction(user.id, 'activate')}
+                        >
+                          <Unlock className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleUserAction(user.id, 'delete')}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        {/* Workers Tab */}
-        {activeTab === 'workers' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-white">Workers</h2>
-              <button
-                onClick={() => setShowWorkerForm(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Add Worker
-              </button>
-            </div>
-
-            <div className="grid gap-4">
-              {companies.flatMap(company => 
-                company.worksites.flatMap(worksite => 
-                  worksite.workers.map(worker => (
-                    <div key={worker.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-white font-medium">{worker.name}</h3>
-                          <p className="text-gray-400">{worker.email}</p>
-                          <p className="text-gray-400">Role: {worker.role}</p>
-                          <p className="text-gray-400">Worksite: {worksite.name}</p>
-                        </div>
-                        <div className="text-right">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            worker.isClaimed 
-                              ? 'bg-green-900 text-green-300' 
-                              : 'bg-yellow-900 text-yellow-300'
-                          }`}>
-                            {worker.isClaimed ? 'Claimed' : 'Pending'}
-                          </span>
-                        </div>
+        <TabsContent value="settings" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>System Configuration</CardTitle>
+              <CardDescription>Configure system settings and parameters</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {config && (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">General Settings</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="siteName">Site Name</Label>
+                        <Input
+                          id="siteName"
+                          value={config.general.siteName}
+                          onChange={(e) => setConfig({
+                            ...config,
+                            general: { ...config.general, siteName: e.target.value }
+                          })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="timezone">Timezone</Label>
+                        <Select value={config.general.timezone}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="UTC">UTC</SelectItem>
+                            <SelectItem value="America/New_York">Eastern Time</SelectItem>
+                            <SelectItem value="America/Chicago">Central Time</SelectItem>
+                            <SelectItem value="America/Denver">Mountain Time</SelectItem>
+                            <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
-                  ))
-                )
+                    <div className="flex items-center space-x-2 mt-4">
+                      <Switch
+                        checked={config.general.maintenanceMode}
+                        onCheckedChange={(checked) => setConfig({
+                          ...config,
+                          general: { ...config.general, maintenanceMode: checked }
+                        })}
+                      />
+                      <Label htmlFor="maintenanceMode">Maintenance Mode</Label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Security Settings</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="sessionTimeout">Session Timeout (minutes)</Label>
+                        <Input
+                          id="sessionTimeout"
+                          type="number"
+                          value={config.security.sessionTimeout}
+                          onChange={(e) => setConfig({
+                            ...config,
+                            security: { ...config.security, sessionTimeout: parseInt(e.target.value) }
+                          })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="maxLoginAttempts">Max Login Attempts</Label>
+                        <Input
+                          id="maxLoginAttempts"
+                          type="number"
+                          value={config.security.maxLoginAttempts}
+                          onChange={(e) => setConfig({
+                            ...config,
+                            security: { ...config.security, maxLoginAttempts: parseInt(e.target.value) }
+                          })}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2 mt-4">
+                      <Switch
+                        checked={config.security.twoFactorAuth}
+                        onCheckedChange={(checked) => setConfig({
+                          ...config,
+                          security: { ...config.security, twoFactorAuth: checked }
+                        })}
+                      />
+                      <Label htmlFor="twoFactorAuth">Two-Factor Authentication</Label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">AI Settings</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="confidenceThreshold">Confidence Threshold (%)</Label>
+                        <Input
+                          id="confidenceThreshold"
+                          type="number"
+                          value={config.ai.confidenceThreshold}
+                          onChange={(e) => setConfig({
+                            ...config,
+                            ai: { ...config.ai, confidenceThreshold: parseInt(e.target.value) }
+                          })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="alertThreshold">Alert Threshold (%)</Label>
+                        <Input
+                          id="alertThreshold"
+                          type="number"
+                          value={config.ai.alertThreshold}
+                          onChange={(e) => setConfig({
+                            ...config,
+                            ai: { ...config.ai, alertThreshold: parseInt(e.target.value) }
+                          })}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2 mt-4">
+                      <Switch
+                        checked={config.ai.detectionEnabled}
+                        onCheckedChange={(checked) => setConfig({
+                          ...config,
+                          ai: { ...config.ai, detectionEnabled: checked }
+                        })}
+                      />
+                      <Label htmlFor="detectionEnabled">AI Detection Enabled</Label>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end space-x-2">
+                    <Button variant="outline" onClick={() => setIsEditingConfig(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={() => handleConfigUpdate(config)}>
+                      Save Configuration
+                    </Button>
+                  </div>
+                </div>
               )}
-            </div>
-          </div>
-        )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        {/* Modals */}
-        {showCompanyForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
-              <h3 className="text-xl font-semibold text-white mb-4">Add Company</h3>
-              <form onSubmit={handleCreateCompany} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Company Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={companyForm.name}
-                    onChange={(e) => setCompanyForm({...companyForm, name: e.target.value})}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-                  />
+        <TabsContent value="logs" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>System Logs</CardTitle>
+              <CardDescription>View and manage system logs</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm">
+                      <Download className="mr-1 h-4 w-4" />
+                      Download
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      <Trash2 className="mr-1 h-4 w-4" />
+                      Clear
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Select>
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="error">Error</SelectItem>
+                        <SelectItem value="warn">Warning</SelectItem>
+                        <SelectItem value="info">Info</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Company Username</label>
-                  <input
-                    type="text"
-                    required
-                    value={companyForm.companyUsername}
-                    onChange={(e) => setCompanyForm({...companyForm, companyUsername: e.target.value})}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-                  />
+                <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm h-64 overflow-y-auto">
+                  <div>2025-10-03 18:30:15 [INFO] System started successfully</div>
+                  <div>2025-10-03 18:30:16 [INFO] Database connection established</div>
+                  <div>2025-10-03 18:30:17 [INFO] AI detection service initialized</div>
+                  <div>2025-10-03 18:30:18 [INFO] MediaMTX server started</div>
+                  <div>2025-10-03 18:30:19 [INFO] WebSocket server listening on port 3000</div>
+                  <div>2025-10-03 18:35:22 [WARN] High CPU usage detected: 85%</div>
+                  <div>2025-10-03 18:40:15 [INFO] User login: admin@nexxau.com</div>
+                  <div>2025-10-03 18:45:30 [ERROR] Failed to send notification: SMTP connection timeout</div>
+                  <div>2025-10-03 18:46:01 [INFO] Alert rule triggered: Safety violation detected</div>
+                  <div>2025-10-03 18:50:15 [INFO] Database backup completed successfully</div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
-                  <input
-                    type="email"
-                    required
-                    value={companyForm.email}
-                    onChange={(e) => setCompanyForm({...companyForm, email: e.target.value})}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-                  />
-                </div>
-                <div className="flex space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowCompanyForm(false)}
-                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-                  >
-                    Create
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {showWorksiteForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
-              <h3 className="text-xl font-semibold text-white mb-4">Add Worksite</h3>
-              <form onSubmit={handleCreateWorksite} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Worksite Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={worksiteForm.name}
-                    onChange={(e) => setWorksiteForm({...worksiteForm, name: e.target.value})}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Worksite ID</label>
-                  <input
-                    type="text"
-                    required
-                    value={worksiteForm.worksiteName}
-                    onChange={(e) => setWorksiteForm({...worksiteForm, worksiteName: e.target.value})}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Address</label>
-                  <input
-                    type="text"
-                    required
-                    value={worksiteForm.address}
-                    onChange={(e) => setWorksiteForm({...worksiteForm, address: e.target.value})}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-                  />
-                </div>
-                <div className="flex space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowWorksiteForm(false)}
-                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-                  >
-                    Create
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {showWorkerForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
-              <h3 className="text-xl font-semibold text-white mb-4">Add Worker</h3>
-              <form onSubmit={handleAddWorker} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={workerForm.name}
-                    onChange={(e) => setWorkerForm({...workerForm, name: e.target.value})}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
-                  <input
-                    type="email"
-                    required
-                    value={workerForm.email}
-                    onChange={(e) => setWorkerForm({...workerForm, email: e.target.value})}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Role</label>
-                  <select
-                    value={workerForm.role}
-                    onChange={(e) => setWorkerForm({...workerForm, role: e.target.value})}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-                  >
-                    <option value="worker">Worker</option>
-                    <option value="site-manager">Site Manager</option>
-                    <option value="viewer">Viewer</option>
-                  </select>
-                </div>
-                <div className="flex space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowWorkerForm(false)}
-                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-                  >
-                    Add
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-      </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
-} 
+};
+
+export default SystemAdministrationPanel;

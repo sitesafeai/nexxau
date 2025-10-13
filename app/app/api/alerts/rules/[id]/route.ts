@@ -1,39 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 
-export async function PATCH(
+export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const body = await request.json();
-    
-    const rule = await prisma.alertRule.update({
+    const { name, description, severity, conditions, actions, isActive } = body;
+
+    const alertRule = await prisma.alertRule.update({
       where: { id: params.id },
       data: {
-        name: body.name,
-        description: body.description,
-        severity: body.severity,
-        isActive: body.enabled !== undefined ? body.enabled : undefined,
-        condition: {
-          camera: body.camera,
-          threshold: body.threshold,
-          workflow: body.workflow,
-          category: body.category,
-          subject: body.subject,
-          mode: body.mode,
-          speedLimit: body.speedLimit
-        }
+        name,
+        description,
+        severity,
+        conditions,
+        actions,
+        isActive,
+        updatedAt: new Date()
       }
     });
 
-    return NextResponse.json(rule);
+    return NextResponse.json(alertRule);
   } catch (error) {
     console.error('Failed to update alert rule:', error);
-    return NextResponse.json(
-      { error: 'Failed to update alert rule' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to update alert rule' }, { status: 500 });
   }
 }
 
@@ -46,13 +38,9 @@ export async function DELETE(
       where: { id: params.id }
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ message: 'Alert rule deleted successfully' });
   } catch (error) {
     console.error('Failed to delete alert rule:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete alert rule' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to delete alert rule' }, { status: 500 });
   }
 }
-

@@ -7,8 +7,8 @@ export default function ConditionalNavigation() {
   const pathname = usePathname() || '';
 
   // Render app Navigation only on internal app routes, not on marketing pages
+  // Exclude dashboard routes as they have their own sidebar navigation
   const appRoutes = [
-    '/dashboard',
     '/workflow',
     '/cameras',
     '/admin',

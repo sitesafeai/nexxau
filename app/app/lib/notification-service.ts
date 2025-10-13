@@ -1,316 +1,305 @@
-import { prisma } from './prisma';
+import nodemailer from 'nodemailer';
+import twilio from 'twilio';
 
-export interface NotificationData {
-  title: string;
-  message: string;
-  type: 'ALERT' | 'SYSTEM' | 'SECURITY' | 'MAINTENANCE' | 'WORKFLOW' | 'CUSTOM';
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
-  metadata?: any;
+interface EmailConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  auth: {
+    user: string;
+    pass: string;
+  };
 }
 
-export class NotificationService {
-  /**
-   * Create a notification for a specific user
-   */
-  static async createNotification(
-    userId: string,
-    data: NotificationData
-  ): Promise<any> {
-    try {
-      return await prisma.notification.create({
-        data: {
-          userId,
-          title: data.title,
-          message: data.message,
-          type: data.type,
-          priority: data.priority,
-          metadata: data.metadata,
-        },
-      });
-    } catch (error) {
-      console.error('Error creating notification:', error);
-      throw error;
+interface SMSConfig {
+  accountSid: string;
+  authToken: string;
+  fromNumber: string;
+}
+
+interface NotificationTemplate {
+  subject: string;
+  html: string;
+  text: string;
+}
+
+interface NotificationData {
+  to: string | string[];
+  type: 'email' | 'sms';
+  template: string;
+  data: Record<string, any>;
+  priority?: 'low' | 'normal' | 'high' | 'urgent';
+}
+
+class NotificationService {
+  private emailTransporter: nodemailer.Transporter | null = null;
+  private smsClient: twilio.Twilio | null = null;
+  private emailConfig: EmailConfig | null = null;
+  private smsConfig: SMSConfig | null = null;
+
+  constructor() {
+    this.initializeEmail();
+    this.initializeSMS();
+  }
+
+  private initializeEmail() {
+    const emailConfig = {
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER || '',
+        pass: process.env.SMTP_PASS || ''
+      }
+    };
+
+    if (emailConfig.auth.user && emailConfig.auth.pass) {
+      this.emailConfig = emailConfig;
+      this.emailTransporter = nodemailer.createTransporter(emailConfig);
     }
   }
 
-  /**
-   * Create notifications for multiple users
-   */
-  static async createBulkNotifications(
-    userIds: string[],
-    data: NotificationData
-  ): Promise<any[]> {
-    try {
-      const notifications = userIds.map(userId => ({
-        userId,
-        title: data.title,
-        message: data.message,
-        type: data.type,
-        priority: data.priority,
-        metadata: data.metadata,
-      }));
+  private initializeSMS() {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const fromNumber = process.env.TWILIO_FROM_NUMBER;
 
-      return await prisma.notification.createMany({
-        data: notifications,
-      });
-    } catch (error) {
-      console.error('Error creating bulk notifications:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Create notification for all users in a worksite
-   */
-  static async createWorksiteNotification(
-    worksiteId: string,
-    data: NotificationData
-  ): Promise<any[]> {
-    try {
-      // Get all users in the worksite
-      const users = await prisma.user.findMany({
-        where: { worksiteId },
-        select: { id: true },
-      });
-
-      const userIds = users.map(user => user.id);
-      return await this.createBulkNotifications(userIds, data);
-    } catch (error) {
-      console.error('Error creating worksite notification:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Create notification for all users in a company
-   */
-  static async createCompanyNotification(
-    companyId: string,
-    data: NotificationData
-  ): Promise<any[]> {
-    try {
-      // Get all users in the company
-      const users = await prisma.user.findMany({
-        where: { companyId },
-        select: { id: true },
-      });
-
-      const userIds = users.map(user => user.id);
-      return await this.createBulkNotifications(userIds, data);
-    } catch (error) {
-      console.error('Error creating company notification:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Create alert notification
-   */
-  static async createAlertNotification(
-    userId: string,
-    alert: any,
-    severity: string
-  ): Promise<any> {
-    const priority = severity === 'CRITICAL' || severity === 'EMERGENCY' ? 'URGENT' : 'HIGH';
-    
-    return await this.createNotification(userId, {
-      title: `Safety Alert: ${alert.title}`,
-      message: alert.description,
-      type: 'ALERT',
-      priority,
-      metadata: {
-        alertId: alert.id,
-        severity: alert.severity,
-        location: alert.location,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  }
-
-  /**
-   * Create system notification
-   */
-  static async createSystemNotification(
-    userId: string,
-    title: string,
-    message: string,
-    priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' = 'MEDIUM'
-  ): Promise<any> {
-    return await this.createNotification(userId, {
-      title,
-      message,
-      type: 'SYSTEM',
-      priority,
-      metadata: {
-        timestamp: new Date().toISOString(),
-      },
-    });
-  }
-
-  /**
-   * Create security notification
-   */
-  static async createSecurityNotification(
-    userId: string,
-    title: string,
-    message: string,
-    details: any
-  ): Promise<any> {
-    return await this.createNotification(userId, {
-      title,
-      message,
-      type: 'SECURITY',
-      priority: 'HIGH',
-      metadata: {
-        details,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  }
-
-  /**
-   * Create maintenance notification
-   */
-  static async createMaintenanceNotification(
-    userId: string,
-    title: string,
-    message: string,
-    scheduledTime?: Date
-  ): Promise<any> {
-    return await this.createNotification(userId, {
-      title,
-      message,
-      type: 'MAINTENANCE',
-      priority: 'MEDIUM',
-      metadata: {
-        scheduledTime: scheduledTime?.toISOString(),
-        timestamp: new Date().toISOString(),
-      },
-    });
-  }
-
-  /**
-   * Mark notification as read
-   */
-  static async markAsRead(notificationId: string, userId: string): Promise<any> {
-    try {
-      return await prisma.notification.updateMany({
-        where: {
-          id: notificationId,
-          userId,
-        },
-        data: {
-          isRead: true,
-          readAt: new Date(),
-        },
-      });
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Mark all notifications as read for a user
-   */
-  static async markAllAsRead(userId: string): Promise<any> {
-    try {
-      return await prisma.notification.updateMany({
-        where: {
-          userId,
-          isRead: false,
-        },
-        data: {
-          isRead: true,
-          readAt: new Date(),
-        },
-      });
-    } catch (error) {
-      console.error('Error marking all notifications as read:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Delete notification
-   */
-  static async deleteNotification(notificationId: string, userId: string): Promise<any> {
-    try {
-      return await prisma.notification.deleteMany({
-        where: {
-          id: notificationId,
-          userId,
-        },
-      });
-    } catch (error) {
-      console.error('Error deleting notification:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get notification statistics for a user
-   */
-  static async getNotificationStats(userId: string) {
-    try {
-      const [total, unread, byType, byPriority] = await Promise.all([
-        prisma.notification.count({
-          where: { userId },
-        }),
-        prisma.notification.count({
-          where: { userId, isRead: false },
-        }),
-        prisma.notification.groupBy({
-          by: ['type'],
-          where: { userId },
-          _count: { type: true },
-        }),
-        prisma.notification.groupBy({
-          by: ['priority'],
-          where: { userId },
-          _count: { priority: true },
-        }),
-      ]);
-
-      return {
-        total,
-        unread,
-        byType: byType.reduce((acc, item) => {
-          acc[item.type] = item._count.type;
-          return acc;
-        }, {} as Record<string, number>),
-        byPriority: byPriority.reduce((acc, item) => {
-          acc[item.priority] = item._count.priority;
-          return acc;
-        }, {} as Record<string, number>),
+    if (accountSid && authToken && fromNumber) {
+      this.smsConfig = {
+        accountSid,
+        authToken,
+        fromNumber
       };
-    } catch (error) {
-      console.error('Error getting notification stats:', error);
-      throw error;
+      this.smsClient = twilio(accountSid, authToken);
     }
   }
 
-  /**
-   * Clean up old notifications (older than 30 days)
-   */
-  static async cleanupOldNotifications(daysToKeep: number = 30): Promise<number> {
-    try {
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+  private getTemplate(templateName: string, data: Record<string, any>): NotificationTemplate {
+    const templates: Record<string, NotificationTemplate> = {
+      'safety-alert': {
+        subject: `🚨 Safety Alert: ${data.alertType || 'Incident Detected'}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background-color: #ef4444; color: white; padding: 20px; text-align: center;">
+              <h1 style="margin: 0; font-size: 24px;">🚨 Safety Alert</h1>
+            </div>
+            <div style="padding: 20px; background-color: #f9fafb;">
+              <h2 style="color: #1f2937; margin-top: 0;">${data.alertType || 'Safety Incident'}</h2>
+              <p style="color: #374151; line-height: 1.6;">
+                <strong>Location:</strong> ${data.location || 'Unknown'}<br>
+                <strong>Severity:</strong> <span style="color: ${this.getSeverityColor(data.severity)}; font-weight: bold;">${data.severity || 'Unknown'}</span><br>
+                <strong>Time:</strong> ${data.timestamp || new Date().toLocaleString()}<br>
+                <strong>Description:</strong> ${data.description || 'No description available'}
+              </p>
+              ${data.assignedTo ? `<p><strong>Assigned to:</strong> ${data.assignedTo}</p>` : ''}
+              <div style="margin-top: 20px; padding: 15px; background-color: #fef3c7; border-left: 4px solid #f59e0b;">
+                <p style="margin: 0; color: #92400e;"><strong>Action Required:</strong> Please review and respond to this alert as soon as possible.</p>
+              </div>
+            </div>
+            <div style="background-color: #f3f4f6; padding: 15px; text-align: center; font-size: 12px; color: #6b7280;">
+              <p>This is an automated safety alert from Nexxau Safety Monitoring System.</p>
+            </div>
+          </div>
+        `,
+        text: `
+🚨 SAFETY ALERT: ${data.alertType || 'Incident Detected'}
 
-      const result = await prisma.notification.deleteMany({
-        where: {
-          createdAt: {
-            lt: cutoffDate,
-          },
-          isRead: true,
-        },
-      });
+Location: ${data.location || 'Unknown'}
+Severity: ${data.severity || 'Unknown'}
+Time: ${data.timestamp || new Date().toLocaleString()}
+Description: ${data.description || 'No description available'}
+${data.assignedTo ? `Assigned to: ${data.assignedTo}` : ''}
 
-      return result.count;
-    } catch (error) {
-      console.error('Error cleaning up old notifications:', error);
-      throw error;
+Action Required: Please review and respond to this alert as soon as possible.
+
+This is an automated safety alert from Nexxau Safety Monitoring System.
+        `
+      },
+      'alert-resolved': {
+        subject: `✅ Alert Resolved: ${data.alertType || 'Safety Incident'}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background-color: #22c55e; color: white; padding: 20px; text-align: center;">
+              <h1 style="margin: 0; font-size: 24px;">✅ Alert Resolved</h1>
+            </div>
+            <div style="padding: 20px; background-color: #f0fdf4;">
+              <h2 style="color: #1f2937; margin-top: 0;">${data.alertType || 'Safety Incident'} - Resolved</h2>
+              <p style="color: #374151; line-height: 1.6;">
+                <strong>Location:</strong> ${data.location || 'Unknown'}<br>
+                <strong>Resolved by:</strong> ${data.resolvedBy || 'System'}<br>
+                <strong>Resolution time:</strong> ${data.resolutionTime || 'Unknown'}<br>
+                <strong>Notes:</strong> ${data.notes || 'No additional notes'}
+              </p>
+            </div>
+            <div style="background-color: #f3f4f6; padding: 15px; text-align: center; font-size: 12px; color: #6b7280;">
+              <p>This is an automated notification from Nexxau Safety Monitoring System.</p>
+            </div>
+          </div>
+        `,
+        text: `
+✅ ALERT RESOLVED: ${data.alertType || 'Safety Incident'}
+
+Location: ${data.location || 'Unknown'}
+Resolved by: ${data.resolvedBy || 'System'}
+Resolution time: ${data.resolutionTime || 'Unknown'}
+Notes: ${data.notes || 'No additional notes'}
+
+This is an automated notification from Nexxau Safety Monitoring System.
+        `
+      },
+      'system-status': {
+        subject: `📊 System Status Update: ${data.status || 'System Update'}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background-color: #3b82f6; color: white; padding: 20px; text-align: center;">
+              <h1 style="margin: 0; font-size: 24px;">📊 System Status</h1>
+            </div>
+            <div style="padding: 20px;">
+              <h2 style="color: #1f2937; margin-top: 0;">${data.title || 'System Status Update'}</h2>
+              <p style="color: #374151; line-height: 1.6;">${data.message || 'No additional information available.'}</p>
+              ${data.metrics ? `
+                <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                  <h3 style="margin-top: 0; color: #1f2937;">System Metrics</h3>
+                  <ul style="color: #374151;">
+                    ${Object.entries(data.metrics).map(([key, value]) => `<li><strong>${key}:</strong> ${value}</li>`).join('')}
+                  </ul>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `,
+        text: `
+📊 SYSTEM STATUS: ${data.status || 'System Update'}
+
+${data.title || 'System Status Update'}
+${data.message || 'No additional information available.'}
+
+${data.metrics ? `System Metrics:\n${Object.entries(data.metrics).map(([key, value]) => `${key}: ${value}`).join('\n')}` : ''}
+        `
+      }
+    };
+
+    return templates[templateName] || {
+      subject: 'Notification from Nexxau Safety System',
+      html: `<p>${data.message || 'You have received a notification from the Nexxau Safety System.'}</p>`,
+      text: data.message || 'You have received a notification from the Nexxau Safety System.'
+    };
+  }
+
+  private getSeverityColor(severity: string): string {
+    switch (severity?.toLowerCase()) {
+      case 'critical': return '#dc2626';
+      case 'high': return '#ea580c';
+      case 'medium': return '#d97706';
+      case 'low': return '#16a34a';
+      default: return '#6b7280';
     }
+  }
+
+  public async sendEmail(notification: NotificationData): Promise<boolean> {
+    if (!this.emailTransporter || !this.emailConfig) {
+      console.warn('Email service not configured');
+      return false;
+    }
+
+    try {
+      const template = this.getTemplate(notification.template, notification.data);
+      const recipients = Array.isArray(notification.to) ? notification.to : [notification.to];
+
+      for (const recipient of recipients) {
+        await this.emailTransporter.sendMail({
+          from: `"Nexxau Safety System" <${this.emailConfig.auth.user}>`,
+          to: recipient,
+          subject: template.subject,
+          text: template.text,
+          html: template.html,
+          priority: notification.priority === 'urgent' ? 'high' : 'normal'
+        });
+      }
+
+      console.log(`Email notification sent to ${recipients.length} recipient(s)`);
+      return true;
+    } catch (error) {
+      console.error('Failed to send email notification:', error);
+      return false;
+    }
+  }
+
+  public async sendSMS(notification: NotificationData): Promise<boolean> {
+    if (!this.smsClient || !this.smsConfig) {
+      console.warn('SMS service not configured');
+      return false;
+    }
+
+    try {
+      const template = this.getTemplate(notification.template, notification.data);
+      const recipients = Array.isArray(notification.to) ? notification.to : [notification.to];
+
+      for (const recipient of recipients) {
+        await this.smsClient.messages.create({
+          body: template.text,
+          from: this.smsConfig.fromNumber,
+          to: recipient
+        });
+      }
+
+      console.log(`SMS notification sent to ${recipients.length} recipient(s)`);
+      return true;
+    } catch (error) {
+      console.error('Failed to send SMS notification:', error);
+      return false;
+    }
+  }
+
+  public async sendNotification(notification: NotificationData): Promise<boolean> {
+    switch (notification.type) {
+      case 'email':
+        return await this.sendEmail(notification);
+      case 'sms':
+        return await this.sendSMS(notification);
+      default:
+        console.error('Invalid notification type:', notification.type);
+        return false;
+    }
+  }
+
+  public async sendBulkNotification(notifications: NotificationData[]): Promise<{ success: number; failed: number }> {
+    let success = 0;
+    let failed = 0;
+
+    for (const notification of notifications) {
+      const result = await this.sendNotification(notification);
+      if (result) {
+        success++;
+      } else {
+        failed++;
+      }
+    }
+
+    return { success, failed };
+  }
+
+  public isEmailConfigured(): boolean {
+    return this.emailTransporter !== null && this.emailConfig !== null;
+  }
+
+  public isSMSConfigured(): boolean {
+    return this.smsClient !== null && this.smsConfig !== null;
+  }
+
+  public getConfigurationStatus(): {
+    email: boolean;
+    sms: boolean;
+  } {
+    return {
+      email: this.isEmailConfigured(),
+      sms: this.isSMSConfigured()
+    };
   }
 }
+
+// Singleton instance
+const notificationService = new NotificationService();
+
+export default notificationService;
+export { NotificationService };

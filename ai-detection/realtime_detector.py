@@ -24,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class RealtimeYOLODetector:
-    def __init__(self, web_app_url="http://localhost:3001"):
+    def __init__(self, web_app_url="http://localhost:3000"):
         self.web_app_url = web_app_url
         self.model = None
         self.running = False

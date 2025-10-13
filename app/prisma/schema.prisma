@@ -75,6 +75,8 @@ model User {
   apiKeys       ApiKey[]
   activities    UserActivity[]
   notifications Notification[]
+  errorLogs     ErrorLog[]
+  customRules   CustomRule[]
 }
 
 model VerificationToken {
@@ -114,6 +116,13 @@ model Worksite {
   cameras           Camera[]
   alerts            Alert[]
   alertRules        AlertRule[]
+  safetyViolations SafetyViolation[]
+  smsNotifications SMSNotification[]
+  emergencyContacts EmergencyContact[]
+  safetyRules       SafetyRule[]
+  customRules       CustomRule[]
+  ruleTriggers      CustomRuleTrigger[]
+  ruleViolations    CustomRuleViolation[]
 }
 
 model Worker {
@@ -299,6 +308,11 @@ model Camera {
   worksite          Worksite          @relation(fields: [worksiteId], references: [id])
   detections        Detection[]
   health           CameraHealth[]
+  safetyViolations SafetyViolation[]
+  smsNotifications SMSNotification[]
+  customRules      CustomRule[]
+  ruleTriggers     CustomRuleTrigger[]
+  ruleViolations   CustomRuleViolation[]
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 }
@@ -443,5 +457,230 @@ enum CameraStatus {
   DEGRADED
   ERROR
   MAINTENANCE
-} 
+}
+
+model ErrorLog {
+  id          String   @id @default(cuid())
+  message     String
+  stack       String?
+  severity    String   // low, medium, high, critical
+  category    String   // authentication, authorization, validation, database, external, system, business
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  endpoint    String?
+  method      String?
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
+  resolved    Boolean  @default(false)
+  resolvedAt  DateTime?
+  resolvedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SafetyViolation {
+  id            String   @id @default(cuid())
+  violationType String   // e.g., "hard_hat_violation", "safety_equipment_missing", "unsafe_behavior"
+  severity      String   // low, medium, high, critical
+  location      String
+  description   String
+  worksiteId    String?
+  worksite      Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
+  cameraId      String?
+  camera        Camera?   @relation(fields: [cameraId], references: [id], onDelete: SetNull)
+  detectedAt    DateTime
+  smsSent       Boolean  @default(false)
+  smsSentAt     DateTime?
+  resolved      Boolean  @default(false)
+  resolvedAt    DateTime?
+  resolvedBy    String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SMSNotification {
+  id            String   @id @default(cuid())
+  messageId     String   @unique // Twilio message SID
+  phoneNumber   String
+  message       String
+  violationType String?
+  severity      String?
+  location      String?
+  worksiteId    String?
+  worksite      Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
+  cameraId      String?
+  camera        Camera?   @relation(fields: [cameraId], references: [id], onDelete: SetNull)
+  status        String   // sent, delivered, failed, undelivered
+  errorCode     String?
+  errorMessage  String?
+  retryCount    Int      @default(0)
+  lastRetryAt   DateTime?
+  sentAt        DateTime @default(now())
+  deliveredAt   DateTime?
+  updatedAt     DateTime @updatedAt
+}
+
+model EmergencyContact {
+  id          String   @id @default(cuid())
+  name        String
+  phoneNumber String
+  email       String?
+  role        String   // emergency, manager, supervisor
+  worksiteId  String?
+  worksite    Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
+  isActive    Boolean  @default(true)
+  priority    Int      @default(1) // 1 = highest priority
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SafetyRule {
+  id                  String   @id @default(cuid())
+  name                String
+  violationType       String   // e.g., "hard_hat_violation", "safety_equipment_missing"
+  severity            String   // low, medium, high, critical
+  confidenceThreshold Int      @default(80) // 0-100
+  smsEnabled          Boolean  @default(true)
+  smsRecipients       Json     // Array of phone numbers
+  isActive            Boolean  @default(true)
+  worksiteId          String?
+  worksite            Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+// Enhanced Custom Rule Engine Models
+model CustomRule {
+  id                  String   @id @default(cuid())
+  name                String
+  description         String?
+  ruleType            String   // "object_detection", "behavior_analysis", "area_monitoring", "time_based"
+  category            String   // "safety", "security", "compliance", "operational"
+  severity            String   // low, medium, high, critical
+  isActive            Boolean  @default(true)
+  priority            Int      @default(1) // 1 = highest priority
+  
+  // Rule Configuration
+  detectionCriteria   Json     // Object detection criteria, behavior patterns, etc.
+  triggerConditions   Json     // When to trigger the rule
+  alertSettings       Json     // Alert configuration (SMS, email, dashboard)
+  
+  // Time and Location Constraints
+  timeConstraints     Json?    // Time-based rules (e.g., only during work hours)
+  locationConstraints Json?    // Location-based rules (e.g., specific areas)
+  
+  // AI Model Configuration
+  aiModelType         String?  // "yolo", "custom", "behavior_analysis"
+  confidenceThreshold Float    @default(0.8) // 0.0 to 1.0
+  customModelPath     String?  // Path to custom AI model
+  
+  // Notification Settings
+  smsEnabled          Boolean  @default(true)
+  emailEnabled        Boolean  @default(false)
+  dashboardEnabled    Boolean  @default(true)
+  smsRecipients       Json?    // Array of phone numbers
+  emailRecipients     Json?    // Array of email addresses
+  
+  // Cooldown and Rate Limiting
+  cooldownMinutes     Int      @default(15) // Prevent spam notifications
+  maxAlertsPerHour    Int      @default(10) // Rate limiting
+  
+  // Relationships
+  worksiteId          String?
+  worksite            Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
+  cameraId            String?
+  camera              Camera?   @relation(fields: [cameraId], references: [id], onDelete: SetNull)
+  createdBy           String?
+  creator             User?     @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  
+  // Tracking
+  triggerCount        Int      @default(0) // How many times this rule has been triggered
+  lastTriggeredAt     DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Related models
+  ruleTriggers        CustomRuleTrigger[]
+  ruleViolations      CustomRuleViolation[]
+}
+
+model CustomRuleTrigger {
+  id              String   @id @default(cuid())
+  ruleId          String
+  rule            CustomRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  
+  // Trigger Details
+  triggerType     String   // "object_detected", "behavior_detected", "area_violation", "time_violation"
+  confidence      Float    // Confidence score from AI
+  detectionData   Json     // Raw detection data from AI service
+  
+  // Context
+  cameraId        String?
+  camera          Camera?  @relation(fields: [cameraId], references: [id], onDelete: SetNull)
+  worksiteId      String?
+  worksite        Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
+  
+  // Location and Time
+  location        String?  // GPS coordinates or area name
+  timestamp       DateTime @default(now())
+  
+  // Status
+  status          String   @default("triggered") // triggered, processed, acknowledged, resolved
+  processedAt     DateTime?
+  acknowledgedAt  DateTime?
+  acknowledgedBy  String?
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  
+  // Notifications
+  smsSent         Boolean  @default(false)
+  emailSent       Boolean  @default(false)
+  dashboardAlert  Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model CustomRuleViolation {
+  id              String   @id @default(cuid())
+  ruleId          String
+  rule            CustomRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  triggerId       String?  // Reference to the trigger that caused this violation
+  
+  // Violation Details
+  violationType   String   // Type of violation detected
+  severity        String   // Severity level
+  description     String   // Human-readable description
+  
+  // Detection Data
+  detectionData   Json     // AI detection results, bounding boxes, etc.
+  imageUrl        String?  // Snapshot of the violation
+  videoUrl        String?  // Video clip of the violation
+  
+  // Context
+  cameraId        String?
+  camera          Camera?  @relation(fields: [cameraId], references: [id], onDelete: SetNull)
+  worksiteId      String?
+  worksite        Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
+  
+  // Location and Time
+  location        String?
+  detectedAt      DateTime @default(now())
+  
+  // Status
+  status          String   @default("active") // active, acknowledged, resolved, false_positive
+  acknowledgedAt  DateTime?
+  acknowledgedBy  String?
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  
+  // Notifications
+  smsSent         Boolean  @default(false)
+  emailSent       Boolean  @default(false)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
 
