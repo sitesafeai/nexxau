@@ -50,7 +50,7 @@ function DashboardContent() {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800">
       {/* Notifications */}
       <NotificationContainer 
         notifications={notifications} 
@@ -58,19 +58,19 @@ function DashboardContent() {
       />
       {/* Enhanced Sidebar with Site Selector */}
       <div className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col">
-        <div className="flex min-h-0 flex-1 flex-col border-r border-gray-700 bg-gray-900">
+        <div className="flex min-h-0 flex-1 flex-col border-r border-slate-700/50 bg-slate-900/95 backdrop-blur-xl">
           <div className="flex flex-1 flex-col overflow-y-auto pt-5 pb-4">
 
             
             {/* Site Selector */}
             <div className="px-4 mt-4">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Worksite Selector
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                Worksite Selection
               </label>
               <select
                 value={selectedSiteId || ''}
                 onChange={(e) => selectSite(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full bg-slate-800/50 border border-slate-600/50 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200 backdrop-blur-sm font-medium"
               >
                 {accessibleSites.map((site) => (
                   <option key={site.id} value={site.id}>
@@ -79,27 +79,27 @@ function DashboardContent() {
                 ))}
               </select>
               {selectedSite && (
-                <div className="mt-2 p-2 bg-gray-800 rounded border border-gray-700">
-                  <p className="text-xs text-gray-400">Current Site</p>
-                  <p className="text-sm font-medium text-white">{selectedSite.name}</p>
-                  <p className="text-xs text-gray-400">{selectedSite.address}</p>
-                  <div className="flex items-center mt-1">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      selectedSite.status === 'active' ? 'bg-green-900 text-green-300' :
-                      selectedSite.status === 'maintenance' ? 'bg-yellow-900 text-yellow-300' :
-                      'bg-red-900 text-red-300'
+                <div className="mt-3 p-3 bg-slate-800/30 rounded-lg border border-slate-700/30 backdrop-blur-sm">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Current Site</p>
+                  <p className="text-sm font-semibold text-white mb-0.5">{selectedSite.name}</p>
+                  <p className="text-xs text-slate-400 mb-2">{selectedSite.address}</p>
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-700/30">
+                    <span className={`inline-flex px-2.5 py-1 text-xs font-bold uppercase tracking-wide rounded-md ${
+                      selectedSite.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                      selectedSite.status === 'maintenance' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                      'bg-red-500/10 text-red-400 border border-red-500/20'
                     }`}>
                       {selectedSite.status}
                     </span>
-                    <span className="ml-2 text-xs text-gray-400">
-                      Safety: {selectedSite.safetyScore}%
+                    <span className="text-xs font-semibold text-slate-300">
+                      Safety: <span className="text-blue-400">{selectedSite.safetyScore}%</span>
                     </span>
         </div>
         </div>
       )}
     </div>
 
-            <nav className="mt-5 flex-1 space-y-1 bg-gray-900 px-2">
+            <nav className="mt-6 flex-1 space-y-1.5 bg-transparent px-3">
               {[
                 { 
                   key: 'overview', 
@@ -172,10 +172,10 @@ function DashboardContent() {
                 <button
                   key={item.key}
                   onClick={() => setSelected(item.key)}
-                  className={`group flex w-full items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+                  className={`group flex w-full items-center px-3.5 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${
                     selected === item.key
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/20'
+                      : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
                   }`}
                 >
                   <span className="mr-3 h-5 w-5 flex-shrink-0">{item.icon}</span>
@@ -222,46 +222,46 @@ function DashboardContent() {
           <div className="md:hidden fixed inset-0 z-40 bg-black bg-opacity-50" onClick={() => setIsMobileMenuOpen(false)}>
             <div className="fixed inset-y-0 left-0 w-64 bg-gray-900 border-r border-gray-700 overflow-y-auto">
               <div className="flex flex-col h-full pt-4 pb-4">
-                {/* Site Selector */}
-                <div className="px-4 mt-4">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Worksite Selector
-                  </label>
-                  <select
-                    value={selectedSiteId || ''}
-                    onChange={(e) => selectSite(e.target.value)}
-                    className="w-full bg-gray-800 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {accessibleSites.map((site) => (
-                      <option key={site.id} value={site.id}>
-                        {site.name}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedSite && (
-                    <div className="mt-2 p-2 bg-gray-800 rounded border border-gray-700">
-                      <p className="text-xs text-gray-400">Current Site</p>
-                      <p className="text-sm font-medium text-white">{selectedSite.name}</p>
-                      <p className="text-xs text-gray-400">{selectedSite.address}</p>
-                      <div className="flex items-center mt-1">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          selectedSite.status === 'active' ? 'bg-green-900 text-green-300' :
-                          selectedSite.status === 'maintenance' ? 'bg-yellow-900 text-yellow-300' :
-                          'bg-red-900 text-red-300'
-                        }`}>
-                          {selectedSite.status}
-                        </span>
-                        <span className="ml-2 text-xs text-gray-400">
-                          Safety: {selectedSite.safetyScore}%
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
+            {/* Site Selector */}
+            <div className="px-4 mt-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Worksite Selector
+              </label>
+              <select
+                value={selectedSiteId || ''}
+                onChange={(e) => selectSite(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-600 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                {accessibleSites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.name}
+                  </option>
+                ))}
+              </select>
+              {selectedSite && (
+                <div className="mt-2 p-2 bg-gray-800 rounded border border-gray-700">
+                  <p className="text-xs text-gray-400">Current Site</p>
+                  <p className="text-sm font-medium text-white">{selectedSite.name}</p>
+                  <p className="text-xs text-gray-400">{selectedSite.address}</p>
+                  <div className="flex items-center mt-1">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      selectedSite.status === 'active' ? 'bg-green-900 text-green-300' :
+                      selectedSite.status === 'maintenance' ? 'bg-yellow-900 text-yellow-300' :
+                      'bg-red-900 text-red-300'
+                    }`}>
+                      {selectedSite.status}
+                    </span>
+                    <span className="ml-2 text-xs text-gray-400">
+                      Safety: {selectedSite.safetyScore}%
+                    </span>
+        </div>
+        </div>
+      )}
+    </div>
 
                 {/* Navigation */}
-                <nav className="mt-5 flex-1 space-y-1 bg-gray-900 px-2">
-                  {[
+            <nav className="mt-5 flex-1 space-y-1 bg-gray-900 px-2">
+              {[
                     { 
                       key: 'overview', 
                       name: 'Overview', 
@@ -329,43 +329,43 @@ function DashboardContent() {
                         </svg>
                       )
                     },
-                  ].map((item) => (
-                    <button
-                      key={item.key}
+              ].map((item) => (
+                <button
+                  key={item.key}
                       onClick={() => {
                         setSelected(item.key);
                         setIsMobileMenuOpen(false);
                       }}
-                      className={`group flex w-full items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-                        selected === item.key
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                      }`}
-                    >
+                      className={`group flex w-full items-center px-3.5 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${
+                    selected === item.key
+                          ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/20'
+                          : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
+                  }`}
+                >
                       <span className="mr-3 h-5 w-5 flex-shrink-0">{item.icon}</span>
-                      {item.name}
-                    </button>
-                  ))}
-                </nav>
+                  {item.name}
+                </button>
+              ))}
+            </nav>
 
-                {/* User Info */}
-                <div className="px-4 mt-4">
-                  <div className="bg-gray-800 rounded-lg p-3">
-                    <p className="text-xs text-gray-400">Logged in as</p>
-                    <p className="text-sm font-medium text-white">{state.currentUser?.name || 'Loading...'}</p>
-                    <p className="text-xs text-gray-400">{state.currentUser?.email || 'Loading...'}</p>
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${
-                      state.currentUser?.role === 'admin' ? 'bg-purple-900 text-purple-300' :
-                      state.currentUser?.role === 'site-manager' ? 'bg-blue-900 text-blue-300' :
-                      'bg-green-900 text-green-300'
-                    }`}>
-                      {state.currentUser?.role || 'Loading...'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
+                                {/* User Info */}
+                    <div className="px-4 mt-4">
+                      <div className="bg-gray-800 rounded-lg p-3">
+                        <p className="text-xs text-gray-400">Logged in as</p>
+                        <p className="text-sm font-medium text-white">{state.currentUser?.name || 'Loading...'}</p>
+                        <p className="text-xs text-gray-400">{state.currentUser?.email || 'Loading...'}</p>
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${
+                          state.currentUser?.role === 'admin' ? 'bg-purple-900 text-purple-300' :
+                          state.currentUser?.role === 'site-manager' ? 'bg-blue-900 text-blue-300' :
+                          'bg-green-900 text-green-300'
+                        }`}>
+                          {state.currentUser?.role || 'Loading...'}
+                        </span>
+                      </div>
+                    </div>
           </div>
+        </div>
+      </div>
         )}
 
         <div className="py-6">
@@ -693,13 +693,13 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-gray-800 p-6 rounded-lg">
-        <h3 className="text-lg font-semibold text-white mb-6">Quick Actions</h3>
+      <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/30 p-6 rounded-xl">
+        <h3 className="text-lg font-bold text-white mb-6 uppercase tracking-wide">Quick Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Generate Report Button */}
           <button 
             onClick={handleGenerateReport}
-            className="group relative bg-blue-600 hover:bg-blue-700 text-white p-6 rounded-lg border border-blue-500 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+            className="group relative bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-6 rounded-xl border border-blue-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 focus:ring-offset-slate-900 shadow-lg hover:shadow-blue-500/25"
           >
             <div className="flex items-center space-x-4">
               <div className="flex-shrink-0">
@@ -717,7 +717,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
           {/* Configure Alerts Button */}
           <button 
             onClick={handleConfigureAlerts}
-            className="group relative bg-green-600 hover:bg-green-700 text-white p-6 rounded-lg border border-green-500 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+            className="group relative bg-gradient-to-br from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white p-6 rounded-xl border border-emerald-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:ring-offset-2 focus:ring-offset-slate-900 shadow-lg hover:shadow-emerald-500/25"
           >
             <div className="flex items-center space-x-4">
               <div className="flex-shrink-0">
