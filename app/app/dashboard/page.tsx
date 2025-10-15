@@ -456,15 +456,15 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
           <p className="text-gray-300">{currentSite.address}</p>
         </div>
         <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
-              currentSite.status === 'active' ? 'bg-green-900 text-green-300' :
-              currentSite.status === 'maintenance' ? 'bg-yellow-900 text-yellow-300' :
-              'bg-red-900 text-red-300'
-            }`}>
-              {currentSite.status}
-            </span>
-            <span className="text-sm text-gray-400">Safety Score: {currentSite.safetyScore}%</span>
+        <div className="flex items-center space-x-2">
+          <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+            currentSite.status === 'active' ? 'bg-green-900 text-green-300' :
+            currentSite.status === 'maintenance' ? 'bg-yellow-900 text-yellow-300' :
+            'bg-red-900 text-red-300'
+          }`}>
+            {currentSite.status}
+          </span>
+          <span className="text-sm text-gray-400">Safety Score: {currentSite.safetyScore}%</span>
           </div>
           <ExportButton 
             siteId={currentSite.id}
@@ -658,18 +658,18 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
             </button>
           </div>
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 text-sm text-gray-400">
-              <span>Camera {currentCameraIndex + 1} of {cameras.length}</span>
-              <div className="flex space-x-1">
-                {cameras.map((_, index) => (
-                  <div
-                    key={index}
-                    className={`w-2 h-2 rounded-full transition-colors ${
-                      index === currentCameraIndex ? 'bg-blue-500' : 'bg-gray-600'
-                    }`}
-                  />
-                ))}
-              </div>
+          <div className="flex items-center space-x-2 text-sm text-gray-400">
+            <span>Camera {currentCameraIndex + 1} of {cameras.length}</span>
+            <div className="flex space-x-1">
+              {cameras.map((_, index) => (
+                <div
+                  key={index}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    index === currentCameraIndex ? 'bg-blue-500' : 'bg-gray-600'
+                  }`}
+                />
+              ))}
+            </div>
             </div>
             <button
               onClick={() => setEnableDetection(!enableDetection)}
@@ -1212,9 +1212,9 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
           >
             AI Detection {enableDetection ? 'ON' : 'OFF'}
           </button>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
-            Add Camera
-          </button>
+        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+          Add Camera
+        </button>
         </div>
       </div>
 

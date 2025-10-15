@@ -203,7 +203,7 @@ const SystemAdministrationPanel: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold">System Administration</h1>
           <p className="text-gray-600">Manage system settings, users, and monitor system health</p>
-        </div>
+            </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={fetchSystemData}>
             <RefreshCw className="mr-2 h-4 w-4" />
@@ -327,7 +327,7 @@ const SystemAdministrationPanel: React.FC = () => {
               </div>
             </CardContent>
           </Card>
-        </div>
+            </div>
       )}
 
       {/* Main Content */}
@@ -361,7 +361,7 @@ const SystemAdministrationPanel: React.FC = () => {
                     <span className="font-medium">
                       {users.filter(u => u.status === 'active').length}
                     </span>
-                  </div>
+                    </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">System Version:</span>
                     <span className="font-medium">v1.0.0</span>
@@ -393,7 +393,7 @@ const SystemAdministrationPanel: React.FC = () => {
                     <Download className="mr-2 h-4 w-4" />
                     Export Data
                   </Button>
-                </div>
+            </div>
               </CardContent>
             </Card>
           </div>
@@ -412,7 +412,7 @@ const SystemAdministrationPanel: React.FC = () => {
                     <div className="flex items-center space-x-4">
                       <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
                         <Users className="h-5 w-5 text-gray-600" />
-                      </div>
+            </div>
                       <div>
                         <div className="font-medium">{user.name}</div>
                         <div className="text-sm text-gray-600">{user.email}</div>
@@ -459,7 +459,7 @@ const SystemAdministrationPanel: React.FC = () => {
                     </div>
                   </div>
                 ))}
-              </div>
+            </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -472,7 +472,7 @@ const SystemAdministrationPanel: React.FC = () => {
             </CardHeader>
             <CardContent>
               {config && (
-                <div className="space-y-6">
+          <div className="space-y-6">
                   <div>
                     <h3 className="text-lg font-semibold mb-4">General Settings</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -486,8 +486,8 @@ const SystemAdministrationPanel: React.FC = () => {
                             general: { ...config.general, siteName: e.target.value }
                           })}
                         />
-                      </div>
-                      <div>
+            </div>
+                        <div>
                         <Label htmlFor="timezone">Timezone</Label>
                         <Select value={config.general.timezone}>
                           <SelectTrigger>
@@ -512,13 +512,13 @@ const SystemAdministrationPanel: React.FC = () => {
                         })}
                       />
                       <Label htmlFor="maintenanceMode">Maintenance Mode</Label>
-                    </div>
-                  </div>
+            </div>
+          </div>
 
-                  <div>
+                <div>
                     <h3 className="text-lg font-semibold mb-4">Security Settings</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
+                <div>
                         <Label htmlFor="sessionTimeout">Session Timeout (minutes)</Label>
                         <Input
                           id="sessionTimeout"
@@ -528,9 +528,9 @@ const SystemAdministrationPanel: React.FC = () => {
                             ...config,
                             security: { ...config.security, sessionTimeout: parseInt(e.target.value) }
                           })}
-                        />
-                      </div>
-                      <div>
+                  />
+                </div>
+                <div>
                         <Label htmlFor="maxLoginAttempts">Max Login Attempts</Label>
                         <Input
                           id="maxLoginAttempts"
@@ -540,9 +540,9 @@ const SystemAdministrationPanel: React.FC = () => {
                             ...config,
                             security: { ...config.security, maxLoginAttempts: parseInt(e.target.value) }
                           })}
-                        />
-                      </div>
-                    </div>
+                  />
+                </div>
+                </div>
                     <div className="flex items-center space-x-2 mt-4">
                       <Switch
                         checked={config.security.twoFactorAuth}
@@ -552,13 +552,13 @@ const SystemAdministrationPanel: React.FC = () => {
                         })}
                       />
                       <Label htmlFor="twoFactorAuth">Two-Factor Authentication</Label>
-                    </div>
-                  </div>
+            </div>
+          </div>
 
-                  <div>
+                <div>
                     <h3 className="text-lg font-semibold mb-4">AI Settings</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
+                <div>
                         <Label htmlFor="confidenceThreshold">Confidence Threshold (%)</Label>
                         <Input
                           id="confidenceThreshold"
@@ -568,9 +568,9 @@ const SystemAdministrationPanel: React.FC = () => {
                             ...config,
                             ai: { ...config.ai, confidenceThreshold: parseInt(e.target.value) }
                           })}
-                        />
-                      </div>
-                      <div>
+                  />
+                </div>
+                <div>
                         <Label htmlFor="alertThreshold">Alert Threshold (%)</Label>
                         <Input
                           id="alertThreshold"
@@ -580,9 +580,9 @@ const SystemAdministrationPanel: React.FC = () => {
                             ...config,
                             ai: { ...config.ai, alertThreshold: parseInt(e.target.value) }
                           })}
-                        />
-                      </div>
-                    </div>
+                  />
+                </div>
+                </div>
                     <div className="flex items-center space-x-2 mt-4">
                       <Switch
                         checked={config.ai.detectionEnabled}
@@ -592,8 +592,8 @@ const SystemAdministrationPanel: React.FC = () => {
                         })}
                       />
                       <Label htmlFor="detectionEnabled">AI Detection Enabled</Label>
-                    </div>
-                  </div>
+            </div>
+          </div>
 
                   <div className="flex justify-end space-x-2">
                     <Button variant="outline" onClick={() => setIsEditingConfig(false)}>
@@ -640,7 +640,7 @@ const SystemAdministrationPanel: React.FC = () => {
                         <SelectItem value="info">Info</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
+                </div>
                 </div>
                 <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm h-64 overflow-y-auto">
                   <div>2025-10-03 18:30:15 [INFO] System started successfully</div>
@@ -654,7 +654,7 @@ const SystemAdministrationPanel: React.FC = () => {
                   <div>2025-10-03 18:46:01 [INFO] Alert rule triggered: Safety violation detected</div>
                   <div>2025-10-03 18:50:15 [INFO] Database backup completed successfully</div>
                 </div>
-              </div>
+            </div>
             </CardContent>
           </Card>
         </TabsContent>

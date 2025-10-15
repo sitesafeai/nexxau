@@ -157,7 +157,7 @@ const AlertManagementSystem: React.FC = () => {
             alertRuleId: 'rule-2',
             alertRule: {
               id: 'rule-2',
-              name: 'Unauthorized Access',
+      name: 'Unauthorized Access',
               description: 'Monitors restricted areas for unauthorized personnel',
               severity: 'critical' as const,
               isActive: true,
@@ -578,7 +578,7 @@ const AlertManagementSystem: React.FC = () => {
             >
               Active Alerts
             </button>
-            <button
+          <button
               onClick={() => setActiveTab('rules')}
               className={`py-3 px-6 rounded-lg font-medium text-sm transition-all duration-200 ${
                 activeTab === 'rules'
@@ -587,7 +587,7 @@ const AlertManagementSystem: React.FC = () => {
               }`}
             >
               Alert Rules
-            </button>
+          </button>
             <button
               onClick={() => setActiveTab('history')}
               className={`py-3 px-6 rounded-lg font-medium text-sm transition-all duration-200 ${
@@ -601,7 +601,7 @@ const AlertManagementSystem: React.FC = () => {
           </nav>
         </div>
 
-      {/* Tab Content */}
+        {/* Tab Content */}
       <div className="mt-6">
         {activeTab === 'alerts' && (
           <div className="space-y-6">
@@ -658,7 +658,7 @@ const AlertManagementSystem: React.FC = () => {
                   </select>
                 </div>
                 <div className="flex items-end">
-                  <button
+              <button 
                     onClick={() => {
                       setSearchTerm('');
                       setStatusFilter('all');
@@ -667,11 +667,11 @@ const AlertManagementSystem: React.FC = () => {
                     className="w-full px-4 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 text-white rounded-lg transition-all duration-200 font-medium"
                   >
                     Clear Filters
-                  </button>
+              </button>
                 </div>
               </div>
             </div>
-
+            
             {/* Alert List */}
             <div className="space-y-4">
               {filteredResponses.map((alert) => (
@@ -681,16 +681,16 @@ const AlertManagementSystem: React.FC = () => {
                       <div className={`w-4 h-4 rounded-full mt-1 shadow-lg ${getSeverityColor(alert.severity).split(' ')[0]} ${
                         alert.severity === 'critical' ? 'animate-pulse' : ''
                       }`} />
-                      <div className="flex-1">
+                    <div className="flex-1">
                         <div className="flex items-center gap-3 mb-3">
                           <h3 className="font-semibold text-white text-lg">{alert.alertRule.name}</h3>
                           <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full ${getSeverityColor(alert.severity)} shadow-sm`}>
                             {alert.severity.toUpperCase()}
-                          </span>
+                        </span>
                           <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full ${getStatusColor(alert.status)} shadow-sm`}>
                             {alert.status.charAt(0).toUpperCase() + alert.status.slice(1)}
                           </span>
-                        </div>
+                      </div>
                         <p className="text-gray-300 mb-4 text-base leading-relaxed">{alert.description}</p>
                         <div className="flex items-center gap-6 text-sm text-gray-400">
                           <div className="flex items-center gap-2">
@@ -700,14 +700,14 @@ const AlertManagementSystem: React.FC = () => {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
                             <span className="font-medium">{alert.location}</span>
-                          </div>
+                        </div>
                           <div className="flex items-center gap-2">
                             <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
                             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                             <span className="font-medium">{new Date(alert.createdAt).toLocaleString()}</span>
-                          </div>
+                        </div>
                           {alert.assignedTo && (
                             <div className="flex items-center gap-2">
                               <div className="w-2 h-2 bg-green-400 rounded-full"></div>
@@ -715,14 +715,14 @@ const AlertManagementSystem: React.FC = () => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                               </svg>
                               <span className="font-medium">{alert.assignedTo}</span>
-                            </div>
-                          )}
                         </div>
+                          )}
                       </div>
+                    </div>
                     </div>
                     <div className="flex items-center gap-3">
                       {alert.status === 'open' && (
-                        <button
+                      <button 
                           onClick={() => handleAcknowledgeAlert(alert.id)}
                           disabled={isProcessing === alert.id}
                           className={`px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-lg hover:shadow-blue-500/25 ${
@@ -737,10 +737,10 @@ const AlertManagementSystem: React.FC = () => {
                           ) : (
                             'Acknowledge'
                           )}
-                        </button>
+                      </button>
                       )}
                       {alert.status === 'acknowledged' && (
-                        <button
+                      <button 
                           onClick={() => handleResolveAlert(alert.id)}
                           disabled={isProcessing === alert.id}
                           className={`px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-lg hover:shadow-green-500/25 ${
@@ -788,7 +788,7 @@ const AlertManagementSystem: React.FC = () => {
                         }`}>
                           {rule.isActive ? 'Active' : 'Inactive'}
                         </span>
-                      </div>
+              </div>
                       <p className="text-gray-300 mb-6 text-base leading-relaxed">{rule.description}</p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="bg-gray-700/30 p-4 rounded-lg">
@@ -806,7 +806,7 @@ const AlertManagementSystem: React.FC = () => {
                               </li>
                             ))}
                           </ul>
-                        </div>
+            </div>
                         <div className="bg-gray-700/30 p-4 rounded-lg">
                           <h4 className="font-medium text-white mb-3 flex items-center gap-2">
                             <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -822,13 +822,13 @@ const AlertManagementSystem: React.FC = () => {
                               </li>
                             ))}
                           </ul>
+                          </div>
                         </div>
                       </div>
-                    </div>
                   </div>
                 </div>
               ))}
-            </div>
+              </div>
           </div>
         )}
 
@@ -851,12 +851,12 @@ const AlertManagementSystem: React.FC = () => {
                   >
                     <div className="flex items-center space-x-4">
                       <div className={`w-4 h-4 rounded-full shadow-lg ${getSeverityColor(alert.severity).split(' ')[0]}`} />
-                      <div>
+                          <div>
                         <div className="font-medium text-white">{alert.alertRule.name}</div>
                         <div className="text-sm text-gray-400">{alert.location}</div>
                         <div className="text-xs text-gray-500">
                           {new Date(alert.createdAt).toLocaleString()}
-                        </div>
+                          </div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
@@ -869,15 +869,15 @@ const AlertManagementSystem: React.FC = () => {
                       <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
-                    </div>
-                  </div>
-                ))}
+                        </div>
+                      </div>
+                    ))}
               </div>
-            </div>
-          </div>
-        )}
-        </div>
-      </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
       {/* Alert Detail Modal */}
       {isDetailModalOpen && selectedAlert && (
@@ -889,7 +889,7 @@ const AlertManagementSystem: React.FC = () => {
                 <div className="flex items-center space-x-3">
                   <div className={`w-4 h-4 rounded-full ${getSeverityColor(selectedAlert.severity).split(' ')[0]}`} />
                   <h2 className="text-2xl font-bold text-white">Alert Details</h2>
-                </div>
+              </div>
                 <button
                   onClick={closeDetailModal}
                   className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-700 transition-colors"
@@ -898,10 +898,10 @@ const AlertManagementSystem: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
-              </div>
+            </div>
 
               {/* Alert Information */}
-              <div className="space-y-6">
+          <div className="space-y-6">
                 {/* Basic Info */}
                 <div className="bg-gray-700/30 p-4 rounded-lg">
                   <h3 className="text-lg font-semibold text-white mb-3">Alert Information</h3>
@@ -909,7 +909,7 @@ const AlertManagementSystem: React.FC = () => {
                     <div>
                       <label className="block text-sm font-medium text-gray-400 mb-1">Alert ID</label>
                       <p className="text-white">{selectedAlert.id}</p>
-                    </div>
+                      </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-400 mb-1">Rule Name</label>
                       <p className="text-white">{selectedAlert.alertRule.name}</p>
@@ -919,7 +919,7 @@ const AlertManagementSystem: React.FC = () => {
                       <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full ${getSeverityColor(selectedAlert.severity)}`}>
                         {selectedAlert.severity.toUpperCase()}
                       </span>
-                    </div>
+                  </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-400 mb-1">Status</label>
                       <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full ${getStatusColor(selectedAlert.status)}`}>
@@ -969,8 +969,8 @@ const AlertManagementSystem: React.FC = () => {
                         ))}
                       </ul>
                     </div>
-                  </div>
-                </div>
+              </div>
+            </div>
 
                 {/* Timeline */}
                 <div className="bg-gray-700/30 p-4 rounded-lg">
@@ -978,15 +978,15 @@ const AlertManagementSystem: React.FC = () => {
                   <div className="space-y-3">
                     <div className="flex items-center space-x-3">
                       <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                      <div>
+                <div>
                         <p className="text-sm font-medium text-white">Alert Created</p>
                         <p className="text-xs text-gray-400">{new Date(selectedAlert.createdAt).toLocaleString()}</p>
-                      </div>
-                    </div>
+                  </div>
+                </div>
                     {selectedAlert.acknowledgedAt && (
                       <div className="flex items-center space-x-3">
                         <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                        <div>
+                <div>
                           <p className="text-sm font-medium text-white">Alert Acknowledged</p>
                           <p className="text-xs text-gray-400">
                             {new Date(selectedAlert.acknowledgedAt).toLocaleString()}
@@ -994,8 +994,8 @@ const AlertManagementSystem: React.FC = () => {
                               <span className="block text-gray-500">by {selectedAlert.acknowledgedBy}</span>
                             )}
                           </p>
-                        </div>
-                      </div>
+                </div>
+              </div>
                     )}
                     {selectedAlert.resolvedAt && (
                       <div className="flex items-center space-x-3">
@@ -1008,9 +1008,9 @@ const AlertManagementSystem: React.FC = () => {
                               <span className="block text-gray-500">by {selectedAlert.resolvedBy}</span>
                             )}
                           </p>
-                        </div>
-                      </div>
-                    )}
+            </div>
+          </div>
+        )}
                   </div>
                 </div>
 
@@ -1020,10 +1020,10 @@ const AlertManagementSystem: React.FC = () => {
                     <h3 className="text-lg font-semibold text-white mb-3">Resolution Details</h3>
                     <div className="space-y-4">
                       {selectedAlert.resolutionNotes && (
-                        <div>
+                <div>
                           <label className="block text-sm font-medium text-gray-400 mb-1">Resolution Notes</label>
                           <p className="text-gray-300 leading-relaxed">{selectedAlert.resolutionNotes}</p>
-                        </div>
+                  </div>
                       )}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {selectedAlert.resolutionMethod && (
@@ -1032,24 +1032,24 @@ const AlertManagementSystem: React.FC = () => {
                             <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
                               {selectedAlert.resolutionMethod.charAt(0).toUpperCase() + selectedAlert.resolutionMethod.slice(1)}
                             </span>
-                          </div>
+                </div>
                         )}
                         {selectedAlert.resolutionCategory && (
-                          <div>
+                  <div>
                             <label className="block text-sm font-medium text-gray-400 mb-1">Resolution Category</label>
                             <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
                               {selectedAlert.resolutionCategory.replace('_', ' ').charAt(0).toUpperCase() + selectedAlert.resolutionCategory.replace('_', ' ').slice(1)}
                             </span>
                           </div>
                         )}
-                      </div>
+                        </div>
                       {selectedAlert.followUpRequired && selectedAlert.followUpDate && (
                         <div>
                           <label className="block text-sm font-medium text-gray-400 mb-1">Follow-up Required</label>
                           <p className="text-yellow-300">{new Date(selectedAlert.followUpDate).toLocaleDateString()}</p>
-                        </div>
-                      )}
                     </div>
+                      )}
+                  </div>
                   </div>
                 )}
 
@@ -1059,7 +1059,7 @@ const AlertManagementSystem: React.FC = () => {
                     <h3 className="text-lg font-semibold text-white mb-3">Resolution Actions</h3>
                     <div className="space-y-4">
                       {selectedAlert.evidence && selectedAlert.evidence.length > 0 && (
-                        <div>
+                  <div>
                           <h4 className="font-medium text-white mb-2">Evidence Collected</h4>
                           <ul className="text-sm text-gray-300 space-y-1">
                             {selectedAlert.evidence.map((item, index) => (
@@ -1069,7 +1069,7 @@ const AlertManagementSystem: React.FC = () => {
                               </li>
                             ))}
                           </ul>
-                        </div>
+                          </div>
                       )}
                       {selectedAlert.correctiveActions && selectedAlert.correctiveActions.length > 0 && (
                         <div>
@@ -1095,7 +1095,7 @@ const AlertManagementSystem: React.FC = () => {
                               </li>
                             ))}
                           </ul>
-                        </div>
+                    </div>
                       )}
                     </div>
                   </div>
@@ -1137,12 +1137,12 @@ const AlertManagementSystem: React.FC = () => {
                       {isProcessing === selectedAlert.id ? 'Processing...' : 'Resolve'}
                     </button>
                   )}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Resolution Modal */}
       {isResolutionModalOpen && selectedAlert && (
@@ -1155,7 +1155,7 @@ const AlertManagementSystem: React.FC = () => {
                   <div className={`w-4 h-4 rounded-full ${getSeverityColor(selectedAlert.severity).split(' ')[0]}`} />
                   <h2 className="text-2xl font-bold text-white">Resolve Alert</h2>
                 </div>
-                <button
+                <button 
                   onClick={() => {
                     setIsResolutionModalOpen(false);
                     setSelectedAlert(null);
@@ -1173,7 +1173,7 @@ const AlertManagementSystem: React.FC = () => {
               <div className="bg-gray-700/30 p-4 rounded-lg mb-6">
                 <h3 className="text-lg font-semibold text-white mb-2">Alert Summary</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
+                <div>
                     <p className="text-sm text-gray-400">Alert ID</p>
                     <p className="text-white font-medium">{selectedAlert.id}</p>
                   </div>
@@ -1200,16 +1200,16 @@ const AlertManagementSystem: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Resolved By *</label>
-                    <input
-                      type="text"
+                  <input
+                    type="text"
                       value={resolutionData.resolvedBy}
                       onChange={(e) => setResolutionData(prev => ({ ...prev, resolvedBy: e.target.value }))}
                       placeholder="Enter your name"
                       className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       required
-                    />
-                  </div>
-                  <div>
+                  />
+                </div>
+                <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Resolution Method</label>
                     <select
                       value={resolutionData.resolutionMethod}
@@ -1224,9 +1224,9 @@ const AlertManagementSystem: React.FC = () => {
                 </div>
 
                 {/* Resolution Category */}
-                <div>
+                  <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Resolution Category</label>
-                  <select
+                    <select
                     value={resolutionData.resolutionCategory}
                     onChange={(e) => setResolutionData(prev => ({ ...prev, resolutionCategory: e.target.value as any }))}
                     className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1236,8 +1236,8 @@ const AlertManagementSystem: React.FC = () => {
                     <option value="monitoring">Under Monitoring</option>
                     <option value="escalated">Escalated to Higher Authority</option>
                     <option value="other">Other</option>
-                  </select>
-                </div>
+                    </select>
+                  </div>
 
                 {/* Resolution Notes */}
                 <div>
@@ -1267,15 +1267,15 @@ const AlertManagementSystem: React.FC = () => {
                     </label>
                   </div>
                   {resolutionData.followUpRequired && (
-                    <div>
+                <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">Follow-up Date</label>
-                      <input
+                  <input
                         type="date"
                         value={resolutionData.followUpDate}
                         onChange={(e) => setResolutionData(prev => ({ ...prev, followUpDate: e.target.value }))}
                         className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
-                    </div>
+                  </div>
                   )}
                 </div>
 
@@ -1296,7 +1296,7 @@ const AlertManagementSystem: React.FC = () => {
                         className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                       {resolutionData.evidence.length > 1 && (
-                        <button
+                  <button 
                           onClick={() => {
                             const newEvidence = resolutionData.evidence.filter((_, i) => i !== index);
                             setResolutionData(prev => ({ ...prev, evidence: newEvidence }));
@@ -1306,11 +1306,11 @@ const AlertManagementSystem: React.FC = () => {
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
-                        </button>
+                  </button>
                       )}
                     </div>
                   ))}
-                  <button
+                  <button 
                     onClick={() => setResolutionData(prev => ({ ...prev, evidence: [...prev.evidence, ''] }))}
                     className="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
                   >
@@ -1335,7 +1335,7 @@ const AlertManagementSystem: React.FC = () => {
                         className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                       {resolutionData.correctiveActions.length > 1 && (
-                        <button
+                <button 
                           onClick={() => {
                             const newActions = resolutionData.correctiveActions.filter((_, i) => i !== index);
                             setResolutionData(prev => ({ ...prev, correctiveActions: newActions }));
@@ -1343,11 +1343,11 @@ const AlertManagementSystem: React.FC = () => {
                           className="px-2 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
                       )}
-                    </div>
+              </div>
                   ))}
                   <button
                     onClick={() => setResolutionData(prev => ({ ...prev, correctiveActions: [...prev.correctiveActions, ''] }))}
@@ -1386,29 +1386,29 @@ const AlertManagementSystem: React.FC = () => {
                           </svg>
                         </button>
                       )}
-                    </div>
-                  ))}
+                        </div>
+                      ))}
                   <button
                     onClick={() => setResolutionData(prev => ({ ...prev, preventiveMeasures: [...prev.preventiveMeasures, ''] }))}
                     className="mt-2 px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors"
                   >
                     Add Measure
                   </button>
-                </div>
+              </div>
 
                 {/* Action Buttons */}
                 <div className="flex justify-end space-x-3 pt-6 border-t border-gray-600">
-                  <button
+                <button 
                     onClick={() => {
                       setIsResolutionModalOpen(false);
                       setSelectedAlert(null);
                       resetResolutionForm();
                     }}
                     className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
+                >
+                  Cancel
+                </button>
+                <button 
                     onClick={handleSubmitResolution}
                     disabled={isProcessing === selectedAlert.id || !resolutionData.resolvedBy.trim() || !resolutionData.resolutionNotes.trim()}
                     className={`px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium ${
@@ -1424,11 +1424,11 @@ const AlertManagementSystem: React.FC = () => {
                     ) : (
                       'Resolve Alert'
                     )}
-                  </button>
-                </div>
+                </button>
               </div>
             </div>
           </div>
+      </div>
         </div>
       )}
     </div>
