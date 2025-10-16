@@ -516,35 +516,35 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
       status: 'online',
       lastSeen: '2 minutes ago',
       alerts: 0,
-      streamUrl: 'http://localhost:8888/streams/people/index.m3u8',
+      streamUrl: 'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
       hasVideo: true
     },
     {
       id: 'cmfergh960003p925blttc4ag',
-      name: 'Demo Camera 13',
+      name: 'Construction Zone Camera',
       status: 'online',
       lastSeen: '1 minute ago',
       alerts: 2,
-      streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8',
-      hasVideo: false
+      streamUrl: 'https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8',
+      hasVideo: true
     },
     {
       id: 'cmfeu6qax0003p9epttd77m95',
-      name: 'Demo Camera 15',
-      status: 'offline',
-      lastSeen: '5 minutes ago',
+      name: 'Warehouse Monitoring',
+      status: 'online',
+      lastSeen: '30 seconds ago',
       alerts: 0,
-      streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8',
-      hasVideo: false
+      streamUrl: 'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
+      hasVideo: true
     },
     {
       id: 'cmfu4hz3c0001p9rohavqq2ra',
-      name: 'Demo Camera 16',
+      name: 'Parking Lot Camera',
       status: 'online',
       lastSeen: '30 seconds ago',
       alerts: 1,
-      streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8',
-      hasVideo: false
+      streamUrl: 'https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8',
+      hasVideo: true
     }
   ]);
 
@@ -1154,35 +1154,35 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
       status: 'online',
       lastSeen: '2 minutes ago',
       alerts: 0,
-      streamUrl: 'http://localhost:8888/streams/people/index.m3u8',
+      streamUrl: 'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
       hasVideo: true
     },
     {
       id: 'cmfergh960003p925blttc4ag',
-      name: 'Demo Camera 13',
+      name: 'Construction Zone Camera',
       status: 'online',
       lastSeen: '1 minute ago',
       alerts: 2,
-      streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8',
-      hasVideo: false
+      streamUrl: 'https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8',
+      hasVideo: true
     },
     {
       id: 'cmfeu6qax0003p9epttd77m95',
-      name: 'Demo Camera 15',
-      status: 'offline',
-      lastSeen: '5 minutes ago',
+      name: 'Warehouse Monitoring',
+      status: 'online',
+      lastSeen: '30 seconds ago',
       alerts: 0,
-      streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8',
-      hasVideo: false
+      streamUrl: 'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
+      hasVideo: true
     },
     {
       id: 'cmfu4hz3c0001p9rohavqq2ra',
-      name: 'Demo Camera 16',
+      name: 'Parking Lot Camera',
       status: 'online',
       lastSeen: '30 seconds ago',
       alerts: 1,
-      streamUrl: 'https://test-streams.mux.dev/bbb-360p.m3u8',
-      hasVideo: false
+      streamUrl: 'https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8',
+      hasVideo: true
     }
   ]);
 
@@ -1523,27 +1523,39 @@ function CamerasPage({ currentSite }: { currentSite: any }) {
   const [cameras, setCameras] = useState([
     {
       id: '1',
-      name: 'Main Entrance',
-    status: 'online',
+      name: 'Main Entrance - Building A',
+      status: 'online',
       lastSeen: '2 minutes ago',
       alerts: 0,
-    streamUrl: 'http://localhost:5001/video_feed'
+      streamUrl: 'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
+      hasVideo: true
     },
     {
       id: '2',
-      name: 'Safety Zone A',
+      name: 'Construction Zone 1',
       status: 'online',
       lastSeen: '1 minute ago',
       alerts: 2,
-      streamUrl: 'http://localhost:5001/video_feed'
+      streamUrl: 'https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8',
+      hasVideo: true
     },
     {
       id: '3',
-      name: 'Loading Dock',
-      status: 'offline',
-      lastSeen: '5 minutes ago',
+      name: 'Warehouse Dock',
+      status: 'online',
+      lastSeen: '30 seconds ago',
       alerts: 0,
-      streamUrl: 'http://localhost:5001/video_feed'
+      streamUrl: 'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
+      hasVideo: true
+    },
+    {
+      id: '4',
+      name: 'Parking Lot Camera',
+      status: 'online',
+      lastSeen: '1 minute ago',
+      alerts: 1,
+      streamUrl: 'https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8',
+      hasVideo: true
     }
   ]);
 
