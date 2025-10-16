@@ -58,9 +58,9 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
 
     if (Hls.isSupported()) {
       const hls = new Hls({
-        debug: false, // Set to true only for debugging
+        debug: false,
         enableWorker: true,
-        lowLatencyMode: false,
+        lowLatencyMode: true, // Enable low latency for live streams
         backBufferLength: 90,
         maxBufferLength: 30,
         maxMaxBufferLength: 600,
@@ -68,14 +68,14 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
         maxBufferHole: 0.5,
         highBufferWatchdogPeriod: 3,
         nudgeOffset: 0.1,
-        nudgeMaxRetry: 3,
+        nudgeMaxRetry: 10, // Increased retries
         maxFragLookUpTolerance: 0.25,
         liveSyncDurationCount: 3,
         liveMaxLatencyDurationCount: Infinity,
-        liveDurationInfinity: false,
+        liveDurationInfinity: true, // Keep playing indefinitely
         enableSoftwareAES: true,
         manifestLoadingTimeOut: 10000,
-        manifestLoadingMaxRetry: 1,
+        manifestLoadingMaxRetry: Infinity, // Never stop trying to load
         manifestLoadingRetryDelay: 1000,
         manifestLoadingMaxRetryTimeout: 64000,
         startLevel: -1,
@@ -182,6 +182,69 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
     return cleanup;
   }, [cleanup]);
 
+  // Keep video playing 24/7 - handle page visibility changes
+  useEffect(() => {
+    if (!videoRef.current) return;
+
+    const video = videoRef.current;
+
+    // Force video to keep playing when page becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('Page became visible - ensuring video continues');
+        if (video.paused && autoPlay) {
+          video.play().catch(err => console.log('Resume play failed:', err));
+        }
+      }
+    };
+
+    // Prevent pausing when tab is hidden
+    const handlePause = () => {
+      // Auto-resume if it was supposed to be playing
+      if (autoPlay && !video.ended) {
+        console.log('Video paused, auto-resuming for 24/7 operation');
+        setTimeout(() => {
+          video.play().catch(err => console.log('Auto-resume failed:', err));
+        }, 100);
+      }
+    };
+
+    // Handle playback stalls
+    const handleStalled = () => {
+      console.log('Playback stalled, attempting recovery...');
+      if (hlsRef.current) {
+        hlsRef.current.startLoad();
+      }
+    };
+
+    // Handle waiting (buffering)
+    const handleWaiting = () => {
+      console.log('Video buffering...');
+    };
+
+    // Add event listeners
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    video.addEventListener('pause', handlePause);
+    video.addEventListener('stalled', handleStalled);
+    video.addEventListener('waiting', handleWaiting);
+
+    // Periodic health check - ensure video is playing every 5 seconds
+    const healthCheckInterval = setInterval(() => {
+      if (autoPlay && video.paused && !video.ended && document.visibilityState === 'visible') {
+        console.log('Health check: Video paused, restarting...');
+        video.play().catch(err => console.log('Health check play failed:', err));
+      }
+    }, 5000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      video.removeEventListener('pause', handlePause);
+      video.removeEventListener('stalled', handleStalled);
+      video.removeEventListener('waiting', handleWaiting);
+      clearInterval(healthCheckInterval);
+    };
+  }, [autoPlay]);
+
   // Video event handlers
   const handleVideoPlay = () => {
     console.log('Video play event');
@@ -237,6 +300,9 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
           controls
           muted
           playsInline
+          loop
+          preload="auto"
+          disablePictureInPicture={false}
           onPlay={handleVideoPlay}
           onPause={handleVideoPause}
           onError={handleVideoError}

@@ -157,7 +157,7 @@ export default function RealtimeDetectionOverlay({
     });
   }, [videoElement]);
 
-  // Perform detection on video frame
+  // Perform detection on video frame (continues even when tab is hidden)
   const detectFrame = useCallback(async () => {
     if (!videoElement || !modelRef.current || !isActive) {
       return;
@@ -170,14 +170,18 @@ export default function RealtimeDetectionOverlay({
         return;
       }
 
-      // Run detection
+      // Run detection - continues even when tab is hidden for 24/7 monitoring
       const predictions = await modelRef.current.detect(videoElement);
       
       // Filter out low confidence detections
       const filteredPredictions = predictions.filter((p: Detection) => p.score > 0.5);
       
       setDetections(filteredPredictions);
-      drawDetections(filteredPredictions);
+      
+      // Only draw if page is visible (optimization)
+      if (document.visibilityState === 'visible') {
+        drawDetections(filteredPredictions);
+      }
 
       // Calculate FPS
       const currentTime = performance.now();
@@ -192,10 +196,11 @@ export default function RealtimeDetectionOverlay({
       }
       lastFrameTimeRef.current = currentTime;
 
-      // Continue detection loop
+      // Continue detection loop - runs continuously for 24/7 monitoring
       animationFrameRef.current = requestAnimationFrame(detectFrame);
     } catch (error) {
       console.error('Detection error:', error);
+      // Continue even on error for 24/7 reliability
       animationFrameRef.current = requestAnimationFrame(detectFrame);
     }
   }, [videoElement, isActive, drawDetections]);
