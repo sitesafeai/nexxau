@@ -547,31 +547,6 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
       hasVideo: true
     }
   ]);
-  
-  const [showAddCameraModal, setShowAddCameraModal] = useState(false);
-  const [newCameraData, setNewCameraData] = useState({
-    name: '',
-    location: '',
-    streamUrl: '',
-    type: 'hls' as 'rtsp' | 'hls' | 'webrtc'
-  });
-
-  const handleAddCamera = () => {
-    if (newCameraData.name && newCameraData.streamUrl) {
-      const newCamera = {
-        id: `camera-${Date.now()}`,
-        name: newCameraData.name,
-        status: 'online' as const,
-        lastSeen: 'Just now',
-        alerts: 0,
-        streamUrl: newCameraData.streamUrl,
-        hasVideo: true
-      };
-      setCameras([...cameras, newCamera]);
-      setShowAddCameraModal(false);
-      setNewCameraData({ name: '', location: '', streamUrl: '', type: 'hls' });
-    }
-  };
 
   const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -758,20 +733,20 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
             </div>
           </button>
 
-          {/* Add Camera Button */}
+          {/* Manage Cameras Button */}
           <button 
-            onClick={() => setShowAddCameraModal(true)}
+            onClick={() => router.push('/dashboard/camera-management')}
             className="group relative bg-gradient-to-br from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white p-6 rounded-xl border border-violet-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:ring-offset-2 focus:ring-offset-slate-900 shadow-lg hover:shadow-violet-500/25"
           >
             <div className="flex items-center space-x-4">
               <div className="flex-shrink-0">
                 <svg className="w-8 h-8 text-violet-100 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
               </div>
               <div className="text-left">
-                <div className="font-semibold text-lg">Add Camera</div>
-                <div className="text-violet-100 text-sm">Connect new camera feed</div>
+                <div className="font-semibold text-lg">Manage Cameras</div>
+                <div className="text-violet-100 text-sm">Add & configure feeds</div>
               </div>
             </div>
           </button>
@@ -893,114 +868,6 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
         </div>
       )}
 
-      {/* Add Camera Modal */}
-      {showAddCameraModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-xl max-w-2xl w-full p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Add New Camera</h2>
-              <button
-                onClick={() => {
-                  setShowAddCameraModal(false);
-                  setNewCameraData({ name: '', location: '', streamUrl: '', type: 'hls' });
-                }}
-                className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Camera Name *</label>
-                <input
-                  type="text"
-                  value={newCameraData.name}
-                  onChange={(e) => setNewCameraData({...newCameraData, name: e.target.value})}
-                  placeholder="e.g., Main Entrance Camera"
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Location</label>
-                <input
-                  type="text"
-                  value={newCameraData.location}
-                  onChange={(e) => setNewCameraData({...newCameraData, location: e.target.value})}
-                  placeholder="e.g., Building A - Floor 2"
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Stream Type</label>
-                <select
-                  value={newCameraData.type}
-                  onChange={(e) => setNewCameraData({...newCameraData, type: e.target.value as any})}
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="hls">HLS (.m3u8)</option>
-                  <option value="rtsp">RTSP</option>
-                  <option value="webrtc">WebRTC</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Stream URL *</label>
-                <input
-                  type="text"
-                  value={newCameraData.streamUrl}
-                  onChange={(e) => setNewCameraData({...newCameraData, streamUrl: e.target.value})}
-                  placeholder={
-                    newCameraData.type === 'rtsp' 
-                      ? 'rtsp://username:password@camera-ip:554/stream'
-                      : newCameraData.type === 'hls'
-                      ? 'https://example.com/stream/playlist.m3u8'
-                      : 'wss://example.com/webrtc'
-                  }
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  {newCameraData.type === 'rtsp' && 'Note: RTSP streams need MediaMTX running to convert to HLS'}
-                  {newCameraData.type === 'hls' && 'HLS streams are directly supported in browsers'}
-                </p>
-              </div>
-
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-blue-300 mb-2">📝 Example Stream URLs:</h4>
-                <div className="space-y-1 text-xs text-gray-300 font-mono">
-                  <p><strong className="text-blue-300">HLS:</strong> https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8</p>
-                  <p><strong className="text-violet-300">RTSP:</strong> rtsp://rtspstream:eExmoJQ2QwuuJyBYDWtLo@zephyr.rtsp.stream/people</p>
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-600">
-                <button
-                  onClick={() => {
-                    setShowAddCameraModal(false);
-                    setNewCameraData({ name: '', location: '', streamUrl: '', type: 'hls' });
-                  }}
-                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAddCamera}
-                  disabled={!newCameraData.name || !newCameraData.streamUrl}
-                  className={`px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium ${
-                    !newCameraData.name || !newCameraData.streamUrl ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  Add Camera
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
