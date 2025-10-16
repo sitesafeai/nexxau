@@ -1,7 +1,10 @@
 import { NextRequest } from 'next/server';
 
+// Persistent detection positions for smoother, more realistic detections
+const detectionStates = new Map();
+
 // Mock detection data generator for demo purposes
-function generateMockDetections() {
+function generateMockDetections(cameraId: string) {
   const objectClasses = [
     'person',
     'hard_hat',
@@ -12,32 +15,57 @@ function generateMockDetections() {
     'equipment'
   ];
 
-  const numDetections = Math.floor(Math.random() * 5) + 1; // 1-5 objects
+  // Get or initialize camera state
+  if (!detectionStates.has(cameraId)) {
+    const numObjects = Math.floor(Math.random() * 3) + 2; // 2-4 persistent objects
+    const initialObjects = [];
+    
+    for (let i = 0; i < numObjects; i++) {
+      const classIndex = Math.floor(Math.random() * objectClasses.length);
+      initialObjects.push({
+        class_id: classIndex,
+        class_name: objectClasses[classIndex],
+        x: Math.random() * 600 + 100,
+        y: Math.random() * 300 + 50,
+        width: Math.random() * 100 + 80,
+        height: Math.random() * 150 + 100,
+        vx: (Math.random() - 0.5) * 10, // Slower movement
+        vy: (Math.random() - 0.5) * 10,
+        confidence: 0.80 + Math.random() * 0.15
+      });
+    }
+    detectionStates.set(cameraId, initialObjects);
+  }
+
+  const objects = detectionStates.get(cameraId);
   const detections = [];
 
-  for (let i = 0; i < numDetections; i++) {
-    const classIndex = Math.floor(Math.random() * objectClasses.length);
-    const className = objectClasses[classIndex];
+  // Update positions with smoother movement
+  objects.forEach((obj: any) => {
+    // Update position slightly
+    obj.x += obj.vx;
+    obj.y += obj.vy;
     
-    // Random position (ensure boxes stay within frame)
-    const x1 = Math.random() * 500 + 50;
-    const y1 = Math.random() * 300 + 50;
-    const width = Math.random() * 150 + 80;
-    const height = Math.random() * 200 + 100;
+    // Bounce off edges
+    if (obj.x < 50 || obj.x > 750) obj.vx *= -1;
+    if (obj.y < 50 || obj.y > 400) obj.vy *= -1;
+    
+    // Slight confidence variation
+    obj.confidence = Math.min(0.95, Math.max(0.75, obj.confidence + (Math.random() - 0.5) * 0.02));
 
     detections.push({
-      class_id: classIndex,
-      class_name: className,
-      confidence: 0.75 + Math.random() * 0.24, // 75-99% confidence
+      class_id: obj.class_id,
+      class_name: obj.class_name,
+      confidence: obj.confidence,
       bbox: {
-        x1: Math.round(x1),
-        y1: Math.round(y1),
-        x2: Math.round(x1 + width),
-        y2: Math.round(y1 + height)
+        x1: Math.round(obj.x),
+        y1: Math.round(obj.y),
+        x2: Math.round(obj.x + obj.width),
+        y2: Math.round(obj.y + obj.height)
       },
       timestamp: new Date().toISOString()
     });
-  }
+  });
 
   return detections;
 }
@@ -51,9 +79,9 @@ export async function GET(request: NextRequest) {
   
   const stream = new ReadableStream({
     start(controller) {
-      // Send detection updates every 2 seconds
+      // Send detection updates every 500ms for smoother animations
       const interval = setInterval(() => {
-        const detections = generateMockDetections();
+        const detections = generateMockDetections(cameraId || 'default');
         const data = JSON.stringify({
           camera_id: cameraId,
           detections,
@@ -67,7 +95,7 @@ export async function GET(request: NextRequest) {
           clearInterval(interval);
           controller.close();
         }
-      }, 2000);
+      }, 500);
 
       // Clean up on close
       request.signal.addEventListener('abort', () => {

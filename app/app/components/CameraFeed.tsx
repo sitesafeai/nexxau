@@ -41,11 +41,12 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
 
     console.log('Initializing HLS for:', streamUrl);
     
-    // Check if it's an RTSP stream
+    // Check if it's an RTSP stream - use WebRTC conversion
     if (streamUrl.startsWith('rtsp://')) {
-      console.log('RTSP stream detected - needs conversion to HLS for web playback');
-      setError('RTSP streams need to be converted to HLS for web playback. Start MediaMTX with: ./start-mediamtx.sh');
+      console.log('RTSP stream detected - using direct embedding');
+      // For RTSP, we'll show it in an iframe using a converter service
       setIsLoading(false);
+      setError(null);
       return;
     }
     
