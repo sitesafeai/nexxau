@@ -32,6 +32,8 @@
     "@reactflow/node-resizer": "^2.2.14",
     "@sentry/nextjs": "^10.17.0",
     "@sentry/node": "^10.17.0",
+    "@tensorflow-models/coco-ssd": "^2.2.3",
+    "@tensorflow/tfjs": "^4.22.0",
     "@tinymce/tinymce-react": "^6.2.1",
     "@tiptap/extension-code-block-lowlight": "^2.14.0",
     "@tiptap/extension-color": "^2.14.0",
