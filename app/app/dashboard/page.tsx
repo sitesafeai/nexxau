@@ -1492,6 +1492,8 @@ function SitesPage({ sites, currentUser }: { sites: any[], currentUser: any }) {
 
 function CamerasPage({ currentSite }: { currentSite: any }) {
   const { cameras } = useCameraStore();
+  const router = useRouter();
+  const [selectedCameraForLive, setSelectedCameraForLive] = useState<any>(null);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -1520,9 +1522,15 @@ function CamerasPage({ currentSite }: { currentSite: any }) {
         <h1 className="text-3xl font-bold text-white">Camera Management</h1>
           <p className="text-gray-300">{currentSite.name}</p>
         </div>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+        <button 
+          onClick={() => router.push('/dashboard/camera-management')}
+          className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-2.5 rounded-lg font-semibold transition-all shadow-lg hover:shadow-blue-500/25 flex items-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
           Add Camera
-          </button>
+        </button>
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1558,16 +1566,56 @@ function CamerasPage({ currentSite }: { currentSite: any }) {
             </div>
 
                 <div className="flex space-x-2">
-                  <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors">
+                  <button 
+                    onClick={() => setSelectedCameraForLive(camera)}
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all"
+                  >
                     View Live
                   </button>
-                  <button className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded text-sm font-medium transition-colors">
-                Configure
+                  <button 
+                    onClick={() => router.push('/dashboard/camera-management')}
+                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Configure
                   </button>
               </div>
             </div>
           ))}
         </div>
+
+      {/* Live Camera Modal */}
+      {selectedCameraForLive && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-xl max-w-6xl w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">{selectedCameraForLive.name}</h2>
+                  <p className="text-gray-400">{selectedCameraForLive.location || 'Camera Feed'}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedCameraForLive(null)}
+                  className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="bg-black rounded-lg overflow-hidden">
+                <CameraFeed 
+                  streamUrl={selectedCameraForLive.streamUrl}
+                  cameraId={selectedCameraForLive.id}
+                  autoPlay={true}
+                  enableDetection={true}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1663,117 +1711,249 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
 }
 
 function ReportsPage({ currentSite }: { currentSite: any }) {
+  const router = useRouter();
+
   if (!currentSite) {
-  return (
-    <div className="space-y-6">
+    return (
+      <div className="space-y-6">
         <h1 className="text-3xl font-bold text-white">Reports</h1>
         <div className="bg-gray-800 p-6 rounded-lg">
           <p className="text-gray-300">Please select a worksite to view its reports.</p>
-            </div>
-          </div>
+        </div>
+      </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-white">Reports</h1>
-      <p className="text-gray-300">{currentSite.name}</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-white">Reports & Analytics</h1>
+          <p className="text-gray-300">{currentSite.name}</p>
+        </div>
+        <ExportButton 
+          siteId={currentSite.id}
+          siteName={currentSite.name}
+          variant="primary"
+        />
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-gray-800 p-6 rounded-lg">
-          <h3 className="text-lg font-semibold text-white mb-4">Daily Report</h3>
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 p-6 rounded-xl">
+          <h3 className="text-lg font-bold text-white mb-4">Daily Report</h3>
           <p className="text-gray-300 mb-4">Safety compliance summary for today</p>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition-colors">
-            Generate
-              </button>
+          <ExportButton 
+            siteId={currentSite.id}
+            siteName={currentSite.name}
+            variant="outline"
+            size="sm"
+          />
         </div>
 
-        <div className="bg-gray-800 p-6 rounded-lg">
-          <h3 className="text-lg font-semibold text-white mb-4">Weekly Report</h3>
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 p-6 rounded-xl">
+          <h3 className="text-lg font-bold text-white mb-4">Weekly Report</h3>
           <p className="text-gray-300 mb-4">Weekly safety trends and incidents</p>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition-colors">
-            Generate
-              </button>
+          <ExportButton 
+            siteId={currentSite.id}
+            siteName={currentSite.name}
+            variant="outline"
+            size="sm"
+          />
         </div>
 
-        <div className="bg-gray-800 p-6 rounded-lg">
-          <h3 className="text-lg font-semibold text-white mb-4">Monthly Report</h3>
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 p-6 rounded-xl">
+          <h3 className="text-lg font-bold text-white mb-4">Monthly Report</h3>
           <p className="text-gray-300 mb-4">Comprehensive monthly safety analysis</p>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition-colors">
-            Generate
-            </button>
-          </div>
+          <ExportButton 
+            siteId={currentSite.id}
+            siteName={currentSite.name}
+            variant="outline"
+            size="sm"
+          />
         </div>
-      </div>
-  );
-}
 
-function WorkflowsPage({ currentSite }: { currentSite: any }) {
-  if (!currentSite) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-3xl font-bold text-white">Workflows</h1>
-      <div className="bg-gray-800 p-6 rounded-lg">
-          <p className="text-gray-300">Please select a worksite to view its workflows.</p>
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 p-6 rounded-xl">
+          <h3 className="text-lg font-bold text-white mb-4">Incident Report</h3>
+          <p className="text-gray-300 mb-4">Detailed incident analysis and logs</p>
+          <ExportButton 
+            siteId={currentSite.id}
+            siteName={currentSite.name}
+            variant="outline"
+            size="sm"
+          />
+        </div>
+
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 p-6 rounded-xl">
+          <h3 className="text-lg font-bold text-white mb-4">Compliance Report</h3>
+          <p className="text-gray-300 mb-4">Regulatory compliance documentation</p>
+          <ExportButton 
+            siteId={currentSite.id}
+            siteName={currentSite.name}
+            variant="outline"
+            size="sm"
+          />
+        </div>
+
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 p-6 rounded-xl">
+          <h3 className="text-lg font-bold text-white mb-4">Custom Report</h3>
+          <p className="text-gray-300 mb-4">Build your own custom report</p>
+          <button 
+            onClick={() => router.push('/dashboard/analytics')}
+            className="bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white px-4 py-2 rounded-lg font-semibold transition-all"
+          >
+            Create Custom
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
+function WorkflowsPage({ currentSite }: { currentSite: any }) {
+  const router = useRouter();
+  
+  if (!currentSite) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold text-white">Workflows</h1>
+        <div className="bg-gray-800 p-6 rounded-lg">
+          <p className="text-gray-300">Please select a worksite to view its workflows.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-white">Workflows</h1>
-      <p className="text-gray-300">{currentSite.name}</p>
+      <div>
+        <h1 className="text-3xl font-bold text-white">Safety Workflows</h1>
+        <p className="text-gray-300">{currentSite.name}</p>
+      </div>
       
-      <div className="bg-gray-800 p-6 rounded-lg">
-        <h3 className="text-lg font-semibold text-white mb-4">Safety Workflows</h3>
-        <p className="text-gray-300">Workflow management interface will be implemented here.</p>
-            </div>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 p-6 rounded-xl">
+          <h3 className="text-lg font-bold text-white mb-4">Alert Workflows</h3>
+          <p className="text-gray-300 mb-4">Manage automated alert response procedures</p>
+          <button 
+            onClick={() => router.push('/dashboard/alerts')}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-2 rounded-lg font-semibold transition-all"
+          >
+            Configure Alerts
+          </button>
+        </div>
+
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 p-6 rounded-xl">
+          <h3 className="text-lg font-bold text-white mb-4">Custom Rules</h3>
+          <p className="text-gray-300 mb-4">Create custom safety detection rules</p>
+          <button 
+            onClick={() => router.push('/dashboard/custom-rules')}
+            className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white px-4 py-2 rounded-lg font-semibold transition-all"
+          >
+            Manage Rules
+          </button>
+        </div>
+
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 p-6 rounded-xl">
+          <h3 className="text-lg font-bold text-white mb-4">Notification Settings</h3>
+          <p className="text-gray-300 mb-4">Configure SMS and email notifications</p>
+          <button 
+            onClick={() => router.push('/dashboard/sms-notifications')}
+            className="bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white px-4 py-2 rounded-lg font-semibold transition-all"
+          >
+            SMS Settings
+          </button>
+        </div>
+
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 p-6 rounded-xl">
+          <h3 className="text-lg font-bold text-white mb-4">Error Monitoring</h3>
+          <p className="text-gray-300 mb-4">View system errors and recovery workflows</p>
+          <button 
+            onClick={() => router.push('/dashboard/errors')}
+            className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white px-4 py-2 rounded-lg font-semibold transition-all"
+          >
+            Error Dashboard
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
 function SettingsPage({ currentUser }: { currentUser: any }) {
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [formData, setFormData] = useState({
+    name: currentUser?.name || '',
+    email: currentUser?.email || ''
+  });
+
+  const handleSaveSettings = () => {
+    // Simulate saving settings
+    console.log('Saving user settings:', formData);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-white">Settings</h1>
       
-      <div className="bg-gray-800 rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-700">
-          <h3 className="text-lg font-medium text-white">User Settings</h3>
+      {saveSuccess && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-4 py-3 rounded-lg flex items-center gap-2">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Settings saved successfully!
+        </div>
+      )}
+
+      <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl">
+        <div className="px-6 py-4 border-b border-slate-700/50">
+          <h3 className="text-lg font-bold text-white">User Settings</h3>
         </div>
         <div className="p-6 space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-300">Name</label>
+            <label className="block text-sm font-semibold text-gray-300 mb-2">Name</label>
             <input
               type="text"
-              className="mt-1 block w-full border border-gray-600 bg-gray-700 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              defaultValue={currentUser.name}
+              value={formData.name}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
+              className="block w-full border border-slate-600 bg-slate-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-300">Email</label>
+            <label className="block text-sm font-semibold text-gray-300 mb-2">Email</label>
             <input
               type="email"
-              className="mt-1 block w-full border border-gray-600 bg-gray-700 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              defaultValue={currentUser.email}
+              value={formData.email}
+              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              className="block w-full border border-slate-600 bg-slate-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-300">Role</label>
+            <label className="block text-sm font-semibold text-gray-300 mb-2">Role</label>
             <input
               type="text"
-              className="mt-1 block w-full border border-gray-600 bg-gray-700 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              defaultValue={currentUser.role}
+              className="block w-full border border-slate-600 bg-slate-700 text-gray-400 rounded-lg px-3 py-2 cursor-not-allowed"
+              defaultValue={currentUser?.role || 'User'}
               disabled
             />
+            <p className="text-xs text-gray-500 mt-1">Contact an administrator to change your role</p>
           </div>
           
-          <div className="pt-4">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+          <div className="pt-4 flex gap-3">
+            <button 
+              onClick={handleSaveSettings}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-2 rounded-lg font-semibold transition-all shadow-lg hover:shadow-blue-500/25"
+            >
               Save Settings
+            </button>
+            <button 
+              onClick={() => setFormData({ name: currentUser?.name || '', email: currentUser?.email || '' })}
+              className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+            >
+              Reset
             </button>
           </div>
         </div>
