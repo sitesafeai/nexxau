@@ -19,9 +19,39 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  // Keep tab active using Web Audio API (prevents browser throttling)
+  useEffect(() => {
+    if (autoPlay && typeof window !== 'undefined') {
+      try {
+        // Create silent audio context to keep tab active
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContext && !audioContextRef.current) {
+          audioContextRef.current = new AudioContext();
+          const oscillator = audioContextRef.current.createOscillator();
+          const gainNode = audioContextRef.current.createGain();
+          gainNode.gain.value = 0.001; // Nearly silent
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContextRef.current.destination);
+          oscillator.start();
+          console.log('🔊 Audio context created to prevent tab throttling');
+        }
+      } catch (err) {
+        console.log('Could not create audio context:', err);
+      }
+    }
+
+    return () => {
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+    };
+  }, [autoPlay]);
 
   // Cleanup function
   const cleanup = useCallback(() => {
@@ -182,30 +212,21 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
     return cleanup;
   }, [cleanup]);
 
-  // Keep video playing 24/7 - handle page visibility changes
+  // Keep video playing continuously - even when tab is hidden
   useEffect(() => {
     if (!videoRef.current) return;
 
     const video = videoRef.current;
 
-    // Force video to keep playing when page becomes visible again
+    // Handle visibility change - resume if needed when page becomes visible
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('Page became visible - ensuring video continues');
-        if (video.paused && autoPlay) {
+        console.log('Page became visible - checking video state');
+        // Only resume if it was paused and should be playing
+        if (video.paused && autoPlay && !video.ended) {
+          console.log('Resuming video playback');
           video.play().catch(err => console.log('Resume play failed:', err));
         }
-      }
-    };
-
-    // Prevent pausing when tab is hidden
-    const handlePause = () => {
-      // Auto-resume if it was supposed to be playing
-      if (autoPlay && !video.ended) {
-        console.log('Video paused, auto-resuming for 24/7 operation');
-        setTimeout(() => {
-          video.play().catch(err => console.log('Auto-resume failed:', err));
-        }, 100);
       }
     };
 
@@ -217,30 +238,35 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
       }
     };
 
-    // Handle waiting (buffering)
-    const handleWaiting = () => {
-      console.log('Video buffering...');
+    // Handle network errors - auto-retry
+    const handleError = () => {
+      console.log('Video error detected, will retry...');
+      if (hlsRef.current && autoPlay) {
+        setTimeout(() => {
+          hlsRef.current?.startLoad();
+          video.play().catch(err => console.log('Error recovery failed:', err));
+        }, 2000);
+      }
     };
 
     // Add event listeners
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    video.addEventListener('pause', handlePause);
     video.addEventListener('stalled', handleStalled);
-    video.addEventListener('waiting', handleWaiting);
+    video.addEventListener('error', handleError);
 
-    // Periodic health check - ensure video is playing every 5 seconds
+    // Periodic health check - ensure video is playing
     const healthCheckInterval = setInterval(() => {
-      if (autoPlay && video.paused && !video.ended && document.visibilityState === 'visible') {
-        console.log('Health check: Video paused, restarting...');
+      // Only check when page is visible to avoid unnecessary logging
+      if (document.visibilityState === 'visible' && autoPlay && video.paused && !video.ended) {
+        console.log('Health check: Video paused unexpectedly, restarting...');
         video.play().catch(err => console.log('Health check play failed:', err));
       }
-    }, 5000);
+    }, 10000); // Check every 10 seconds
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      video.removeEventListener('pause', handlePause);
       video.removeEventListener('stalled', handleStalled);
-      video.removeEventListener('waiting', handleWaiting);
+      video.removeEventListener('error', handleError);
       clearInterval(healthCheckInterval);
     };
   }, [autoPlay]);
