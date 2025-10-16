@@ -538,21 +538,13 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
   };
 
   const handleGenerateReport = () => {
-    setShowReportModal(true);
-    // In a real app, this would trigger report generation
-    console.log('Generating safety report for site:', currentSite.name);
+    // Navigate to analytics page for full reporting
+    router.push('/dashboard/analytics');
   };
 
   const handleConfigureAlerts = () => {
-    setShowAlertConfig(true);
-    // In a real app, this would open alert configuration
-    console.log('Opening alert configuration for site:', currentSite.name);
-  };
-
-  const handleManageCameras = () => {
-    setShowCameraManager(true);
-    // In a real app, this would open camera management
-    console.log('Opening camera management for site:', currentSite.name);
+    // Navigate to alert management page
+    router.push('/dashboard/alerts');
   };
 
   const navigateToReports = () => {
@@ -1251,6 +1243,8 @@ function ReportsTab({ currentSite }: { currentSite: any }) {
 }
 
 function SitesTab({ currentSite }: { currentSite: any }) {
+  const router = useRouter();
+  
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -1315,24 +1309,44 @@ function SitesTab({ currentSite }: { currentSite: any }) {
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-gray-800 p-6 rounded-lg">
-        <h3 className="text-lg font-semibold text-white mb-4">Site Actions</h3>
+      <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/30 p-6 rounded-xl">
+        <h3 className="text-lg font-bold text-white mb-4 uppercase tracking-wide">Site Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <button className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg text-center transition-colors">
-            <div className="text-2xl mb-2">📹</div>
-            <div className="font-medium">Manage Cameras</div>
+          <button 
+            onClick={() => router.push('/dashboard/camera-management')}
+            className="bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-4 rounded-xl text-center transition-all shadow-lg hover:shadow-blue-500/25"
+          >
+            <svg className="w-8 h-8 mx-auto mb-2 text-blue-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            <div className="font-semibold">Manage Cameras</div>
           </button>
-          <button className="bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg text-center transition-colors">
-            <div className="text-2xl mb-2">👥</div>
-            <div className="font-medium">Assign Users</div>
+          <button 
+            onClick={() => router.push('/admin')}
+            className="bg-gradient-to-br from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white p-4 rounded-xl text-center transition-all shadow-lg hover:shadow-emerald-500/25"
+          >
+            <svg className="w-8 h-8 mx-auto mb-2 text-emerald-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            <div className="font-semibold">Manage Users</div>
           </button>
-          <button className="bg-yellow-600 hover:bg-yellow-700 text-white p-4 rounded-lg text-center transition-colors">
-            <div className="text-2xl mb-2">⚙️</div>
-            <div className="font-medium">Configure Alerts</div>
+          <button 
+            onClick={() => router.push('/dashboard/alerts')}
+            className="bg-gradient-to-br from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white p-4 rounded-xl text-center transition-all shadow-lg hover:shadow-amber-500/25"
+          >
+            <svg className="w-8 h-8 mx-auto mb-2 text-amber-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <div className="font-semibold">Configure Alerts</div>
           </button>
-          <button className="bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-lg text-center transition-colors">
-            <div className="text-2xl mb-2">📊</div>
-            <div className="font-medium">View Analytics</div>
+          <button 
+            onClick={() => router.push('/dashboard/analytics')}
+            className="bg-gradient-to-br from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white p-4 rounded-xl text-center transition-all shadow-lg hover:shadow-violet-500/25"
+          >
+            <svg className="w-8 h-8 mx-auto mb-2 text-violet-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <div className="font-semibold">View Analytics</div>
           </button>
         </div>
       </div>
@@ -1341,6 +1355,8 @@ function SitesTab({ currentSite }: { currentSite: any }) {
 }
 
 function SitesPage({ sites, currentUser }: { sites: any[], currentUser: any }) {
+  const router = useRouter();
+  
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'bg-green-900 text-green-300';
@@ -1410,11 +1426,23 @@ function SitesPage({ sites, currentUser }: { sites: any[], currentUser: any }) {
             </div>
 
             <div className="flex space-x-2">
-              <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors">
+              <button 
+                onClick={() => {
+                  // Navigate to site overview
+                  router.push(`/dashboard?site=${site.id}`);
+                }}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
+              >
                 View Details
               </button>
-              {(currentUser.role === 'admin' || site.managers.includes(currentUser.email)) && (
-              <button className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded text-sm font-medium transition-colors">
+              {(currentUser.role === 'admin' || site.managers?.includes(currentUser.email)) && (
+              <button 
+                onClick={() => {
+                  // Navigate to site settings
+                  router.push(`/dashboard/settings?site=${site.id}`);
+                }}
+                className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
+              >
                 Manage
               </button>
               )}
@@ -1424,21 +1452,36 @@ function SitesPage({ sites, currentUser }: { sites: any[], currentUser: any }) {
       </div>
 
       {/* Role-based Quick Actions */}
-      <div className="bg-gray-800 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+      <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/30 p-6 rounded-xl">
+        <h3 className="text-lg font-bold text-white mb-4 uppercase tracking-wide">Quick Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg text-center transition-colors">
-            <div className="text-2xl mb-2">📊</div>
-            <div className="font-medium">Generate Report</div>
+          <button 
+            onClick={() => router.push('/dashboard/analytics')}
+            className="bg-gradient-to-br from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white p-4 rounded-xl text-center transition-all shadow-lg hover:shadow-emerald-500/25"
+          >
+            <svg className="w-8 h-8 mx-auto mb-2 text-emerald-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <div className="font-semibold">Generate Report</div>
           </button>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg text-center transition-colors">
-            <div className="text-2xl mb-2">⚙️</div>
-            <div className="font-medium">Configure Alerts</div>
+          <button 
+            onClick={() => router.push('/dashboard/alerts')}
+            className="bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-4 rounded-xl text-center transition-all shadow-lg hover:shadow-blue-500/25"
+          >
+            <svg className="w-8 h-8 mx-auto mb-2 text-blue-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <div className="font-semibold">Configure Alerts</div>
           </button>
-          {currentUser.role === 'admin' && (
-          <button className="bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-lg text-center transition-colors">
-              <div className="text-2xl mb-2">👥</div>
-              <div className="font-medium">Manage Users</div>
+          {currentUser?.role === 'admin' && (
+          <button 
+            onClick={() => router.push('/admin')}
+            className="bg-gradient-to-br from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white p-4 rounded-xl text-center transition-all shadow-lg hover:shadow-violet-500/25"
+          >
+            <svg className="w-8 h-8 mx-auto mb-2 text-violet-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            <div className="font-semibold">Manage Users</div>
           </button>
           )}
         </div>
