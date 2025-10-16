@@ -10,6 +10,7 @@ import { Suspense } from 'react';
 import ActiveAlerts from '@/app/components/dashboard/ActiveAlerts';
 import RealtimeDetectionOverlay from '../components/RealtimeDetectionOverlay';
 import ExportButton from '../components/ExportButton';
+import { useCameraStore } from '../lib/camera-store';
 
 // Wrapper component that provides the dashboard context
 export default function DashboardPage() {
@@ -509,44 +510,7 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
 
 function OverviewTab({ currentSite }: { currentSite: any }) {
   const router = useRouter();
-  const [cameras, setCameras] = useState([
-    {
-      id: 'cmfuh6d6f0005p9smp5h99ect',
-      name: 'People Detection Camera',
-      status: 'online',
-      lastSeen: '2 minutes ago',
-      alerts: 0,
-      streamUrl: 'https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8',
-      hasVideo: true
-    },
-    {
-      id: 'cmfergh960003p925blttc4ag',
-      name: 'Construction Zone Camera',
-      status: 'online',
-      lastSeen: '1 minute ago',
-      alerts: 2,
-      streamUrl: 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8',
-      hasVideo: true
-    },
-    {
-      id: 'cmfeu6qax0003p9epttd77m95',
-      name: 'Warehouse Monitoring',
-      status: 'online',
-      lastSeen: '30 seconds ago',
-      alerts: 0,
-      streamUrl: 'https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8',
-      hasVideo: true
-    },
-    {
-      id: 'cmfu4hz3c0001p9rohavqq2ra',
-      name: 'Parking Lot Camera',
-      status: 'online',
-      lastSeen: '30 seconds ago',
-      alerts: 1,
-      streamUrl: 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8',
-      hasVideo: true
-    }
-  ]);
+  const { cameras } = useCameraStore();
 
   const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -1148,44 +1112,7 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
 }
 
 function MonitoringTab({ currentSite }: { currentSite: any }) {
-  const [cameras] = useState([
-    {
-      id: 'cmfuh6d6f0005p9smp5h99ect',
-      name: 'People Detection Camera',
-      status: 'online',
-      lastSeen: '2 minutes ago',
-      alerts: 0,
-      streamUrl: 'https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8',
-      hasVideo: true
-    },
-    {
-      id: 'cmfergh960003p925blttc4ag',
-      name: 'Construction Zone Camera',
-      status: 'online',
-      lastSeen: '1 minute ago',
-      alerts: 2,
-      streamUrl: 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8',
-      hasVideo: true
-    },
-    {
-      id: 'cmfeu6qax0003p9epttd77m95',
-      name: 'Warehouse Monitoring',
-      status: 'online',
-      lastSeen: '30 seconds ago',
-      alerts: 0,
-      streamUrl: 'https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8',
-      hasVideo: true
-    },
-    {
-      id: 'cmfu4hz3c0001p9rohavqq2ra',
-      name: 'Parking Lot Camera',
-      status: 'online',
-      lastSeen: '30 seconds ago',
-      alerts: 1,
-      streamUrl: 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8',
-      hasVideo: true
-    }
-  ]);
+  const { cameras } = useCameraStore();
 
   const [enableDetection, setEnableDetection] = useState(false);
 
@@ -1248,7 +1175,7 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
               <CameraFeed
                 streamUrl={camera.streamUrl}
                 cameraId={camera.id}
-                autoPlay={camera.status === 'active'}
+                autoPlay={camera.status === 'online'}
                 className="h-full"
                 enableDetection={enableDetection}
               />
@@ -1521,44 +1448,7 @@ function SitesPage({ sites, currentUser }: { sites: any[], currentUser: any }) {
 }
 
 function CamerasPage({ currentSite }: { currentSite: any }) {
-  const [cameras, setCameras] = useState([
-    {
-      id: '1',
-      name: 'Main Entrance - Building A',
-      status: 'online',
-      lastSeen: '2 minutes ago',
-      alerts: 0,
-      streamUrl: 'https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8',
-      hasVideo: true
-    },
-    {
-      id: '2',
-      name: 'Construction Zone 1',
-      status: 'online',
-      lastSeen: '1 minute ago',
-      alerts: 2,
-      streamUrl: 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8',
-      hasVideo: true
-    },
-    {
-      id: '3',
-      name: 'Warehouse Dock',
-      status: 'online',
-      lastSeen: '30 seconds ago',
-      alerts: 0,
-      streamUrl: 'https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8',
-      hasVideo: true
-    },
-    {
-      id: '4',
-      name: 'Parking Lot Camera',
-      status: 'online',
-      lastSeen: '1 minute ago',
-      alerts: 1,
-      streamUrl: 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8',
-      hasVideo: true
-    }
-  ]);
+  const { cameras } = useCameraStore();
 
   const getStatusColor = (status: string) => {
     switch (status) {

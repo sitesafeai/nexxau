@@ -2,47 +2,18 @@
 
 import React, { useState } from 'react';
 import CameraFeed from '@/app/components/CameraFeed';
-
-interface Camera {
-  id: string;
-  name: string;
-  location: string;
-  streamUrl: string;
-  streamType: 'hls' | 'rtsp' | 'webrtc' | 'http';
-  status: 'online' | 'offline' | 'error';
-  description?: string;
-  resolution?: string;
-  fps?: number;
-  addedAt: string;
-}
+import { useCameraStore, Camera } from '@/app/lib/camera-store';
 
 export default function CameraManagementPage() {
-  const [cameras, setCameras] = useState<Camera[]>([
-    {
-      id: 'cam-1',
-      name: 'People Detection Camera',
-      location: 'Main Entrance - Building A',
-      streamUrl: 'https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8',
-      streamType: 'hls',
-      status: 'online',
-      description: 'Monitors main entrance for people counting',
-      resolution: '1080p',
-      fps: 30,
-      addedAt: new Date().toISOString()
-    },
-    {
-      id: 'cam-2',
-      name: 'Construction Zone Camera',
-      location: 'Building B - Floor 2',
-      streamUrl: 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8',
-      streamType: 'hls',
-      status: 'online',
-      description: 'Safety monitoring for construction area',
-      resolution: '720p',
-      fps: 30,
-      addedAt: new Date().toISOString()
-    }
-  ]);
+  const { 
+    cameras, 
+    addCamera, 
+    updateCamera, 
+    deleteCamera,
+    getStats 
+  } = useCameraStore();
+  
+  const stats = getStats();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -59,47 +30,47 @@ export default function CameraManagementPage() {
     fps: 30
   });
 
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
   const handleAddCamera = () => {
     if (!formData.name || !formData.streamUrl) {
       alert('Please fill in required fields');
       return;
     }
 
-    const newCamera: Camera = {
-      id: `cam-${Date.now()}`,
+    const newCam = addCamera({
       name: formData.name,
       location: formData.location,
       streamUrl: formData.streamUrl,
       streamType: formData.streamType,
-      status: 'online',
+      status: 'testing', // Will update to online when stream connects
       description: formData.description,
       resolution: formData.resolution,
       fps: formData.fps,
-      addedAt: new Date().toISOString()
-    };
+      hasVideo: true,
+      alerts: 0
+    });
 
-    setCameras([...cameras, newCamera]);
     setIsAddModalOpen(false);
     resetForm();
+    
+    // Show success message
+    setSuccessMessage(`✅ Camera "${newCam.name}" added successfully!`);
+    setTimeout(() => setSuccessMessage(null), 5000);
   };
 
   const handleEditCamera = () => {
     if (!selectedCamera) return;
 
-    setCameras(cameras.map(cam => 
-      cam.id === selectedCamera.id 
-        ? {
-            ...cam,
-            name: formData.name,
-            location: formData.location,
-            streamUrl: formData.streamUrl,
-            streamType: formData.streamType,
-            description: formData.description,
-            resolution: formData.resolution,
-            fps: formData.fps
-          }
-        : cam
-    ));
+    updateCamera(selectedCamera.id, {
+      name: formData.name,
+      location: formData.location,
+      streamUrl: formData.streamUrl,
+      streamType: formData.streamType,
+      description: formData.description,
+      resolution: formData.resolution,
+      fps: formData.fps
+    });
 
     setIsEditModalOpen(false);
     setSelectedCamera(null);
@@ -108,7 +79,7 @@ export default function CameraManagementPage() {
 
   const handleDeleteCamera = (cameraId: string) => {
     if (confirm('Are you sure you want to delete this camera?')) {
-      setCameras(cameras.filter(cam => cam.id !== cameraId));
+      deleteCamera(cameraId);
     }
   };
 
@@ -145,6 +116,18 @@ export default function CameraManagementPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <div className="p-6 space-y-6">
+        {/* Success Notification */}
+        {successMessage && (
+          <div className="fixed top-4 right-4 z-50 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-6 py-4 rounded-lg shadow-2xl border border-emerald-500/50 animate-slide-in-right">
+            <div className="flex items-center gap-3">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="font-semibold">{successMessage}</span>
+            </div>
+          </div>
+        )}
+        
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
@@ -164,56 +147,63 @@ export default function CameraManagementPage() {
 
         {/* Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 backdrop-blur-sm border border-blue-500/30 p-6 rounded-xl">
+          <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 backdrop-blur-sm border border-blue-500/30 p-6 rounded-xl shadow-lg hover:shadow-blue-500/20 transition-all">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-200 text-sm font-medium">Total Cameras</p>
-                <p className="text-4xl font-bold text-white mt-1">{cameras.length}</p>
+                <p className="text-blue-200 text-sm font-semibold uppercase tracking-wide">Total Cameras</p>
+                <p className="text-4xl font-bold text-white mt-2">{stats.total}</p>
+                <p className="text-blue-300 text-xs mt-1">{stats.totalAlerts} active alerts</p>
               </div>
-              <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
               </div>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-green-600/20 to-green-800/20 backdrop-blur-sm border border-green-500/30 p-6 rounded-xl">
+          <div className="bg-gradient-to-br from-emerald-600/20 to-emerald-800/20 backdrop-blur-sm border border-emerald-500/30 p-6 rounded-xl shadow-lg hover:shadow-emerald-500/20 transition-all">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-200 text-sm font-medium">Online</p>
-                <p className="text-4xl font-bold text-white mt-1">{cameras.filter(c => c.status === 'online').length}</p>
+                <p className="text-emerald-200 text-sm font-semibold uppercase tracking-wide">Online</p>
+                <p className="text-4xl font-bold text-white mt-2">{stats.online}</p>
+                <p className="text-emerald-300 text-xs mt-1">Streaming live</p>
               </div>
-              <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+              <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+                <div className="relative">
+                  <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full animate-pulse"></div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-red-600/20 to-red-800/20 backdrop-blur-sm border border-red-500/30 p-6 rounded-xl">
+          <div className="bg-gradient-to-br from-red-600/20 to-red-800/20 backdrop-blur-sm border border-red-500/30 p-6 rounded-xl shadow-lg hover:shadow-red-500/20 transition-all">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-red-200 text-sm font-medium">Offline</p>
-                <p className="text-4xl font-bold text-white mt-1">{cameras.filter(c => c.status === 'offline').length}</p>
+                <p className="text-red-200 text-sm font-semibold uppercase tracking-wide">Offline</p>
+                <p className="text-4xl font-bold text-white mt-2">{stats.offline}</p>
+                <p className="text-red-300 text-xs mt-1">{stats.error} with errors</p>
               </div>
-              <div className="w-12 h-12 bg-red-500 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-14 h-14 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </div>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-purple-600/20 to-purple-800/20 backdrop-blur-sm border border-purple-500/30 p-6 rounded-xl">
+          <div className="bg-gradient-to-br from-violet-600/20 to-violet-800/20 backdrop-blur-sm border border-violet-500/30 p-6 rounded-xl shadow-lg hover:shadow-violet-500/20 transition-all">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-purple-200 text-sm font-medium">AI Enabled</p>
-                <p className="text-4xl font-bold text-white mt-1">{cameras.length}</p>
+                <p className="text-violet-200 text-sm font-semibold uppercase tracking-wide">AI Enabled</p>
+                <p className="text-4xl font-bold text-white mt-2">{stats.total}</p>
+                <p className="text-violet-300 text-xs mt-1">Active detection</p>
               </div>
-              <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-14 h-14 bg-gradient-to-br from-violet-500 to-violet-600 rounded-xl flex items-center justify-center shadow-lg">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
               </div>
