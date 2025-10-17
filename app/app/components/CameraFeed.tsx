@@ -319,10 +319,10 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
 
   return (
     <div className={`camera-feed-container ${className}`}>
-      <div className="relative">
+      <div className="relative w-full h-full">
         <video
           ref={videoRef}
-          className="w-full h-auto"
+          className="w-full h-full object-cover"
           controls
           muted
           playsInline
@@ -336,9 +336,7 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
           onLoadedData={handleVideoLoadedData}
           onCanPlay={handleVideoCanPlay}
           style={{
-            backgroundColor: '#000',
-            maxWidth: '100%',
-            height: 'auto'
+            backgroundColor: '#000'
           }}
         />
         

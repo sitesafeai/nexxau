@@ -1172,7 +1172,7 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
                 streamUrl={camera.streamUrl}
                 cameraId={camera.id}
                 autoPlay={camera.status === 'online'}
-                className="h-full"
+                className="absolute inset-0 w-full h-full"
                 enableDetection={enableDetection}
               />
             </div>
