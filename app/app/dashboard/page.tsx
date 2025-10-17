@@ -518,14 +518,18 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
   const [showCameraManager, setShowCameraManager] = useState(false);
   const [enableDetection, setEnableDetection] = useState(false);
 
-  const currentCamera = cameras[currentCameraIndex];
+  const currentCamera = cameras.length > 0 ? cameras[currentCameraIndex] : null;
 
   const nextCamera = () => {
-    setCurrentCameraIndex((prev) => (prev + 1) % cameras.length);
+    if (cameras.length > 0) {
+      setCurrentCameraIndex((prev) => (prev + 1) % cameras.length);
+    }
   };
 
   const previousCamera = () => {
-    setCurrentCameraIndex((prev) => (prev - 1 + cameras.length) % cameras.length);
+    if (cameras.length > 0) {
+      setCurrentCameraIndex((prev) => (prev - 1 + cameras.length) % cameras.length);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -586,12 +590,15 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
 
       {/* Live Stream with Camera Navigation */}
       <div className="bg-gray-800 p-6 rounded-lg">
+        {currentCamera ? (
+          <>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
             <button
               onClick={previousCamera}
               className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-700"
               title="Previous Camera"
+              disabled={cameras.length <= 1}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -607,6 +614,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
               onClick={nextCamera}
               className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-700"
               title="Next Camera"
+              disabled={cameras.length <= 1}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -646,6 +654,22 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
           autoPlay={true}
           enableDetection={enableDetection}
         />
+        </>
+        ) : (
+          <div className="text-center py-12">
+            <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            <h3 className="text-xl font-semibold text-gray-300 mb-2">No Cameras Available</h3>
+            <p className="text-gray-400 mb-6">Add your first camera to start monitoring</p>
+            <button
+              onClick={() => router.push('/dashboard/camera-management')}
+              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              Add Camera
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Quick Actions */}
