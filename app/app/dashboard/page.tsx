@@ -853,75 +853,39 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
 }
 
 function AlertsTab({ currentSite }: { currentSite: any }) {
-  const [alerts] = useState([
-    {
-      id: '1',
-      location: 'MIA',
-      alertCause: 'Safety Violation - No Hard Hat',
-      camera: 'CAM-001',
-      dangerLevel: 'high',
-      date: '2024-01-15 14:32',
-      manager: 'John Smith',
-      status: 'active',
-      description: 'Worker detected without required safety helmet in restricted construction zone',
-      videoClip: 'alert_clip_001.mp4',
-      coordinates: '25.7617° N, 80.1918° W',
-      duration: '18 seconds'
-    },
-    {
-      id: '2',
-      location: 'ATL',
-      alertCause: 'Equipment Malfunction - Crane Overload',
-      camera: 'CAM-003',
-      dangerLevel: 'critical',
-      date: '2024-01-15 13:45',
-      manager: 'Sarah Johnson',
-      status: 'active',
-      description: 'Crane operating beyond safe load capacity in loading area',
-      videoClip: 'alert_clip_002.mp4',
-      coordinates: '33.7490° N, 84.3880° W',
-      duration: '22 seconds'
-    },
-    {
-      id: '3',
-      location: 'NYC',
-      alertCause: 'Unauthorized Access - Restricted Area',
-      camera: 'CAM-007',
-      dangerLevel: 'medium',
-      date: '2024-01-15 12:18',
-      manager: 'Mike Davis',
-      status: 'active',
-      description: 'Unauthorized person detected entering restricted construction zone',
-      videoClip: 'alert_clip_003.mp4',
-      coordinates: '40.7128° N, 74.0060° W',
-      duration: '15 seconds'
-    },
-    {
-      id: '4',
-      location: 'LAX',
-      alertCause: 'Speed Violation - Forklift',
-      camera: 'CAM-012',
-      dangerLevel: 'high',
-      date: '2024-01-15 11:30',
-      manager: 'Lisa Chen',
-      status: 'active',
-      description: 'Forklift exceeding speed limit in warehouse area',
-      videoClip: 'alert_clip_004.mp4',
-      coordinates: '34.0522° N, 118.2437° W',
-      duration: '25 seconds'
-    }
-  ]);
-
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
   const [showFullAlert, setShowFullAlert] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
+  useEffect(() => {
+    loadAlerts();
+    const interval = setInterval(loadAlerts, 10000); // Refresh every 10 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadAlerts = async () => {
+    try {
+      const res = await fetch('/api/alerts', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        setAlerts(data);
+      }
+    } catch (e) {
+      console.error('Failed to load alerts:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getDangerLevelColor = (level: string) => {
-    switch (level) {
-      case 'critical': return 'bg-red-900 text-red-300 border-red-700';
-      case 'high': return 'bg-orange-900 text-orange-300 border-orange-700';
-      case 'medium': return 'bg-yellow-900 text-yellow-300 border-yellow-700';
-      case 'low': return 'bg-blue-900 text-blue-300 border-blue-700';
+    const normalizedLevel = level?.toUpperCase();
+    switch (normalizedLevel) {
+      case 'CRITICAL': return 'bg-red-900 text-red-300 border-red-700';
+      case 'HIGH': return 'bg-orange-900 text-orange-300 border-orange-700';
+      case 'MEDIUM': return 'bg-yellow-900 text-yellow-300 border-yellow-700';
+      case 'LOW': return 'bg-blue-900 text-blue-300 border-blue-700';
       default: return 'bg-gray-700 text-gray-300 border-gray-600';
     }
   };
@@ -975,25 +939,40 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
               </tr>
             </thead>
             <tbody className="bg-gray-800 divide-y divide-gray-700">
-              {alerts.map((alert) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-3 py-8 text-center">
+                    <div className="flex justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    </div>
+                  </td>
+                </tr>
+              ) : alerts.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-3 py-8 text-center text-gray-400">
+                    No alerts found. All systems are operating normally.
+                  </td>
+                </tr>
+              ) : (
+                alerts.map((alert) => (
                 <tr key={alert.id} className="hover:bg-gray-700">
                   <td className="px-3 py-2 whitespace-nowrap">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-700 text-gray-300">
-                      {alert.location}
+                      {alert.location || alert.worksite?.name || 'N/A'}
                     </span>
                   </td>
                   <td className="px-3 py-2">
-                    <div className="text-sm font-medium text-white truncate max-w-xs">{alert.alertCause}</div>
+                    <div className="text-sm font-medium text-white truncate max-w-xs">{alert.title || 'Alert'}</div>
                     <div className="text-xs text-gray-400 truncate max-w-xs">{alert.description}</div>
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-sm text-white">{alert.camera}</td>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-white">{alert.metadata?.cameraId || alert.source || 'N/A'}</td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full border ${getDangerLevelColor(alert.dangerLevel)}`}>
-                      {alert.dangerLevel}
+                    <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full border ${getDangerLevelColor(alert.severity)}`}>
+                      {alert.severity}
                     </span>
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-400">{alert.date}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-sm text-white">{alert.manager}</td>
+                  <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-400">{new Date(alert.createdAt).toLocaleString()}</td>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-white">{alert.metadata?.manager || alert.metadata?.assignedTo || 'N/A'}</td>
                   <td className="px-3 py-2 whitespace-nowrap text-sm font-medium">
                     <div className="relative">
                       <button 
@@ -1029,7 +1008,8 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
                     </div>
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>

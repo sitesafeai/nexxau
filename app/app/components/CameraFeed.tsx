@@ -375,26 +375,6 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
             />
           )}
       </div>
-
-      {/* Debug info (remove in production) - Client-side only to prevent hydration errors */}
-      {typeof window !== 'undefined' && (
-        <div className="mt-2 text-sm text-gray-600">
-          <div>Stream: {streamUrl}</div>
-          <div>HLS Supported: {Hls.isSupported() ? 'Yes' : 'No'}</div>
-          <div>Status: {isLoading ? 'Loading' : isPlaying ? 'Playing' : 'Paused'}</div>
-          {error && <div className="text-red-500">Error: {error}</div>}
-          
-          {/* Stream URL tester */}
-          <div className="mt-2 p-2 bg-gray-100 rounded">
-            <div className="font-semibold mb-2">Test with working streams:</div>
-            <div className="space-y-1 text-xs">
-              <div>✅ Apple: https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8</div>
-              <div>✅ Cloudflare: https://customer-m033z5x00ks6nunl.cloudflarestream.com/b236bde30eb07b9d01318940e5fc3eda/manifest/video.m3u8</div>
-              <div>❌ Current: {streamUrl}</div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

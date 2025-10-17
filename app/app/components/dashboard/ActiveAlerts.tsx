@@ -4,13 +4,23 @@ import { useEffect, useState } from 'react';
 
 interface Alert {
   id: string;
-  ruleId: string;
-  cameraId: string;
+  title?: string;
+  description: string;
   severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   status: 'ACTIVE' | 'RESOLVED' | 'ACKNOWLEDGED';
-  description: string;
+  source?: string;
+  location?: string;
   createdAt: string;
-  metadata: any;
+  resolvedAt?: string;
+  metadata?: any;
+  ruleId?: string;
+  worksiteId?: string;
+  rule?: {
+    name: string;
+  };
+  worksite?: {
+    name: string;
+  };
 }
 
 export default function ActiveAlerts() {
@@ -124,17 +134,25 @@ export default function ActiveAlerts() {
                       {new Date(alert.createdAt).toLocaleTimeString()}
                     </span>
                   </div>
-                  <p className="text-white text-sm mb-2">{alert.description}</p>
-                  <div className="text-gray-400 text-xs">
-                    Camera: {alert.cameraId} • Rule: {alert.ruleId}
+                  <p className="text-white font-medium text-sm mb-1">{alert.title || 'Alert'}</p>
+                  <p className="text-gray-300 text-sm mb-2">{alert.description}</p>
+                  <div className="text-gray-400 text-xs space-x-2">
+                    {alert.location && <span>📍 {alert.location}</span>}
+                    {alert.rule?.name && <span>• Rule: {alert.rule.name}</span>}
+                    {alert.worksite?.name && <span>• Site: {alert.worksite.name}</span>}
                   </div>
-                  {alert.metadata && (
+                  {alert.metadata && Object.keys(alert.metadata).length > 0 && (
                     <div className="mt-2 text-xs text-gray-500">
-                      <span>Confidence: {Math.round((alert.metadata.confidence || 0) * 100)}%</span>
+                      {alert.metadata.confidence && (
+                        <span>Confidence: {Math.round((alert.metadata.confidence || 0) * 100)}%</span>
+                      )}
                       {alert.metadata.detectedObjects && (
                         <span className="ml-3">
                           Objects: {alert.metadata.detectedObjects.map((obj: any) => obj.class).join(', ')}
                         </span>
+                      )}
+                      {alert.metadata.cameraId && (
+                        <span className="ml-3">Camera: {alert.metadata.cameraId}</span>
                       )}
                     </div>
                   )}
