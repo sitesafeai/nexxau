@@ -15,27 +15,43 @@ export async function POST(
       case 'activate':
         updatedUser = await prisma.user.update({
           where: { id },
-          data: { isActive: true }
+          data: { 
+            isActivated: true,
+            approved: true
+          }
         });
         break;
 
       case 'suspend':
         updatedUser = await prisma.user.update({
           where: { id },
-          data: { isActive: false }
+          data: { 
+            approved: false
+          }
         });
         break;
 
       case 'update':
-        const { name, email, role, permissions } = body;
+        const { name, email, role, status } = body;
+        
+        // Hash password if provided
+        let updateData: any = {
+          name,
+          email,
+          role,
+          isActivated: status === 'active',
+          approved: status !== 'suspended'
+        };
+
+        // Only update password if provided
+        if (body.password) {
+          const bcrypt = require('bcryptjs');
+          updateData.password = await bcrypt.hash(body.password, 10);
+        }
+
         updatedUser = await prisma.user.update({
           where: { id },
-          data: {
-            name,
-            email,
-            role,
-            permissions
-          }
+          data: updateData
         });
         break;
 

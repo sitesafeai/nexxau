@@ -9,10 +9,10 @@ export async function GET(request: NextRequest) {
         name: true,
         email: true,
         role: true,
-        isActive: true,
+        isActivated: true,
+        approved: true,
         lastLogin: true,
-        createdAt: true,
-        permissions: true
+        createdAt: true
       },
       orderBy: {
         createdAt: 'desc'
@@ -22,13 +22,12 @@ export async function GET(request: NextRequest) {
     // Format users for admin panel
     const formattedUsers = users.map(user => ({
       id: user.id,
-      name: user.name,
-      email: user.email,
+      name: user.name || 'Unknown',
+      email: user.email || 'No email',
       role: user.role,
-      status: user.isActive ? 'active' : 'inactive',
-      lastLogin: user.lastLogin?.toISOString() || null,
-      createdAt: user.createdAt.toISOString(),
-      permissions: user.permissions || []
+      status: user.isActivated && user.approved ? 'active' : !user.approved ? 'suspended' : 'inactive',
+      lastLogin: user.lastLogin?.toISOString() || 'Never',
+      createdAt: user.createdAt.toISOString()
     }));
 
     return NextResponse.json(formattedUsers);
@@ -42,7 +41,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, email, role, permissions = [] } = body;
+    const { name, email, password, role, status = 'active' } = body;
 
     // Validate required fields
     if (!name || !email || !role) {
@@ -69,22 +68,53 @@ export async function POST(request: NextRequest) {
       }, { status: 409 });
     }
 
+    // Hash password if provided
+    let hashedPassword = null;
+    if (password) {
+      const bcrypt = require('bcryptjs');
+      hashedPassword = await bcrypt.hash(password, 10);
+    }
+
     // Create new user
     const user = await prisma.user.create({
       data: {
         name,
         email,
+        password: hashedPassword,
         role,
-        permissions,
-        isActive: true,
+        isActivated: status === 'active',
+        approved: true,
         createdAt: new Date()
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActivated: true,
+        lastLogin: true,
+        createdAt: true
       }
     });
 
-    return NextResponse.json(user, { status: 201 });
+    // Format response
+    const formattedUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: user.isActivated ? 'active' : 'inactive',
+      lastLogin: user.lastLogin?.toISOString() || null,
+      createdAt: user.createdAt.toISOString()
+    };
+
+    return NextResponse.json(formattedUser, { status: 201 });
 
   } catch (error) {
     console.error('Failed to create user:', error);
-    return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Failed to create user',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
