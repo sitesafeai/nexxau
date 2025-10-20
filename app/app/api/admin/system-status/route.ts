@@ -22,14 +22,18 @@ export async function GET(request: NextRequest) {
     // Get system metrics
     const metrics = await getSystemMetrics();
 
+    const uptimeSeconds = process.uptime();
+    const uptimeFormatted = formatUptime(uptimeSeconds);
+    const memUsage = (process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100;
+
     const systemStatus = {
       database: dbHealth,
       aiDetection: aiHealth,
       mediaMTX: mediaHealth,
       websocket: wsHealth,
       notifications: notificationHealth,
-      uptime: process.uptime(),
-      memoryUsage: process.memoryUsage().heapUsed / process.memoryUsage().heapTotal * 100,
+      uptime: uptimeFormatted,
+      memoryUsage: Math.round(memUsage),
       cpuUsage: await getCPUUsage(),
       diskUsage: await getDiskUsage(),
       ...metrics
@@ -52,6 +56,20 @@ export async function GET(request: NextRequest) {
       diskUsage: 0,
       error: 'System status check failed'
     }, { status: 503 });
+  }
+}
+
+function formatUptime(seconds: number): string {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m`;
+  } else if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  } else {
+    return `${minutes}m`;
   }
 }
 
