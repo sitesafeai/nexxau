@@ -199,6 +199,18 @@ class ExportService {
    * Generate CSV export
    */
   async generateCSV(data: ExportData, options: ExportOptions): Promise<string> {
+    // Route to specialized generators based on report type
+    if (options.reportType === 'incident' && 'incidents' in data) {
+      return this.generateIncidentCSV(data as IncidentReportData, options);
+    }
+    if (options.reportType === 'compliance' && 'compliance' in data) {
+      return this.generateComplianceCSV(data as ComplianceReportData, options);
+    }
+    if (options.reportType === 'performance' && 'performance' in data) {
+      return this.generatePerformanceCSV(data as PerformanceReportData, options);
+    }
+    
+    // Default standard report
     const csvRows: string[] = [];
     
     // Header
@@ -527,6 +539,177 @@ class ExportService {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Generate Incident Report CSV
+   */
+  private generateIncidentCSV(data: IncidentReportData, options: ExportOptions): string {
+    const csvRows: string[] = [];
+    
+    csvRows.push('INCIDENT REPORT');
+    csvRows.push(`Generated: ${new Date().toISOString()}`);
+    csvRows.push(`Period: ${options.dateRange.start.toDateString()} - ${options.dateRange.end.toDateString()}`);
+    csvRows.push('');
+    
+    // Site Info
+    csvRows.push('Site Information');
+    csvRows.push('Name,Address,Status,Safety Score');
+    csvRows.push(`"${data.siteInfo.name}","${data.siteInfo.address}","${data.siteInfo.status}",${data.siteInfo.safetyScore}%`);
+    csvRows.push('');
+    
+    // Incident Statistics
+    csvRows.push('Incident Statistics');
+    csvRows.push('Total Incidents,Resolved,Pending,Avg Resolution Time (hrs)');
+    csvRows.push(`${data.incidentStats.total},${data.incidentStats.resolved},${data.incidentStats.pending},${data.incidentStats.averageResolutionTime}`);
+    csvRows.push('');
+    
+    // Incidents by Severity
+    csvRows.push('Incidents by Severity');
+    csvRows.push('Severity,Count');
+    Object.entries(data.incidentStats.bySeverity).forEach(([severity, count]) => {
+      csvRows.push(`"${severity}",${count}`);
+    });
+    csvRows.push('');
+    
+    // Detailed Incidents
+    csvRows.push('Detailed Incident Log');
+    csvRows.push('ID,Title,Severity,Timestamp,Location,Camera,Description,Root Cause,Corrective Actions,Status,Resolved By,Resolution Notes');
+    data.incidents.forEach(incident => {
+      csvRows.push(`"${incident.id}","${incident.title}","${incident.severity}","${incident.timestamp.toISOString()}","${incident.location}","${incident.camera}","${incident.description}","${incident.rootCause || 'N/A'}","${incident.correctiveActions || 'N/A'}","${incident.status}","${incident.resolvedBy || 'Pending'}","${incident.resolutionNotes || 'N/A'}"`);
+    });
+    csvRows.push('');
+    
+    // Witnesses and Evidence
+    csvRows.push('Incident Evidence Summary');
+    csvRows.push('Incident ID,Witnesses,Evidence Files');
+    data.incidents.forEach(incident => {
+      const witnesses = incident.witnesses?.join('; ') || 'None';
+      const evidence = incident.evidence?.join('; ') || 'None';
+      csvRows.push(`"${incident.id}","${witnesses}","${evidence}"`);
+    });
+    
+    return csvRows.join('\n');
+  }
+
+  /**
+   * Generate Compliance Report CSV
+   */
+  private generateComplianceCSV(data: ComplianceReportData, options: ExportOptions): string {
+    const csvRows: string[] = [];
+    
+    csvRows.push('COMPLIANCE REPORT');
+    csvRows.push(`Generated: ${new Date().toISOString()}`);
+    csvRows.push(`Period: ${options.dateRange.start.toDateString()} - ${options.dateRange.end.toDateString()}`);
+    csvRows.push('');
+    
+    // Site Info
+    csvRows.push('Site Information');
+    csvRows.push('Name,Address,Status,Overall Compliance Score');
+    csvRows.push(`"${data.siteInfo.name}","${data.siteInfo.address}","${data.siteInfo.status}",${data.compliance.overallScore}%`);
+    csvRows.push('');
+    
+    // Compliance Requirements
+    csvRows.push('Compliance Requirements');
+    csvRows.push('ID,Category,Requirement,Standard,Status,Last Audit,Next Audit,Findings');
+    data.compliance.requirements.forEach(req => {
+      csvRows.push(`"${req.id}","${req.category}","${req.requirement}","${req.standard}","${req.status}","${req.lastAudit.toDateString()}","${req.nextAudit.toDateString()}","${req.findings || 'N/A'}"`);
+    });
+    csvRows.push('');
+    
+    // Audit History
+    csvRows.push('Audit History');
+    csvRows.push('ID,Date,Auditor,Type,Score,Findings,Corrected Findings,Status');
+    data.compliance.audits.forEach(audit => {
+      csvRows.push(`"${audit.id}","${audit.date.toDateString()}","${audit.auditor}","${audit.type}",${audit.score},${audit.findings},${audit.correctedFindings},"${audit.status}"`);
+    });
+    csvRows.push('');
+    
+    // Certifications
+    csvRows.push('Active Certifications');
+    csvRows.push('Certification,Issuer,Issue Date,Expiry Date,Status');
+    data.compliance.certifications.forEach(cert => {
+      csvRows.push(`"${cert.name}","${cert.issuer}","${cert.issueDate.toDateString()}","${cert.expiryDate.toDateString()}","${cert.status}"`);
+    });
+    csvRows.push('');
+    
+    // Violations
+    csvRows.push('Historical Violations');
+    csvRows.push('Date,Regulation,Description,Severity,Corrected Date,Responsible Party');
+    data.compliance.violations.forEach(violation => {
+      csvRows.push(`"${violation.date.toDateString()}","${violation.regulation}","${violation.description}","${violation.severity}","${violation.correctedDate?.toDateString() || 'Pending'}","${violation.responsibleParty}"`);
+    });
+    
+    return csvRows.join('\n');
+  }
+
+  /**
+   * Generate Performance Report CSV
+   */
+  private generatePerformanceCSV(data: PerformanceReportData, options: ExportOptions): string {
+    const csvRows: string[] = [];
+    
+    csvRows.push('PERFORMANCE REPORT');
+    csvRows.push(`Generated: ${new Date().toISOString()}`);
+    csvRows.push(`Period: ${options.dateRange.start.toDateString()} - ${options.dateRange.end.toDateString()}`);
+    csvRows.push('');
+    
+    // Site Info
+    csvRows.push('Site Information');
+    csvRows.push('Name,Address,Status');
+    csvRows.push(`"${data.siteInfo.name}","${data.siteInfo.address}","${data.siteInfo.status}"`);
+    csvRows.push('');
+    
+    // System Health
+    csvRows.push('System Health');
+    csvRows.push('Metric,Value');
+    csvRows.push(`Uptime,${data.performance.systemHealth.uptime}%`);
+    csvRows.push(`Avg Response Time,${data.performance.systemHealth.avgResponseTime}ms`);
+    csvRows.push(`Error Rate,${data.performance.systemHealth.errorRate}%`);
+    csvRows.push(`Total Requests,${data.performance.systemHealth.totalRequests}`);
+    csvRows.push('');
+    
+    // Camera Performance
+    csvRows.push('Camera Performance');
+    csvRows.push('ID,Name,Uptime %,Frame Rate (fps),Detection Accuracy %,False Positives,True Positives,Avg Latency (ms),Bandwidth (mbps),Storage (GB),Last Maintenance,Status');
+    data.performance.cameraPerformance.forEach(camera => {
+      csvRows.push(`"${camera.id}","${camera.name}",${camera.uptime},${camera.frameRate},${camera.detectionAccuracy},${camera.falsePositives},${camera.truePositives},${camera.avgLatency},${camera.bandwidth},${camera.storageUsed},"${camera.lastMaintenance.toDateString()}","${camera.status}"`);
+    });
+    csvRows.push('');
+    
+    // AI Performance
+    csvRows.push('AI Performance Metrics');
+    csvRows.push('Metric,Value');
+    csvRows.push(`Total Detections,${data.performance.aiPerformance.totalDetections}`);
+    csvRows.push(`Accuracy,${data.performance.aiPerformance.accuracy}%`);
+    csvRows.push(`Precision,${data.performance.aiPerformance.precision}`);
+    csvRows.push(`Recall,${data.performance.aiPerformance.recall}`);
+    csvRows.push(`F1 Score,${data.performance.aiPerformance.f1Score}`);
+    csvRows.push(`Avg Processing Time,${data.performance.aiPerformance.avgProcessingTime}ms`);
+    csvRows.push(`Model Version,"${data.performance.aiPerformance.modelVersion}"`);
+    csvRows.push(`Training Date,"${data.performance.aiPerformance.trainingDate.toDateString()}"`);
+    csvRows.push('');
+    
+    // Alert Metrics
+    csvRows.push('Alert Metrics');
+    csvRows.push('Metric,Value');
+    csvRows.push(`Total Alerts,${data.performance.alerts.total}`);
+    csvRows.push(`Avg Response Time,${data.performance.alerts.avgResponseTime} minutes`);
+    csvRows.push(`Resolved,${data.performance.alerts.resolved}`);
+    csvRows.push(`Acknowledged,${data.performance.alerts.acknowledged}`);
+    csvRows.push(`Escalated,${data.performance.alerts.escalated}`);
+    csvRows.push(`False Alarms,${data.performance.alerts.falseAlarms}`);
+    csvRows.push('');
+    
+    // Resource Usage
+    csvRows.push('Resource Usage');
+    csvRows.push('Resource,Usage');
+    csvRows.push(`CPU,${data.performance.resources.cpuUsage}%`);
+    csvRows.push(`Memory,${data.performance.resources.memoryUsage}%`);
+    csvRows.push(`Storage,${data.performance.resources.storageUsed}GB / ${data.performance.resources.storageTotal}GB`);
+    csvRows.push(`Network Bandwidth,${data.performance.resources.networkBandwidth} mbps`);
+    
+    return csvRows.join('\n');
   }
 
   /**
