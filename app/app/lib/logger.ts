@@ -1,314 +1,252 @@
-import winston from 'winston';
-import DailyRotateFile from 'winston-daily-rotate-file';
-import path from 'path';
+/**
+ * Structured Logging Service for SiteSafe
+ * 
+ * Provides consistent, structured logging across the application
+ * with support for different log levels and contexts.
+ */
 
-// Define log levels
-const logLevels = {
-  error: 0,
-  warn: 1,
-  info: 2,
-  http: 3,
-  debug: 4
-};
+export enum LogLevel {
+  DEBUG = 'DEBUG',
+  INFO = 'INFO',
+  WARN = 'WARN',
+  ERROR = 'ERROR',
+  CRITICAL = 'CRITICAL'
+}
 
-// Define log colors
-const logColors = {
-  error: 'red',
-  warn: 'yellow',
-  info: 'green',
-  http: 'magenta',
-  debug: 'white'
-};
+export interface LogContext {
+  userId?: string;
+  cameraId?: string;
+  alertId?: string;
+  worksiteId?: string;
+  requestId?: string;
+  ip?: string;
+  userAgent?: string;
+  [key: string]: any;
+}
 
-winston.addColors(logColors);
+export interface LogEntry {
+  timestamp: string;
+  level: LogLevel;
+  message: string;
+  context?: LogContext;
+  error?: {
+    name: string;
+    message: string;
+    stack?: string;
+  };
+  performance?: {
+    duration: number;
+    operation: string;
+  };
+}
 
-// Create custom format
-const logFormat = winston.format.combine(
-  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:ms' }),
-  winston.format.colorize({ all: true }),
-  winston.format.printf(
-    (info) => `${info.timestamp} ${info.level}: ${info.message}`
-  )
-);
-
-// Create transports
-const transports = [
-  // Console transport
-  new winston.transports.Console({
-    level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-    format: logFormat
-  }),
-
-  // Error log file
-  new DailyRotateFile({
-    filename: path.join(process.cwd(), 'logs', 'error-%DATE%.log'),
-    datePattern: 'YYYY-MM-DD',
-    level: 'error',
-    maxSize: '20m',
-    maxFiles: '14d',
-    format: winston.format.combine(
-      winston.format.timestamp(),
-      winston.format.json()
-    )
-  }),
-
-  // Combined log file
-  new DailyRotateFile({
-    filename: path.join(process.cwd(), 'logs', 'combined-%DATE%.log'),
-    datePattern: 'YYYY-MM-DD',
-    maxSize: '20m',
-    maxFiles: '14d',
-    format: winston.format.combine(
-      winston.format.timestamp(),
-      winston.format.json()
-    )
-  }),
-
-  // HTTP requests log file
-  new DailyRotateFile({
-    filename: path.join(process.cwd(), 'logs', 'http-%DATE%.log'),
-    datePattern: 'YYYY-MM-DD',
-    level: 'http',
-    maxSize: '20m',
-    maxFiles: '7d',
-    format: winston.format.combine(
-      winston.format.timestamp(),
-      winston.format.json()
-    )
-  })
-];
-
-// Create logger instance
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  levels: logLevels,
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.errors({ stack: true }),
-    winston.format.json()
-  ),
-  transports,
-  exceptionHandlers: [
-    new winston.transports.File({ 
-      filename: path.join(process.cwd(), 'logs', 'exceptions.log') 
-    })
-  ],
-  rejectionHandlers: [
-    new winston.transports.File({ 
-      filename: path.join(process.cwd(), 'logs', 'rejections.log') 
-    })
-  ]
-});
-
-// Add custom log methods
-export class Logger {
+class Logger {
   private static instance: Logger;
+  private minLevel: LogLevel = LogLevel.INFO;
+  private logs: LogEntry[] = [];
+  private maxLogsInMemory = 1000; // Keep last 1000 logs in memory
 
-  private constructor() {}
+  private constructor() {
+    // Set log level from environment
+    const envLevel = process.env.LOG_LEVEL?.toUpperCase();
+    if (envLevel && envLevel in LogLevel) {
+      this.minLevel = LogLevel[envLevel as keyof typeof LogLevel];
+    }
+  }
 
-  public static getInstance(): Logger {
+  static getInstance(): Logger {
     if (!Logger.instance) {
       Logger.instance = new Logger();
     }
     return Logger.instance;
   }
 
-  // HTTP request logging
-  public logHttpRequest(
-    method: string,
-    url: string,
-    statusCode: number,
-    responseTime: number,
-    userAgent?: string,
-    userId?: string
-  ): void {
-    logger.http('HTTP Request', {
-      method,
-      url,
-      statusCode,
-      responseTime,
-      userAgent,
-      userId,
-      timestamp: new Date().toISOString()
-    });
+  private shouldLog(level: LogLevel): boolean {
+    const levels = [LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR, LogLevel.CRITICAL];
+    return levels.indexOf(level) >= levels.indexOf(this.minLevel);
   }
 
-  // Database operation logging
-  public logDatabaseOperation(
-    operation: string,
-    table: string,
-    duration: number,
-    success: boolean,
-    error?: string
-  ): void {
-    if (success) {
-      logger.debug('Database Operation', {
-        operation,
-        table,
-        duration,
-        success
-      });
-    } else {
-      logger.error('Database Operation Failed', {
-        operation,
-        table,
-        duration,
-        success,
-        error
-      });
-    }
+  private formatMessage(level: LogLevel, message: string, context?: LogContext): string {
+    const timestamp = new Date().toISOString();
+    const contextStr = context ? ` ${JSON.stringify(context)}` : '';
+    return `[${timestamp}] ${level}: ${message}${contextStr}`;
   }
 
-  // AI detection logging
-  public logAIDetection(
-    cameraId: string,
-    duration: number,
-    success: boolean,
-    objectCount: number,
-    error?: string
-  ): void {
-    if (success) {
-      logger.info('AI Detection', {
-        cameraId,
-        duration,
-        success,
-        objectCount,
-        timestamp: new Date().toISOString()
-      });
-    } else {
-      logger.error('AI Detection Failed', {
-        cameraId,
-        duration,
-        success,
-        error,
-        timestamp: new Date().toISOString()
-      });
-    }
-  }
+  private log(level: LogLevel, message: string, context?: LogContext, error?: Error, performance?: { duration: number; operation: string }) {
+    if (!this.shouldLog(level)) return;
 
-  // User activity logging
-  public logUserActivity(
-    action: string,
-    userId: string,
-    userRole: string,
-    success: boolean,
-    details?: any
-  ): void {
-    logger.info('User Activity', {
-      action,
-      userId,
-      userRole,
-      success,
-      details,
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  // Security event logging
-  public logSecurityEvent(
-    event: string,
-    severity: 'low' | 'medium' | 'high' | 'critical',
-    userId?: string,
-    ipAddress?: string,
-    details?: any
-  ): void {
-    logger.warn('Security Event', {
-      event,
-      severity,
-      userId,
-      ipAddress,
-      details,
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  // Alert logging
-  public logAlert(
-    alertType: string,
-    severity: string,
-    worksiteId: string,
-    cameraId?: string,
-    details?: any
-  ): void {
-    logger.warn('Alert Generated', {
-      alertType,
-      severity,
-      worksiteId,
-      cameraId,
-      details,
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  // Error logging
-  public logError(
-    error: Error,
-    context?: string,
-    userId?: string,
-    additionalInfo?: any
-  ): void {
-    logger.error('Application Error', {
-      message: error.message,
-      stack: error.stack,
+    const entry: LogEntry = {
+      timestamp: new Date().toISOString(),
+      level,
+      message,
       context,
-      userId,
-      additionalInfo,
-      timestamp: new Date().toISOString()
-    });
+      error: error ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      } : undefined,
+      performance
+    };
+
+    // Store in memory (limited buffer)
+    this.logs.push(entry);
+    if (this.logs.length > this.maxLogsInMemory) {
+      this.logs.shift(); // Remove oldest
+    }
+
+    // Console output with colors
+    const formattedMessage = this.formatMessage(level, message, context);
+    
+    switch (level) {
+      case LogLevel.DEBUG:
+        console.debug(formattedMessage);
+        break;
+      case LogLevel.INFO:
+        console.info(formattedMessage);
+        break;
+      case LogLevel.WARN:
+        console.warn(formattedMessage);
+        if (error) console.warn('Error details:', error);
+        break;
+      case LogLevel.ERROR:
+        console.error(formattedMessage);
+        if (error) console.error('Error details:', error);
+        break;
+      case LogLevel.CRITICAL:
+        console.error(`🚨 CRITICAL: ${formattedMessage}`);
+        if (error) console.error('Error details:', error);
+        break;
+    }
+
+    // In production, you would send logs to a service like:
+    // - Sentry for errors
+    // - DataDog for metrics
+    // - CloudWatch for AWS
+    // - Custom log aggregation service
+  }
+
+  debug(message: string, context?: LogContext) {
+    this.log(LogLevel.DEBUG, message, context);
+  }
+
+  info(message: string, context?: LogContext) {
+    this.log(LogLevel.INFO, message, context);
+  }
+
+  warn(message: string, context?: LogContext, error?: Error) {
+    this.log(LogLevel.WARN, message, context, error);
+  }
+
+  error(message: string, context?: LogContext, error?: Error) {
+    this.log(LogLevel.ERROR, message, context, error);
+  }
+
+  critical(message: string, context?: LogContext, error?: Error) {
+    this.log(LogLevel.CRITICAL, message, context, error);
   }
 
   // Performance logging
-  public logPerformance(
-    operation: string,
-    duration: number,
-    success: boolean,
-    details?: any
-  ): void {
-    logger.info('Performance Metric', {
-      operation,
-      duration,
-      success,
-      details,
-      timestamp: new Date().toISOString()
-    });
+  startTimer(operation: string, context?: LogContext): () => void {
+    const startTime = Date.now();
+    this.debug(`Started: ${operation}`, context);
+    
+    return () => {
+      const duration = Date.now() - startTime;
+      this.info(`Completed: ${operation}`, context, undefined, { duration, operation });
+    };
   }
 
-  // Business metrics logging
-  public logBusinessMetric(
-    metric: string,
-    value: number,
-    worksiteId?: string,
-    details?: any
-  ): void {
-    logger.info('Business Metric', {
-      metric,
-      value,
-      worksiteId,
-      details,
-      timestamp: new Date().toISOString()
-    });
+  // Camera-specific logging
+  cameraActivity(cameraId: string, message: string, context?: LogContext) {
+    this.info(message, { ...context, cameraId });
+  }
+
+  cameraError(cameraId: string, message: string, error?: Error, context?: LogContext) {
+    this.error(message, { ...context, cameraId }, error);
+  }
+
+  // Alert-specific logging
+  alertCreated(alertId: string, severity: string, message: string, context?: LogContext) {
+    this.info(`🚨 Alert Created: ${message}`, { ...context, alertId, severity });
+  }
+
+  alertStateChange(alertId: string, from: string, to: string, context?: LogContext) {
+    this.info(`Alert state transition: ${from} → ${to}`, { ...context, alertId });
+  }
+
+  // Detection-specific logging
+  detectionEvent(cameraId: string, detectionCount: number, context?: LogContext) {
+    this.debug(`Detected ${detectionCount} objects`, { ...context, cameraId });
+  }
+
+  violationDetected(cameraId: string, violationType: string, severity: string, context?: LogContext) {
+    this.warn(`🚨 Safety Violation: ${violationType}`, { ...context, cameraId, violationType, severity });
+  }
+
+  // Database operation logging
+  dbQuery(operation: string, table: string, duration?: number, context?: LogContext) {
+    const message = duration 
+      ? `DB Query: ${operation} on ${table} (${duration}ms)`
+      : `DB Query: ${operation} on ${table}`;
+    this.debug(message, { ...context, operation, table, duration });
+  }
+
+  dbError(operation: string, table: string, error: Error, context?: LogContext) {
+    this.error(`DB Error: ${operation} on ${table}`, { ...context, operation, table }, error);
+  }
+
+  // API request logging
+  apiRequest(method: string, path: string, statusCode?: number, duration?: number, context?: LogContext) {
+    const message = `${method} ${path} ${statusCode ? `→ ${statusCode}` : ''}${duration ? ` (${duration}ms)` : ''}`;
+    
+    if (statusCode && statusCode >= 500) {
+      this.error(message, { ...context, method, path, statusCode, duration });
+    } else if (statusCode && statusCode >= 400) {
+      this.warn(message, { ...context, method, path, statusCode, duration });
+    } else {
+      this.info(message, { ...context, method, path, statusCode, duration });
+    }
   }
 
   // System health logging
-  public logSystemHealth(
-    component: string,
-    status: 'healthy' | 'degraded' | 'unhealthy',
-    details?: any
-  ): void {
-    const level = status === 'healthy' ? 'info' : 
-                  status === 'degraded' ? 'warn' : 'error';
+  healthCheck(service: string, status: 'healthy' | 'degraded' | 'unhealthy', message?: string, context?: LogContext) {
+    const emoji = status === 'healthy' ? '✅' : status === 'degraded' ? '⚠️' : '❌';
+    const logMessage = `${emoji} Health Check - ${service}: ${status}${message ? ` - ${message}` : ''}`;
     
-    logger[level]('System Health', {
-      component,
-      status,
-      details,
-      timestamp: new Date().toISOString()
-    });
+    if (status === 'unhealthy') {
+      this.error(logMessage, { ...context, service, status });
+    } else if (status === 'degraded') {
+      this.warn(logMessage, { ...context, service, status });
+    } else {
+      this.info(logMessage, { ...context, service, status });
+    }
+  }
+
+  // Get recent logs (for admin dashboard)
+  getRecentLogs(limit: number = 100, level?: LogLevel): LogEntry[] {
+    let logs = [...this.logs];
+    
+    if (level) {
+      logs = logs.filter(log => log.level === level);
+    }
+    
+    return logs.slice(-limit).reverse(); // Most recent first
+  }
+
+  // Clear logs (for testing/debugging)
+  clearLogs() {
+    this.logs = [];
+    this.info('Logs cleared');
+  }
+
+  // Export logs (for download/debugging)
+  exportLogs(): string {
+    return JSON.stringify(this.logs, null, 2);
   }
 }
 
-// Export logger instance
-export const appLogger = Logger.getInstance();
+// Export singleton instance
+export const logger = Logger.getInstance();
 
-// Export winston logger for direct use
-export { logger };
+// Convenience exports
+export default logger;
