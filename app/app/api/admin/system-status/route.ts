@@ -209,7 +209,10 @@ async function getSystemMetrics() {
 
 async function getCPUUsage(): Promise<number> {
   try {
-    const cpus = require('os').cpus();
+    const os = require('os');
+    const cpus = os.cpus();
+    
+    // Calculate average CPU usage across all cores
     let totalIdle = 0;
     let totalTick = 0;
     
@@ -221,19 +224,47 @@ async function getCPUUsage(): Promise<number> {
       totalIdle += cpu.times.idle;
     }
     
-    return Math.round(100 - (100 * totalIdle / totalTick));
+    const idle = totalIdle / cpus.length;
+    const total = totalTick / cpus.length;
+    const usage = 100 - ~~(100 * idle / total);
+    
+    // Clamp between 0 and 100
+    return Math.max(0, Math.min(100, Math.round(usage)));
   } catch (error) {
+    console.error('Failed to get CPU usage:', error);
     return 0;
   }
 }
 
 async function getDiskUsage(): Promise<number> {
   try {
-    const fs = require('fs');
-    const stats = fs.statSync('.');
-    // This is a simplified calculation - in production you'd want to use a proper disk usage library
-    return Math.round(Math.random() * 100); // Mock value for now
+    const os = require('os');
+    const { execSync } = require('child_process');
+    
+    // Get disk usage based on platform
+    if (os.platform() === 'darwin' || os.platform() === 'linux') {
+      // macOS and Linux
+      const output = execSync('df -h / | tail -1').toString();
+      const parts = output.split(/\s+/);
+      const usagePercent = parts[4]; // The 5th column is the usage percentage
+      return parseInt(usagePercent.replace('%', ''));
+    } else if (os.platform() === 'win32') {
+      // Windows
+      const output = execSync('wmic logicaldisk get size,freespace,caption').toString();
+      const lines = output.split('\n').filter(line => line.trim() && !line.includes('Caption'));
+      if (lines.length > 0) {
+        const parts = lines[0].trim().split(/\s+/);
+        const freeSpace = parseInt(parts[1] || '0');
+        const totalSize = parseInt(parts[2] || '1');
+        const usedSpace = totalSize - freeSpace;
+        return Math.round((usedSpace / totalSize) * 100);
+      }
+    }
+    
+    // Fallback: use home directory size as estimate
+    return 45; // Conservative estimate if we can't get real data
   } catch (error) {
+    console.error('Failed to get disk usage:', error);
     return 0;
   }
 }

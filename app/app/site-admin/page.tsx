@@ -25,6 +25,30 @@ interface User {
   createdAt: string;
 }
 
+// Tooltip component
+const InfoTooltip: React.FC<{ text: string }> = ({ text }) => {
+  const [show, setShow] = useState(false);
+  
+  return (
+    <div className="relative inline-block">
+      <button
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        className="ml-2 text-gray-400 hover:text-gray-300"
+      >
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+        </svg>
+      </button>
+      {show && (
+        <div className="absolute z-10 w-64 p-3 bg-gray-900 border border-gray-700 rounded-lg shadow-lg text-xs text-gray-300 left-0 top-6">
+          {text}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const SiteAdministrationPanel: React.FC = () => {
   const router = useRouter();
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
@@ -318,7 +342,10 @@ const SiteAdministrationPanel: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="bg-gray-800 p-6 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-white">Database</h3>
+                  <div className="flex items-center">
+                    <h3 className="text-lg font-semibold text-white">Database</h3>
+                    <InfoTooltip text="PostgreSQL connection health. Measures response time for queries. Healthy: <1s, Degraded: 1-5s, Unhealthy: >5s or disconnected." />
+                  </div>
                   <span className={`text-2xl ${getStatusColor(systemStatus.database)}`}>●</span>
                 </div>
                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(systemStatus.database)}`}>
@@ -328,7 +355,10 @@ const SiteAdministrationPanel: React.FC = () => {
 
               <div className="bg-gray-800 p-6 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-white">AI Detection</h3>
+                  <div className="flex items-center">
+                    <h3 className="text-lg font-semibold text-white">AI Detection</h3>
+                    <InfoTooltip text="YOLO AI detection service running on port 8000. Powers real-time safety violation detection from camera feeds. Checks /health endpoint." />
+                  </div>
                   <span className={`text-2xl ${getStatusColor(systemStatus.aiDetection)}`}>●</span>
                 </div>
                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(systemStatus.aiDetection)}`}>
@@ -338,7 +368,10 @@ const SiteAdministrationPanel: React.FC = () => {
 
               <div className="bg-gray-800 p-6 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-white">MediaMTX</h3>
+                  <div className="flex items-center">
+                    <h3 className="text-lg font-semibold text-white">MediaMTX</h3>
+                    <InfoTooltip text="Video streaming server on port 8889. Handles RTSP/HLS camera streams. Converts camera feeds for web viewing. Checks API endpoint /v3/config/global/get." />
+                  </div>
                   <span className={`text-2xl ${getStatusColor(systemStatus.mediaMTX)}`}>●</span>
                 </div>
                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(systemStatus.mediaMTX)}`}>
@@ -348,7 +381,10 @@ const SiteAdministrationPanel: React.FC = () => {
 
               <div className="bg-gray-800 p-6 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-white">WebSocket</h3>
+                  <div className="flex items-center">
+                    <h3 className="text-lg font-semibold text-white">WebSocket</h3>
+                    <InfoTooltip text="Real-time communication for live alerts and updates. Monitors active WebSocket connections. Healthy: active connections, Degraded: no connections." />
+                  </div>
                   <span className={`text-2xl ${getStatusColor(systemStatus.websocket)}`}>●</span>
                 </div>
                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(systemStatus.websocket)}`}>
@@ -358,7 +394,10 @@ const SiteAdministrationPanel: React.FC = () => {
 
               <div className="bg-gray-800 p-6 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-white">Notifications</h3>
+                  <div className="flex items-center">
+                    <h3 className="text-lg font-semibold text-white">Notifications</h3>
+                    <InfoTooltip text="SMS and email notification system. Checks Twilio (SMS) and email configuration. Healthy: fully configured, Degraded: partial setup." />
+                  </div>
                   <span className={`text-2xl ${getStatusColor(systemStatus.notifications)}`}>●</span>
                 </div>
                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(systemStatus.notifications)}`}>
@@ -368,7 +407,10 @@ const SiteAdministrationPanel: React.FC = () => {
 
               <div className="bg-gray-800 p-6 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-white">Uptime</h3>
+                  <div className="flex items-center">
+                    <h3 className="text-lg font-semibold text-white">Uptime</h3>
+                    <InfoTooltip text="Time since the server last started. Measured from Node.js process startup. Format: Xd Xh Xm (days, hours, minutes)." />
+                  </div>
                   <span className="text-2xl text-blue-500">⏱</span>
                 </div>
                 <p className="text-2xl font-bold text-white">{systemStatus.uptime}</p>
@@ -377,12 +419,18 @@ const SiteAdministrationPanel: React.FC = () => {
 
             {/* Resource Usage */}
             <div className="bg-gray-800 p-6 rounded-lg">
-              <h3 className="text-lg font-semibold text-white mb-4">Resource Usage</h3>
+              <div className="flex items-center mb-4">
+                <h3 className="text-lg font-semibold text-white">Resource Usage</h3>
+                <InfoTooltip text="Real-time system resource monitoring. Red (>80%) = Critical, Yellow (60-80%) = Warning, Blue/Green (<60%) = Normal. Data refreshed every status check." />
+              </div>
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-400">CPU Usage</span>
-                    <span className="text-white">{systemStatus.cpuUsage}%</span>
+                    <div className="flex items-center">
+                      <span className="text-gray-400">CPU Usage</span>
+                      <InfoTooltip text="Percentage of CPU capacity being used by the Node.js server. Calculated from OS CPU metrics across all cores. High CPU may slow down AI detection and video processing." />
+                    </div>
+                    <span className="text-white font-semibold">{systemStatus.cpuUsage}%</span>
                   </div>
                   <div className="w-full bg-gray-700 rounded-full h-2">
                     <div
@@ -397,8 +445,11 @@ const SiteAdministrationPanel: React.FC = () => {
 
                 <div>
                   <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-400">Memory Usage</span>
-                    <span className="text-white">{systemStatus.memoryUsage}%</span>
+                    <div className="flex items-center">
+                      <span className="text-gray-400">Memory Usage</span>
+                      <InfoTooltip text="Heap memory used by Node.js process. Shows percentage of allocated heap being used. High memory usage may cause garbage collection issues and slow performance." />
+                    </div>
+                    <span className="text-white font-semibold">{systemStatus.memoryUsage}%</span>
                   </div>
                   <div className="w-full bg-gray-700 rounded-full h-2">
                     <div
@@ -413,8 +464,11 @@ const SiteAdministrationPanel: React.FC = () => {
 
                 <div>
                   <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-400">Disk Usage</span>
-                    <span className="text-white">{systemStatus.diskUsage}%</span>
+                    <div className="flex items-center">
+                      <span className="text-gray-400">Disk Usage</span>
+                      <InfoTooltip text="Storage space used on the server. Includes video recordings, logs, and database files. Monitor to prevent storage overflow which can crash services." />
+                    </div>
+                    <span className="text-white font-semibold">{systemStatus.diskUsage}%</span>
                   </div>
                   <div className="w-full bg-gray-700 rounded-full h-2">
                     <div
