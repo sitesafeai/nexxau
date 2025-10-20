@@ -1184,62 +1184,99 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
 }
 
 function ReportsTab({ currentSite }: { currentSite: any }) {
+  const router = useRouter();
+  
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-white">Reports - {currentSite.name}</h2>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
-          Generate Custom Report
-        </button>
+        <ExportButton 
+          siteId={currentSite.id}
+          siteName={currentSite.name}
+          variant="primary"
+          size="md"
+          reportType="custom"
+          reportTitle="Custom Report"
+        />
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-lg font-semibold text-white mb-4">Daily Report</h3>
           <p className="text-gray-300 mb-4">Safety compliance summary for today</p>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition-colors">
-            Generate
-          </button>
+          <ExportButton 
+            siteId={currentSite.id}
+            siteName={currentSite.name}
+            variant="primary"
+            size="sm"
+            reportType="daily"
+            reportTitle="Daily Safety Report"
+          />
         </div>
         
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-lg font-semibold text-white mb-4">Weekly Report</h3>
           <p className="text-gray-300 mb-4">Weekly safety trends and incidents</p>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition-colors">
-            Generate
-          </button>
+          <ExportButton 
+            siteId={currentSite.id}
+            siteName={currentSite.name}
+            variant="primary"
+            size="sm"
+            reportType="weekly"
+            reportTitle="Weekly Safety Report"
+          />
         </div>
         
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-lg font-semibold text-white mb-4">Monthly Report</h3>
           <p className="text-gray-300 mb-4">Comprehensive monthly safety analysis</p>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition-colors">
-            Generate
-          </button>
+          <ExportButton 
+            siteId={currentSite.id}
+            siteName={currentSite.name}
+            variant="primary"
+            size="sm"
+            reportType="monthly"
+            reportTitle="Monthly Safety Report"
+          />
         </div>
 
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-lg font-semibold text-white mb-4">Incident Report</h3>
           <p className="text-gray-300 mb-4">Detailed incident analysis and recommendations</p>
-          <button className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-medium transition-colors">
-            Generate
-          </button>
+          <ExportButton 
+            siteId={currentSite.id}
+            siteName={currentSite.name}
+            variant="secondary"
+            size="sm"
+            reportType="incident"
+            reportTitle="Incident Report"
+          />
         </div>
 
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-lg font-semibold text-white mb-4">Compliance Report</h3>
           <p className="text-gray-300 mb-4">Regulatory compliance status and audit trail</p>
-          <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium transition-colors">
-            Generate
-          </button>
+          <ExportButton 
+            siteId={currentSite.id}
+            siteName={currentSite.name}
+            variant="primary"
+            size="sm"
+            reportType="compliance"
+            reportTitle="Compliance Report"
+          />
         </div>
 
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-lg font-semibold text-white mb-4">Performance Report</h3>
           <p className="text-gray-300 mb-4">System performance and camera analytics</p>
-          <button className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded font-medium transition-colors">
-            Generate
-          </button>
+          <ExportButton 
+            siteId={currentSite.id}
+            siteName={currentSite.name}
+            variant="primary"
+            size="sm"
+            reportType="performance"
+            reportTitle="Performance Report"
+          />
         </div>
       </div>
     </div>
@@ -1751,6 +1788,8 @@ function ReportsPage({ currentSite }: { currentSite: any }) {
             siteName={currentSite.name}
             variant="outline"
             size="sm"
+            reportType="daily"
+            reportTitle="Daily Safety Report"
           />
         </div>
 
@@ -1762,6 +1801,8 @@ function ReportsPage({ currentSite }: { currentSite: any }) {
             siteName={currentSite.name}
             variant="outline"
             size="sm"
+            reportType="weekly"
+            reportTitle="Weekly Safety Report"
           />
         </div>
 
@@ -1773,6 +1814,8 @@ function ReportsPage({ currentSite }: { currentSite: any }) {
             siteName={currentSite.name}
             variant="outline"
             size="sm"
+            reportType="monthly"
+            reportTitle="Monthly Safety Report"
           />
         </div>
 
@@ -1784,6 +1827,8 @@ function ReportsPage({ currentSite }: { currentSite: any }) {
             siteName={currentSite.name}
             variant="outline"
             size="sm"
+            reportType="incident"
+            reportTitle="Incident Report"
           />
         </div>
 
@@ -1795,6 +1840,8 @@ function ReportsPage({ currentSite }: { currentSite: any }) {
             siteName={currentSite.name}
             variant="outline"
             size="sm"
+            reportType="compliance"
+            reportTitle="Compliance Report"
           />
         </div>
 

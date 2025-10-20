@@ -9,6 +9,8 @@ interface ExportButtonProps {
   className?: string;
   variant?: 'primary' | 'secondary' | 'outline';
   size?: 'sm' | 'md' | 'lg';
+  reportType?: 'daily' | 'weekly' | 'monthly' | 'incident' | 'compliance' | 'performance' | 'custom';
+  reportTitle?: string;
 }
 
 interface ExportOptions {
@@ -25,17 +27,42 @@ const ExportButton: React.FC<ExportButtonProps> = ({
   siteName = 'Site',
   className = '',
   variant = 'primary',
-  size = 'md'
+  size = 'md',
+  reportType,
+  reportTitle
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  
+  // Set default date range based on report type
+  const getDefaultDateRange = () => {
+    const end = new Date();
+    let start = new Date();
+    
+    switch (reportType) {
+      case 'daily':
+        start = new Date(end.getTime() - 1 * 24 * 60 * 60 * 1000);
+        break;
+      case 'weekly':
+        start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'monthly':
+        start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+    }
+    
+    return {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0]
+    };
+  };
+  
   const [exportOptions, setExportOptions] = useState<ExportOptions>({
     format: 'pdf',
     sections: ['summary', 'violations', 'cameras', 'analytics'],
-    dateRange: {
-      start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      end: new Date().toISOString().split('T')[0]
-    }
+    dateRange: getDefaultDateRange()
   });
 
   const formats = [
