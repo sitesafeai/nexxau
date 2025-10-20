@@ -133,6 +133,7 @@ const ExportButton: React.FC<ExportButtonProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Include cookies for NextAuth session
         body: JSON.stringify({
           format: exportOptions.format,
           siteId,
@@ -144,7 +145,8 @@ const ExportButton: React.FC<ExportButtonProps> = ({
       });
 
       if (!response.ok) {
-        throw new Error('Export failed');
+        const errorData = await response.json().catch(() => ({ error: 'Export failed' }));
+        throw new Error(errorData.error || 'Export failed');
       }
 
       if (exportOptions.format === 'pdf') {
