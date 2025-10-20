@@ -1,38 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Switch } from '@/components/ui/switch';
-import { 
-  Settings, 
-  Users, 
-  Database, 
-  Server, 
-  Shield, 
-  Bell,
-  Camera,
-  Activity,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  RefreshCw,
-  Download,
-  Upload,
-  Trash2,
-  Edit,
-  Plus,
-  Eye,
-  EyeOff,
-  Lock,
-  Unlock
-} from 'lucide-react';
 
 interface SystemStatus {
   database: 'healthy' | 'degraded' | 'unhealthy';
@@ -54,611 +22,367 @@ interface User {
   status: 'active' | 'inactive' | 'suspended';
   lastLogin: string;
   createdAt: string;
-  permissions: string[];
-}
-
-interface SystemConfig {
-  general: {
-    siteName: string;
-    timezone: string;
-    language: string;
-    maintenanceMode: boolean;
-  };
-  security: {
-    sessionTimeout: number;
-    maxLoginAttempts: number;
-    passwordPolicy: {
-      minLength: number;
-      requireUppercase: boolean;
-      requireNumbers: boolean;
-      requireSymbols: boolean;
-    };
-    twoFactorAuth: boolean;
-  };
-  notifications: {
-    emailEnabled: boolean;
-    smsEnabled: boolean;
-    webhookEnabled: boolean;
-    defaultRecipients: string[];
-  };
-  ai: {
-    detectionEnabled: boolean;
-    confidenceThreshold: number;
-    alertThreshold: number;
-    modelVersion: string;
-  };
-  storage: {
-    maxFileSize: number;
-    retentionPeriod: number;
-    backupFrequency: string;
-  };
 }
 
 const SystemAdministrationPanel: React.FC = () => {
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [users, setUsers] = useState<User[]>([]);
-  const [config, setConfig] = useState<SystemConfig | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [isEditingConfig, setIsEditingConfig] = useState(false);
+  const [activeTab, setActiveTab] = useState<'status' | 'users' | 'settings'>('status');
 
   useEffect(() => {
-    fetchSystemData();
-    const interval = setInterval(fetchSystemData, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
+    loadSystemStatus();
+    loadUsers();
   }, []);
 
-  const fetchSystemData = async () => {
+  const loadSystemStatus = async () => {
     try {
-      const [statusResponse, usersResponse, configResponse] = await Promise.all([
-        fetch('/api/admin/system-status'),
-        fetch('/api/admin/users'),
-        fetch('/api/admin/config')
-      ]);
-
-      if (statusResponse.ok) {
-        const statusData = await statusResponse.json();
-        setSystemStatus(statusData);
-      }
-
-      if (usersResponse.ok) {
-        const usersData = await usersResponse.json();
-        setUsers(usersData);
-      }
-
-      if (configResponse.ok) {
-        const configData = await configResponse.json();
-        setConfig(configData);
+      const res = await fetch('/api/admin/system-status');
+      if (res.ok) {
+        const data = await res.json();
+        setSystemStatus(data);
       }
     } catch (error) {
-      console.error('Failed to fetch system data:', error);
+      console.error('Failed to load system status:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleUserAction = async (userId: string, action: string) => {
+  const loadUsers = async () => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}/${action}`, {
-        method: 'POST',
-      });
-
-      if (response.ok) {
-        await fetchSystemData();
+      const res = await fetch('/api/admin/users');
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
       }
     } catch (error) {
-      console.error(`Failed to ${action} user:`, error);
-    }
-  };
-
-  const handleConfigUpdate = async (updatedConfig: Partial<SystemConfig>) => {
-    try {
-      const response = await fetch('/api/admin/config', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedConfig),
-      });
-
-      if (response.ok) {
-        await fetchSystemData();
-        setIsEditingConfig(false);
-      }
-    } catch (error) {
-      console.error('Failed to update config:', error);
+      console.error('Failed to load users:', error);
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'healthy': return 'text-green-600 bg-green-100';
-      case 'degraded': return 'text-yellow-600 bg-yellow-100';
-      case 'unhealthy': return 'text-red-600 bg-red-100';
-      default: return 'text-gray-600 bg-gray-100';
+      case 'healthy':
+        return 'text-green-500';
+      case 'degraded':
+        return 'text-yellow-500';
+      case 'unhealthy':
+        return 'text-red-500';
+      default:
+        return 'text-gray-500';
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'healthy': return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case 'degraded': return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
-      case 'unhealthy': return <XCircle className="h-4 w-4 text-red-600" />;
-      default: return <XCircle className="h-4 w-4 text-gray-600" />;
+      case 'healthy':
+        return 'bg-green-900 text-green-300';
+      case 'degraded':
+        return 'bg-yellow-900 text-yellow-300';
+      case 'unhealthy':
+        return 'bg-red-900 text-red-300';
+      default:
+        return 'bg-gray-700 text-gray-300';
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-white">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">System Administration</h1>
-          <p className="text-gray-600">Manage system settings, users, and monitor system health</p>
-            </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={fetchSystemData}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-          <Button variant="outline">
-            <Download className="mr-2 h-4 w-4" />
-            Export Logs
-          </Button>
+    <div className="min-h-screen bg-gray-900 p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white">System Administration</h1>
+          <p className="text-gray-400 mt-2">Monitor and manage your SiteSafe system</p>
         </div>
-      </div>
 
-      {/* System Status */}
-      {systemStatus && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Database</CardTitle>
-              {getStatusIcon(systemStatus.database)}
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                <Badge className={getStatusColor(systemStatus.database)}>
-                  {systemStatus.database}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">AI Detection</CardTitle>
-              {getStatusIcon(systemStatus.aiDetection)}
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                <Badge className={getStatusColor(systemStatus.aiDetection)}>
-                  {systemStatus.aiDetection}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">MediaMTX</CardTitle>
-              {getStatusIcon(systemStatus.mediaMTX)}
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                <Badge className={getStatusColor(systemStatus.mediaMTX)}>
-                  {systemStatus.mediaMTX}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">WebSocket</CardTitle>
-              {getStatusIcon(systemStatus.websocket)}
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                <Badge className={getStatusColor(systemStatus.websocket)}>
-                  {systemStatus.websocket}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Tabs */}
+        <div className="border-b border-gray-700 mb-6">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('status')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'status'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
+              }`}
+            >
+              System Status
+            </button>
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'users'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
+              }`}
+            >
+              User Management
+            </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'settings'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
+              }`}
+            >
+              Settings
+            </button>
+          </nav>
         </div>
-      )}
 
-      {/* System Metrics */}
-      {systemStatus && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">CPU Usage</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{systemStatus.cpuUsage}%</div>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full" 
-                  style={{ width: `${systemStatus.cpuUsage}%` }}
-                ></div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Memory Usage</CardTitle>
-              <Database className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{systemStatus.memoryUsage}%</div>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                <div 
-                  className="bg-green-600 h-2 rounded-full" 
-                  style={{ width: `${systemStatus.memoryUsage}%` }}
-                ></div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Disk Usage</CardTitle>
-              <Server className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{systemStatus.diskUsage}%</div>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                <div 
-                  className="bg-orange-600 h-2 rounded-full" 
-                  style={{ width: `${systemStatus.diskUsage}%` }}
-                ></div>
-              </div>
-            </CardContent>
-          </Card>
-            </div>
-      )}
-
-      {/* Main Content */}
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>System Information</CardTitle>
-                <CardDescription>Current system configuration and status</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Uptime:</span>
-                    <span className="font-medium">{systemStatus?.uptime || 'Unknown'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Total Users:</span>
-                    <span className="font-medium">{users.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Active Users:</span>
-                    <span className="font-medium">
-                      {users.filter(u => u.status === 'active').length}
-                    </span>
-                    </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">System Version:</span>
-                    <span className="font-medium">v1.0.0</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-                <CardDescription>Common administrative tasks</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Button className="w-full justify-start" variant="outline">
-                    <Users className="mr-2 h-4 w-4" />
-                    Add New User
-                  </Button>
-                  <Button className="w-full justify-start" variant="outline">
-                    <Database className="mr-2 h-4 w-4" />
-                    Backup Database
-                  </Button>
-                  <Button className="w-full justify-start" variant="outline">
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Restart Services
-                  </Button>
-                  <Button className="w-full justify-start" variant="outline">
-                    <Download className="mr-2 h-4 w-4" />
-                    Export Data
-                  </Button>
-            </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="users" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>User Management</CardTitle>
-              <CardDescription>Manage system users and their permissions</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {users.map((user) => (
-                  <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                        <Users className="h-5 w-5 text-gray-600" />
-            </div>
-                      <div>
-                        <div className="font-medium">{user.name}</div>
-                        <div className="text-sm text-gray-600">{user.email}</div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="secondary">{user.role}</Badge>
-                          <Badge className={getStatusColor(user.status)}>
-                            {user.status}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setSelectedUser(user)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      {user.status === 'active' ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleUserAction(user.id, 'suspend')}
-                        >
-                          <Lock className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleUserAction(user.id, 'activate')}
-                        >
-                          <Unlock className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleUserAction(user.id, 'delete')}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-            </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="settings" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>System Configuration</CardTitle>
-              <CardDescription>Configure system settings and parameters</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {config && (
+        {/* System Status Tab */}
+        {activeTab === 'status' && systemStatus && (
           <div className="space-y-6">
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4">General Settings</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="siteName">Site Name</Label>
-                        <Input
-                          id="siteName"
-                          value={config.general.siteName}
-                          onChange={(e) => setConfig({
-                            ...config,
-                            general: { ...config.general, siteName: e.target.value }
-                          })}
-                        />
-            </div>
-                        <div>
-                        <Label htmlFor="timezone">Timezone</Label>
-                        <Select value={config.general.timezone}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="UTC">UTC</SelectItem>
-                            <SelectItem value="America/New_York">Eastern Time</SelectItem>
-                            <SelectItem value="America/Chicago">Central Time</SelectItem>
-                            <SelectItem value="America/Denver">Mountain Time</SelectItem>
-                            <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2 mt-4">
-                      <Switch
-                        checked={config.general.maintenanceMode}
-                        onCheckedChange={(checked) => setConfig({
-                          ...config,
-                          general: { ...config.general, maintenanceMode: checked }
-                        })}
-                      />
-                      <Label htmlFor="maintenanceMode">Maintenance Mode</Label>
-            </div>
-          </div>
+            {/* Service Status Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="bg-gray-800 p-6 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-white">Database</h3>
+                  <span className={`text-2xl ${getStatusColor(systemStatus.database)}`}>●</span>
+                </div>
+                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(systemStatus.database)}`}>
+                  {systemStatus.database}
+                </span>
+              </div>
 
-                <div>
-                    <h3 className="text-lg font-semibold mb-4">Security Settings</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                        <Label htmlFor="sessionTimeout">Session Timeout (minutes)</Label>
-                        <Input
-                          id="sessionTimeout"
-                          type="number"
-                          value={config.security.sessionTimeout}
-                          onChange={(e) => setConfig({
-                            ...config,
-                            security: { ...config.security, sessionTimeout: parseInt(e.target.value) }
-                          })}
-                  />
+              <div className="bg-gray-800 p-6 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-white">AI Detection</h3>
+                  <span className={`text-2xl ${getStatusColor(systemStatus.aiDetection)}`}>●</span>
                 </div>
-                <div>
-                        <Label htmlFor="maxLoginAttempts">Max Login Attempts</Label>
-                        <Input
-                          id="maxLoginAttempts"
-                          type="number"
-                          value={config.security.maxLoginAttempts}
-                          onChange={(e) => setConfig({
-                            ...config,
-                            security: { ...config.security, maxLoginAttempts: parseInt(e.target.value) }
-                          })}
-                  />
+                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(systemStatus.aiDetection)}`}>
+                  {systemStatus.aiDetection}
+                </span>
+              </div>
+
+              <div className="bg-gray-800 p-6 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-white">MediaMTX</h3>
+                  <span className={`text-2xl ${getStatusColor(systemStatus.mediaMTX)}`}>●</span>
                 </div>
+                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(systemStatus.mediaMTX)}`}>
+                  {systemStatus.mediaMTX}
+                </span>
+              </div>
+
+              <div className="bg-gray-800 p-6 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-white">WebSocket</h3>
+                  <span className={`text-2xl ${getStatusColor(systemStatus.websocket)}`}>●</span>
                 </div>
-                    <div className="flex items-center space-x-2 mt-4">
-                      <Switch
-                        checked={config.security.twoFactorAuth}
-                        onCheckedChange={(checked) => setConfig({
-                          ...config,
-                          security: { ...config.security, twoFactorAuth: checked }
-                        })}
-                      />
-                      <Label htmlFor="twoFactorAuth">Two-Factor Authentication</Label>
+                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(systemStatus.websocket)}`}>
+                  {systemStatus.websocket}
+                </span>
+              </div>
+
+              <div className="bg-gray-800 p-6 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-white">Notifications</h3>
+                  <span className={`text-2xl ${getStatusColor(systemStatus.notifications)}`}>●</span>
+                </div>
+                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(systemStatus.notifications)}`}>
+                  {systemStatus.notifications}
+                </span>
+              </div>
+
+              <div className="bg-gray-800 p-6 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-white">Uptime</h3>
+                  <span className="text-2xl text-blue-500">⏱</span>
+                </div>
+                <p className="text-2xl font-bold text-white">{systemStatus.uptime}</p>
+              </div>
             </div>
-          </div>
 
-                <div>
-                    <h3 className="text-lg font-semibold mb-4">AI Settings</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                        <Label htmlFor="confidenceThreshold">Confidence Threshold (%)</Label>
-                        <Input
-                          id="confidenceThreshold"
-                          type="number"
-                          value={config.ai.confidenceThreshold}
-                          onChange={(e) => setConfig({
-                            ...config,
-                            ai: { ...config.ai, confidenceThreshold: parseInt(e.target.value) }
-                          })}
-                  />
-                </div>
-                <div>
-                        <Label htmlFor="alertThreshold">Alert Threshold (%)</Label>
-                        <Input
-                          id="alertThreshold"
-                          type="number"
-                          value={config.ai.alertThreshold}
-                          onChange={(e) => setConfig({
-                            ...config,
-                            ai: { ...config.ai, alertThreshold: parseInt(e.target.value) }
-                          })}
-                  />
-                </div>
-                </div>
-                    <div className="flex items-center space-x-2 mt-4">
-                      <Switch
-                        checked={config.ai.detectionEnabled}
-                        onCheckedChange={(checked) => setConfig({
-                          ...config,
-                          ai: { ...config.ai, detectionEnabled: checked }
-                        })}
-                      />
-                      <Label htmlFor="detectionEnabled">AI Detection Enabled</Label>
-            </div>
-          </div>
-
-                  <div className="flex justify-end space-x-2">
-                    <Button variant="outline" onClick={() => setIsEditingConfig(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={() => handleConfigUpdate(config)}>
-                      Save Configuration
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="logs" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>System Logs</CardTitle>
-              <CardDescription>View and manage system logs</CardDescription>
-            </CardHeader>
-            <CardContent>
+            {/* Resource Usage */}
+            <div className="bg-gray-800 p-6 rounded-lg">
+              <h3 className="text-lg font-semibold text-white mb-4">Resource Usage</h3>
               <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
-                      <Download className="mr-1 h-4 w-4" />
-                      Download
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Trash2 className="mr-1 h-4 w-4" />
-                      Clear
-                    </Button>
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-gray-400">CPU Usage</span>
+                    <span className="text-white">{systemStatus.cpuUsage}%</span>
                   </div>
-                  <div className="flex gap-2">
-                    <Select>
-                      <SelectTrigger className="w-32">
-                        <SelectValue placeholder="Level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value="error">Error</SelectItem>
-                        <SelectItem value="warn">Warning</SelectItem>
-                        <SelectItem value="info">Info</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="w-full bg-gray-700 rounded-full h-2">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full transition-all"
+                      style={{ width: `${systemStatus.cpuUsage}%` }}
+                    />
+                  </div>
                 </div>
+
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-gray-400">Memory Usage</span>
+                    <span className="text-white">{systemStatus.memoryUsage}%</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2">
+                    <div
+                      className="bg-green-500 h-2 rounded-full transition-all"
+                      style={{ width: `${systemStatus.memoryUsage}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm h-64 overflow-y-auto">
-                  <div>2025-10-03 18:30:15 [INFO] System started successfully</div>
-                  <div>2025-10-03 18:30:16 [INFO] Database connection established</div>
-                  <div>2025-10-03 18:30:17 [INFO] AI detection service initialized</div>
-                  <div>2025-10-03 18:30:18 [INFO] MediaMTX server started</div>
-                  <div>2025-10-03 18:30:19 [INFO] WebSocket server listening on port 3000</div>
-                  <div>2025-10-03 18:35:22 [WARN] High CPU usage detected: 85%</div>
-                  <div>2025-10-03 18:40:15 [INFO] User login: admin@nexxau.com</div>
-                  <div>2025-10-03 18:45:30 [ERROR] Failed to send notification: SMTP connection timeout</div>
-                  <div>2025-10-03 18:46:01 [INFO] Alert rule triggered: Safety violation detected</div>
-                  <div>2025-10-03 18:50:15 [INFO] Database backup completed successfully</div>
+
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-gray-400">Disk Usage</span>
+                    <span className="text-white">{systemStatus.diskUsage}%</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2">
+                    <div
+                      className="bg-yellow-500 h-2 rounded-full transition-all"
+                      style={{ width: `${systemStatus.diskUsage}%` }}
+                    />
+                  </div>
                 </div>
+              </div>
             </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          </div>
+        )}
+
+        {/* User Management Tab */}
+        {activeTab === 'users' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-white">Users ({users.length})</h2>
+              <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors">
+                Add User
+              </button>
+            </div>
+
+            <div className="bg-gray-800 rounded-lg overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-700">
+                <thead className="bg-gray-900">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Email
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Role
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Last Login
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-gray-800 divide-y divide-gray-700">
+                  {users.map((user) => (
+                    <tr key={user.id} className="hover:bg-gray-700">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                        {user.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        {user.email}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-900 text-blue-300">
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          user.status === 'active' ? 'bg-green-900 text-green-300' :
+                          user.status === 'suspended' ? 'bg-red-900 text-red-300' :
+                          'bg-gray-700 text-gray-300'
+                        }`}>
+                          {user.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        {user.lastLogin}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button className="text-blue-400 hover:text-blue-300 mr-3">Edit</button>
+                        <button className="text-red-400 hover:text-red-300">Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div className="space-y-6">
+            <div className="bg-gray-800 p-6 rounded-lg">
+              <h3 className="text-lg font-semibold text-white mb-4">General Settings</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Site Name</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    defaultValue="SiteSafe"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Timezone</label>
+                  <select className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option>UTC</option>
+                    <option>America/New_York</option>
+                    <option>America/Los_Angeles</option>
+                    <option>Europe/London</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-800 p-6 rounded-lg">
+              <h3 className="text-lg font-semibold text-white mb-4">Security Settings</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-white">Two-Factor Authentication</p>
+                    <p className="text-xs text-gray-400">Require 2FA for all users</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" />
+                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-white">Maintenance Mode</p>
+                    <p className="text-xs text-gray-400">Disable public access</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" />
+                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">
+                Save Changes
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
