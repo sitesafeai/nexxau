@@ -140,7 +140,8 @@ const ExportButton: React.FC<ExportButtonProps> = ({
           dateRange: exportOptions.dateRange,
           sections: exportOptions.sections,
           includeCharts: true,
-          includeRawData: true
+          includeRawData: true,
+          reportType: reportType || 'custom'
         })
       });
 

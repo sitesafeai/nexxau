@@ -18,7 +18,8 @@ export async function POST(request: NextRequest) {
       dateRange, 
       sections = ['summary', 'violations', 'cameras', 'analytics'],
       includeCharts = false,
-      includeRawData = true 
+      includeRawData = true,
+      reportType = 'custom'
     } = body;
 
     // Validate required fields
@@ -39,11 +40,25 @@ export async function POST(request: NextRequest) {
       siteId,
       includeCharts,
       includeRawData,
-      sections
+      sections,
+      reportType
     };
 
-    // Get export data (in production, this would fetch from database)
-    const exportData = ExportService.getMockData(siteId);
+    // Get export data based on report type (in production, this would fetch from database)
+    let exportData;
+    switch (reportType) {
+      case 'incident':
+        exportData = ExportService.getIncidentReportData(siteId);
+        break;
+      case 'compliance':
+        exportData = ExportService.getComplianceReportData(siteId);
+        break;
+      case 'performance':
+        exportData = ExportService.getPerformanceReportData(siteId);
+        break;
+      default:
+        exportData = ExportService.getMockData(siteId);
+    }
 
     if (format === 'csv') {
       const csvContent = await ExportService.generateCSV(exportData, exportOptions as any);

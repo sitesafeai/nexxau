@@ -13,6 +13,7 @@ export interface ExportOptions {
   includeCharts?: boolean;
   includeRawData?: boolean;
   sections?: string[];
+  reportType?: 'daily' | 'weekly' | 'monthly' | 'incident' | 'compliance' | 'performance' | 'custom';
 }
 
 export interface ExportData {
@@ -60,6 +61,127 @@ export interface ExportData {
       count: number;
       percentage: number;
     }>;
+  };
+}
+
+export interface IncidentReportData extends ExportData {
+  incidents: Array<{
+    id: string;
+    title: string;
+    severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    timestamp: Date;
+    location: string;
+    camera: string;
+    description: string;
+    rootCause?: string;
+    correctiveActions?: string;
+    preventiveMeasures?: string;
+    witnesses?: string[];
+    evidence?: string[];
+    status: 'open' | 'investigating' | 'resolved' | 'closed';
+    resolvedBy?: string;
+    resolvedAt?: Date;
+    resolutionNotes?: string;
+  }>;
+  incidentStats: {
+    total: number;
+    byType: Record<string, number>;
+    bySeverity: Record<string, number>;
+    resolved: number;
+    pending: number;
+    averageResolutionTime: number; // in hours
+  };
+}
+
+export interface ComplianceReportData extends ExportData {
+  compliance: {
+    overallScore: number;
+    requirements: Array<{
+      id: string;
+      category: string;
+      requirement: string;
+      standard: string; // e.g., "OSHA 1926.501", "ISO 45001"
+      status: 'compliant' | 'non-compliant' | 'partial' | 'not-applicable';
+      lastAudit: Date;
+      nextAudit: Date;
+      findings?: string;
+      evidence?: string[];
+    }>;
+    audits: Array<{
+      id: string;
+      date: Date;
+      auditor: string;
+      type: 'internal' | 'external' | 'regulatory';
+      score: number;
+      findings: number;
+      correctedFindings: number;
+      status: 'completed' | 'in-progress' | 'scheduled';
+    }>;
+    certifications: Array<{
+      name: string;
+      issuer: string;
+      issueDate: Date;
+      expiryDate: Date;
+      status: 'valid' | 'expiring-soon' | 'expired';
+    }>;
+    violations: Array<{
+      date: Date;
+      regulation: string;
+      description: string;
+      severity: string;
+      correctedDate?: Date;
+      responsibleParty: string;
+    }>;
+  };
+}
+
+export interface PerformanceReportData extends ExportData {
+  performance: {
+    systemHealth: {
+      uptime: number; // percentage
+      avgResponseTime: number; // ms
+      errorRate: number; // percentage
+      totalRequests: number;
+    };
+    cameraPerformance: Array<{
+      id: string;
+      name: string;
+      uptime: number; // percentage
+      frameRate: number; // fps
+      detectionAccuracy: number; // percentage
+      falsePositives: number;
+      truePositives: number;
+      avgLatency: number; // ms
+      bandwidth: number; // mbps
+      storageUsed: number; // GB
+      lastMaintenance: Date;
+      status: 'excellent' | 'good' | 'fair' | 'poor';
+    }>;
+    aiPerformance: {
+      totalDetections: number;
+      accuracy: number; // percentage
+      precision: number;
+      recall: number;
+      f1Score: number;
+      avgProcessingTime: number; // ms
+      modelVersion: string;
+      trainingDate: Date;
+    };
+    alerts: {
+      total: number;
+      avgResponseTime: number; // minutes
+      resolved: number;
+      acknowledged: number;
+      escalated: number;
+      falseAlarms: number;
+    };
+    resources: {
+      cpuUsage: number; // percentage
+      memoryUsage: number; // percentage
+      storageUsed: number; // GB
+      storageTotal: number; // GB
+      networkBandwidth: number; // mbps
+    };
   };
 }
 
@@ -475,6 +597,300 @@ class ExportService {
           { type: 'Safety Vest Violation', count: 8, percentage: 35 },
           { type: 'Restricted Area Access', count: 3, percentage: 13 }
         ]
+      }
+    };
+  }
+
+  /**
+   * Get mock incident report data
+   */
+  getIncidentReportData(siteId?: string): IncidentReportData {
+    const baseData = this.getMockData(siteId);
+    return {
+      ...baseData,
+      incidents: [
+        {
+          id: 'INC-001',
+          title: 'Fall from Height Incident',
+          severity: 'CRITICAL',
+          timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
+          location: 'Building A - 3rd Floor',
+          camera: 'CAM-003',
+          description: 'Worker fell from scaffolding platform, approximately 15 feet high. Emergency services contacted immediately.',
+          rootCause: 'Inadequate fall protection equipment and failure to use safety harness',
+          correctiveActions: 'All work suspended for safety review. Implemented mandatory harness checks. Additional safety training scheduled.',
+          preventiveMeasures: 'Installed additional fall protection anchors. Enhanced pre-work safety inspections. Daily equipment checks.',
+          witnesses: ['John Smith (Supervisor)', 'Maria Garcia (Safety Officer)', 'Robert Chen (Co-worker)'],
+          evidence: ['incident_photos_001.jpg', 'medical_report.pdf', 'site_inspection.pdf'],
+          status: 'investigating',
+          resolvedBy: undefined,
+          resolvedAt: undefined,
+          resolutionNotes: undefined
+        },
+        {
+          id: 'INC-002',
+          title: 'Equipment Malfunction - Crane',
+          severity: 'HIGH',
+          timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+          location: 'Loading Zone B',
+          camera: 'CAM-007',
+          description: 'Tower crane experienced hydraulic failure during lift operation. Load secured safely, no injuries.',
+          rootCause: 'Hydraulic pump seal failure due to exceeded service interval',
+          correctiveActions: 'Crane removed from service. Complete hydraulic system inspection and repair. Maintenance logs audited.',
+          preventiveMeasures: 'Implemented automated maintenance scheduling system. Enhanced equipment inspection protocols.',
+          witnesses: ['David Lee (Crane Operator)', 'Sarah Johnson (Site Manager)'],
+          evidence: ['crane_inspection_report.pdf', 'maintenance_logs.xlsx', 'hydraulic_test_results.pdf'],
+          status: 'resolved',
+          resolvedBy: 'Michael Brown (Chief Safety Officer)',
+          resolvedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+          resolutionNotes: 'Crane repaired and certified. Operator retrained. Maintenance schedule updated.'
+        },
+        {
+          id: 'INC-003',
+          title: 'Chemical Exposure Incident',
+          severity: 'MEDIUM',
+          timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          location: 'Storage Area C',
+          camera: 'CAM-005',
+          description: 'Minor chemical splash during material transfer. Worker received immediate first aid and medical evaluation.',
+          rootCause: 'Improper container handling and inadequate PPE usage',
+          correctiveActions: 'Enhanced PPE requirements for chemical handling. Refresher training on chemical safety protocols.',
+          preventiveMeasures: 'New spill containment procedures. Additional safety signage. Secondary containment systems installed.',
+          witnesses: ['Lisa Wang (First Responder)', 'Tom Miller (Area Supervisor)'],
+          evidence: ['medical_evaluation.pdf', 'incident_photos_003.jpg', 'sds_sheets.pdf'],
+          status: 'closed',
+          resolvedBy: 'Emily Davis (Safety Coordinator)',
+          resolvedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+          resolutionNotes: 'All required actions completed. Worker cleared to return. No lasting effects.'
+        }
+      ],
+      incidentStats: {
+        total: 3,
+        byType: {
+          'Fall from Height': 1,
+          'Equipment Malfunction': 1,
+          'Chemical Exposure': 1
+        },
+        bySeverity: {
+          'CRITICAL': 1,
+          'HIGH': 1,
+          'MEDIUM': 1,
+          'LOW': 0
+        },
+        resolved: 2,
+        pending: 1,
+        averageResolutionTime: 48
+      }
+    };
+  }
+
+  /**
+   * Get mock compliance report data
+   */
+  getComplianceReportData(siteId?: string): ComplianceReportData {
+    const baseData = this.getMockData(siteId);
+    return {
+      ...baseData,
+      compliance: {
+        overallScore: 92,
+        requirements: [
+          {
+            id: 'REQ-001',
+            category: 'Fall Protection',
+            requirement: 'Fall protection systems required for work at heights >6 feet',
+            standard: 'OSHA 1926.501',
+            status: 'compliant',
+            lastAudit: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+            nextAudit: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+            findings: 'All fall protection equipment inspected and certified. Documentation complete.',
+            evidence: ['fall_protection_cert.pdf', 'inspection_logs.xlsx']
+          },
+          {
+            id: 'REQ-002',
+            category: 'Personal Protective Equipment',
+            requirement: 'Hard hats, safety glasses, and high-visibility vests required in all work zones',
+            standard: 'OSHA 1926.95',
+            status: 'compliant',
+            lastAudit: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
+            nextAudit: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
+            findings: 'PPE compliance rate exceeds requirements. Adequate inventory maintained.',
+            evidence: ['ppe_inventory.xlsx', 'compliance_audit.pdf']
+          },
+          {
+            id: 'REQ-003',
+            category: 'Excavation Safety',
+            requirement: 'Competent person required for excavations >5 feet deep',
+            standard: 'OSHA 1926.651',
+            status: 'partial',
+            lastAudit: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
+            nextAudit: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            findings: 'Two designated competent persons. One requires certification renewal.',
+            evidence: ['excavation_permits.pdf', 'competent_person_certs.pdf']
+          },
+          {
+            id: 'REQ-004',
+            category: 'Electrical Safety',
+            requirement: 'Ground-fault circuit interrupters (GFCIs) on temporary power',
+            standard: 'OSHA 1926.404',
+            status: 'compliant',
+            lastAudit: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+            nextAudit: new Date(Date.now() + 40 * 24 * 60 * 60 * 1000),
+            findings: 'All temporary power equipped with GFCIs. Monthly testing records current.',
+            evidence: ['gfci_test_logs.xlsx', 'electrical_inspection.pdf']
+          }
+        ],
+        audits: [
+          {
+            id: 'AUD-001',
+            date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+            auditor: 'SafetyFirst Consulting Inc.',
+            type: 'external',
+            score: 94,
+            findings: 12,
+            correctedFindings: 10,
+            status: 'completed'
+          },
+          {
+            id: 'AUD-002',
+            date: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+            auditor: 'Internal Safety Team',
+            type: 'internal',
+            score: 91,
+            findings: 8,
+            correctedFindings: 8,
+            status: 'completed'
+          },
+          {
+            id: 'AUD-003',
+            date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            auditor: 'OSHA Regional Office',
+            type: 'regulatory',
+            score: 0,
+            findings: 0,
+            correctedFindings: 0,
+            status: 'scheduled'
+          }
+        ],
+        certifications: [
+          {
+            name: 'ISO 45001:2018',
+            issuer: 'International Standards Organization',
+            issueDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
+            expiryDate: new Date(Date.now() + 730 * 24 * 60 * 60 * 1000),
+            status: 'valid'
+          },
+          {
+            name: 'OSHA VPP Star',
+            issuer: 'Occupational Safety and Health Administration',
+            issueDate: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000),
+            expiryDate: new Date(Date.now() + 1095 * 24 * 60 * 60 * 1000),
+            status: 'valid'
+          },
+          {
+            name: 'Safety Excellence Award',
+            issuer: 'National Safety Council',
+            issueDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
+            expiryDate: new Date(Date.now() + 275 * 24 * 60 * 60 * 1000),
+            status: 'valid'
+          }
+        ],
+        violations: [
+          {
+            date: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000),
+            regulation: 'OSHA 1926.451(g)(1)',
+            description: 'Scaffolding lacking proper guardrails',
+            severity: 'Serious',
+            correctedDate: new Date(Date.now() - 115 * 24 * 60 * 60 * 1000),
+            responsibleParty: 'ABC Construction Co.'
+          }
+        ]
+      }
+    };
+  }
+
+  /**
+   * Get mock performance report data
+   */
+  getPerformanceReportData(siteId?: string): PerformanceReportData {
+    const baseData = this.getMockData(siteId);
+    return {
+      ...baseData,
+      performance: {
+        systemHealth: {
+          uptime: 99.8,
+          avgResponseTime: 125,
+          errorRate: 0.2,
+          totalRequests: 1250000
+        },
+        cameraPerformance: [
+          {
+            id: 'CAM-001',
+            name: 'Main Entrance',
+            uptime: 99.9,
+            frameRate: 30,
+            detectionAccuracy: 94.5,
+            falsePositives: 12,
+            truePositives: 234,
+            avgLatency: 85,
+            bandwidth: 4.2,
+            storageUsed: 125.6,
+            lastMaintenance: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
+            status: 'excellent'
+          },
+          {
+            id: 'CAM-002',
+            name: 'Construction Zone A',
+            uptime: 98.5,
+            frameRate: 25,
+            detectionAccuracy: 91.2,
+            falsePositives: 23,
+            truePositives: 189,
+            avgLatency: 105,
+            bandwidth: 3.8,
+            storageUsed: 98.3,
+            lastMaintenance: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+            status: 'good'
+          },
+          {
+            id: 'CAM-003',
+            name: 'Parking Lot',
+            uptime: 97.2,
+            frameRate: 20,
+            detectionAccuracy: 88.7,
+            falsePositives: 34,
+            truePositives: 156,
+            avgLatency: 145,
+            bandwidth: 3.2,
+            storageUsed: 87.4,
+            lastMaintenance: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000),
+            status: 'fair'
+          }
+        ],
+        aiPerformance: {
+          totalDetections: 15234,
+          accuracy: 92.3,
+          precision: 0.91,
+          recall: 0.89,
+          f1Score: 0.90,
+          avgProcessingTime: 78,
+          modelVersion: 'YOLOv8n-Safety-v2.1',
+          trainingDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
+        },
+        alerts: {
+          total: 487,
+          avgResponseTime: 4.2,
+          resolved: 450,
+          acknowledged: 32,
+          escalated: 5,
+          falseAlarms: 28
+        },
+        resources: {
+          cpuUsage: 42.5,
+          memoryUsage: 68.3,
+          storageUsed: 2847,
+          storageTotal: 5000,
+          networkBandwidth: 125.4
+        }
       }
     };
   }
