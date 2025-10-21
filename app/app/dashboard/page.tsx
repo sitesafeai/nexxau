@@ -1651,7 +1651,7 @@ function CamerasPage({ currentSite }: { currentSite: any }) {
   const [currentPage, setCurrentPage] = useState(0);
   const [enableDetection, setEnableDetection] = useState(true);
   
-  const camerasPerPage = 4;
+  const camerasPerPage = 2;
   const totalPages = Math.ceil(cameras.length / camerasPerPage);
   const startIndex = currentPage * camerasPerPage;
   const endIndex = startIndex + camerasPerPage;
