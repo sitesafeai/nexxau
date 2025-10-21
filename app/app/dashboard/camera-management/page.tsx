@@ -1,10 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import CameraFeed from '@/app/components/CameraFeed';
 import { useCameraStore, Camera } from '@/app/lib/camera-store';
+import { ArrowLeft } from 'lucide-react';
 
 export default function CameraManagementPage() {
+  const router = useRouter();
   const { 
     cameras, 
     addCamera, 
@@ -130,9 +133,18 @@ export default function CameraManagementPage() {
         
         {/* Header */}
         <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-4xl font-bold text-white mb-2">Camera Management</h1>
-            <p className="text-gray-300 text-lg">Add, configure, and monitor camera feeds</p>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-gray-300 hover:text-white transition-colors border border-slate-700 hover:border-slate-600"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div>
+              <h1 className="text-4xl font-bold text-white mb-2">Camera Management</h1>
+              <p className="text-gray-300 text-lg">Add, configure, and monitor camera feeds</p>
+            </div>
           </div>
           <button
             onClick={() => setIsAddModalOpen(true)}
