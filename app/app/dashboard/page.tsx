@@ -1745,71 +1745,80 @@ function CamerasPage({ currentSite }: { currentSite: any }) {
       </div>
 
       {cameras.length === 0 ? (
-        <div className="text-center py-12 bg-gray-800 rounded-lg">
-          <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="text-center py-20 bg-gray-800/50 rounded-2xl backdrop-blur">
+          <svg className="w-20 h-20 mx-auto text-gray-600 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
           </svg>
-          <h3 className="text-xl font-semibold text-gray-300 mb-2">No Cameras Available</h3>
-          <p className="text-gray-400 mb-6">Add your first camera to start monitoring</p>
+          <h3 className="text-2xl font-semibold text-gray-300 mb-3">No Cameras Available</h3>
+          <p className="text-gray-400 mb-8 text-lg">Add your first camera to start monitoring</p>
           <button
             onClick={() => router.push('/dashboard/camera-management')}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors font-semibold shadow-lg"
           >
             Add Camera
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
           {currentCameras.map((camera) => (
-            <div key={camera.id} className="bg-gray-800 rounded-lg p-6">
-              <div className="flex justify-between items-start mb-4">
-                    <div>
-                  <h3 className="text-xl font-semibold text-white mb-1">{camera.name}</h3>
-                  <p className="text-gray-400 text-sm">{camera.location || 'No location'}</p>
-                    </div>
-                <div className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(camera.status)}`}>
-                      {camera.status}
-                    </div>
+            <div key={camera.id} className="bg-gray-800/50 backdrop-blur rounded-2xl overflow-hidden border border-gray-700/50 hover:border-gray-600/50 transition-all">
+              {/* Camera Header */}
+              <div className="p-6 pb-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-2xl font-semibold text-white mb-2">{camera.name}</h3>
+                    <p className="text-gray-400">{camera.location || 'No location'}</p>
                   </div>
-
-              <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden relative mb-4">
-                <CameraFeed
-                  streamUrl={camera.streamUrl}
-                  cameraId={camera.id}
-                  autoPlay={camera.status === 'online'}
-                  className="absolute inset-0 w-full h-full"
-                  enableDetection={enableDetection}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="bg-gray-700 rounded-lg p-3">
-                  <p className="text-gray-400 text-sm">Violations</p>
-                  <p className="text-white font-semibold">{camera.violationCount || 0}</p>
-                </div>
-                <div className="bg-gray-700 rounded-lg p-3">
-                  <p className="text-gray-400 text-sm">Detections</p>
-                  <p className="text-white font-semibold">{camera.detectionCount || 0}</p>
+                  <div className={`px-4 py-2 rounded-full text-sm font-medium ${getStatusColor(camera.status)}`}>
+                    {camera.status}
+                  </div>
                 </div>
               </div>
 
-                  <div className="flex space-x-2">
-                    <button 
-                      onClick={() => setSelectedCameraForLive(camera)}
-                      className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-all"
-                    >
-                      View Live
-                    </button>
-                    <button 
-                      onClick={() => router.push('/dashboard/camera-management')}
-                      className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
-                    >
-                      Configure
-                    </button>
+              {/* Camera Feed */}
+              <div className="px-6 pb-6">
+                <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden relative shadow-2xl">
+                  <CameraFeed
+                    streamUrl={camera.streamUrl}
+                    cameraId={camera.id}
+                    autoPlay={camera.status === 'online'}
+                    className="absolute inset-0 w-full h-full"
+                    enableDetection={enableDetection}
+                  />
                 </div>
               </div>
-            ))}
-          </div>
+
+              {/* Stats & Actions */}
+              <div className="px-6 pb-6">
+                <div className="grid grid-cols-2 gap-4 mb-5">
+                  <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700/30">
+                    <p className="text-gray-400 text-sm mb-1">Violations</p>
+                    <p className="text-white text-2xl font-bold">{camera.violationCount || 0}</p>
+                  </div>
+                  <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700/30">
+                    <p className="text-gray-400 text-sm mb-1">Detections</p>
+                    <p className="text-white text-2xl font-bold">{camera.detectionCount || 0}</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setSelectedCameraForLive(camera)}
+                    className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-3 rounded-xl font-semibold transition-all shadow-lg hover:shadow-blue-500/25"
+                  >
+                    View Live
+                  </button>
+                  <button 
+                    onClick={() => router.push('/dashboard/camera-management')}
+                    className="px-6 py-3 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-xl font-semibold transition-colors border border-gray-600/30"
+                  >
+                    Configure
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Live Camera Modal */}
