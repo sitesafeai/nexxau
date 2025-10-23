@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, CheckCircle, Info, MapPin } from 'lucide-react';
 import { 
   DETECTION_CLASSES, 
   DETECTION_TYPES, 
@@ -12,11 +12,14 @@ import {
   DetectionClass
 } from '@/app/lib/detection-classes';
 import { useCameraStore } from '@/app/lib/camera-store';
+import ZoneDrawingTool from '@/app/components/ZoneDrawingTool';
+import CameraFeed from '@/app/components/CameraFeed';
 
 export default function AlertBuilderPage() {
   const router = useRouter();
   const { cameras } = useCameraStore();
   
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     name: '',
@@ -28,6 +31,9 @@ export default function AlertBuilderPage() {
     actions: ['create_alert', 'log_event'],
     cameraId: '',
     zoneCoordinates: null as any,
+    zoneName: '',
+    zoneType: 'restricted' as 'restricted' | 'safe' | 'monitored',
+    zoneObjectTriggers: ['person_standing'] as string[], // What objects trigger this zone
     schedule: {
       enabled: false,
       workHoursOnly: true,
@@ -39,9 +45,11 @@ export default function AlertBuilderPage() {
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showZoneDrawing, setShowZoneDrawing] = useState(false);
 
   const handleSubmit = async () => {
     try {
+      // Enhanced payload with zone trigger objects
       const payload = {
         name: formData.name,
         description: formData.description,
@@ -52,7 +60,11 @@ export default function AlertBuilderPage() {
           object: formData.objectClass,
           state: formData.detectionType === 'object_missing' ? 'missing' : 'present',
           confidence_min: formData.minConfidence,
-          schedule: formData.schedule.enabled ? formData.schedule : null
+          schedule: formData.schedule.enabled ? formData.schedule : null,
+          // Zone-specific triggers
+          zoneName: formData.zoneName || null,
+          zoneType: formData.zoneType || null,
+          zoneObjectTriggers: formData.zoneObjectTriggers || null // Objects that trigger zone alerts
         },
         actions: formData.actions,
         severity: formData.severity,
@@ -126,9 +138,10 @@ export default function AlertBuilderPage() {
           {[
             { num: 1, label: 'Basic Info' },
             { num: 2, label: 'Detection Type' },
+            { num: 2.5, label: formData.detectionType === 'zone_violation' ? 'Draw Zone' : '', hidden: formData.detectionType !== 'zone_violation' },
             { num: 3, label: 'Actions' },
             { num: 4, label: 'Review' }
-          ].map((s) => (
+          ].filter(s => !s.hidden).map((s) => (
             <div key={s.num} className="flex items-center flex-1">
               <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold ${
                 step >= s.num ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400'
@@ -305,8 +318,176 @@ export default function AlertBuilderPage() {
                   ← Back
                 </button>
                 <button
-                  onClick={() => setStep(3)}
+                  onClick={() => {
+                    // If zone violation, go to zone drawing step
+                    if (formData.detectionType === 'zone_violation') {
+                      setStep(2.5);
+                    } else {
+                      setStep(3);
+                    }
+                  }}
                   className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors"
+                >
+                  {formData.detectionType === 'zone_violation' ? 'Next: Draw Zone →' : 'Next: Actions →'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2.5: Zone Drawing (Only for zone_violation type) */}
+          {step === 2.5 && formData.detectionType === 'zone_violation' && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-white mb-6">Draw Restricted Zone</h2>
+
+              <div className="bg-blue-900/20 border border-blue-700/50 rounded-xl p-4 flex gap-3 mb-6">
+                <Info className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-200">
+                  <strong>Draw a zone on your camera feed.</strong> When ANY of the selected objects (person, forklift, van, etc.) 
+                  enters this zone, the alert will trigger. This is perfect for lunch areas, machine zones, or any restricted space.
+                </div>
+              </div>
+
+              {/* Zone Configuration */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <label className="block text-gray-300 font-medium mb-2">Zone Name *</label>
+                  <input
+                    type="text"
+                    value={formData.zoneName}
+                    onChange={(e) => setFormData({...formData, zoneName: e.target.value})}
+                    placeholder="e.g., Lunch Area, Machine Zone, Crane Area"
+                    className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 font-medium mb-2">Zone Type</label>
+                  <select
+                    value={formData.zoneType}
+                    onChange={(e) => setFormData({...formData, zoneType: e.target.value as any})}
+                    className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="restricted">🔴 Restricted (No Entry)</option>
+                    <option value="monitored">🔵 Monitored (Watch Only)</option>
+                    <option value="safe">🟢 Safe Zone</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* What Triggers This Zone */}
+              <div className="mb-6">
+                <label className="block text-gray-300 font-medium mb-3">
+                  What objects should trigger alerts in this zone? *
+                </label>
+                <p className="text-gray-500 text-sm mb-3">
+                  Select all objects that should NOT be allowed in this zone. 
+                  Example: "Lunch Area" → Select "Forklift" and "Van" to prevent vehicles from entering.
+                </p>
+                
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-96 overflow-y-auto p-1 bg-gray-900/30 rounded-xl p-4">
+                  {DETECTION_CLASSES.map(cls => (
+                    <label
+                      key={cls.id}
+                      className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all border ${
+                        formData.zoneObjectTriggers.includes(cls.id)
+                          ? 'bg-blue-600/20 border-blue-500'
+                          : 'bg-gray-900/50 border-gray-700 hover:border-gray-600'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formData.zoneObjectTriggers.includes(cls.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData({
+                              ...formData,
+                              zoneObjectTriggers: [...formData.zoneObjectTriggers, cls.id]
+                            });
+                          } else {
+                            setFormData({
+                              ...formData,
+                              zoneObjectTriggers: formData.zoneObjectTriggers.filter(id => id !== cls.id)
+                            });
+                          }
+                        }}
+                        className="mt-0.5 w-4 h-4 rounded border-gray-600 text-blue-600"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-white text-sm">{cls.name}</span>
+                          <span 
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: cls.color }}
+                          />
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5">{cls.category}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Camera Feed with Zone Drawing */}
+              {formData.cameraId && (
+                <div>
+                  <label className="block text-gray-300 font-medium mb-3">Draw Zone on Camera Feed</label>
+                  <div className="bg-gray-900 rounded-xl overflow-hidden border-2 border-gray-700 relative">
+                    <div className="aspect-video relative">
+                      <CameraFeed
+                        streamUrl={cameras.find(c => c.id === formData.cameraId)?.streamUrl || ''}
+                        cameraId={formData.cameraId}
+                        autoPlay={true}
+                        className="w-full h-full"
+                        enableDetection={false}
+                        ref={videoRef}
+                      />
+                      <ZoneDrawingTool
+                        videoRef={videoRef}
+                        cameraId={formData.cameraId}
+                        onZoneComplete={(zone) => {
+                          setFormData({
+                            ...formData,
+                            zoneCoordinates: zone.points,
+                            zoneName: zone.name,
+                            zoneType: zone.type
+                          });
+                        }}
+                        className="absolute inset-0"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-gray-500 text-sm mt-2">
+                    👆 Click on the video to place points. You need at least 3 points to create a zone.
+                  </p>
+                </div>
+              )}
+
+              {!formData.cameraId && (
+                <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-xl p-4 flex gap-3">
+                  <AlertTriangle className="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-yellow-200">
+                    <strong>Please select a camera in Step 1</strong> before drawing zones. 
+                    Zone coordinates are specific to each camera's view.
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between">
+                <button
+                  onClick={() => setStep(2)}
+                  className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-semibold transition-colors"
+                >
+                  ← Back
+                </button>
+                <button
+                  onClick={() => setStep(3)}
+                  disabled={!formData.zoneCoordinates || formData.zoneObjectTriggers.length === 0}
+                  className={`px-6 py-3 rounded-xl font-semibold transition-colors ${
+                    formData.zoneCoordinates && formData.zoneObjectTriggers.length > 0
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  }`}
                 >
                   Next: Actions →
                 </button>

@@ -315,14 +315,21 @@ def check_rule_violation(rule: CustomRule, detections: List[Detection], camera_i
             return True
     
     elif detection_type == 'zone_violation':
-        # Check if person in restricted zone
+        # Check if ANY specified object enters restricted zone
         if rule.zoneCoordinates:
+            # Get list of objects that should trigger this zone
+            # From rule.conditions.zoneObjectTriggers or default to ['person_standing']
+            trigger_objects = rule.conditions.get('zoneObjectTriggers', ['person_standing'])
+            
             for detection in confident_detections:
-                if 'person' in detection.class_name:
+                # Check if this detection class is a trigger for this zone
+                if detection.class_name in trigger_objects:
                     if is_in_restricted_zone(detection.bbox, rule.zoneCoordinates):
-                        logger.warning(f"🚨 ZONE VIOLATION: Person in restricted area", extra={
+                        logger.warning(f"🚨 ZONE VIOLATION: {detection.class_name} in {rule.conditions.get('zoneName', 'restricted area')}", extra={
                             'camera_id': camera_id,
-                            'rule': rule.name
+                            'rule': rule.name,
+                            'object': detection.class_name,
+                            'zone': rule.conditions.get('zoneName')
                         })
                         return True
     
