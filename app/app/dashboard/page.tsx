@@ -522,13 +522,13 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
 
   const nextCamera = () => {
     if (cameras.length > 0) {
-      setCurrentCameraIndex((prev) => (prev + 1) % cameras.length);
+    setCurrentCameraIndex((prev) => (prev + 1) % cameras.length);
     }
   };
 
   const previousCamera = () => {
     if (cameras.length > 0) {
-      setCurrentCameraIndex((prev) => (prev - 1 + cameras.length) % cameras.length);
+    setCurrentCameraIndex((prev) => (prev - 1 + cameras.length) % cameras.length);
     }
   };
 
@@ -853,6 +853,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
 }
 
 function AlertsTab({ currentSite }: { currentSite: any }) {
+  const router = useRouter();
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
@@ -916,7 +917,10 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-white">Active Alerts - {currentSite.name}</h2>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+        <button 
+          onClick={() => router.push('/dashboard/alert-builder')}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+        >
           Create Alert Rule
         </button>
       </div>
@@ -1146,7 +1150,7 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <h2 className="text-xl font-semibold text-white">Camera Monitoring - {currentSite.name}</h2>
+        <h2 className="text-xl font-semibold text-white">Camera Monitoring - {currentSite.name}</h2>
           {cameras.length > camerasPerPage && (
             <div className="flex items-center gap-2">
               <button
@@ -1198,8 +1202,8 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
             onClick={() => router.push('/dashboard/camera-management')}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
           >
-            Add Camera
-          </button>
+          Add Camera
+        </button>
         </div>
       </div>
 
@@ -1218,51 +1222,51 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4">
           {currentCameras.map((camera) => (
-            <div key={camera.id} className="bg-gray-800 rounded-lg p-4">
-              <div className="flex justify-between items-center mb-3">
-                <div className="flex items-center space-x-2">
-                  <h3 className="text-sm font-medium text-white">{camera.name}</h3>
-                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(camera.status)}`}>
-                    {camera.status}
-                  </div>
+          <div key={camera.id} className="bg-gray-800 rounded-lg p-4">
+            <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center space-x-2">
+                <h3 className="text-sm font-medium text-white">{camera.name}</h3>
+                <div className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(camera.status)}`}>
+                  {camera.status}
                 </div>
-                <div className="flex items-center space-x-2">
+              </div>
+              <div className="flex items-center space-x-2">
                   <button 
                     onClick={() => router.push('/dashboard/camera-management')}
                     className="text-gray-400 hover:text-white transition-colors"
                     title="Camera settings"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </button>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </button>
                   <button 
                     onClick={() => setSelectedCameraForLive(camera)}
                     className="text-gray-400 hover:text-white transition-colors"
                     title="View fullscreen"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                    </svg>
-                  </button>
-                </div>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                  </svg>
+                </button>
               </div>
+            </div>
 
               <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden relative">
-                <CameraFeed
-                  streamUrl={camera.streamUrl}
+              <CameraFeed
+                streamUrl={camera.streamUrl}
                   cameraId={camera.id}
                   autoPlay={camera.status === 'online'}
                   className="absolute inset-0 w-full h-full"
                   enableDetection={enableDetection}
-                />
-              </div>
+              />
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
+      </div>
       )}
 
       {/* Fullscreen Modal */}
@@ -1693,10 +1697,10 @@ function CamerasPage({ currentSite }: { currentSite: any }) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-white">Camera Management</h1>
-            <p className="text-gray-300">{currentSite.name}</p>
-          </div>
+        <div>
+        <h1 className="text-3xl font-bold text-white">Camera Management</h1>
+          <p className="text-gray-300">{currentSite.name}</p>
+        </div>
           {cameras.length > camerasPerPage && (
             <div className="flex items-center gap-2">
               <button
@@ -1741,9 +1745,9 @@ function CamerasPage({ currentSite }: { currentSite: any }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           Add Camera
-        </button>
+          </button>
       </div>
-
+      
       {cameras.length === 0 ? (
         <div className="text-center py-20 bg-gray-800/50 rounded-2xl backdrop-blur">
           <svg className="w-20 h-20 mx-auto text-gray-600 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1772,8 +1776,8 @@ function CamerasPage({ currentSite }: { currentSite: any }) {
                   <div className={`px-4 py-2 rounded-full text-sm font-medium ${getStatusColor(camera.status)}`}>
                     {camera.status}
                   </div>
+                  </div>
                 </div>
-              </div>
 
               {/* Camera Feed */}
               <div className="px-6 pb-6">
@@ -1785,8 +1789,8 @@ function CamerasPage({ currentSite }: { currentSite: any }) {
                     className="absolute inset-0 w-full h-full"
                     enableDetection={enableDetection}
                   />
-                </div>
               </div>
+            </div>
 
               {/* Stats & Actions */}
               <div className="px-6 pb-6">
@@ -1794,12 +1798,12 @@ function CamerasPage({ currentSite }: { currentSite: any }) {
                   <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700/30">
                     <p className="text-gray-400 text-sm mb-1">Violations</p>
                     <p className="text-white text-2xl font-bold">{camera.violationCount || 0}</p>
-                  </div>
+              </div>
                   <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700/30">
                     <p className="text-gray-400 text-sm mb-1">Detections</p>
                     <p className="text-white text-2xl font-bold">{camera.detectionCount || 0}</p>
-                  </div>
-                </div>
+              </div>
+            </div>
 
                 <div className="flex gap-3">
                   <button 
@@ -1812,7 +1816,7 @@ function CamerasPage({ currentSite }: { currentSite: any }) {
                     onClick={() => router.push('/dashboard/camera-management')}
                     className="px-6 py-3 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-xl font-semibold transition-colors border border-gray-600/30"
                   >
-                    Configure
+                Configure
                   </button>
                 </div>
               </div>
@@ -1952,13 +1956,13 @@ function ReportsPage({ currentSite }: { currentSite: any }) {
   const router = useRouter();
 
   if (!currentSite) {
-    return (
-      <div className="space-y-6">
+  return (
+    <div className="space-y-6">
         <h1 className="text-3xl font-bold text-white">Reports</h1>
         <div className="bg-gray-800 p-6 rounded-lg">
           <p className="text-gray-300">Please select a worksite to view its reports.</p>
-        </div>
-      </div>
+            </div>
+          </div>
     );
   }
 
@@ -1967,7 +1971,7 @@ function ReportsPage({ currentSite }: { currentSite: any }) {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-white">Reports & Analytics</h1>
-          <p className="text-gray-300">{currentSite.name}</p>
+      <p className="text-gray-300">{currentSite.name}</p>
         </div>
         <ExportButton 
           siteId={currentSite.id}
@@ -2050,10 +2054,10 @@ function ReportsPage({ currentSite }: { currentSite: any }) {
             className="bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white px-4 py-2 rounded-lg font-semibold transition-all"
           >
             Create Custom
-          </button>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
   );
 }
 
@@ -2064,18 +2068,18 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold text-white">Workflows</h1>
-        <div className="bg-gray-800 p-6 rounded-lg">
+      <div className="bg-gray-800 p-6 rounded-lg">
           <p className="text-gray-300">Please select a worksite to view its workflows.</p>
-        </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-white">Safety Workflows</h1>
-        <p className="text-gray-300">{currentSite.name}</p>
+      <p className="text-gray-300">{currentSite.name}</p>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2122,8 +2126,8 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
             Error Dashboard
           </button>
         </div>
-      </div>
-    </div>
+            </div>
+          </div>
   );
 }
 
