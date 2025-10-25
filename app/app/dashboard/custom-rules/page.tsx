@@ -81,7 +81,16 @@ export default function CustomRulesPage() {
     }
   };
 
-  const handleToggleActive = async (ruleId: string, currentState: boolean) => {
+  const handleToggleActive = async (ruleId: string, currentState: boolean, ruleName: string) => {
+    const action = currentState ? 'deactivate' : 'activate';
+    const message = currentState 
+      ? `Are you sure you want to DEACTIVATE "${ruleName}"?\n\nThis rule will stop monitoring and no alerts will be triggered.`
+      : `Are you sure you want to ACTIVATE "${ruleName}"?\n\nThis rule will start monitoring immediately and trigger alerts when violations are detected.`;
+    
+    if (!confirm(message)) {
+      return;
+    }
+
     try {
       const response = await fetch(`/api/custom-rules/${ruleId}`, {
         method: 'PATCH',
@@ -333,7 +342,7 @@ export default function CustomRulesPage() {
                   {/* Action Buttons */}
                   <div className="flex items-start gap-2">
                     <button
-                      onClick={() => handleToggleActive(rule.id, rule.isActive)}
+                      onClick={() => handleToggleActive(rule.id, rule.isActive, rule.name)}
                       className={`p-2 rounded-lg transition-colors ${
                         rule.isActive
                           ? 'bg-green-600 hover:bg-green-700 text-white'
