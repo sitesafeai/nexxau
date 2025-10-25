@@ -34,6 +34,8 @@ export default function AlertBuilderPage() {
     zoneName: '',
     zoneType: 'restricted' as 'restricted' | 'safe' | 'monitored',
     zoneObjectTriggers: ['person_standing'] as string[], // What objects trigger this zone
+    smsRecipients: [] as string[],
+    emailRecipients: [] as string[],
     schedule: {
       enabled: false,
       workHoursOnly: true,
@@ -42,6 +44,9 @@ export default function AlertBuilderPage() {
       days: [1, 2, 3, 4, 5] // Monday-Friday
     }
   });
+
+  const [smsInput, setSmsInput] = useState('');
+  const [emailInput, setEmailInput] = useState('');
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -69,7 +74,9 @@ export default function AlertBuilderPage() {
         actions: formData.actions,
         severity: formData.severity,
         cameraId: formData.cameraId || null,
-        zoneCoordinates: formData.zoneCoordinates
+        zoneCoordinates: formData.zoneCoordinates,
+        smsRecipients: formData.smsRecipients,
+        emailRecipients: formData.emailRecipients
       };
 
       const response = await fetch('/api/custom-rules', {
@@ -182,7 +189,8 @@ export default function AlertBuilderPage() {
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
                   placeholder="Describe what this alert monitors and why it's important..."
                   rows={3}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  style={{ color: '#ffffff' }}
                 />
               </div>
 
@@ -537,13 +545,13 @@ export default function AlertBuilderPage() {
 
               <div>
                 <label className="block text-gray-300 font-medium mb-3">Severity Level *</label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   {SEVERITY_LEVELS.map(level => (
                     <button
                       key={level.id}
                       type="button"
                       onClick={() => setFormData({...formData, severity: level.id})}
-                      className={`p-4 rounded-xl text-left transition-all border-2 ${
+                      className={`p-5 rounded-xl text-left transition-all border-2 ${
                         formData.severity === level.id
                           ? 'border-current'
                           : 'bg-gray-900/50 border-gray-700 hover:border-gray-600'
@@ -553,16 +561,119 @@ export default function AlertBuilderPage() {
                         borderColor: formData.severity === level.id ? level.color : undefined
                       }}
                     >
-                      <div className="font-semibold text-white mb-1">{level.name}</div>
-                      <div className="text-sm text-gray-400">{level.description}</div>
+                      <div className="font-semibold text-white mb-2 text-base">{level.name}</div>
+                      <div className="text-sm text-gray-400 leading-relaxed">{level.description}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
+              {/* SMS Recipients */}
+              {formData.actions.includes('send_sms') && (
+                <div>
+                  <label className="block text-gray-300 font-medium mb-3">SMS Recipients *</label>
+                  <p className="text-gray-500 text-sm mb-3">Enter phone numbers to receive SMS alerts. Format: +1234567890</p>
+                  <div className="space-y-2">
+                    {formData.smsRecipients.map((phone, index) => (
+                      <div key={index} className="flex gap-2">
+                        <input
+                          type="tel"
+                          value={phone}
+                          onChange={(e) => {
+                            const newRecipients = [...formData.smsRecipients];
+                            newRecipients[index] = e.target.value;
+                            setFormData({...formData, smsRecipients: newRecipients});
+                          }}
+                          placeholder="+1234567890"
+                          className="flex-1 px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newRecipients = formData.smsRecipients.filter((_, i) => i !== index);
+                            setFormData({...formData, smsRecipients: newRecipients});
+                          }}
+                          className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setFormData({...formData, smsRecipients: [...formData.smsRecipients, '']})}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                    >
+                      + Add Phone Number
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Email Recipients */}
+              {formData.actions.includes('send_email') && (
+                <div>
+                  <label className="block text-gray-300 font-medium mb-3">Email Recipients *</label>
+                  <p className="text-gray-500 text-sm mb-3">Enter email addresses to receive email alerts</p>
+                  <div className="space-y-2">
+                    {formData.emailRecipients.map((email, index) => (
+                      <div key={index} className="flex gap-2">
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => {
+                            const newRecipients = [...formData.emailRecipients];
+                            newRecipients[index] = e.target.value;
+                            setFormData({...formData, emailRecipients: newRecipients});
+                          }}
+                          placeholder="supervisor@company.com"
+                          className="flex-1 px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newRecipients = formData.emailRecipients.filter((_, i) => i !== index);
+                            setFormData({...formData, emailRecipients: newRecipients});
+                          }}
+                          className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setFormData({...formData, emailRecipients: [...formData.emailRecipients, '']})}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                    >
+                      + Add Email Address
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Video Capture Recipients */}
+              {formData.actions.includes('capture_video') && (
+                <div className="bg-blue-900/20 border border-blue-700/50 rounded-xl p-4">
+                  <div className="flex gap-3">
+                    <Info className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-blue-200">
+                      <strong>Video Evidence:</strong> When violations occur, a 30-second video clip will be saved and can be sent via email. 
+                      Select "Send Email" above and add recipients to automatically receive video evidence.
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-between">
                 <button
-                  onClick={() => setStep(2)}
+                  onClick={() => {
+                    if (formData.detectionType === 'zone_violation') {
+                      setStep(2.5);
+                    } else {
+                      setStep(2);
+                    }
+                  }}
                   className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-semibold transition-colors"
                 >
                   ← Back

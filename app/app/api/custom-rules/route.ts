@@ -148,6 +148,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Extract notification settings
+    const smsRecipients = body.smsRecipients || [];
+    const emailRecipients = body.emailRecipients || [];
+    const smsEnabled = actions.includes('send_sms');
+    const emailEnabled = actions.includes('send_email');
+
     // Create rule with transaction
     const rule = await retryDatabaseOperation(async () => {
       return await prisma.$transaction(async (tx) => {
@@ -160,21 +166,46 @@ export async function POST(request: NextRequest) {
           targetWorksiteId = defaultWorksite?.id;
         }
 
-        // Create the rule
+        // Create the rule using the actual schema fields
         const newRule = await tx.customRule.create({
           data: {
             name,
             description,
-            detectionType,
-            objectClass,
-            minConfidence,
-            zoneCoordinates: zoneCoordinates || null,
-            conditions: conditions || {},
-            actions: actions || ['create_alert'],
+            ruleType: detectionType === 'zone_violation' ? 'area_monitoring' : 'object_detection',
+            category: 'safety',
             severity,
+            isActive: true,
+            priority: severity === 'critical' ? 1 : severity === 'high' ? 2 : severity === 'medium' ? 3 : 4,
+            
+            // Rule configuration
+            detectionCriteria: {
+              detectionType,
+              objectClass,
+              zoneCoordinates: zoneCoordinates || null,
+              zoneObjectTriggers: conditions.zoneObjectTriggers || null
+            },
+            triggerConditions: conditions || {},
+            alertSettings: {
+              actions: actions || ['create_alert'],
+              severity,
+              smsRecipients,
+              emailRecipients
+            },
+            
+            // AI Model config
+            aiModelType: 'yolo',
+            confidenceThreshold: minConfidence,
+            
+            // Notification settings
+            smsEnabled,
+            emailEnabled,
+            dashboardEnabled: true,
+            smsRecipients: smsRecipients.length > 0 ? smsRecipients : null,
+            emailRecipients: emailRecipients.length > 0 ? emailRecipients : null,
+            
+            // Relationships
             cameraId: cameraId || null,
-            worksiteId: targetWorksiteId || null,
-            isActive: true
+            worksiteId: targetWorksiteId || null
           },
           include: {
             camera: {
