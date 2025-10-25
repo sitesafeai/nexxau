@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, AlertTriangle, CheckCircle, Info, MapPin } from 'lucide-react';
 import { 
@@ -21,6 +21,10 @@ export default function AlertBuilderPage() {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const [step, setStep] = useState(1);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -52,6 +56,64 @@ export default function AlertBuilderPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showZoneDrawing, setShowZoneDrawing] = useState(false);
 
+  // Load existing rule if in edit mode
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const editId = urlParams.get('edit');
+    
+    if (editId) {
+      setIsEditMode(true);
+      setEditingRuleId(editId);
+      loadRuleData(editId);
+    }
+  }, []);
+
+  const loadRuleData = async (ruleId: string) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/custom-rules/${ruleId}`, {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          const rule = result.data;
+          
+          // Pre-fill form with existing rule data
+          setFormData({
+            name: rule.name || '',
+            description: rule.description || '',
+            detectionType: rule.detectionCriteria?.detectionType || 'object_present',
+            objectClass: rule.detectionCriteria?.objectClass || 'person_without_hardhat',
+            minConfidence: rule.confidenceThreshold || 0.7,
+            severity: rule.severity || 'high',
+            actions: rule.alertSettings?.actions || ['create_alert'],
+            cameraId: rule.cameraId || '',
+            zoneCoordinates: rule.detectionCriteria?.zoneCoordinates || null,
+            zoneName: rule.triggerConditions?.zoneName || '',
+            zoneType: rule.triggerConditions?.zoneType || 'restricted',
+            zoneObjectTriggers: rule.triggerConditions?.zoneObjectTriggers || ['person_standing'],
+            smsRecipients: rule.smsRecipients || [],
+            emailRecipients: rule.emailRecipients || [],
+            schedule: rule.timeConstraints || {
+              enabled: false,
+              workHoursOnly: true,
+              startTime: '08:00',
+              endTime: '18:00',
+              days: [1, 2, 3, 4, 5]
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load rule:', error);
+      setErrorMessage('Failed to load rule data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     try {
       // Enhanced payload with zone trigger objects
@@ -79,8 +141,12 @@ export default function AlertBuilderPage() {
         emailRecipients: formData.emailRecipients
       };
 
-      const response = await fetch('/api/custom-rules', {
-        method: 'POST',
+      // Use PATCH for edit mode, POST for create mode
+      const url = isEditMode ? `/api/custom-rules/${editingRuleId}` : '/api/custom-rules';
+      const method = isEditMode ? 'PATCH' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(payload)
@@ -89,18 +155,20 @@ export default function AlertBuilderPage() {
       const result = await response.json();
 
       if (result.success) {
-        setSuccessMessage(`✅ Alert "${formData.name}" created successfully!`);
+        const action = isEditMode ? 'updated' : 'created';
+        setSuccessMessage(`✅ Alert "${formData.name}" ${action} successfully!`);
         setTimeout(() => {
           router.push('/dashboard/custom-rules');
         }, 1500);
       } else {
-        setErrorMessage(result.error || 'Failed to create alert');
+        setErrorMessage(result.error || `Failed to ${isEditMode ? 'update' : 'create'} alert`);
         setTimeout(() => setErrorMessage(null), 5000);
       }
 
     } catch (error) {
-      console.error('Error creating alert:', error);
-      setErrorMessage('Failed to create alert. Please try again.');
+      console.error(`Error ${isEditMode ? 'updating' : 'creating'} alert:`, error);
+      setErrorMessage(`Failed to ${isEditMode ? 'update' : 'create'} alert. Please try again.`);
+      setTimeout(() => setErrorMessage(null), 5000);
     }
   };
 
@@ -136,10 +204,26 @@ export default function AlertBuilderPage() {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
-            <h1 className="text-4xl font-bold text-white">Create Custom Alert</h1>
-            <p className="text-gray-400">Build intelligent safety alerts for your cameras</p>
+            <h1 className="text-4xl font-bold text-white">
+              {isEditMode ? 'Edit Custom Alert' : 'Create Custom Alert'}
+            </h1>
+            <p className="text-gray-400">
+              {isEditMode ? 'Update your intelligent safety alert' : 'Build intelligent safety alerts for your cameras'}
+            </p>
           </div>
         </div>
+
+        {/* Loading State */}
+        {loading && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div className="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700">
+              <div className="flex flex-col items-center gap-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                <p className="text-white font-semibold">Loading rule data...</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Progress Steps */}
         <div className="flex justify-between mb-8">
@@ -792,7 +876,7 @@ export default function AlertBuilderPage() {
                   onClick={handleSubmit}
                   className="px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-xl font-semibold transition-all shadow-lg hover:shadow-green-500/25"
                 >
-                  ✓ Create Alert
+                  {isEditMode ? '✓ Update Alert' : '✓ Create Alert'}
                 </button>
               </div>
             </div>
