@@ -28,20 +28,20 @@ export async function GET(
             worksiteName: true
           }
         },
-        violations: {
+        ruleViolations: {
           orderBy: { createdAt: 'desc' },
           take: 10,
           select: {
             id: true,
-            timestamp: true,
+            detectedAt: true,
             severity: true,
             status: true
           }
         },
         _count: {
           select: {
-            violations: true,
-            triggers: true
+            ruleViolations: true,
+            ruleTriggers: true
           }
         }
       }
@@ -58,9 +58,9 @@ export async function GET(
       success: true,
       data: {
         ...rule,
-        violationCount: rule._count.violations,
-        triggerCount: rule._count.triggers,
-        recentViolations: rule.violations
+        violationCount: rule._count.ruleViolations,
+        triggerCount: rule._count.ruleTriggers,
+        recentViolations: rule.ruleViolations
       }
     });
 

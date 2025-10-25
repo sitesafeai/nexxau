@@ -36,12 +36,12 @@ export async function GET(request: NextRequest) {
               worksiteName: true
             }
           },
-          _count: {
-            select: {
-              violations: true,
-              triggers: true
-            }
+        _count: {
+          select: {
+            ruleViolations: true,
+            ruleTriggers: true
           }
+        }
         },
         orderBy: {
           createdAt: 'desc'
@@ -74,8 +74,8 @@ export async function GET(request: NextRequest) {
       camera: rule.camera,
       worksiteId: rule.worksiteId,
       worksite: rule.worksite,
-      violationCount: rule._count.violations,
-      triggerCount: rule._count.triggers,
+      violationCount: rule._count.ruleViolations,
+      triggerCount: rule._count.ruleTriggers,
       createdAt: rule.createdAt.toISOString(),
       updatedAt: rule.updatedAt.toISOString()
     }));
