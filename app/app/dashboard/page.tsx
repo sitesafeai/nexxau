@@ -675,7 +675,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
       {/* Quick Actions */}
       <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/30 p-6 rounded-xl">
         <h3 className="text-lg font-bold text-white mb-6 uppercase tracking-wide">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {/* Generate Report Button */}
           <button 
             onClick={handleGenerateReport}
@@ -709,6 +709,24 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
               <div className="text-left">
                 <div className="font-semibold text-lg">Configure Alerts</div>
                 <div className="text-green-100 text-sm">Set up safety notifications</div>
+              </div>
+            </div>
+          </button>
+
+          {/* Custom Rules Button - NEW! */}
+          <button 
+            onClick={() => router.push('/dashboard/custom-rules')}
+            className="group relative bg-gradient-to-br from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white p-6 rounded-xl border border-purple-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:ring-offset-2 focus:ring-offset-slate-900 shadow-lg hover:shadow-purple-500/25"
+          >
+            <div className="flex items-center space-x-4">
+              <div className="flex-shrink-0">
+                <svg className="w-8 h-8 text-purple-100 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="font-semibold text-lg">Custom Rules</div>
+                <div className="text-purple-100 text-sm">Build intelligent alerts</div>
               </div>
             </div>
           </button>
