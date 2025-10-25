@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, Edit, Trash2, Power, PowerOff, Info } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, Power, PowerOff, Info, RefreshCw } from 'lucide-react';
 
 interface CustomRule {
   id: string;
@@ -49,15 +49,30 @@ export default function CustomRulesPage() {
   const fetchRules = async () => {
     try {
       const params = filter === 'active' ? '?active=true' : '';
+      console.log('Fetching rules from:', `/api/custom-rules${params}`);
+      
       const response = await fetch(`/api/custom-rules${params}`, {
-        credentials: 'include'
+        credentials: 'include',
+        cache: 'no-store'
       });
 
+      console.log('Response status:', response.status);
+      
       if (response.ok) {
         const result = await response.json();
+        console.log('API Response:', result);
+        console.log('Rules data:', result.data);
+        console.log('Number of rules:', result.data?.length || 0);
+        
         if (result.success) {
           setRules(result.data || []);
+        } else {
+          console.error('API returned success: false');
         }
+      } else {
+        console.error('API returned error status:', response.status);
+        const errorData = await response.json();
+        console.error('Error data:', errorData);
       }
     } catch (error) {
       console.error('Failed to fetch custom rules:', error);
@@ -152,13 +167,25 @@ export default function CustomRulesPage() {
               <p className="text-gray-400">Manage your intelligent detection rules</p>
             </div>
           </div>
-          <button
-            onClick={() => router.push('/dashboard/alert-builder')}
-            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl font-semibold transition-all shadow-lg flex items-center gap-2"
-          >
-            <Plus className="h-5 w-5" />
-            Create New Rule
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setLoading(true);
+                fetchRules();
+              }}
+              className="px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-semibold transition-colors flex items-center gap-2"
+            >
+              <RefreshCw className="h-5 w-5" />
+              Refresh
+            </button>
+            <button
+              onClick={() => router.push('/dashboard/alert-builder')}
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl font-semibold transition-all shadow-lg flex items-center gap-2"
+            >
+              <Plus className="h-5 w-5" />
+              Create New Rule
+            </button>
+          </div>
         </div>
 
         {/* Statistics */}
