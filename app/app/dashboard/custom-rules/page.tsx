@@ -142,7 +142,7 @@ export default function CustomRulesPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.back()}
+              onClick={() => router.push('/dashboard')}
               className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />

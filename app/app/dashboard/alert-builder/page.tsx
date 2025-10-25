@@ -92,9 +92,10 @@ export default function AlertBuilderPage() {
         setSuccessMessage(`✅ Alert "${formData.name}" created successfully!`);
         setTimeout(() => {
           router.push('/dashboard/custom-rules');
-        }, 2000);
+        }, 1500);
       } else {
         setErrorMessage(result.error || 'Failed to create alert');
+        setTimeout(() => setErrorMessage(null), 5000);
       }
 
     } catch (error) {
@@ -129,7 +130,7 @@ export default function AlertBuilderPage() {
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <button
-            onClick={() => router.push('/dashboard/custom-rules')}
+            onClick={() => router.push('/dashboard')}
             className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-gray-300 hover:text-white transition-colors border border-slate-700"
           >
             <ArrowLeft className="h-5 w-5" />
