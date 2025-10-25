@@ -355,21 +355,4 @@ export default function CustomRulesPage() {
       </div>
     </div>
   );
-
-  async function handleToggleActive(ruleId: string, currentState: boolean) {
-    try {
-      const response = await fetch(`/api/custom-rules/${ruleId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ isActive: !currentState })
-      });
-
-      if (response.ok) {
-        await fetchRules();
-      }
-    } catch (error) {
-      console.error('Failed to toggle rule:', error);
-    }
-  }
 }
