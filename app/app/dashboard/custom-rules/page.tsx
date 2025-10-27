@@ -188,7 +188,7 @@ export default function CustomRulesPage() {
               Refresh
             </button>
             <button
-              onClick={() => router.push('/dashboard/alert-builder')}
+              onClick={() => router.push('/dashboard/alert-builder?from=custom-rules')}
               className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl font-semibold transition-all shadow-lg flex items-center gap-2"
             >
               <Plus className="h-5 w-5" />
@@ -247,7 +247,7 @@ export default function CustomRulesPage() {
             <h3 className="text-2xl font-semibold text-gray-300 mb-3">No Custom Rules Yet</h3>
             <p className="text-gray-400 mb-8 text-lg">Create your first intelligent detection rule</p>
             <button
-              onClick={() => router.push('/dashboard/alert-builder')}
+              onClick={() => router.push('/dashboard/alert-builder?from=custom-rules')}
               className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors font-semibold shadow-lg"
             >
               Create Your First Rule
@@ -353,7 +353,7 @@ export default function CustomRulesPage() {
                       {rule.isActive ? <Power className="h-5 w-5" /> : <PowerOff className="h-5 w-5" />}
                     </button>
                     <button
-                      onClick={() => router.push(`/dashboard/alert-builder?edit=${rule.id}`)}
+                      onClick={() => router.push(`/dashboard/alert-builder?edit=${rule.id}&from=custom-rules`)}
                       className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                       title="Edit rule"
                     >

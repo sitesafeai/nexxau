@@ -55,11 +55,22 @@ export default function AlertBuilderPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showZoneDrawing, setShowZoneDrawing] = useState(false);
+  const [returnUrl, setReturnUrl] = useState('/dashboard');
 
-  // Load existing rule if in edit mode
+  // Load existing rule if in edit mode & detect return URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const editId = urlParams.get('edit');
+    const from = urlParams.get('from');
+    
+    // Set return URL based on 'from' parameter
+    if (from === 'alerts') {
+      setReturnUrl('/dashboard?tab=alerts'); // Return to alerts tab
+    } else if (from === 'custom-rules') {
+      setReturnUrl('/dashboard/custom-rules'); // Return to custom rules page
+    } else {
+      setReturnUrl('/dashboard'); // Default to dashboard
+    }
     
     if (editId) {
       setIsEditMode(true);
@@ -158,7 +169,7 @@ export default function AlertBuilderPage() {
         const action = isEditMode ? 'updated' : 'created';
         setSuccessMessage(`✅ Alert "${formData.name}" ${action} successfully!`);
         setTimeout(() => {
-          router.push('/dashboard/custom-rules');
+          router.push(returnUrl);
         }, 1500);
       } else {
         setErrorMessage(result.error || `Failed to ${isEditMode ? 'update' : 'create'} alert`);
@@ -198,7 +209,7 @@ export default function AlertBuilderPage() {
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push(returnUrl)}
             className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-gray-300 hover:text-white transition-colors border border-slate-700"
           >
             <ArrowLeft className="h-5 w-5" />

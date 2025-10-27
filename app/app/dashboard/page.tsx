@@ -386,7 +386,17 @@ function DashboardContent() {
 }
 
 function OverviewPage({ currentSite }: { currentSite: any }) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Check if we should auto-switch to a specific tab (e.g., from alert builder)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tab = urlParams.get('tab');
+    if (tab && ['overview', 'monitoring', 'alerts', 'reports'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, []);
 
   if (!currentSite) {
   return (
@@ -935,8 +945,8 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-white">Active Alerts - {currentSite.name}</h2>
-        <button 
-          onClick={() => router.push('/dashboard/alert-builder')}
+        <button
+          onClick={() => router.push('/dashboard/alert-builder?from=alerts')}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
         >
           Create Alert Rule
