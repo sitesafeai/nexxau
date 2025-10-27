@@ -123,6 +123,9 @@ model Worksite {
   customRules       CustomRule[]
   ruleTriggers      CustomRuleTrigger[]
   ruleViolations    CustomRuleViolation[]
+  safetyScores      SafetyScore[]
+  safetyScoreConfig SafetyScoreConfig?
+  violationClassifications ViolationClassification[]
 }
 
 model Worker {
@@ -682,5 +685,123 @@ model CustomRuleViolation {
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// SAFETY SCORE SYSTEM
+// Add this to the end of your schema.prisma file
+// ============================================
+
+model SafetyScore {
+  id                  String   @id @default(cuid())
+  
+  // Site and Date
+  worksiteId          String
+  worksite            Worksite @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  date                DateTime @db.Date
+  
+  // Raw Inputs
+  totalDetections     Int      @default(0)
+  majorViolations     Int      @default(0)
+  minorViolations     Int      @default(0)
+  customAlerts        Json?    // [{type, count, weight, name}]
+  
+  // Calculated Components
+  baseCompliance      Float    // C (0.0 - 1.0)
+  coverageFactor      Float    // F_cov (0.0 - 1.0)
+  violationPenalty    Float    // P (0.0 - 1.0)
+  
+  // Breakdown for transparency
+  majorPenalty        Float    @default(0)
+  minorPenalty        Float    @default(0)
+  customAlertPenalty  Float    @default(0)
+  scalingFactor       Float    @default(1)
+  
+  // Bonuses
+  consecutiveSafeDays Int      @default(0)
+  safetyBonus         Float    @default(0)
+  
+  // Final Score
+  safetyScore         Float    // 0.0 - 100.0
+  grade               String   // A+, A, A-, B+, etc.
+  
+  // Metadata
+  calculationVersion  Int      @default(1)
+  calculatedAt        DateTime @default(now())
+  
+  // Trends (stored for quick access)
+  yesterdayScore      Float?
+  weekAvgScore        Float?
+  monthAvgScore       Float?
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@unique([worksiteId, date])
+  @@index([worksiteId, date])
+  @@index([date])
+}
+
+model SafetyScoreConfig {
+  id                  String   @id @default(cuid())
+  
+  // Site-specific or global
+  worksiteId          String?  @unique
+  worksite            Worksite? @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  isGlobal            Boolean  @default(false) // Global config for all sites
+  
+  // Violation Weights
+  alpha               Float    @default(1.0)   // Major violations
+  beta                Float    @default(0.25)  // Minor violations
+  gamma               Float    @default(1.0)   // Custom alerts
+  
+  // Alert Weight Bounds
+  alertWeightMin      Float    @default(0.1)
+  alertWeightMax      Float    @default(2.0)
+  defaultAlertWeight  Float    @default(0.5)
+  
+  // Penalty Caps
+  maxPenalty          Float    @default(0.5)   // P_max (50%)
+  perTypeAlertCap     Int      @default(50)    // Max alerts of same type
+  
+  // Time Decay
+  lambda              Float    @default(0.1)   // Decay rate (10% per day)
+  
+  // Deduplication
+  timeWindowSeconds   Int      @default(300)   // 5 minutes
+  spatialThresholdMeters Float @default(10.0)
+  
+  // Bonuses
+  safeDayBonusRate    Float    @default(0.01)  // 1% per day
+  maxBonus            Float    @default(0.10)  // Max 10%
+  safeDayThreshold    Int      @default(7)     // Days needed
+  
+  // Data Requirements
+  minDetections       Int      @default(100)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model ViolationClassification {
+  id                  String   @id @default(cuid())
+  
+  // Classification
+  violationType       String   @unique // e.g., "no_hardhat", "zone_breach"
+  name                String   // Display name
+  description         String?
+  severity            String   // major, minor
+  
+  // Scoring
+  defaultWeight       Float    @default(1.0)
+  
+  // Custom per site
+  worksiteId          String?
+  worksite            Worksite? @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@index([worksiteId])
 }
 
