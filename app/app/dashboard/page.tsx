@@ -612,8 +612,8 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
   };
 
   const handleGenerateReport = () => {
-    // Navigate to analytics page for full reporting
-    router.push('/dashboard/analytics');
+    // Navigate to reports tab instead of analytics (which is under construction)
+    router.push('/dashboard?tab=reports');
   };
 
   const handleConfigureAlerts = () => {
@@ -810,8 +810,8 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
                 </svg>
               </div>
               <div className="text-left">
-                <div className="font-semibold text-lg">Configure Alerts</div>
-                <div className="text-green-100 text-sm">Set up safety notifications</div>
+                <div className="font-semibold text-lg">View Active Alerts</div>
+                <div className="text-green-100 text-sm">Monitor current alerts & status</div>
               </div>
             </div>
           </button>
