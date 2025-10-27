@@ -11,6 +11,7 @@ import ActiveAlerts from '@/app/components/dashboard/ActiveAlerts';
 import RealtimeDetectionOverlay from '../components/RealtimeDetectionOverlay';
 import ExportButton from '../components/ExportButton';
 import { useCameraStore } from '../lib/camera-store';
+import SafetyScoreCard from '../components/SafetyScoreCard';
 
 // Wrapper component that provides the dashboard context
 export default function DashboardPage() {
@@ -527,6 +528,65 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
   const [showAlertConfig, setShowAlertConfig] = useState(false);
   const [showCameraManager, setShowCameraManager] = useState(false);
   const [enableDetection, setEnableDetection] = useState(false);
+  
+  // Safety Score State
+  const [safetyScoreData, setSafetyScoreData] = useState<any>(null);
+  const [safetyScoreLoading, setSafetyScoreLoading] = useState(true);
+
+  // Fetch safety score on mount
+  useEffect(() => {
+    const fetchSafetyScore = async () => {
+      if (!currentSite?.id) return;
+      
+      try {
+        setSafetyScoreLoading(true);
+        const response = await fetch(
+          `/api/safety-score?worksiteId=${currentSite.id}&date=${new Date().toISOString().split('T')[0]}`
+        );
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            setSafetyScoreData(result.data);
+          } else {
+            // Score doesn't exist, try to calculate it
+            await calculateSafetyScore();
+          }
+        } else {
+          // Score doesn't exist, try to calculate it
+          await calculateSafetyScore();
+        }
+      } catch (error) {
+        console.error('Error fetching safety score:', error);
+      } finally {
+        setSafetyScoreLoading(false);
+      }
+    };
+    
+    const calculateSafetyScore = async () => {
+      try {
+        const response = await fetch('/api/safety-score/calculate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            worksiteId: currentSite.id,
+            date: new Date().toISOString().split('T')[0]
+          })
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            setSafetyScoreData(result.data);
+          }
+        }
+      } catch (error) {
+        console.error('Error calculating safety score:', error);
+      }
+    };
+    
+    fetchSafetyScore();
+  }, [currentSite]);
 
   const currentCamera = cameras.length > 0 ? cameras[currentCameraIndex] : null;
 
@@ -578,6 +638,39 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
 
   return (
     <div className="space-y-6">
+      {/* Safety Score Card */}
+      {safetyScoreData && (
+        <SafetyScoreCard
+          data={safetyScoreData}
+          loading={safetyScoreLoading}
+          onRefresh={async () => {
+            setSafetyScoreLoading(true);
+            try {
+              const response = await fetch('/api/safety-score/calculate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  worksiteId: currentSite.id,
+                  date: new Date().toISOString().split('T')[0],
+                  forceRecalculate: true
+                })
+              });
+              
+              if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                  setSafetyScoreData(result.data);
+                }
+              }
+            } catch (error) {
+              console.error('Error refreshing safety score:', error);
+            } finally {
+              setSafetyScoreLoading(false);
+            }
+          }}
+        />
+      )}
+      
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-gray-800 p-6 rounded-lg">
@@ -732,7 +825,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
               <div className="flex-shrink-0">
                 <svg className="w-8 h-8 text-purple-100 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
-                </svg>
+              </svg>
               </div>
               <div className="text-left">
                 <div className="font-semibold text-lg">Custom Rules</div>
