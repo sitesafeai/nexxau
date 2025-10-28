@@ -42,13 +42,13 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        // Get active alerts count
-        const activeAlertsCount = await prisma.alert.count({
-          where: {
-            worksiteId: worksite.id,
-            status: { in: ['active', 'acknowledged'] }
-          }
-        });
+    // Get active alerts count (using proper ENUM values)
+    const activeAlertsCount = await prisma.alert.count({
+      where: {
+        worksiteId: worksite.id,
+        status: { in: ['ACTIVE', 'ACKNOWLEDGED'] }
+      }
+    });
 
         // Get last activity (most recent camera update or alert)
         const lastCameraUpdate = await prisma.camera.findFirst({

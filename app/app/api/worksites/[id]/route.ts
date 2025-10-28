@@ -52,11 +52,11 @@ export async function GET(
       }
     });
 
-    // Get active alerts count
+    // Get active alerts count (using proper ENUM values)
     const activeAlertsCount = await prisma.alert.count({
       where: {
         worksiteId: worksite.id,
-        status: { in: ['active', 'acknowledged'] }
+        status: { in: ['ACTIVE', 'ACKNOWLEDGED'] }
       }
     });
 
