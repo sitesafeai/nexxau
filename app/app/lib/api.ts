@@ -1,6 +1,7 @@
 // API Service Layer - Handles both mock data and real API calls
 // Set this to false in production to use real APIs
-const USE_MOCK_DATA = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true';
+// PRODUCTION MODE: Use real API endpoints, not mock data
+const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true'; // Only use mock if explicitly enabled
 
 // Mock data for development
 const mockSites = [
