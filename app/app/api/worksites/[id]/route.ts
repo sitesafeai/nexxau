@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
+import { PrismaClient } from '@prisma/client';
+
+// Initialize Prisma client directly in this route
+const prisma = new PrismaClient();
 
 /**
  * GET /api/worksites/:id

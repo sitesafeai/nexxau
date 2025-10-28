@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
+import { PrismaClient } from '@prisma/client';
+
+// Initialize Prisma client directly in this route
+const prisma = new PrismaClient();
 
 /**
  * GET /api/worksites
@@ -7,6 +10,7 @@ import { prisma } from '@/app/lib/prisma';
  */
 export async function GET(request: NextRequest) {
   try {
+    
     const worksites = await prisma.worksite.findMany({
       include: {
         _count: {
