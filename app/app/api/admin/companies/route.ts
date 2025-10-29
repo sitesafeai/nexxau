@@ -1,95 +1,106 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/lib/auth';
+import { PrismaClient } from '@prisma/client';
 
-export async function GET() {
+const prisma = new PrismaClient();
+
+/**
+ * GET /api/admin/companies
+ * Get all companies with stats
+ */
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session || session.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const companies = await prisma.company.findMany({
       include: {
-        worksites: {
-          include: {
-            workers: true
+        _count: {
+          select: {
+            worksites: true,
+            users: true
           }
         }
+      },
+      orderBy: {
+        createdAt: 'desc'
       }
     });
 
-    return NextResponse.json(companies);
-  } catch (error) {
+    const enriched = companies.map(company => ({
+      id: company.id,
+      name: company.name,
+      companyName: company.companyName,
+      email: company.email,
+      phone: company.phone,
+      address: company.address,
+      worksiteCount: company._count.worksites,
+      userCount: company._count.users,
+      createdAt: company.createdAt
+    }));
+
+    return NextResponse.json({
+      success: true,
+      data: enriched
+    });
+  } catch (error: any) {
     console.error('Error fetching companies:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch companies', details: error.message },
+      { status: 500 }
+    );
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
+/**
+ * POST /api/admin/companies
+ * Create a new company
+ */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session || session.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const body = await request.json();
+    const { name, companyName, email, phone, address } = body;
 
-    const { name, companyUsername, email, phone, address } = await request.json();
-
-    // Validate required fields
-    if (!name || !companyUsername || !email) {
+    if (!name || !companyName || !email) {
       return NextResponse.json(
-        { error: 'Name, company username, and email are required' },
+        { success: false, error: 'Missing required fields: name, companyName, email' },
         { status: 400 }
       );
     }
 
-    // Check if company username already exists
-    const existingCompany = await prisma.company.findUnique({
-      where: { companyUsername }
+    // Check if company name already exists
+    const existing = await prisma.company.findUnique({
+      where: { companyName }
     });
 
-    if (existingCompany) {
+    if (existing) {
       return NextResponse.json(
-        { error: 'Company username already exists' },
-        { status: 400 }
-      );
-    }
-
-    // Check if email already exists
-    const existingEmail = await prisma.company.findUnique({
-      where: { email }
-    });
-
-    if (existingEmail) {
-      return NextResponse.json(
-        { error: 'Email already exists' },
-        { status: 400 }
+        { success: false, error: 'Company username already exists' },
+        { status: 409 }
       );
     }
 
     const company = await prisma.company.create({
       data: {
         name,
-        companyUsername,
+        companyName,
         email,
         phone,
         address
-      },
-      include: {
-        worksites: {
-          include: {
-            workers: true
-          }
-        }
       }
     });
 
-    return NextResponse.json(company, { status: 201 });
-  } catch (error) {
+    return NextResponse.json({
+      success: true,
+      data: company,
+      message: 'Company created successfully'
+    });
+
+  } catch (error: any) {
     console.error('Error creating company:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: 'Failed to create company', details: error.message },
+      { status: 500 }
+    );
+  } finally {
+    await prisma.$disconnect();
   }
-} 
+}
