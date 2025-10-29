@@ -51,22 +51,41 @@ model User {
   phoneNumber   String?
   accounts      Account[]
   sessions      Session[]
-  role          String    @default("worker") // admin, site-manager, worker, viewer
+  
+  // Multi-tenant Role System
+  role          UserRole  @default(WORKER)
+  
+  // Primary company/worksite (for backwards compatibility)
   companyId     String?
   company       Company?  @relation(fields: [companyId], references: [id])
   worksiteId    String?
   worksite      Worksite? @relation(fields: [worksiteId], references: [id])
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  isActivated   Boolean   @default(false) // For account claiming flow
-  approved      Boolean   @default(false)
-  verificationToken String? @unique
+  
+  // Multi-worksite access
+  worksiteAccess WorksiteUser[]
+  companyAccess  CompanyUser[]
+  
+  // Invitation & Onboarding
+  inviteToken      String?   @unique
+  inviteExpires    DateTime?
+  invitedBy        String?   // User ID who invited them (stored as string, not relation)
+  isActivated      Boolean   @default(false)
+  approved         Boolean   @default(false)
+  onboardingComplete Boolean @default(false)
+  verificationToken String?  @unique
+  
   // MFA fields
   mfaEnabled    Boolean   @default(false)
   mfaSecret     String?
   mfaBackupCodes Json?
+  
   // Session management
   lastLogin     DateTime?
+  timezone      String?   @default("America/New_York")
+  
+  // Existing relations
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   alertResponses AlertResponse[]
   alertRules    AlertRule[]
   workflows     Workflow[]
@@ -79,6 +98,62 @@ model User {
   customRules   CustomRule[]
 }
 
+// New: User role enum
+enum UserRole {
+  SUPER_ADMIN      // You - full system access
+  COMPANY_ADMIN    // Manages a company
+  SITE_ADMIN       // Manages worksites, invites workers
+  SUPERVISOR       // Can manage alerts, limited admin
+  WORKER           // Basic access
+  VIEWER           // Read-only
+}
+
+// New: User-Worksite relationship (many-to-many)
+model WorksiteUser {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  worksiteId  String
+  worksite    Worksite     @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  role        WorksiteRole @default(WORKER)
+  permissions Json?        // Custom permissions per user
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  @@unique([userId, worksiteId])
+  @@index([userId])
+  @@index([worksiteId])
+}
+
+enum WorksiteRole {
+  ADMIN
+  SUPERVISOR
+  WORKER
+  VIEWER
+}
+
+// New: User-Company relationship (many-to-many)
+model CompanyUser {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId  String
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role       CompanyRole @default(VIEWER)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  
+  @@unique([userId, companyId])
+  @@index([userId])
+  @@index([companyId])
+}
+
+enum CompanyRole {
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -88,16 +163,17 @@ model VerificationToken {
 }
 
 model Company {
-  id              String    @id @default(cuid())
+  id              String        @id @default(cuid())
   name            String
-  companyUsername String    @unique // e.g., "buildsafeinc"
-  email           String    @unique
+  companyName     String        @unique // e.g., "abc-construction" (was companyUsername)
+  email           String        @unique
   phone           String?
   address         String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
   worksites       Worksite[]
-  users           User[]
+  users           User[]        // Primary users
+  companyUsers    CompanyUser[] // Multi-tenant access
 }
 
 model Worksite {
@@ -126,6 +202,7 @@ model Worksite {
   safetyScores      SafetyScore[]
   safetyScoreConfig SafetyScoreConfig?
   violationClassifications ViolationClassification[]
+  worksiteUsers     WorksiteUser[] // Multi-tenant user access
 }
 
 model Worker {
