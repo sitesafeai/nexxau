@@ -1,43 +1,15 @@
 import { PrismaClient } from '@prisma/client';
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-// Optimized Prisma configuration for better connection handling
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DIRECT_URL || process.env.DATABASE_URL, // Use DIRECT_URL to avoid pooler TLS issues
-    },
-  },
-  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  // Connection pool optimization for production
-  __internal: {
-    engine: {
-      connectTimeout: 20000, // 20 seconds
-      queryTimeout: 30000,   // 30 seconds
-      poolTimeout: 20000,    // 20 seconds
-    },
-  },
-});
-
-// Graceful shutdown handling
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
+declare global {
+  var prisma: PrismaClient | undefined;
 }
 
-// Handle process termination gracefully
-process.on('beforeExit', async () => {
-  await prisma.$disconnect();
+// Use a single instance in development to avoid creating multiple connections
+export const prisma = global.prisma || new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
 });
 
-process.on('SIGINT', async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-});
+if (process.env.NODE_ENV !== 'production') {
+  global.prisma = prisma;
+}
 
-process.on('SIGTERM', async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-}); 
