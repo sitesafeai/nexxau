@@ -23,7 +23,7 @@ export default function CompaniesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
-    companyName: '',
+    companyUsername: '',
     email: '',
     phone: '',
     address: ''

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/app/lib/db';
+import { prisma } from '@/app/lib/prisma';
 
 /**
  * GET /api/admin/companies
@@ -7,7 +7,7 @@ import { db } from '@/app/lib/db';
  */
 export async function GET(request: NextRequest) {
   try {
-    const companies = await db.company.findMany({
+    const companies = await prisma.company.findMany({
       include: {
         _count: {
           select: {
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const enriched = companies.map(company => ({
       id: company.id,
       name: company.name,
-      companyName: company.companyName,
+      companyName: company.companyUsername, // Map to companyName for frontend
       email: company.email,
       phone: company.phone,
       address: company.address,
@@ -55,18 +55,18 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, companyName, email, phone, address } = body;
+    const { name, companyUsername, email, phone, address } = body;
 
-    if (!name || !companyName || !email) {
+    if (!name || !companyUsername || !email) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields: name, companyName, email' },
+        { success: false, error: 'Missing required fields: name, companyUsername, email' },
         { status: 400 }
       );
     }
 
-    // Check if company name already exists
-    const existing = await db.company.findUnique({
-      where: { companyName }
+    // Check if company username already exists
+    const existing = await prisma.company.findUnique({
+      where: { companyUsername }
     });
 
     if (existing) {
@@ -76,10 +76,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const company = await db.company.create({
+    const company = await prisma.company.create({
       data: {
         name,
-        companyName,
+        companyUsername,
         email,
         phone,
         address
