@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { db } from '@/app/lib/db';
 
 /**
  * GET /api/admin/companies
@@ -9,7 +7,7 @@ const prisma = new PrismaClient();
  */
 export async function GET(request: NextRequest) {
   try {
-    const companies = await prisma.company.findMany({
+    const companies = await db.company.findMany({
       include: {
         _count: {
           select: {
@@ -46,7 +44,7 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   } finally {
-    await prisma.$disconnect();
+    // No need to disconnect with singleton pattern
   }
 }
 
@@ -67,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if company name already exists
-    const existing = await prisma.company.findUnique({
+    const existing = await db.company.findUnique({
       where: { companyName }
     });
 
@@ -78,7 +76,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const company = await prisma.company.create({
+    const company = await db.company.create({
       data: {
         name,
         companyName,
@@ -101,6 +99,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   } finally {
-    await prisma.$disconnect();
+    // No need to disconnect with singleton pattern
   }
 }
