@@ -166,7 +166,8 @@ model Company {
   id              String        @id @default(cuid())
   name            String
   companyUsername String        @unique // e.g., "abc-construction" (URL-friendly name)
-  email           String        @unique
+  email           String        @unique // Company email
+  contactEmail    String?       // Contact person email for notifications
   phone           String?
   address         String?
   createdAt       DateTime      @default(now())

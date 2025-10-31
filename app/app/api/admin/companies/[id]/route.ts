@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/app/lib/prisma';
 
 /**
  * GET /api/admin/companies/:id
@@ -63,7 +61,7 @@ export async function GET(
       { status: 500 }
     );
   } finally {
-    await prisma.$disconnect();
+    // No disconnect needed with singleton
   }
 }
 
@@ -94,7 +92,7 @@ export async function PATCH(
       { status: 500 }
     );
   } finally {
-    await prisma.$disconnect();
+    // No disconnect needed with singleton
   }
 }
 
@@ -122,7 +120,7 @@ export async function DELETE(
       { status: 500 }
     );
   } finally {
-    await prisma.$disconnect();
+    // No disconnect needed with singleton
   }
 }
 

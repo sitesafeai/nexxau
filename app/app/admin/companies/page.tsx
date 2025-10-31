@@ -25,6 +25,7 @@ export default function CompaniesPage() {
     name: '',
     companyUsername: '',
     email: '',
+    contactEmail: '',
     phone: '',
     address: ''
   });
@@ -261,16 +262,31 @@ export default function CompaniesPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Email *
+                    Company Email *
                   </label>
                   <input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full bg-gray-900/50 text-white rounded-lg px-4 py-3 border border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="admin@abc-construction.com"
+                    placeholder="company@abc-construction.com"
                     required
                   />
+                  <p className="mt-1 text-xs text-gray-400">Primary company email</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Contact Email
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.contactEmail}
+                    onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
+                    className="w-full bg-gray-900/50 text-white rounded-lg px-4 py-3 border border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="admin@abc-construction.com"
+                  />
+                  <p className="mt-1 text-xs text-gray-400">Recipient for automated notifications</p>
                 </div>
 
                 <div>
