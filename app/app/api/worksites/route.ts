@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
         name,
         worksiteName,
         location,
-        address,
+        address: address || '', // Default to empty string if not provided
         companyId,
         cameraSystemType: cameraSystemType || 'mixed',
         status: 'ACTIVE'

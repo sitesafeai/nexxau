@@ -51,11 +51,16 @@ export default function CompanyDetailPage() {
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   const [showWorksiteModal, setShowWorksiteModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [worksiteFormData, setWorksiteFormData] = useState({
     name: '',
     worksiteName: '',
     location: '',
     address: ''
+  });
+  const [inviteFormData, setInviteFormData] = useState({
+    email: '',
+    role: 'SITE_ADMIN'
   });
 
   useEffect(() => {
@@ -106,6 +111,37 @@ export default function CompanyDetailPage() {
     } catch (error) {
       console.error('Error creating worksite:', error);
       alert('Failed to create worksite');
+    }
+  };
+
+  const handleInviteUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      const response = await fetch('/api/invitations/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteFormData.email,
+          role: inviteFormData.role,
+          companyId,
+          invitedBy: 'dev-user-1' // TODO: Get from session
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`Invitation sent to ${inviteFormData.email}!\n\nInvite URL (for testing):\n${data.data.inviteUrl}`);
+        setShowInviteModal(false);
+        setInviteFormData({ email: '', role: 'SITE_ADMIN' });
+        fetchCompany(); // Refresh to show new user
+      } else {
+        alert(`Failed to send invitation: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error sending invitation:', error);
+      alert('Failed to send invitation');
     }
   };
 
@@ -171,13 +207,22 @@ export default function CompanyDetailPage() {
                 <p className="text-gray-400 mt-1">@{company.companyUsername}</p>
               </div>
             </div>
-            <button
-              onClick={() => router.push(`/admin/companies/${companyId}/edit`)}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
-            >
-              <Edit className="h-5 w-5" />
-              Edit Company
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowInviteModal(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors"
+              >
+                <Plus className="h-5 w-5" />
+                Invite User
+              </button>
+              <button
+                onClick={() => router.push(`/admin/companies/${companyId}/edit`)}
+                className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+              >
+                <Edit className="h-5 w-5" />
+                Edit Company
+              </button>
+            </div>
           </div>
         </div>
 
@@ -356,6 +401,73 @@ export default function CompanyDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Invite User Modal */}
+        {showInviteModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-6">
+            <div className="bg-slate-800 rounded-2xl p-8 max-w-lg w-full border border-slate-700 shadow-2xl">
+              <h2 className="text-2xl font-bold text-white mb-6">Invite User to {company?.name}</h2>
+              
+              <form onSubmit={handleInviteUser} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    value={inviteFormData.email}
+                    onChange={(e) => setInviteFormData({ ...inviteFormData, email: e.target.value })}
+                    className="w-full bg-gray-900/50 text-white rounded-lg px-4 py-3 border border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="user@example.com"
+                    required
+                  />
+                  <p className="mt-1 text-xs text-gray-400">They will receive an email invitation to join</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Role *
+                  </label>
+                  <select
+                    value={inviteFormData.role}
+                    onChange={(e) => setInviteFormData({ ...inviteFormData, role: e.target.value })}
+                    className="w-full bg-gray-900/50 text-white rounded-lg px-4 py-3 border border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  >
+                    <option value="COMPANY_ADMIN">Company Admin</option>
+                    <option value="SITE_ADMIN">Site Admin</option>
+                    <option value="SUPERVISOR">Supervisor</option>
+                    <option value="WORKER">Worker</option>
+                    <option value="VIEWER">Viewer</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-400">Select the user's role and permissions</p>
+                </div>
+
+                <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-blue-400 mb-2">📧 What happens next?</h3>
+                  <p className="text-xs text-gray-300">
+                    An invitation email will be sent to this address with a secure link to create their account and set their password. The link expires in 72 hours.
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowInviteModal(false)}
+                    className="flex-1 px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors"
+                  >
+                    Send Invitation
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Create Worksite Modal */}
         {showWorksiteModal && (

@@ -1,0 +1,53 @@
+# ============================================
+# ADD THESE TO YOUR .env FILE
+# ============================================
+# Copy these lines and add them to: /Users/luizcarneiro/nexxau/app/.env
+
+# Email Configuration
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=xxxx xxxx xxxx xxxx
+FROM_EMAIL=your-email@gmail.com
+FROM_NAME=SiteSafe
+NEXT_PUBLIC_APP_URL=http://localhost:3005
+
+# ============================================
+# SETUP INSTRUCTIONS:
+# ============================================
+#
+# OPTION 1: Gmail (Easiest for Testing)
+# --------------------------------------
+# 1. Enable 2-Factor Authentication on your Google account
+# 2. Visit: https://myaccount.google.com/apppasswords
+# 3. Select App: "Mail", Device: "Other (Custom name)"
+# 4. Name it "SiteSafe"  
+# 5. Copy the 16-character password (format: xxxx xxxx xxxx xxxx)
+# 6. Replace "your-email@gmail.com" with your Gmail address
+# 7. Replace "xxxx xxxx xxxx xxxx" with the App Password
+# 8. Save the .env file
+# 9. Run: cd /Users/luizcarneiro/nexxau/app && node test-email.js
+#
+# OPTION 2: Other SMTP Provider
+# ------------------------------
+# Update SMTP_HOST, SMTP_PORT according to your provider:
+#
+# SendGrid:
+#   SMTP_HOST=smtp.sendgrid.net
+#   SMTP_PORT=587
+#   SMTP_USER=apikey
+#   SMTP_PASSWORD=your-sendgrid-api-key
+#
+# AWS SES:
+#   SMTP_HOST=email-smtp.us-east-1.amazonaws.com
+#   SMTP_PORT=587
+#   SMTP_USER=your-ses-smtp-username
+#   SMTP_PASSWORD=your-ses-smtp-password
+#
+# ============================================
+
+After adding to .env, test with:
+cd /Users/luizcarneiro/nexxau/app
+node test-email.js
+
