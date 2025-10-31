@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/app/lib/prisma';
+import { sendInvitationEmail } from '@/app/lib/email-service';
 import crypto from 'crypto';
-
-const prisma = new PrismaClient();
 
 /**
  * POST /api/invitations/send
@@ -65,11 +64,24 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // TODO: Send email here
-      const inviteUrl = `${process.env.NEXTAUTH_URL}/auth/claim-account?token=${token}`;
+      // Fetch inviter and company info
+      const inviter = await prisma.user.findUnique({ where: { id: invitedBy } });
+      const company = companyId ? await prisma.company.findUnique({ where: { id: companyId } }) : null;
+      
+      // Send invitation email
+      const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL}/auth/claim-account?token=${token}`;
       
       console.log('📧 RESENDING invitation email to:', email);
       console.log('🔗 Invite URL:', inviteUrl);
+
+      // Send email (non-blocking - don't wait for it)
+      sendInvitationEmail(
+        email,
+        inviter?.name || 'Admin',
+        role,
+        company?.name || 'Your Organization',
+        token
+      ).catch(err => console.error('Failed to send email:', err));
 
       return NextResponse.json({
         success: true,
@@ -124,14 +136,26 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // TODO: Send actual email here
-    // For now, we'll log the invite URL
-    const inviteUrl = `${process.env.NEXTAUTH_URL}/auth/claim-account?token=${token}`;
+    // Fetch inviter and company info
+    const inviter = await prisma.user.findUnique({ where: { id: invitedBy } });
+    const company = companyId ? await prisma.company.findUnique({ where: { id: companyId } }) : null;
+    
+    // Send invitation email
+    const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL}/auth/claim-account?token=${token}`;
     
     console.log('📧 Sending invitation email to:', email);
     console.log('🔗 Invite URL:', inviteUrl);
     console.log('👤 Role:', role);
     console.log('⏰ Expires:', expires);
+
+    // Send email (non-blocking - don't wait for it)
+    sendInvitationEmail(
+      email,
+      inviter?.name || 'Admin',
+      role,
+      company?.name || 'Your Organization',
+      token
+    ).catch(err => console.error('Failed to send email:', err));
 
     return NextResponse.json({
       success: true,
@@ -154,8 +178,6 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
