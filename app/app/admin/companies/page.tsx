@@ -250,8 +250,8 @@ export default function CompaniesPage() {
                   </label>
                   <input
                     type="text"
-                    value={formData.companyName}
-                    onChange={(e) => setFormData({ ...formData, companyName: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+                    value={formData.companyUsername}
+                    onChange={(e) => setFormData({ ...formData, companyUsername: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
                     className="w-full bg-gray-900/50 text-white rounded-lg px-4 py-3 border border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                     placeholder="abc-construction"
                     required
