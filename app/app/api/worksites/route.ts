@@ -127,17 +127,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, address, companyId, cameraSystemType } = body;
+    const { name, worksiteName: providedWorksiteName, location, address, companyId, cameraSystemType } = body;
 
-    if (!name || !address || !companyId) {
+    if (!name || !companyId) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields' },
+        { success: false, error: 'Missing required fields: name, companyId' },
         { status: 400 }
       );
     }
 
-    // Generate unique worksite name
-    const worksiteName = name
+    // Use provided worksiteName or generate from name
+    const worksiteName = providedWorksiteName || name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
@@ -146,9 +146,11 @@ export async function POST(request: NextRequest) {
       data: {
         name,
         worksiteName,
+        location,
         address,
         companyId,
-        cameraSystemType: cameraSystemType || 'mixed'
+        cameraSystemType: cameraSystemType || 'mixed',
+        status: 'ACTIVE'
       }
     });
 
