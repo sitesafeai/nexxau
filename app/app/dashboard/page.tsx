@@ -5,7 +5,7 @@ import { DashboardProvider, useDashboard, useSiteManagement, useNotifications } 
 import { useAlerts, useCameras, useAnalytics } from '../lib/hooks/useApi';
 import CameraFeed from '../components/CameraFeed';
 import { NotificationContainer } from '../components/NotificationToast';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import ActiveAlerts from '@/app/components/dashboard/ActiveAlerts';
 import RealtimeDetectionOverlay from '../components/RealtimeDetectionOverlay';
@@ -29,13 +29,25 @@ function DashboardContent() {
   const { selectedSiteId, selectedSite, accessibleSites } = useSiteManagement();
   const { notifications, removeNotification } = useNotifications();
   const welcomeNotificationShown = useRef(false);
+  const searchParams = useSearchParams();
+  const worksiteParam = searchParams.get('worksite');
 
-  // Update selected site when context changes
+  // Auto-select worksite from URL parameter or default to first available
   useEffect(() => {
-    if (!selectedSiteId && accessibleSites.length > 0) {
+    if (worksiteParam && accessibleSites.length > 0) {
+      // If worksite parameter exists, select that worksite
+      const matchingWorksite = accessibleSites.find(site => site.id === worksiteParam);
+      if (matchingWorksite) {
+        selectSite(worksiteParam);
+      } else if (!selectedSiteId) {
+        // Fallback to first site if parameter doesn't match
       selectSite(accessibleSites[0].id);
     }
-  }, [selectedSiteId, accessibleSites, selectSite]);
+    } else if (!selectedSiteId && accessibleSites.length > 0) {
+      // No parameter, select first available site
+      selectSite(accessibleSites[0].id);
+    }
+  }, [worksiteParam, selectedSiteId, accessibleSites, selectSite]);
 
   // Show welcome notification (only once)
   useEffect(() => {
@@ -521,7 +533,7 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
 
 function OverviewTab({ currentSite }: { currentSite: any }) {
   const router = useRouter();
-  const { cameras } = useCameraStore();
+  const { cameras } = useCameraStore(currentSite?.id);
 
   const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -1234,7 +1246,7 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
 
 function MonitoringTab({ currentSite }: { currentSite: any }) {
   const router = useRouter();
-  const { cameras } = useCameraStore();
+  const { cameras } = useCameraStore(currentSite?.id);
 
   const [enableDetection, setEnableDetection] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
@@ -1770,7 +1782,7 @@ function SitesPage({ sites, currentUser }: { sites: any[], currentUser: any }) {
 }
 
 function CamerasPage({ currentSite }: { currentSite: any }) {
-  const { cameras } = useCameraStore();
+  const { cameras } = useCameraStore(currentSite?.id);
   const router = useRouter();
   const [selectedCameraForLive, setSelectedCameraForLive] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(0);
@@ -2189,12 +2201,12 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold text-white">Workflows</h1>
-      <div className="bg-gray-800 p-6 rounded-lg">
+        <div className="bg-gray-800 p-6 rounded-lg">
           <p className="text-gray-300">Please select a worksite to view its workflows.</p>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
   return (
     <div className="space-y-6">

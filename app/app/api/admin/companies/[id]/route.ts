@@ -19,7 +19,8 @@ export async function GET(
               select: {
                 cameras: true,
                 alerts: true,
-                workers: true
+                workers: true,
+                worksiteUsers: true
               }
             }
           }
@@ -37,7 +38,8 @@ export async function GET(
         _count: {
           select: {
             worksites: true,
-            users: true
+            users: true,
+            companyUsers: true
           }
         }
       }

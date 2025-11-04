@@ -18,7 +18,7 @@ const EMAIL_CONFIG = {
 
 const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@sitesafe.ai';
 const FROM_NAME = process.env.FROM_NAME || 'SiteSafe';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3005';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 // Create reusable transporter
 let transporter: nodemailer.Transporter | null = null;

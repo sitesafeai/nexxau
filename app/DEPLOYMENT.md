@@ -1,292 +1,429 @@
-# 🚀 Nexxau Production Deployment Guide
+# SiteSafe AI - Production Deployment Guide
 
-## 📋 Prerequisites
+## 🚀 Pre-Deployment Checklist
 
-- Node.js 18+ installed
-- PostgreSQL database (local or cloud)
-- Vercel account (recommended) or Firebase
-- Domain name (optional but recommended)
-- Twilio account for SMS notifications
-- Cloudinary account for image storage
-
-## 🔧 Step 1: Environment Configuration
-
-### 1.1 Create Production Environment File
+### 1. Environment Variables
+Ensure all production environment variables are set:
 
 ```bash
-# Copy the production template
-cp env.production.template .env.production
+# Database
+DATABASE_URL=postgresql://...
 
-# Edit with your actual values
-nano .env.production
+# Authentication
+NEXTAUTH_SECRET=<generate-with: openssl rand -base64 32>
+NEXTAUTH_URL=https://yourdomain.com
+
+# Email (Gmail SMTP)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+FROM_EMAIL=your-email@gmail.com
+FROM_NAME=SiteSafe AI
+
+# Application
+NEXT_PUBLIC_APP_URL=https://yourdomain.com
+NODE_ENV=production
+
+# WebSockets (optional)
+NEXT_PUBLIC_WS_URL=wss://yourdomain.com/ws
 ```
 
-### 1.2 Generate Secure Secrets
-
+### 2. Database Migration
 ```bash
-# Generate NextAuth secret (32+ characters)
-openssl rand -base64 32
-
-# Generate JWT secret
-openssl rand -base64 32
-
-# Generate encryption key
-openssl rand -base64 32
-```
-
-### 1.3 Required Environment Variables
-
-**Essential (must be set):**
-- `DATABASE_URL` - PostgreSQL connection string
-- `NEXTAUTH_SECRET` - Secure random string
-- `NEXTAUTH_URL` - Your production domain
-- `JWT_SECRET` - Secure random string
-- `ENCRYPTION_KEY` - Secure random string
-
-**Recommended:**
-- `TWILIO_ACCOUNT_SID` - For SMS notifications
-- `TWILIO_AUTH_TOKEN` - For SMS notifications
-- `CLOUDINARY_API_KEY` - For image uploads
-- `SENTRY_DSN` - For error monitoring
-
-## 🗄️ Step 2: Database Setup
-
-### 2.1 PostgreSQL Setup
-
-**Option A: Local PostgreSQL**
-```bash
-# Install PostgreSQL
-brew install postgresql  # macOS
-sudo apt-get install postgresql  # Ubuntu
-
-# Start PostgreSQL
-brew services start postgresql
-
-# Create database
-createdb nexxau_production
-```
-
-**Option B: Cloud PostgreSQL (Recommended)**
-- [Supabase](https://supabase.com) (Free tier available)
-- [Neon](https://neon.tech) (Serverless, free tier)
-- [Railway](https://railway.app) (Simple setup)
-
-### 2.2 Run Database Setup Script
-
-```bash
-# Make script executable
-chmod +x scripts/setup-production-db.sh
-
-# Run setup
-./scripts/setup-production-db.sh
-```
-
-### 2.3 Manual Database Setup (Alternative)
-
-```bash
-# Switch to production schema
-cp prisma/schema.production.prisma prisma/schema.prisma
-
-# Generate Prisma client
-npx prisma generate
-
-# Run migrations
+# Run Prisma migration for production
 npx prisma migrate deploy
 
-# Verify setup
-npx prisma studio
+# Or push schema (if using db push)
+npx prisma db push --accept-data-loss  # CAUTION: Only in initial setup
+
+# Generate Prisma Client
+npx prisma generate
 ```
 
-## 🏗️ Step 3: Production Build
-
-### 3.1 Install Dependencies
-
+### 3. Build Optimization
 ```bash
-npm ci --only=production
-```
+# Clean build
+rm -rf .next
 
-### 3.2 Build Application
+# Install dependencies
+npm ci  # Use ci for production (installs exact versions from lock file)
 
-```bash
+# Build for production
 npm run build
-```
 
-### 3.3 Test Production Build
-
-```bash
+# Test production build locally
 npm start
 ```
 
-## 🚀 Step 4: Deployment
+## 🔒 Security Hardening
 
-### 4.1 Vercel Deployment (Recommended)
+### CSRF Protection
+- NEXTAUTH_SECRET must be unique and strong (min 32 characters)
+- Never commit .env files to git
+- Use environment variables for all secrets
 
-1. **Install Vercel CLI**
+### Rate Limiting (TODO - Recommended)
+Add rate limiting middleware for:
+- Login attempts: 5 attempts per 15 minutes
+- API calls: 100 requests per minute per IP
+- Password reset: 3 attempts per hour
+
+### Headers Security
+Add to `next.config.js`:
+```javascript
+const securityHeaders = [
+  {
+    key: 'X-DNS-Prefetch-Control',
+    value: 'on'
+  },
+  {
+    key: 'X-Frame-Options',
+    value: 'SAMEORIGIN'
+  },
+  {
+    key: 'X-Content-Type-Options',
+    value: 'nosniff'
+  },
+  {
+    key: 'Referrer-Policy',
+    value: 'origin-when-cross-origin'
+  }
+];
+
+module.exports = {
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: securityHeaders,
+      },
+    ];
+  },
+};
+```
+
+## 📊 Performance Optimization
+
+### Database
+- Ensure all Prisma indexes are properly set (already done in schema)
+- Set up connection pooling (Supabase does this automatically)
+- Monitor slow queries using Prisma Studio or database logs
+
+### Caching
+- Enable Next.js ISR for static pages
+- Use Redis for session storage (currently using JWT)
+- Implement CDN for static assets
+
+### Image Optimization
+- Use Next.js Image component for all images
+- Set up external image optimization service (e.g., Cloudinary)
+
+## 🚀 Deployment Platforms
+
+### Vercel (Recommended for Next.js)
 ```bash
+# Install Vercel CLI
 npm i -g vercel
-```
 
-2. **Login to Vercel**
-```bash
-vercel login
-```
-
-3. **Deploy**
-```bash
+# Deploy
 vercel --prod
+
+# Set environment variables in Vercel dashboard
 ```
 
-4. **Configure Environment Variables**
-   - Go to Vercel Dashboard
-   - Select your project
-   - Go to Settings > Environment Variables
-   - Add all variables from `.env.production`
+**Environment Variables in Vercel:**
+1. Go to Project Settings → Environment Variables
+2. Add all variables from .env.local
+3. Ensure `NEXTAUTH_URL` points to your production domain
 
-### 4.2 Firebase Deployment (Alternative)
+### Docker Deployment
+```dockerfile
+# Dockerfile
+FROM node:18-alpine AS base
 
-1. **Install Firebase CLI**
+# Install dependencies only when needed
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Build Next.js
+RUN npm run build
+
+# Production image
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV production
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT 3000
+
+CMD ["node", "server.js"]
+```
+
+**docker-compose.yml:**
+```yaml
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+    depends_on:
+      - db
+  
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: sitesafe
+      POSTGRES_USER: sitesafe
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
+## 📈 Monitoring & Logging
+
+### Error Tracking
+Integrate Sentry:
 ```bash
-npm i -g firebase-tools
+npm install @sentry/nextjs
+
+# Initialize Sentry
+npx @sentry/wizard@latest -i nextjs
 ```
 
-2. **Login to Firebase**
+### Application Monitoring
+- **Vercel Analytics**: Built-in if using Vercel
+- **Google Analytics**: Add to `_app.tsx`
+- **LogRocket**: Session replay and error tracking
+
+### Database Monitoring
+- Use Prisma Pulse for real-time database events
+- Set up alerts for slow queries (> 1s)
+- Monitor connection pool usage
+
+## 🔍 Health Checks
+
+Create health check endpoint:
+```typescript
+// app/api/health/route.ts
+import { NextResponse } from 'next/server';
+import { prisma } from '@/app/lib/prisma';
+
+export async function GET() {
+  try {
+    // Check database connection
+    await prisma.$queryRaw`SELECT 1`;
+    
+    return NextResponse.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      database: 'connected',
+      version: process.env.npm_package_version
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        status: 'unhealthy',
+        error: error.message
+      },
+      { status: 503 }
+    );
+  }
+}
+```
+
+## 🔄 CI/CD Pipeline (GitHub Actions)
+
+Create `.github/workflows/deploy.yml`:
+```yaml
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run Prisma Generate
+        run: npx prisma generate
+      
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+```
+
+## 🗄️ Database Backup Strategy
+
+### Automated Backups (Supabase)
+- Daily automated backups (included in Supabase)
+- Point-in-time recovery available
+- Set up additional backup cron job for audit logs
+
+### Manual Backup Script
 ```bash
-firebase login
+#!/bin/bash
+# backup.sh
+DATE=$(date +%Y%m%d_%H%M%S)
+pg_dump $DATABASE_URL > backups/sitesafe_$DATE.sql
+echo "Backup created: sitesafe_$DATE.sql"
 ```
 
-3. **Initialize Firebase**
+## 📱 Post-Deployment Tasks
+
+### 1. Create Super Admin
 ```bash
-firebase init hosting
+# SSH into production server or use Prisma Studio
+npx prisma studio
+
+# Or run migration script to create initial admin
+node scripts/create-super-admin.js
 ```
 
-4. **Build and Deploy**
+### 2. Test Critical Flows
+- [ ] Login with each role type
+- [ ] Create company → Create worksite → Invite user
+- [ ] Alert creation and acknowledgment
+- [ ] Email sending (invitation, notifications)
+- [ ] Real-time updates (WebSocket)
+- [ ] Dashboard loading and stats
+
+### 3. SSL Certificate
+- Ensure HTTPS is enabled
+- Test certificate auto-renewal (Let's Encrypt)
+- Verify all redirects from HTTP to HTTPS
+
+### 4. DNS Configuration
+```
+A     @           -> Your server IP
+CNAME www         -> @
+CNAME ws          -> @ (for WebSocket if needed)
+```
+
+## 🛡️ Compliance & Legal
+
+### GDPR Compliance
+- [ ] Privacy policy page
+- [ ] Terms of service page
+- [ ] Cookie consent banner
+- [ ] Data export functionality
+- [ ] Account deletion functionality
+
+### Audit Logging
+✅ Already implemented in `/app/lib/audit-logger.ts`
+- All critical actions are logged
+- Logs include IP address and timestamp
+- Accessible to SUPER_ADMIN via `/admin/audit-logs`
+
+## 📞 Support & Maintenance
+
+### Monitoring Checklist
+- [ ] Set up uptime monitoring (UptimeRobot, Pingdom)
+- [ ] Configure error alerts (email/Slack)
+- [ ] Set up performance monitoring
+- [ ] Weekly database backup verification
+
+### Update Strategy
+- Use semantic versioning (semver)
+- Test updates in staging environment first
+- Maintain changelog in `CHANGELOG.md`
+- Schedule maintenance windows for major updates
+
+## 🚨 Rollback Plan
+
+If deployment fails:
 ```bash
-npm run build
-firebase deploy
+# Vercel: Instant rollback via dashboard
+# Or via CLI
+vercel rollback
+
+# Docker: Switch to previous image
+docker-compose down
+docker-compose up -d --no-deps app:previous-tag
 ```
 
-## 🔒 Step 5: Security & Monitoring
+## 📝 Environment-Specific Notes
 
-### 5.1 Security Checklist
+### Production
+- All emails should use production SMTP
+- WebSockets should use WSS (secure)
+- All API calls over HTTPS
+- Enable all security headers
+- Minify and compress assets
 
-- [ ] HTTPS enabled
-- [ ] Environment variables secured
-- [ ] Database access restricted
-- [ ] Rate limiting enabled
-- [ ] CORS configured
-- [ ] Input validation implemented
-- [ ] SQL injection protection
-- [ ] XSS protection
-
-### 5.2 Monitoring Setup
-
-**Sentry (Error Tracking)**
-1. Create account at [sentry.io](https://sentry.io)
-2. Add `SENTRY_DSN` to environment variables
-3. Test error reporting
-
-**Analytics (Optional)**
-1. Google Analytics
-2. Vercel Analytics
-3. Custom event tracking
-
-### 5.3 Performance Monitoring
-
-- Vercel Analytics (built-in)
-- Core Web Vitals monitoring
-- Database query performance
-- API response times
-
-## 📱 Step 6: Feature Testing
-
-### 6.1 Core Functionality
-
-- [ ] User authentication
-- [ ] Role-based access control
-- [ ] Dashboard functionality
-- [ ] Camera integration
-- [ ] Alert system
-- [ ] SMS notifications
-- [ ] Email notifications
-- [ ] Report generation
-
-### 6.2 Camera & AI Integration
-
-- [ ] RTSP stream connection
-- [ ] AI violation detection
-- [ ] Real-time alerts
-- [ ] Video recording
-- [ ] Image storage
-
-### 6.3 Notification System
-
-- [ ] SMS via Twilio
-- [ ] Email notifications
-- [ ] In-app alerts
-- [ ] Escalation workflows
-
-## 🔄 Step 7: Maintenance & Updates
-
-### 7.1 Database Backups
-
-```bash
-# Automated backup script
-chmod +x scripts/backup-db.sh
-./scripts/backup-db.sh
-```
-
-### 7.2 Monitoring Alerts
-
-- Set up uptime monitoring
-- Configure error rate alerts
-- Monitor database performance
-- Track API usage
-
-### 7.3 Update Process
-
-1. Test changes locally
-2. Deploy to staging (if available)
-3. Run database migrations
-4. Deploy to production
-5. Verify functionality
-
-## 🆘 Troubleshooting
-
-### Common Issues
-
-**Build Failures**
-- Check Node.js version
-- Clear `.next` cache
-- Verify all dependencies installed
-
-**Database Connection Issues**
-- Check `DATABASE_URL` format
-- Verify network access
-- Check PostgreSQL status
-
-**Environment Variable Issues**
-- Ensure all required variables set
-- Check variable names match code
-- Restart deployment after changes
-
-### Support Resources
-
-- [Next.js Documentation](https://nextjs.org/docs)
-- [Prisma Documentation](https://www.prisma.io/docs)
-- [Vercel Documentation](https://vercel.com/docs)
-- [Firebase Documentation](https://firebase.google.com/docs)
-
-## 📞 Next Steps
-
-After deployment:
-
-1. **Test all features thoroughly**
-2. **Set up monitoring and alerts**
-3. **Configure backup schedules**
-4. **Document deployment process**
-5. **Train team on maintenance**
-6. **Plan scaling strategy**
+### Staging (Optional but Recommended)
+- Mirror production configuration
+- Use separate database
+- Test all changes here first
+- Can use test SMTP (Mailtrap, etc.)
 
 ---
 
-**Need Help?** Check the troubleshooting section or create an issue in the repository. 
+## 🎉 You're Ready to Deploy!
+
+Follow this checklist and your SiteSafe AI application will be production-ready with:
+- ✅ Multi-tenant architecture
+- ✅ Role-based access control
+- ✅ Email invitations & onboarding
+- ✅ Real-time alerts
+- ✅ Audit logging
+- ✅ Comprehensive error handling
+- ✅ Performance optimizations
+
+**Need Help?** Check the troubleshooting section or open an issue in the repository.

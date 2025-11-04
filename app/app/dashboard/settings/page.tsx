@@ -1,13 +1,45 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Save, Camera, Bell, Shield, User } from 'lucide-react';
+import { ArrowLeft, Save, Camera, Bell, Shield, User, UserPlus } from 'lucide-react';
+import { canInviteUser, UserRole } from '@/app/lib/permissions';
 
 export default function SettingsPage() {
+  const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const siteId = searchParams.get('site') || '1';
+  const worksiteParam = searchParams.get('worksite');
+  
+  const [worksites, setWorksites] = useState<any[]>([]);
+  const [selectedWorksiteId, setSelectedWorksiteId] = useState(worksiteParam || '');
+
+  // Fetch available worksites
+  useEffect(() => {
+    const fetchWorksites = async () => {
+      try {
+        const res = await fetch('/api/worksites');
+        const data = await res.json();
+        if (data.success) {
+          const sites = Array.isArray(data) ? data : data.data || [];
+          setWorksites(sites);
+          if (!selectedWorksiteId && sites.length > 0) {
+            setSelectedWorksiteId(sites[0].id);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching worksites:', err);
+      }
+    };
+    fetchWorksites();
+  });
+
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteFormData, setInviteFormData] = useState({
+    email: '',
+    role: 'WORKER'
+  });
 
   const [settings, setSettings] = useState({
     camera: {
@@ -37,13 +69,70 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!selectedWorksiteId) {
+      alert('Please select a worksite');
+      return;
+    }
+
     setSaving(true);
-    setTimeout(() => {
+    
+    try {
+      // Save settings to backend
+      const response = await fetch(`/api/worksites/${selectedWorksiteId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          settings: settings
+        })
+      });
+
+      if (response.ok) {
+        setSaved(true);
+        setTimeout(() => {
+          setSaved(false);
+          router.back(); // Go back to previous page
+        }, 1500);
+      } else {
+        alert('Failed to save settings');
+        setSaving(false);
+      }
+    } catch (err) {
+      console.error('Error saving settings:', err);
+      alert('Error saving settings');
       setSaving(false);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    }, 1000);
+    }
+  };
+
+  const handleInviteUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      const response = await fetch('/api/invitations/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteFormData.email,
+          role: inviteFormData.role,
+          companyId: (session?.user as any).companyId,
+          worksiteId: selectedWorksiteId || (session?.user as any).worksiteId,
+          invitedBy: (session?.user as any).id
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert('Invitation sent successfully!');
+        setShowInviteModal(false);
+        setInviteFormData({ email: '', role: 'WORKER' });
+      } else {
+        alert(`Error: ${data.error}`);
+      }
+    } catch (err) {
+      console.error('Error sending invitation:', err);
+      alert('Failed to send invitation');
+    }
   };
 
   return (
@@ -52,16 +141,35 @@ export default function SettingsPage() {
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.back()}
             className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-gray-300 hover:text-white transition-colors border border-slate-700"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div className="flex-1">
             <h1 className="text-4xl font-bold text-white">Settings</h1>
-            <p className="text-gray-400">Configure Site #{siteId} settings</p>
+            <p className="text-gray-400">Configure worksite settings</p>
           </div>
         </div>
+
+        {/* Worksite Selector */}
+        {worksites.length > 0 && (
+          <div className="mb-6 bg-slate-800/50 backdrop-blur rounded-xl p-4 border border-slate-700">
+            <label className="block text-sm font-medium text-slate-300 mb-2">Select Worksite</label>
+            <select
+              value={selectedWorksiteId}
+              onChange={(e) => setSelectedWorksiteId(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Choose a worksite</option>
+              {worksites.map((ws) => (
+                <option key={ws.id} value={ws.id}>
+                  {ws.name} ({ws.location || 'No location'})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Settings Sections */}
         <div className="space-y-6">
@@ -257,6 +365,29 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* Team Management (SITE_ADMIN and above only) */}
+          {canInviteUser((session?.user as any)?.role as UserRole, 'WORKER') && (
+            <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <UserPlus className="h-6 w-6 text-green-400" />
+                  <h2 className="text-2xl font-bold text-white">Team Management</h2>
+                </div>
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Invite Team Member
+                </button>
+              </div>
+              
+              <p className="text-gray-400 text-sm">
+                Invite supervisors, workers, and viewers to this worksite. They will receive an email with instructions to claim their account.
+              </p>
+            </div>
+          )}
+
           {/* User Settings */}
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700">
             <div className="flex items-center gap-3 mb-4">
@@ -310,7 +441,7 @@ export default function SettingsPage() {
           {/* Save Button */}
           <div className="flex justify-end gap-3">
             <button
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.back()}
               className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-semibold transition-colors"
             >
               Cancel
@@ -328,6 +459,68 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Invite User Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 rounded-2xl p-8 max-w-md w-full border border-slate-700">
+            <h2 className="text-2xl font-bold text-white mb-6">Invite Team Member</h2>
+            
+            <form onSubmit={handleInviteUser} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Email Address *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={inviteFormData.email}
+                  onChange={(e) => setInviteFormData({ ...inviteFormData, email: e.target.value })}
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="user@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Role *
+                </label>
+                <select
+                  value={inviteFormData.role}
+                  onChange={(e) => setInviteFormData({ ...inviteFormData, role: e.target.value })}
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="SUPERVISOR">Supervisor</option>
+                  <option value="WORKER">Worker</option>
+                  <option value="VIEWER">Viewer</option>
+                </select>
+              </div>
+
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                <p className="text-xs text-blue-300">
+                  This user will be invited to your worksite with {inviteFormData.role.toLowerCase()} permissions.
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowInviteModal(false)}
+                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                >
+                  Send Invitation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

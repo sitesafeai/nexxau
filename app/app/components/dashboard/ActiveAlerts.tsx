@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { canAcknowledgeAlerts, UserRole } from '@/app/lib/permissions';
 
 interface Alert {
   id: string;
@@ -24,6 +26,7 @@ interface Alert {
 }
 
 export default function ActiveAlerts() {
+  const { data: session } = useSession();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -157,12 +160,14 @@ export default function ActiveAlerts() {
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={() => acknowledgeAlert(alert.id)}
-                  className="text-blue-400 hover:text-blue-300 transition-colors text-sm"
-                >
-                  Acknowledge
-                </button>
+                {canAcknowledgeAlerts((session?.user as any)?.role as UserRole) && (
+                  <button
+                    onClick={() => acknowledgeAlert(alert.id)}
+                    className="text-blue-400 hover:text-blue-300 transition-colors text-sm"
+                  >
+                    Acknowledge
+                  </button>
+                )}
               </div>
             </div>
           ))}

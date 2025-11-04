@@ -116,8 +116,22 @@ export default function ClaimAccountPage() {
 
       if (result.success) {
         setStep(3); // Success!
+        
+        // Role-based redirect
+        const userRole = result.data?.role;
+        let redirectPath = '/dashboard'; // default
+        
+        if (userRole === 'SUPER_ADMIN') {
+          redirectPath = '/admin';
+        } else if (userRole === 'COMPANY_ADMIN') {
+          redirectPath = '/company/dashboard';
+        } else {
+          // SITE_ADMIN, SUPERVISOR, WORKER, VIEWER
+          redirectPath = '/dashboard';
+        }
+        
         setTimeout(() => {
-          router.push('/dashboard');
+          router.push(redirectPath);
         }, 2000);
       } else {
         setError(result.error || 'Failed to create account');

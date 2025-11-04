@@ -1,13 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { getSession } from '@/app/lib/auth';
+import { logCreate } from '@/app/lib/audit-logger';
 
 /**
  * GET /api/worksites
- * Get all worksites with real-time stats
+ * Get all worksites with real-time stats (filtered by user access)
  */
 export async function GET(request: NextRequest) {
   try {
+    // Get current user session
+    const session = await getSession();
+    const user = session?.user;
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Build filter based on user role
+    let whereClause: any = {};
+
+    if (user.role === 'SUPER_ADMIN') {
+      // Super admin sees everything
+      whereClause = {};
+    } else if (user.role === 'COMPANY_ADMIN') {
+      // Company admin sees only their company's worksites
+      whereClause = {
+        companyId: user.companyId
+      };
+    } else {
+      // SITE_ADMIN, SUPERVISOR, WORKER, VIEWER - only worksites they have access to
+      whereClause = {
+        worksiteUsers: {
+          some: {
+            userId: user.id
+          }
+        }
+      };
+    }
+
     const worksites = await prisma.worksite.findMany({
+      where: whereClause,
       include: {
         _count: {
           select: {
@@ -49,8 +85,8 @@ export async function GET(request: NextRequest) {
         // Get last activity (most recent camera update or alert)
         const lastCameraUpdate = await prisma.camera.findFirst({
           where: { worksiteId: worksite.id },
-          orderBy: { lastHealthCheck: 'desc' },
-          select: { lastHealthCheck: true }
+          orderBy: { updatedAt: 'desc' },
+          select: { updatedAt: true }
         });
 
         const lastAlert = await prisma.alert.findFirst({
@@ -60,7 +96,7 @@ export async function GET(request: NextRequest) {
         });
 
         const lastActivityTime = [
-          lastCameraUpdate?.lastHealthCheck,
+          lastCameraUpdate?.updatedAt,
           lastAlert?.createdAt
         ]
           .filter(Boolean)
@@ -122,10 +158,29 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/worksites
- * Create a new worksite
+ * Create a new worksite (COMPANY_ADMIN and SUPER_ADMIN only)
  */
 export async function POST(request: NextRequest) {
   try {
+    // Check permissions
+    const session = await getSession();
+    const user = session?.user;
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Only SUPER_ADMIN and COMPANY_ADMIN can create worksites
+    if (user.role !== 'SUPER_ADMIN' && user.role !== 'COMPANY_ADMIN') {
+      return NextResponse.json(
+        { success: false, error: 'Insufficient permissions to create worksite' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { name, worksiteName: providedWorksiteName, location, address, companyId, cameraSystemType } = body;
 
@@ -133,6 +188,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields: name, companyId' },
         { status: 400 }
+      );
+    }
+
+    // Company admins can only create worksites in their own company
+    if (user.role === 'COMPANY_ADMIN' && companyId !== user.companyId) {
+      return NextResponse.json(
+        { success: false, error: 'You can only create worksites in your own company' },
+        { status: 403 }
       );
     }
 
@@ -153,6 +216,9 @@ export async function POST(request: NextRequest) {
         status: 'ACTIVE'
       }
     });
+
+    // Log audit trail
+    await logCreate(user.id, 'Worksite', worksite.id, worksite, request);
 
     return NextResponse.json({
       success: true,

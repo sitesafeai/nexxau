@@ -96,6 +96,28 @@ model User {
   notifications Notification[]
   errorLogs     ErrorLog[]
   customRules   CustomRule[]
+  auditLogs     AuditLog[]
+}
+
+// Audit Log for compliance and debugging
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action      String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, INVITE, etc.
+  entity      String   // User, Worksite, Camera, Alert, Company, etc.
+  entityId    String?  // ID of the affected entity
+  changes     Json?    // Before/after values for updates
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?    // Additional context
+  createdAt   DateTime @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@index([entity])
+  @@index([entityId])
+  @@index([createdAt])
 }
 
 // New: User role enum
@@ -181,10 +203,12 @@ model Worksite {
   id                String            @id @default(cuid())
   name              String
   worksiteName      String            @unique // e.g., "downtown-site-a" or "b93xa2"
-  address           String
+  location          String?           // City, State (e.g., "New York, NY")
+  address           String?           // Full address
   companyId         String
   company           Company           @relation(fields: [companyId], references: [id])
-  cameraSystemType  String
+  cameraSystemType  String            @default("mixed")
+  status            String            @default("ACTIVE") // ACTIVE, INACTIVE, ARCHIVED
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   cameraSystemConfig CameraSystemConfig?

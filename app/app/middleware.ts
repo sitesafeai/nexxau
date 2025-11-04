@@ -6,42 +6,57 @@ export default withAuth(
     const token = req.nextauth.token;
     const path = req.nextUrl.pathname;
 
-    // Allow access to dashboard without auth (temporary during development)
-    if (path.startsWith("/dashboard")) {
-      return NextResponse.next();
-    }
-
-    // If no token, redirect to login
+    // If no token, redirect to login (except for public paths)
     if (!token) {
       return NextResponse.redirect(new URL("/login", req.url));
     }
 
-    const userRole = token.role;
+    const userRole = token.role as string;
 
-    // Admin can access everything
-    if (userRole === "admin") {
+    // SUPER_ADMIN: Only access /admin routes (platform management)
+    if (userRole === "SUPER_ADMIN") {
+      if (path.startsWith("/company")) {
+        return NextResponse.redirect(new URL("/admin", req.url));
+      }
       return NextResponse.next();
     }
 
-    // Site manager access
-    if (userRole === "site-manager") {
+    // COMPANY_ADMIN: Access to company dashboard and their worksites, but NOT /admin
+    if (userRole === "COMPANY_ADMIN") {
       if (path.startsWith("/admin")) {
+        return NextResponse.redirect(new URL("/company/dashboard", req.url));
+      }
+      // Allow access to /company and /dashboard
+      return NextResponse.next();
+    }
+
+    // SITE_ADMIN: Access to their worksite dashboard, can manage their site
+    if (userRole === "SITE_ADMIN") {
+      if (path.startsWith("/admin") || path.startsWith("/company")) {
         return NextResponse.redirect(new URL("/dashboard", req.url));
       }
       return NextResponse.next();
     }
 
-    // Worker access
-    if (userRole === "worker") {
-      if (path.startsWith("/admin") || path.startsWith("/workflow") || path.startsWith("/cameras")) {
+    // SUPERVISOR: Similar to SITE_ADMIN but may have limited permissions
+    if (userRole === "SUPERVISOR") {
+      if (path.startsWith("/admin") || path.startsWith("/company")) {
         return NextResponse.redirect(new URL("/dashboard", req.url));
       }
       return NextResponse.next();
     }
 
-    // Viewer access (most restricted)
-    if (userRole === "viewer") {
-      if (path.startsWith("/admin") || path.startsWith("/workflow") || path.startsWith("/cameras") || path.startsWith("/dashboard/object-detection")) {
+    // WORKER: Basic access, can view but limited edit
+    if (userRole === "WORKER") {
+      if (path.startsWith("/admin") || path.startsWith("/company") || path.startsWith("/workflow") || path.startsWith("/cameras")) {
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
+      return NextResponse.next();
+    }
+
+    // VIEWER: Most restricted, read-only access
+    if (userRole === "VIEWER") {
+      if (path.startsWith("/admin") || path.startsWith("/company") || path.startsWith("/workflow") || path.startsWith("/cameras") || path.startsWith("/dashboard/object-detection")) {
         return NextResponse.redirect(new URL("/dashboard", req.url));
       }
       return NextResponse.next();
@@ -54,7 +69,10 @@ export default withAuth(
     callbacks: {
       authorized: ({ req, token }) => {
         const path = req.nextUrl.pathname;
-        if (path.startsWith('/dashboard')) return true;
+        // Allow dashboard and company routes if authenticated
+        if (path.startsWith('/dashboard') || path.startsWith('/company')) {
+          return !!token;
+        }
         return !!token;
       },
     },
@@ -69,10 +87,12 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - login (login page)
+     * - login, signup, auth pages
      * - public files
      */
-    // Exclude dashboard entirely from auth middleware during development
-    "/((?!api|_next/static|_next/image|favicon.ico|login|images|manifest.json|dashboard).*)",
+    "/admin/:path*",
+    "/company/:path*",
+    "/dashboard/:path*",
+    "/workflow/:path*",
   ],
 }; 

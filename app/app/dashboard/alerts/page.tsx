@@ -70,7 +70,7 @@ export default function AlertsPage() {
         <div className="bg-gray-800/50 backdrop-blur rounded-xl border border-gray-700/50">
           <div className="px-6 py-4 border-b border-gray-700">
             <h3 className="text-lg font-medium text-white">Active Alerts ({alerts.length})</h3>
-          </div>
+        </div>
 
           {loading ? (
             <div className="flex justify-center items-center py-12">
@@ -83,7 +83,7 @@ export default function AlertsPage() {
               </svg>
               <h3 className="text-xl font-semibold text-gray-300 mb-2">No Active Alerts</h3>
               <p className="text-gray-400 mb-6">All systems are operating normally</p>
-              <button
+              <button 
                 onClick={() => router.push('/dashboard/alert-builder')}
                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
               >
@@ -125,7 +125,7 @@ export default function AlertsPage() {
                           'bg-green-900 text-green-300'
                         }`}>
                           {alert.status}
-                        </span>
+                          </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                         {alert.location || alert.worksite?.name || 'N/A'}
@@ -137,10 +137,10 @@ export default function AlertsPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
-        </div>
+                        </div>
+                      )}
+                    </div>
       </div>
     </div>
   );
-}
+} 

@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 
-// GET /api/cameras - Get all cameras
+// GET /api/cameras - Get cameras (optionally filtered by worksite)
 export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const worksiteId = searchParams.get('worksiteId');
+
+    const where: any = {};
+    if (worksiteId) {
+      where.worksiteId = worksiteId;
+    }
+
     const cameras = await prisma.camera.findMany({
+      where,
       include: {
         worksite: {
           select: {
@@ -37,10 +46,23 @@ export async function GET(request: NextRequest) {
       const lastActivity = latestHealth?.lastCheck || camera.updatedAt;
       const minutesSinceActivity = Math.floor((Date.now() - new Date(lastActivity).getTime()) / 1000 / 60);
       
-      // Determine status based on last activity
-      let status: 'online' | 'offline' | 'error' = 'offline';
-      if (minutesSinceActivity < 5) {
-        status = latestHealth?.status === 'ERROR' ? 'error' : 'online';
+      // Determine status based on database status or health record
+      let status: 'online' | 'offline' | 'error' = 'online'; // Default to online for new cameras
+      
+      if (latestHealth) {
+        // Use health record status if available
+        if (latestHealth.status === 'OFFLINE') {
+          status = 'offline';
+        } else if (latestHealth.status === 'ERROR') {
+          status = 'error';
+        } else {
+          status = 'online';
+        }
+      } else if (camera.status === 'active') {
+        // No health record but camera is active
+        status = 'online';
+      } else {
+        status = 'offline';
       }
 
       return {

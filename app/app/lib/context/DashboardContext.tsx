@@ -140,8 +140,11 @@ export function DashboardProvider({ children }: DashboardProviderProps) {
   // Update accessible sites when loaded
   useEffect(() => {
     if (allSites && !sitesLoading) {
+      // Extract sites array from API response
+      const sitesArray = Array.isArray(allSites) ? allSites : (allSites as any)?.data || [];
+      
       // Filter sites based on user role (simplified logic)
-      const accessibleSites = allSites.filter((site: any) => {
+      const accessibleSites = sitesArray.filter((site: any) => {
         if (!currentUser) return false;
         
         // Admin can see all sites

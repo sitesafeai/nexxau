@@ -14,6 +14,8 @@ declare module "next-auth" {
       email: string;
       name: string;
       role: string;
+      companyId?: string;
+      worksiteId?: string;
     };
   }
   
@@ -22,6 +24,8 @@ declare module "next-auth" {
     email: string;
     name: string;
     role: string;
+    companyId?: string;
+    worksiteId?: string;
   }
 }
 
@@ -29,6 +33,8 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string;
     role: string;
+    companyId?: string;
+    worksiteId?: string;
   }
 }
 
@@ -73,7 +79,9 @@ export const authOptions: NextAuthOptions = {
           id: user.id,
           email: user.email || "",
           name: user.name || "",
-          role: user.role || "viewer",
+          role: user.role || "VIEWER",
+          companyId: user.companyId || undefined,
+          worksiteId: user.worksiteId || undefined,
         };
       }
     })
@@ -86,6 +94,8 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.role = user.role;
         token.id = user.id;
+        token.companyId = user.companyId;
+        token.worksiteId = user.worksiteId;
       }
       return token;
     },
@@ -93,8 +103,19 @@ export const authOptions: NextAuthOptions = {
       if (token && session.user) {
         session.user.id = token.id;
         session.user.role = token.role;
+        session.user.companyId = token.companyId;
+        session.user.worksiteId = token.worksiteId;
       }
       return session;
+    },
+    async redirect({ url, baseUrl }) {
+      // If it's a callback URL, use it
+      if (url.startsWith(baseUrl)) {
+        return url;
+      }
+      
+      // Redirect to auth-redirect page which will handle role-based routing
+      return `${baseUrl}/auth-redirect`;
     },
   },
   pages: {

@@ -35,73 +35,8 @@ export interface Camera {
   updatedAt?: string;
 }
 
-// Default demo cameras for initial load
-const DEFAULT_CAMERAS: Camera[] = [
-  {
-    id: 'demo-cam-1',
-    name: 'People Detection Camera',
-    location: 'Main Entrance - Building A',
-    streamUrl: 'https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8',
-    streamType: 'hls',
-    status: 'online',
-    description: 'Main entrance monitoring with people counting',
-    resolution: '1080p',
-    fps: 30,
-    addedAt: new Date().toISOString(),
-    hasVideo: true,
-    alerts: 0,
-    detectionCount: 0,
-    violationCount: 0
-  },
-  {
-    id: 'demo-cam-2',
-    name: 'Construction Zone Camera',
-    location: 'Building B - Floor 2',
-    streamUrl: 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8',
-    streamType: 'hls',
-    status: 'online',
-    description: 'Construction safety and PPE compliance monitoring',
-    resolution: '720p',
-    fps: 30,
-    addedAt: new Date().toISOString(),
-    hasVideo: true,
-    alerts: 2,
-    detectionCount: 0,
-    violationCount: 0
-  },
-  {
-    id: 'demo-cam-3',
-    name: 'Warehouse Monitoring',
-    location: 'Loading Dock - East Side',
-    streamUrl: 'https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8',
-    streamType: 'hls',
-    status: 'online',
-    description: 'Forklift and vehicle safety monitoring',
-    resolution: '1080p',
-    fps: 30,
-    addedAt: new Date().toISOString(),
-    hasVideo: true,
-    alerts: 0,
-    detectionCount: 0,
-    violationCount: 0
-  },
-  {
-    id: 'demo-cam-4',
-    name: 'Parking Lot Camera',
-    location: 'Main Parking Lot',
-    streamUrl: 'https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8',
-    streamType: 'hls',
-    status: 'online',
-    description: 'Vehicle tracking and access monitoring',
-    resolution: '720p',
-    fps: 30,
-    addedAt: new Date().toISOString(),
-    hasVideo: true,
-    alerts: 1,
-    detectionCount: 0,
-    violationCount: 0
-  }
-];
+// No default demo cameras - all cameras must be created by users
+const DEFAULT_CAMERAS: Camera[] = [];
 
 class CameraStore {
   private cameras: Camera[] = [];
@@ -121,20 +56,24 @@ class CameraStore {
     this.initialized = true;
     
     try {
-      // Try to fetch from API
-      await this.fetchCameras();
+      // Try to fetch from API (will be filtered by worksite when called with ID)
+      await this.fetchCamerasForWorksite();
     } catch (error) {
-      console.error('Failed to fetch cameras from API, using demo cameras:', error);
-      // Fallback to demo cameras if API fails
-      this.cameras = DEFAULT_CAMERAS;
+      console.error('Failed to fetch cameras from API:', error);
+      // No fallback - show empty state
+      this.cameras = [];
       this.notifyListeners();
     }
   }
 
-  private async fetchCameras() {
+  async fetchCamerasForWorksite(worksiteId?: string) {
     this.loading = true;
     try {
-      const response = await fetch('/api/cameras', {
+      const url = worksiteId 
+        ? `/api/cameras?worksiteId=${worksiteId}`
+        : '/api/cameras';
+      
+      const response = await fetch(url, {
         credentials: 'include'
       });
       
@@ -382,8 +321,8 @@ class CameraStore {
     }
   }
 
-  async refreshCameras() {
-    await this.fetchCameras();
+  async refreshCameras(worksiteId?: string) {
+    await this.fetchCamerasForWorksite(worksiteId);
   }
 
   updateCameraStatus(id: string, status: Camera['status']) {
@@ -429,14 +368,19 @@ class CameraStore {
 export const cameraStore = new CameraStore();
 
 // React hook for using camera store
-export function useCameraStore() {
+export function useCameraStore(worksiteId?: string) {
   const [cameras, setCameras] = React.useState<Camera[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    // Initial load
-    setCameras(cameraStore.getCameras());
-    setLoading(cameraStore.isLoading());
+    // Load cameras for specific worksite
+    const loadCameras = async () => {
+      await cameraStore.fetchCamerasForWorksite(worksiteId);
+      setCameras(cameraStore.getCameras());
+      setLoading(cameraStore.isLoading());
+    };
+    
+    loadCameras();
 
     // Subscribe to changes
     const unsubscribe = cameraStore.subscribe(() => {
@@ -445,7 +389,7 @@ export function useCameraStore() {
     });
 
     return unsubscribe;
-  }, []);
+  }, [worksiteId]);
 
   return {
     cameras,

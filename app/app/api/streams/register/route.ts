@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/app/lib/prisma';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
-const prisma = new PrismaClient();
 const execAsync = promisify(exec);
 
-const configPath = '/Users/luizcarneiro/mediamtx/mediamtx.yml';
+const configPath = process.env.MEDIAMTX_CONFIG_PATH || '/tmp/mediamtx.yml';
 
 // Helper: Regenerate MediaMTX config from all cameras in DB
 async function regenerateMediaMTXConfig() {

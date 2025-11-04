@@ -22,6 +22,17 @@ export async function GET(
         },
         cameras: true,
         workers: true,
+        worksiteUsers: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        },
         alerts: {
           where: {
             status: { in: ['ACTIVE', 'ACKNOWLEDGED'] }
@@ -31,7 +42,8 @@ export async function GET(
           select: {
             cameras: true,
             alerts: true,
-            workers: true
+            workers: true,
+            worksiteUsers: true
           }
         }
       }
