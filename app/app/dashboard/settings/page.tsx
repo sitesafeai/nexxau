@@ -14,6 +14,7 @@ export default function SettingsPage() {
   
   const [worksites, setWorksites] = useState<any[]>([]);
   const [selectedWorksiteId, setSelectedWorksiteId] = useState(worksiteParam || '');
+  const [loading, setLoading] = useState(false);
 
   // Fetch available worksites
   useEffect(() => {
@@ -33,7 +34,7 @@ export default function SettingsPage() {
       }
     };
     fetchWorksites();
-  });
+  }, []); // Added dependency array to prevent infinite loop
 
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteFormData, setInviteFormData] = useState({
@@ -68,14 +69,39 @@ export default function SettingsPage() {
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Load existing settings when worksite is selected
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (!selectedWorksiteId) return;
+      
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/worksites/${selectedWorksiteId}`);
+        const data = await res.json();
+        
+        if (data.success && data.data.cameraSystemConfig?.config) {
+          setSettings(data.data.cameraSystemConfig.config);
+        }
+      } catch (err) {
+        console.error('Error loading settings:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadSettings();
+  }, [selectedWorksiteId]);
 
   const handleSave = async () => {
     if (!selectedWorksiteId) {
-      alert('Please select a worksite');
+      setErrorMessage('Please select a worksite');
       return;
     }
 
     setSaving(true);
+    setErrorMessage('');
     
     try {
       // Save settings to backend
@@ -87,19 +113,24 @@ export default function SettingsPage() {
         })
       });
 
-      if (response.ok) {
+      const data = await response.json();
+
+      if (response.ok && data.success) {
         setSaved(true);
         setTimeout(() => {
           setSaved(false);
           router.back(); // Go back to previous page
         }, 1500);
       } else {
-        alert('Failed to save settings');
+        const errorMsg = data.error || 'Failed to save settings';
+        const detailsMsg = data.details ? ` - ${data.details}` : '';
+        setErrorMessage(`${errorMsg}${detailsMsg}`);
+        console.error('Save failed:', data);
         setSaving(false);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving settings:', err);
-      alert('Error saving settings');
+      setErrorMessage(`Error saving settings: ${err.message || 'Network error'}`);
       setSaving(false);
     }
   };
@@ -438,6 +469,13 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* Error Message */}
+          {errorMessage && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg">
+              {errorMessage}
+            </div>
+          )}
+
           {/* Save Button */}
           <div className="flex justify-end gap-3">
             <button
@@ -448,9 +486,9 @@ export default function SettingsPage() {
             </button>
             <button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || loading}
               className={`px-6 py-3 rounded-lg font-semibold transition-all flex items-center gap-2 ${
-                saved ? 'bg-green-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
+                saved ? 'bg-green-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed'
               }`}
             >
               <Save className="h-5 w-5" />

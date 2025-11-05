@@ -52,22 +52,58 @@ export default function ZoneDrawingTool({
   };
 
   useEffect(() => {
+    console.log('ZoneDrawingTool mounted', { cameraId, hasVideo: !!videoRef.current });
+  }, []);
+
+  useEffect(() => {
     drawCanvas();
   }, [currentPoints, zones, videoRef]);
+
+  // Redraw canvas when video loads and gets dimensions
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleVideoLoad = () => {
+      console.log('Video loaded, redrawing canvas');
+      drawCanvas();
+    };
+
+    video.addEventListener('loadedmetadata', handleVideoLoad);
+    video.addEventListener('resize', handleVideoLoad);
+    
+    // Initial draw if video already loaded
+    if (video.videoWidth > 0) {
+      handleVideoLoad();
+    }
+
+    return () => {
+      video.removeEventListener('loadedmetadata', handleVideoLoad);
+      video.removeEventListener('resize', handleVideoLoad);
+    };
+  }, [videoRef.current]);
 
   const drawCanvas = () => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
     
-    if (!canvas || !video) return;
+    if (!canvas || !video) {
+      console.log('drawCanvas: missing refs', { hasCanvas: !!canvas, hasVideo: !!video });
+      return;
+    }
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size to match video
-    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-      canvas.width = video.videoWidth || 1920;
-      canvas.height = video.videoHeight || 1080;
+    // Set canvas size to match video's DISPLAY size, not native size
+    const rect = video.getBoundingClientRect();
+    const displayWidth = rect.width;
+    const displayHeight = rect.height;
+    
+    if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+      canvas.width = displayWidth || 1920;
+      canvas.height = displayHeight || 1080;
+      console.log('Canvas sized:', { width: canvas.width, height: canvas.height, videoDisplay: { w: displayWidth, h: displayHeight } });
     }
 
     // Clear canvas
@@ -141,34 +177,53 @@ export default function ZoneDrawingTool({
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
-
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    console.log('Canvas clicked', { 
+      isDrawing, 
+      hasCanvas: !!canvas,
+      canvasDimensions: canvas ? { width: canvas.width, height: canvas.height, offsetWidth: canvas.offsetWidth, offsetHeight: canvas.offsetHeight } : null,
+      clickPosition: { x: e.clientX, y: e.clientY }
+    });
+    
+    if (!isDrawing) {
+      console.log('Not in drawing mode - click ignored');
+      return;
+    }
+
+    if (!canvas) {
+      console.log('No canvas ref');
+      return;
+    }
 
     const rect = canvas.getBoundingClientRect();
+    console.log('Canvas rect:', rect);
+    
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
 
+    console.log('Point added:', { x, y, scaleX, scaleY, totalPoints: currentPoints.length + 1 });
     setCurrentPoints([...currentPoints, { x, y }]);
   };
 
   const startDrawing = () => {
+    console.log('Start drawing clicked', { zoneName: zoneName.trim() });
     if (!zoneName.trim()) {
+      console.log('Zone name missing - showing alert');
       alert('Please enter a zone name first');
       return;
     }
+    console.log('Starting drawing mode');
     setIsDrawing(true);
     setCurrentPoints([]);
     setShowInstructions(false);
   };
 
   const completeZone = () => {
-    if (currentPoints.length < 3) {
-      alert('Please draw at least 3 points to create a zone');
+    if (currentPoints.length < 4) {
+      alert('Please draw at least 4 points to create a zone');
       return;
     }
 
@@ -179,13 +234,16 @@ export default function ZoneDrawingTool({
       type: zoneType
     };
 
-    setZones([...zones, newZone]);
+    const updatedZones = [...zones, newZone];
+    setZones(updatedZones);
     onZoneComplete(newZone);
     
-    // Reset
-    setIsDrawing(false);
+    console.log('Zone completed:', newZone);
+    
+    // Reset for next zone but stay in drawing mode
     setCurrentPoints([]);
     setZoneName('');
+    setIsDrawing(false); // Go back to setup to name the next zone
   };
 
   const cancelDrawing = () => {
@@ -211,83 +269,97 @@ export default function ZoneDrawingTool({
   };
 
   return (
-    <div className={`space-y-4 ${className}`}>
-      {/* Instructions */}
-      {showInstructions && (
-        <div className="bg-blue-900/20 border border-blue-700/50 rounded-xl p-4 flex gap-3">
-          <Info className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h4 className="text-white font-semibold mb-2">How to Draw Restricted Zones</h4>
-            <ol className="text-sm text-blue-200 space-y-1 list-decimal list-inside">
-              <li>Enter a name for your zone (e.g., "Machine Area", "Crane Zone")</li>
-              <li>Click "Start Drawing" button</li>
-              <li>Click on the video to place points around the restricted area</li>
-              <li>You need at least 3 points to create a zone</li>
-              <li>Click "Complete Zone" when done, or "Cancel" to start over</li>
-              <li>The zone will be highlighted in red/green/blue</li>
-            </ol>
-            <button
-              onClick={() => setShowInstructions(false)}
-              className="mt-3 text-blue-400 hover:text-blue-300 text-sm font-medium"
-            >
-              Got it, hide this
-            </button>
-          </div>
-        </div>
-      )}
+    <>
+      {/* Canvas Overlay - absolute positioned over video */}
+      <canvas
+        ref={canvasRef}
+        onClick={handleCanvasClick}
+        className={`absolute inset-0 w-full h-full ${
+          isDrawing ? 'cursor-crosshair z-50' : 'cursor-default pointer-events-none z-10'
+        }`}
+        style={{ pointerEvents: isDrawing ? 'auto' : 'none' }}
+      />
 
-      {/* Zone Setup */}
-      {!isDrawing && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-gray-300 text-sm font-medium mb-2">Zone Name *</label>
-            <input
-              type="text"
-              value={zoneName}
-              onChange={(e) => setZoneName(e.target.value)}
-              placeholder="e.g., Crane Danger Zone"
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+      {/* UI Controls Overlay - absolute positioned at top */}
+      <div className={`absolute top-0 left-0 right-0 z-50 p-4 space-y-3 pointer-events-none ${className}`}>
+        {/* Instructions */}
+        {showInstructions && (
+          <div className="bg-blue-900/95 backdrop-blur border border-blue-700/50 rounded-xl p-4 flex gap-3 pointer-events-auto">
+            <Info className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="text-white font-semibold mb-2">How to Draw Restricted Zones</h4>
+              <ol className="text-sm text-blue-200 space-y-1 list-decimal list-inside">
+                <li>Enter a name for your zone (e.g., "Machine Area", "Crane Zone")</li>
+                <li>Click "Start Drawing" button</li>
+                <li>Click on the video to place points around the restricted area</li>
+                <li>You need at least 4 points to create a zone</li>
+                <li>Click "Complete Zone" when done to save and create another, or "Cancel" to start over</li>
+                <li>The zone will be highlighted in red/green/blue</li>
+              </ol>
+              <button
+                onClick={() => setShowInstructions(false)}
+                className="mt-3 text-blue-400 hover:text-blue-300 text-sm font-medium"
+              >
+                Got it, hide this
+              </button>
+            </div>
           </div>
+        )}
 
-          <div>
-            <label className="block text-gray-300 text-sm font-medium mb-2">Zone Type</label>
-            <select
-              value={zoneType}
-              onChange={(e) => setZoneType(e.target.value as any)}
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="restricted">Restricted (Red) - No Entry</option>
-              <option value="monitored">Monitored (Blue) - Watch Only</option>
-              <option value="safe">Safe Zone (Green) - OK Area</option>
-            </select>
+        {/* Zone Setup */}
+        {!isDrawing && (
+          <div className="bg-gray-900/95 backdrop-blur border border-gray-700 rounded-xl p-4 pointer-events-auto">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2">Zone Name *</label>
+                <input
+                  type="text"
+                  value={zoneName}
+                  onChange={(e) => setZoneName(e.target.value)}
+                  placeholder="e.g., Crane Danger Zone"
+                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2">Zone Type</label>
+                <select
+                  value={zoneType}
+                  onChange={(e) => setZoneType(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="restricted">Restricted (Red) - No Entry</option>
+                  <option value="monitored">Monitored (Blue) - Watch Only</option>
+                  <option value="safe">Safe Zone (Green) - OK Area</option>
+                </select>
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  onClick={startDrawing}
+                  disabled={!zoneName.trim()}
+                  className={`w-full px-4 py-2 rounded-lg font-semibold transition-colors ${
+                    zoneName.trim()
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  Start Drawing
+                </button>
+              </div>
+            </div>
           </div>
+        )}
 
-          <div className="flex items-end">
-            <button
-              onClick={startDrawing}
-              disabled={!zoneName.trim()}
-              className={`w-full px-4 py-2 rounded-lg font-semibold transition-colors ${
-                zoneName.trim()
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                  : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              Start Drawing
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Drawing Controls */}
-      {isDrawing && (
-        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h4 className="text-white font-semibold">Drawing: {zoneName}</h4>
-              <p className="text-gray-400 text-sm">
-                Points placed: {currentPoints.length} 
-                {currentPoints.length < 3 && ` (need ${3 - currentPoints.length} more)`}
+        {/* Drawing Controls */}
+        {isDrawing && (
+          <div className="bg-gray-800/95 backdrop-blur border border-gray-700 rounded-xl p-4 pointer-events-auto">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h4 className="text-white font-semibold">Drawing: {zoneName}</h4>
+                <p className="text-gray-400 text-sm">
+                  Points placed: {currentPoints.length} 
+                {currentPoints.length < 4 && ` (need ${4 - currentPoints.length} more)`}
               </p>
             </div>
             <div className="flex gap-2">
@@ -312,39 +384,40 @@ export default function ZoneDrawingTool({
               </button>
               <button
                 onClick={completeZone}
-                disabled={currentPoints.length < 3}
+                disabled={currentPoints.length < 4}
                 className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
-                  currentPoints.length >= 3
+                  currentPoints.length >= 4
                     ? 'bg-green-600 hover:bg-green-700 text-white'
                     : 'bg-gray-700 text-gray-500 cursor-not-allowed'
                 }`}
-                title="Complete zone"
+                title="Complete zone (saves and allows you to create another)"
               >
                 <Check className="h-4 w-4" />
-                Complete Zone
+                Complete Zone {zones.length > 0 && `(${zones.length} saved)`}
               </button>
             </div>
           </div>
           <p className="text-yellow-400 text-sm">
-            👆 Click on the video below to place points. Click "Complete Zone" when finished.
+            👆 Click on the video to place points. Click "Complete Zone" to save this zone and create another.
           </p>
         </div>
       )}
 
-      {/* Canvas Overlay */}
-      <div className="relative">
-        <canvas
-          ref={canvasRef}
-          onClick={handleCanvasClick}
-          className={`absolute inset-0 w-full h-full z-10 ${
-            isDrawing ? 'cursor-crosshair' : 'cursor-default'
-          }`}
-          style={{ pointerEvents: isDrawing ? 'auto' : 'none' }}
-        />
+      {/* Show completed zones count and option to finish */}
+      {zones.length > 0 && !isDrawing && (
+        <div className="bg-green-900/95 backdrop-blur border border-green-700/50 rounded-xl p-4 flex items-center justify-between pointer-events-auto">
+          <div>
+            <h4 className="text-white font-semibold">✅ {zones.length} Zone{zones.length !== 1 ? 's' : ''} Created</h4>
+            <p className="text-green-200 text-sm mt-1">
+              You can create more zones or continue to the next step
+            </p>
+          </div>
+        </div>
+      )}
       </div>
 
-      {/* Existing Zones List */}
-      {zones.length > 0 && (
+      {/* Existing Zones List - Bottom overlay */}
+      {zones.length > 0 && false && (
         <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-white font-semibold">Defined Zones ({zones.length})</h4>
@@ -387,8 +460,8 @@ export default function ZoneDrawingTool({
         </div>
       )}
 
-      {/* Zone Preview (Coordinates) */}
-      {currentPoints.length > 0 && isDrawing && (
+      {/* Zone Preview (Coordinates) - Hidden for cleaner UI */}
+      {currentPoints.length > 0 && isDrawing && false && (
         <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4">
           <h4 className="text-white font-semibold mb-2">Zone Coordinates</h4>
           <div className="font-mono text-xs text-gray-400 max-h-32 overflow-y-auto">
@@ -396,7 +469,7 @@ export default function ZoneDrawingTool({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

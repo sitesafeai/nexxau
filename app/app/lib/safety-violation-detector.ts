@@ -1,6 +1,11 @@
 import { prisma } from './prisma';
 import { smsService } from './sms-service';
 import { broadcastNotification } from './websocket';
+import { 
+  getWorksiteSettings, 
+  checkViolationRateLimit,
+  shouldSendNotification 
+} from './worksite-settings';
 
 export interface ViolationDetection {
   violationType: string;
@@ -204,6 +209,41 @@ export class SafetyViolationDetector {
     rule: SafetyRule
   ): Promise<boolean> {
     try {
+      // Load worksite settings if available
+      let worksiteSettings = null;
+      if (detection.worksiteId) {
+        worksiteSettings = await getWorksiteSettings(detection.worksiteId);
+        
+        // Check violation rate limit
+        const withinRateLimit = await checkViolationRateLimit(
+          detection.worksiteId,
+          worksiteSettings.safety.maxViolationsPerHour
+        );
+
+        if (!withinRateLimit) {
+          console.log(`Violation rate limit exceeded for worksite ${detection.worksiteId}. Skipping violation.`);
+          
+          // Auto-escalate if enabled
+          if (worksiteSettings.safety.autoEscalate) {
+            await prisma.alert.create({
+              data: {
+                title: 'Violation Rate Limit Exceeded',
+                description: `Maximum violations per hour (${worksiteSettings.safety.maxViolationsPerHour}) exceeded.`,
+                severity: 'HIGH',
+                source: 'SYSTEM',
+                location: detection.location,
+                worksiteId: detection.worksiteId,
+                metadata: {
+                  type: 'rate_limit_exceeded',
+                  autoEscalated: true
+                }
+              }
+            });
+          }
+          return false;
+        }
+      }
+
       // Create safety violation record
       const violation = await prisma.safetyViolation.create({
         data: {
@@ -218,9 +258,20 @@ export class SafetyViolationDetector {
         }
       });
 
-      // Send SMS notifications if enabled
-      if (rule.smsEnabled && smsService.isEnabled()) {
-        await this.sendViolationSMS(detection, rule);
+      // Send SMS notifications if enabled in both rule and worksite settings
+      const smsEnabled = rule.smsEnabled && 
+        smsService.isEnabled() &&
+        (!worksiteSettings || worksiteSettings.notifications.smsEnabled);
+      
+      if (smsEnabled) {
+        // Check notification frequency
+        const shouldSend = worksiteSettings && detection.worksiteId
+          ? await shouldSendNotification(worksiteSettings, detection.worksiteId)
+          : true;
+        
+        if (shouldSend) {
+          await this.sendViolationSMS(detection, rule);
+        }
       }
 
       // Broadcast real-time notification

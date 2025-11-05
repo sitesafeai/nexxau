@@ -27,7 +27,8 @@ export default function CamerasPage() {
     try {
       const res = await fetch('/api/cameras');
       if (!res.ok) throw new Error('Failed to load cameras');
-      const data = await res.json();
+      const result = await res.json();
+      const data = Array.isArray(result) ? result : (result.data || []);
       setCameras(data);
       if (!selectedCamera && data.length > 0) setSelectedCamera(data[0]);
     } catch (err: any) {
@@ -255,7 +256,7 @@ export default function CamerasPage() {
                   <div className="text-red-400 text-sm mb-3">{errorCameras}</div>
                 )}
                 <div className="space-y-3">
-                  {cameras.map((camera) => (
+                  {Array.isArray(cameras) && cameras.map((camera) => (
                     <button
                       key={camera.id}
                       onClick={() => handleCameraSelect(camera)}

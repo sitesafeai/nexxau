@@ -15,24 +15,53 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error('Invalid credentials');
+          return null;
         }
 
         const user = await prisma.user.findUnique({
           where: {
             email: credentials.email
+          },
+          include: {
+            companyUsers: {
+              include: {
+                company: true
+              }
+            },
+            worksiteUsers: {
+              include: {
+                worksite: true
+              }
+            }
           }
         });
 
-        // TEMPORARY BYPASS FOR DEVELOPMENT: Always return a user for testing
-        console.warn("Authentication bypassed: Returning a dummy user for testing purposes.");
+        if (!user || !user.password) {
+          return null;
+        }
+
+        // Verify password with bcrypt
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password,
+          user.password
+        );
+
+        if (!isPasswordValid) {
+          return null;
+        }
+
+        // Check if user account is active (if status field exists)
+        if ('status' in user && (user.status === 'INACTIVE' || user.status === 'SUSPENDED')) {
+          throw new Error('Account is inactive or suspended');
+        }
+
         return {
-          id: user?.id || 'dummy-id',
-          email: user?.email || credentials.email || 'test@example.com',
-          name: user?.name || 'Test User',
-          role: user?.role || 'user',
-          // In a real scenario, you might want to fetch a real user from DB
-          // and ensure they are 'approved' if that logic is in place.
+          id: user.id,
+          email: user.email || '',
+          name: user.name || '',
+          role: user.role || 'user',
+          companyId: user.companyId || undefined,
+          worksiteId: user.worksiteId || undefined,
         };
       }
     })

@@ -418,49 +418,6 @@ export default function RealtimeDetectionOverlay({
         className="absolute inset-0 w-full h-full"
         style={{ zIndex: 10 }}
       />
-      
-      {/* Enhanced Detection Status - Top Right */}
-      <div className="absolute top-3 right-3 bg-gradient-to-br from-black/90 to-gray-900/90 backdrop-blur-md text-white px-4 py-3 rounded-xl text-xs border-2 border-cyan-500/30 shadow-2xl shadow-cyan-500/20">
-        {!isModelLoaded ? (
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-yellow-400 font-bold tracking-wide">LOADING AI...</span>
-          </div>
-        ) : error ? (
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-              <span className="text-red-400 font-bold tracking-wide">ERROR</span>
-            </div>
-            <div className="text-red-300 text-[10px]">
-              {error.message}
-            </div>
-            <div className="text-gray-400 text-[10px]">
-              Retrying... ({error.count} errors)
-            </div>
-          </div>
-        ) : isDetecting ? (
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 bg-green-400 rounded-full animate-pulse shadow-lg shadow-green-400/50"></div>
-              <span className="text-green-400 font-bold tracking-wider text-sm">AI ACTIVE</span>
-            </div>
-            <div className="text-white font-mono">
-              <span className="text-cyan-400">●</span> {detections.length} OBJECT{detections.length !== 1 ? 'S' : ''}
-            </div>
-            {fps > 0 && (
-              <div className="text-gray-300 font-mono">
-                <span className="text-yellow-400">⚡</span> {fps} FPS
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-            <span className="text-gray-400 font-bold tracking-wide">STANDBY</span>
-          </div>
-        )}
-      </div>
 
       {/* Enhanced Detection Legend - Bottom Left */}
       {isDetecting && detections.length > 0 && (
@@ -494,29 +451,6 @@ export default function RealtimeDetectionOverlay({
                 +{detections.length - 8} MORE OBJECTS
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Color Legend - Bottom Right (if detections present) */}
-      {isDetecting && detections.length > 0 && (
-        <div className="absolute bottom-3 right-3 bg-gradient-to-br from-black/90 to-gray-900/90 backdrop-blur-md text-white px-3 py-2 rounded-xl text-[10px] border-2 border-blue-500/30 shadow-2xl shadow-blue-500/20">
-          <div className="font-bold mb-1.5 text-xs tracking-wider text-blue-300">COLOR KEY</div>
-          <div className="space-y-1">
-            {Array.from(new Set(detections.map(d => d.class))).slice(0, 5).map((className, idx) => {
-              const colors = getClassColor(className);
-              return (
-                <div key={idx} className="flex items-center gap-1.5">
-                  <div 
-                    className="w-2.5 h-2.5 rounded-sm" 
-                    style={{ backgroundColor: colors.box }}
-                  ></div>
-                  <span className="font-mono uppercase" style={{ color: colors.label }}>
-                    {className}
-                  </span>
-                </div>
-              );
-            })}
           </div>
         </div>
       )}

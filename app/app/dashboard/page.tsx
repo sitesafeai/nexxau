@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import React from 'react';
 import { DashboardProvider, useDashboard, useSiteManagement, useNotifications } from '../lib/context/DashboardContext';
 import { useAlerts, useCameras, useAnalytics } from '../lib/hooks/useApi';
@@ -7,6 +7,7 @@ import CameraFeed from '../components/CameraFeed';
 import { NotificationContainer } from '../components/NotificationToast';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import AcknowledgeAlertModal from '../components/AcknowledgeAlertModal';
 import ActiveAlerts from '@/app/components/dashboard/ActiveAlerts';
 import RealtimeDetectionOverlay from '../components/RealtimeDetectionOverlay';
 import ExportButton from '../components/ExportButton';
@@ -37,17 +38,17 @@ function DashboardContent() {
     if (worksiteParam && accessibleSites.length > 0) {
       // If worksite parameter exists, select that worksite
       const matchingWorksite = accessibleSites.find(site => site.id === worksiteParam);
-      if (matchingWorksite) {
+      if (matchingWorksite && matchingWorksite.id !== selectedSiteId) {
         selectSite(worksiteParam);
       } else if (!selectedSiteId) {
         // Fallback to first site if parameter doesn't match
-      selectSite(accessibleSites[0].id);
-    }
+        selectSite(accessibleSites[0].id);
+      }
     } else if (!selectedSiteId && accessibleSites.length > 0) {
       // No parameter, select first available site
       selectSite(accessibleSites[0].id);
     }
-  }, [worksiteParam, selectedSiteId, accessibleSites, selectSite]);
+  }, [worksiteParam, selectedSiteId, accessibleSites.length]);
 
   // Show welcome notification (only once)
   useEffect(() => {
@@ -59,7 +60,7 @@ function DashboardContent() {
         message: 'Live camera feeds are now connected. YOLOv8 stream will automatically fallback to demo video if unavailable.'
       });
     }
-  }, [selectedSite, state.isUsingMockData, addNotification]);
+  }, [selectedSite?.id, state.isUsingMockData]);
 
 
 
@@ -598,7 +599,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
     };
     
     fetchSafetyScore();
-  }, [currentSite]);
+  }, [currentSite?.id]);
 
   const currentCamera = cameras.length > 0 ? cameras[currentCameraIndex] : null;
 
@@ -624,13 +625,19 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
   };
 
   const handleGenerateReport = () => {
-    // Navigate to reports tab instead of analytics (which is under construction)
-    router.push('/dashboard?tab=reports');
+    console.log('Generate Report clicked', currentSite);
+    const worksiteParam = currentSite?.id ? `?worksite=${currentSite.id}` : '';
+    const url = `/dashboard/reports${worksiteParam}`;
+    console.log('Navigating to:', url);
+    router.push(url);
   };
 
   const handleConfigureAlerts = () => {
-    // Navigate to alert management page
-    router.push('/dashboard/alerts');
+    console.log('Configure Alerts clicked', currentSite);
+    const worksiteParam = currentSite?.id ? `?worksite=${currentSite.id}` : '';
+    const url = `/dashboard/alert-builder${worksiteParam}`;
+    console.log('Navigating to:', url);
+    router.push(url);
   };
 
   const navigateToReports = () => {
@@ -793,6 +800,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {/* Generate Report Button */}
           <button 
+            type="button"
             onClick={handleGenerateReport}
             className="group relative bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-6 rounded-xl border border-blue-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 focus:ring-offset-slate-900 shadow-lg hover:shadow-blue-500/25"
           >
@@ -809,16 +817,24 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
             </div>
           </button>
 
-          {/* Configure Alerts Button */}
+          {/* View Active Alerts Button */}
           <button 
-            onClick={handleConfigureAlerts}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('View Active Alerts clicked', currentSite);
+              const worksiteParam = currentSite?.id ? `?worksite=${currentSite.id}` : '';
+              const url = `/dashboard/alerts${worksiteParam}`;
+              console.log('Navigating to:', url);
+              router.push(url);
+            }}
             className="group relative bg-gradient-to-br from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white p-6 rounded-xl border border-emerald-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:ring-offset-2 focus:ring-offset-slate-900 shadow-lg hover:shadow-emerald-500/25"
           >
             <div className="flex items-center space-x-4">
               <div className="flex-shrink-0">
                 <svg className="w-8 h-8 text-green-100 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
               </div>
               <div className="text-left">
@@ -828,9 +844,18 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
             </div>
           </button>
 
-          {/* Custom Rules Button - NEW! */}
+          {/* Custom Rules Button */}
           <button 
-            onClick={() => router.push('/dashboard/custom-rules')}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Custom Rules clicked', currentSite);
+              const worksiteParam = currentSite?.id ? `?worksite=${currentSite.id}` : '';
+              const url = `/dashboard/alert-builder${worksiteParam}`;
+              console.log('Navigating to:', url);
+              router.push(url);
+            }}
             className="group relative bg-gradient-to-br from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white p-6 rounded-xl border border-purple-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:ring-offset-2 focus:ring-offset-slate-900 shadow-lg hover:shadow-purple-500/25"
           >
             <div className="flex items-center space-x-4">
@@ -848,7 +873,16 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
 
           {/* Manage Cameras Button */}
           <button 
-            onClick={() => router.push('/dashboard/camera-management')}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Manage Cameras clicked', currentSite);
+              const worksiteParam = currentSite?.id ? `?worksite=${currentSite.id}` : '';
+              const url = `/dashboard/cameras${worksiteParam}`;
+              console.log('Navigating to:', url);
+              router.push(url);
+            }}
             className="group relative bg-gradient-to-br from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white p-6 rounded-xl border border-violet-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:ring-offset-2 focus:ring-offset-slate-900 shadow-lg hover:shadow-violet-500/25"
           >
             <div className="flex items-center space-x-4">
@@ -991,27 +1025,35 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
   const [loading, setLoading] = useState(true);
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
   const [showFullAlert, setShowFullAlert] = useState(false);
+  const [showAcknowledgeModal, setShowAcknowledgeModal] = useState(false);
+  const [alertToAcknowledge, setAlertToAcknowledge] = useState<any>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [videoClipUrl, setVideoClipUrl] = useState<string | null>(null);
+  const [loadingVideo, setLoadingVideo] = useState(false);
 
-  useEffect(() => {
-    loadAlerts();
-    const interval = setInterval(loadAlerts, 10000); // Refresh every 10 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadAlerts = async () => {
+  const loadAlerts = useCallback(async () => {
     try {
       const res = await fetch('/api/alerts', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
-        setAlerts(data);
+        // Filter for current worksite only
+        const filteredAlerts = data.filter((alert: any) => 
+          !currentSite || alert.worksiteId === currentSite.id
+        );
+        setAlerts(filteredAlerts);
       }
     } catch (e) {
       console.error('Failed to load alerts:', e);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentSite?.id]);
+
+  useEffect(() => {
+    loadAlerts();
+    const interval = setInterval(loadAlerts, 10000); // Refresh every 10 seconds
+    return () => clearInterval(interval);
+  }, [loadAlerts]);
 
   const getDangerLevelColor = (level: string) => {
     const normalizedLevel = level?.toUpperCase();
@@ -1024,22 +1066,64 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
     }
   };
 
-  const handleViewFullAlert = (alert: any) => {
+  const handleViewFullAlert = async (alert: any) => {
     setSelectedAlert(alert);
     setShowFullAlert(true);
     setOpenDropdown(null);
+    
+    // Load video clip
+    setLoadingVideo(true);
+    try {
+      const res = await fetch(`/api/alerts/${alert.id}/video-clip`);
+      if (res.ok) {
+        const data = await res.json();
+        setVideoClipUrl(data.videoClipUrl);
+      }
+    } catch (error) {
+      console.error('Failed to load video clip:', error);
+    } finally {
+      setLoadingVideo(false);
+    }
   };
 
-  const handleAcknowledge = (alertId: string) => {
-    // Handle acknowledge logic
-    console.log('Acknowledging alert:', alertId);
+  const handleAcknowledge = (alert: any) => {
+    setAlertToAcknowledge(alert);
+    setShowAcknowledgeModal(true);
     setOpenDropdown(null);
   };
 
-  const handleDownloadReport = (alertId: string) => {
-    // Handle download report logic
-    console.log('Downloading report for alert:', alertId);
+  const handleAcknowledgeFromModal = () => {
+    setAlertToAcknowledge(null);
+    setShowAcknowledgeModal(false);
+    loadAlerts(); // Reload alerts after acknowledgment
+  };
+
+  const handleDownloadReport = async (alertId: string) => {
     setOpenDropdown(null);
+    try {
+      const res = await fetch(`/api/alerts/${alertId}/report`);
+      if (res.ok) {
+        const data = await res.json();
+        
+        // Create a downloadable file
+        const blob = new Blob([JSON.stringify(data.report, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `alert-report-${alertId}-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        alert('Report downloaded successfully!');
+      } else {
+        alert('Failed to generate report');
+      }
+    } catch (error) {
+      console.error('Error downloading report:', error);
+      alert('Failed to download report');
+    }
   };
 
   const toggleDropdown = (alertId: string) => {
@@ -1129,7 +1213,7 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
                             View Full Alert
                           </button>
                           <button
-                            onClick={() => handleAcknowledge(alert.id)}
+                            onClick={() => handleAcknowledge(alert)}
                             className="block px-3 py-2 text-xs text-gray-300 hover:bg-gray-600 w-full text-left"
                           >
                             Acknowledge
@@ -1152,6 +1236,15 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
         </div>
       </div>
 
+      {/* Acknowledge Alert Modal */}
+      {showAcknowledgeModal && alertToAcknowledge && (
+        <AcknowledgeAlertModal
+          alert={alertToAcknowledge}
+          onClose={() => setShowAcknowledgeModal(false)}
+          onSuccess={handleAcknowledgeFromModal}
+        />
+      )}
+
       {/* Full Alert Modal */}
       {showFullAlert && selectedAlert && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1159,7 +1252,10 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
             <div className="flex justify-between items-start mb-6">
               <h3 className="text-xl font-semibold text-white">Full Alert Details</h3>
               <button
-                onClick={() => setShowFullAlert(false)}
+                onClick={() => {
+                  setShowFullAlert(false);
+                  setVideoClipUrl(null);
+                }}
                 className="text-gray-400 hover:text-white"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1171,13 +1267,30 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Alert Video */}
               <div className="bg-gray-900 rounded-lg p-4">
-                <h4 className="text-lg font-semibold text-white mb-4">Alert Video Clip ({selectedAlert.duration})</h4>
+                <h4 className="text-lg font-semibold text-white mb-4">Alert Video Clip (20 seconds)</h4>
                 <div className="aspect-video bg-gray-700 rounded-lg flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-4xl mb-2">🎥</div>
-                    <p className="text-gray-300">Video: {selectedAlert.videoClip}</p>
-                    <p className="text-sm text-gray-400 mt-2">~20 second clip of the incident</p>
-                  </div>
+                  {loadingVideo ? (
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+                      <p className="text-gray-400 mt-4">Loading video clip...</p>
+                    </div>
+                  ) : videoClipUrl ? (
+                    <div className="w-full h-full">
+                      <video 
+                        controls 
+                        className="w-full h-full rounded-lg"
+                        src={videoClipUrl}
+                      >
+                        Your browser does not support the video tag.
+                      </video>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <div className="text-4xl mb-2">🎥</div>
+                      <p className="text-gray-400">Video clip unavailable</p>
+                      <p className="text-sm text-gray-500 mt-2">~20 second clip of the incident</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1188,51 +1301,60 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
                   <div className="space-y-3">
                     <div>
                       <label className="text-sm font-medium text-gray-400">Location</label>
-                      <p className="text-white">{selectedAlert.location}</p>
+                      <p className="text-white">{selectedAlert.location || 'N/A'}</p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-400">Alert Cause</label>
-                      <p className="text-white">{selectedAlert.alertCause}</p>
+                      <p className="text-white">{selectedAlert.title || 'N/A'}</p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-400">Camera</label>
-                      <p className="text-white">{selectedAlert.camera}</p>
+                      <p className="text-white">{selectedAlert.metadata?.cameraId || selectedAlert.source || 'N/A'}</p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-400">Danger Level</label>
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getDangerLevelColor(selectedAlert.dangerLevel)}`}>
-                        {selectedAlert.dangerLevel}
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getDangerLevelColor(selectedAlert.severity)}`}>
+                        {selectedAlert.severity}
                       </span>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-400">Date & Time</label>
-                      <p className="text-white">{selectedAlert.date}</p>
+                      <p className="text-white">{new Date(selectedAlert.createdAt).toLocaleString()}</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400">Assigned Manager</label>
-                      <p className="text-white">{selectedAlert.manager}</p>
+                      <label className="text-sm font-medium text-gray-400">Status</label>
+                      <p className="text-white capitalize">{selectedAlert.status}</p>
                     </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-400">Coordinates</label>
-                      <p className="text-white">{selectedAlert.coordinates}</p>
-                    </div>
+                    {selectedAlert.worksite && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-400">Worksite</label>
+                        <p className="text-white">{selectedAlert.worksite.name}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="bg-gray-700 rounded-lg p-4">
                   <h4 className="text-lg font-semibold text-white mb-3">Description</h4>
-                  <p className="text-gray-300">{selectedAlert.description}</p>
+                  <p className="text-gray-300">{selectedAlert.description || 'No description available'}</p>
                 </div>
 
                 <div className="flex space-x-3">
-                  <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition-colors">
+                  <button 
+                    onClick={() => {
+                      setShowFullAlert(false);
+                      handleAcknowledge(selectedAlert);
+                    }}
+                    disabled={selectedAlert.status !== 'ACTIVE'}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                     Acknowledge Alert
                   </button>
-                  <button className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium transition-colors">
+                  <button 
+                    onClick={() => handleDownloadReport(selectedAlert.id)}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium transition-colors"
+                  >
                     Download Report
-                  </button>
-                  <button className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded font-medium transition-colors">
-                    Share Alert
                   </button>
                 </div>
               </div>
@@ -1367,7 +1489,7 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
               </div>
               <div className="flex items-center space-x-2">
                   <button 
-                    onClick={() => router.push('/dashboard/camera-management')}
+                    onClick={() => router.push(`/dashboard/camera-settings/${camera.id}?worksite=${currentSite.id}`)}
                     className="text-gray-400 hover:text-white transition-colors"
                     title="Camera settings"
                   >
@@ -1647,7 +1769,12 @@ function SitesTab({ currentSite }: { currentSite: any }) {
 
 function SitesPage({ sites, currentUser }: { sites: any[], currentUser: any }) {
   const router = useRouter();
+  const [selectedSite, setSelectedSite] = useState<any>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   
+  // Filter sites based on user role
+  const filteredSites = sites;  // Sites are already filtered by the DashboardContext based on user permissions
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'bg-green-900 text-green-300';
@@ -1663,24 +1790,43 @@ function SitesPage({ sites, currentUser }: { sites: any[], currentUser: any }) {
     return 'text-red-400';
   };
 
+  const handleViewDetails = (site: any) => {
+    setSelectedSite(site);
+    setShowDetailsModal(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-white">Site Management</h1>
           <p className="text-gray-300">
-            {currentUser.role === 'admin' ? 'Managing all worksites' : 'Managing your assigned worksites'}
+            {currentUser?.role === 'ADMIN' || currentUser?.role === 'admin' 
+              ? `Managing all accessible worksites (${filteredSites.length})` 
+              : `Managing your assigned worksites (${filteredSites.length})`}
           </p>
         </div>
-        {currentUser.role === 'admin' && (
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+        {(currentUser?.role === 'ADMIN' || currentUser?.role === 'admin') && (
+        <button 
+          onClick={() => router.push('/dashboard/worksite-create')}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+        >
           Add New Site
         </button>
         )}
       </div>
 
+      {filteredSites.length === 0 ? (
+        <div className="bg-gray-800 rounded-lg p-12 text-center">
+          <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+          <h3 className="text-xl font-semibold text-white mb-2">No Worksites Assigned</h3>
+          <p className="text-gray-400">You don't have access to any worksites yet. Contact your administrator for access.</p>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {sites.map((site) => (
+        {filteredSites.map((site) => (
           <div key={site.id} className="bg-gray-800 rounded-lg p-6">
             <div className="flex justify-between items-start mb-4">
               <div>
@@ -1716,15 +1862,18 @@ function SitesPage({ sites, currentUser }: { sites: any[], currentUser: any }) {
               </div>
             </div>
 
-            <div className="flex space-x-2">
+            <div className="flex gap-3">
               <button 
-                onClick={() => {
-                  // Navigate to site overview
-                  router.push(`/dashboard?site=${site.id}`);
-                }}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
+                onClick={() => handleViewDetails(site)}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
               >
                 View Details
+              </button>
+              <button 
+                onClick={() => router.push(`/dashboard?worksite=${site.id}`)}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              >
+                Open Dashboard
               </button>
               {(currentUser.role === 'admin' || site.managers?.includes(currentUser.email)) && (
               <button 
@@ -1741,6 +1890,123 @@ function SitesPage({ sites, currentUser }: { sites: any[], currentUser: any }) {
           </div>
         ))}
       </div>
+      )}
+
+      {/* Site Details Modal */}
+      {showDetailsModal && selectedSite && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
+              <h3 className="text-xl font-semibold text-white">Worksite Details - {selectedSite.name}</h3>
+              <button
+                onClick={() => setShowDetailsModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Basic Info */}
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-white mb-4">Basic Information</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-400">Name</label>
+                      <p className="text-white">{selectedSite.name}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-400">Address</label>
+                      <p className="text-white">{selectedSite.address || selectedSite.location || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-400">Status</label>
+                      <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedSite.status)}`}>
+                        {selectedSite.status}
+                      </span>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-400">Created</label>
+                      <p className="text-white">{selectedSite.createdAt ? new Date(selectedSite.createdAt).toLocaleDateString() : 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Statistics */}
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-white mb-4">Statistics</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Cameras</span>
+                      <span className="text-white font-semibold">{selectedSite.cameras || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Active Alerts</span>
+                      <span className="text-white font-semibold">{selectedSite.alerts || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Safety Score</span>
+                      <span className={`font-bold text-xl ${getSafetyScoreColor(selectedSite.safetyScore || 0)}`}>
+                        {selectedSite.safetyScore || 0}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Last Activity</span>
+                      <span className="text-white text-sm">{selectedSite.lastActivity || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="mt-6 pt-6 border-t border-gray-700">
+                <h4 className="text-lg font-semibold text-white mb-4">Quick Actions</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <button
+                    onClick={() => {
+                      setShowDetailsModal(false);
+                      router.push(`/dashboard?worksite=${selectedSite.id}`);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-medium transition-colors"
+                  >
+                    View Dashboard
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDetailsModal(false);
+                      router.push(`/dashboard/cameras?worksite=${selectedSite.id}`);
+                    }}
+                    className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-3 rounded-lg font-medium transition-colors"
+                  >
+                    Manage Cameras
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDetailsModal(false);
+                      router.push(`/dashboard/alert-builder?worksite=${selectedSite.id}`);
+                    }}
+                    className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-3 rounded-lg font-medium transition-colors"
+                  >
+                    Configure Alerts
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDetailsModal(false);
+                      router.push(`/dashboard/settings?worksite=${selectedSite.id}`);
+                    }}
+                    className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-3 rounded-lg font-medium transition-colors"
+                  >
+                    Settings
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Role-based Quick Actions */}
       <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/30 p-6 rounded-xl">
@@ -1946,7 +2212,7 @@ function CamerasPage({ currentSite }: { currentSite: any }) {
                     View Live
                   </button>
                   <button 
-                    onClick={() => router.push('/dashboard/camera-management')}
+                    onClick={() => router.push(`/dashboard/camera-settings/${camera.id}?worksite=${currentSite.id}`)}
                     className="px-6 py-3 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-xl font-semibold transition-colors border border-gray-600/30"
                   >
                 Configure

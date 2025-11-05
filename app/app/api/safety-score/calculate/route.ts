@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
     const activeCameras = await prisma.camera.count({
       where: {
         worksiteId,
-        status: 'online'
+        status: 'active'
       }
     });
     

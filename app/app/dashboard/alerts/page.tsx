@@ -1,31 +1,81 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Plus } from 'lucide-react';
+import AcknowledgeAlertModal from '../../components/AcknowledgeAlertModal';
 
 export default function AlertsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const worksiteParam = searchParams.get('worksite');
+  
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedAlert, setSelectedAlert] = useState<any>(null);
+  const [showAcknowledgeModal, setShowAcknowledgeModal] = useState(false);
 
   useEffect(() => {
     loadAlerts();
     const interval = setInterval(loadAlerts, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [worksiteParam]);
 
   const loadAlerts = async () => {
     try {
-      const res = await fetch('/api/alerts', { cache: 'no-store' });
+      const url = worksiteParam 
+        ? `/api/alerts?worksiteId=${worksiteParam}` 
+        : '/api/alerts';
+      
+      const res = await fetch(url, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
-        setAlerts(Array.isArray(data) ? data : []);
+        const alertsList = Array.isArray(data) ? data : (data.alerts || []);
+        
+        // Filter for ACTIVE status only
+        const activeAlerts = alertsList.filter((alert: any) => 
+          alert.status === 'ACTIVE'
+        );
+        
+        setAlerts(activeAlerts);
       }
     } catch (e) {
       console.error('Failed to load alerts:', e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAcknowledge = (alert: any) => {
+    setSelectedAlert(alert);
+    setShowAcknowledgeModal(true);
+  };
+
+  const handleAcknowledgeSuccess = () => {
+    setSelectedAlert(null);
+    setShowAcknowledgeModal(false);
+    loadAlerts(); // Reload alerts
+  };
+
+  const handleDownloadReport = async (alertId: string) => {
+    try {
+      const res = await fetch(`/api/alerts/${alertId}/report`);
+      if (res.ok) {
+        const data = await res.json();
+        
+        // Create downloadable file
+        const blob = new Blob([JSON.stringify(data.report, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `alert-report-${alertId}-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+    } catch (error) {
+      console.error('Error downloading report:', error);
     }
   };
 
@@ -58,7 +108,10 @@ export default function AlertsPage() {
             </div>
           </div>
           <button
-            onClick={() => router.push('/dashboard/alert-builder')}
+            onClick={() => {
+              const worksiteQuery = worksiteParam ? `?worksite=${worksiteParam}` : '';
+              router.push(`/dashboard/alert-builder${worksiteQuery}`);
+            }}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 font-semibold shadow-lg"
           >
             <Plus className="h-5 w-5" />
@@ -68,8 +121,11 @@ export default function AlertsPage() {
 
         {/* Alert List */}
         <div className="bg-gray-800/50 backdrop-blur rounded-xl border border-gray-700/50">
-          <div className="px-6 py-4 border-b border-gray-700">
+          <div className="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
             <h3 className="text-lg font-medium text-white">Active Alerts ({alerts.length})</h3>
+            {worksiteParam && (
+              <span className="text-sm text-gray-400">Filtered by worksite</span>
+            )}
         </div>
 
           {loading ? (
@@ -84,7 +140,10 @@ export default function AlertsPage() {
               <h3 className="text-xl font-semibold text-gray-300 mb-2">No Active Alerts</h3>
               <p className="text-gray-400 mb-6">All systems are operating normally</p>
               <button 
-                onClick={() => router.push('/dashboard/alert-builder')}
+                onClick={() => {
+                  const worksiteQuery = worksiteParam ? `?worksite=${worksiteParam}` : '';
+                  router.push(`/dashboard/alert-builder${worksiteQuery}`);
+                }}
                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
               >
                 Create Alert Rule
@@ -95,52 +154,65 @@ export default function AlertsPage() {
               <table className="min-w-full">
                 <thead className="bg-gray-900/50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">ID</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Title</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Severity</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Location</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Created</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
                   {alerts.map((alert) => (
                     <tr key={alert.id} className="hover:bg-gray-700/30 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400 font-mono">
-                        {alert.id.substring(0, 8)}
-                      </td>
                       <td className="px-6 py-4">
                         <div className="text-sm font-medium text-white">{alert.title}</div>
-                        <div className="text-xs text-gray-400 mt-1">{alert.description?.substring(0, 60)}...</div>
+                        <div className="text-xs text-gray-400 mt-1">{alert.description?.substring(0, 80)}...</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getSeverityColor(alert.severity)}`}>
                           {alert.severity}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                          alert.status === 'ACTIVE' ? 'bg-red-900 text-red-300' :
-                          alert.status === 'ACKNOWLEDGED' ? 'bg-yellow-900 text-yellow-300' :
-                          'bg-green-900 text-green-300'
-                        }`}>
-                          {alert.status}
-                          </span>
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                         {alert.location || alert.worksite?.name || 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                        {new Date(alert.createdAt).toLocaleDateString()}
+                        {new Date(alert.createdAt).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleAcknowledge(alert)}
+                            disabled={alert.status !== 'ACTIVE'}
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Acknowledge
+                          </button>
+                          <button
+                            onClick={() => handleDownloadReport(alert.id)}
+                            className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-xs rounded-lg transition-colors"
+                          >
+                            Report
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-                        </div>
-                      )}
-                    </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Acknowledge Modal */}
+      {showAcknowledgeModal && selectedAlert && (
+        <AcknowledgeAlertModal
+          alert={selectedAlert}
+          onClose={() => setShowAcknowledgeModal(false)}
+          onSuccess={handleAcknowledgeSuccess}
+        />
+      )}
     </div>
   );
 } 

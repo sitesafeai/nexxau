@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHandle } from 'react';
 import Hls from 'hls.js';
 import RealtimeDetectionOverlay from './RealtimeDetectionOverlay';
 
@@ -10,14 +10,17 @@ interface CameraFeedProps {
   enableDetection?: boolean;
 }
 
-const CameraFeed: React.FC<CameraFeedProps> = ({ 
+const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({ 
   streamUrl, 
   className = '',
   autoPlay = false,
   cameraId,
   enableDetection = false
-}) => {
+}, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  
+  // Expose the video element to parent components
+  useImperativeHandle(ref, () => videoRef.current as HTMLVideoElement);
   const hlsRef = useRef<Hls | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -375,6 +378,8 @@ const CameraFeed: React.FC<CameraFeedProps> = ({
       </div>
     </div>
   );
-};
+});
+
+CameraFeed.displayName = 'CameraFeed';
 
 export default React.memo(CameraFeed);

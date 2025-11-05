@@ -24,8 +24,8 @@ export function useAuth(options: UseAuthOptions = {}) {
     // If still loading, don't do anything
     if (status === 'loading') return;
 
-    // Temporarily disable auth redirect to allow dashboard work
-    if (false && requireAuth && status === 'unauthenticated') {
+    // If authentication is required and user is not authenticated, redirect
+    if (requireAuth && status === 'unauthenticated') {
       router.push(redirectTo);
       return;
     }

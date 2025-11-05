@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, dbPool } from '../../../lib/database-pool';
 import { broadcastDetection } from './stream/route';
+import { 
+  getWorksiteSettings, 
+  filterDetectionsByConfidence, 
+  shouldProcessDetection,
+  checkViolationRateLimit
+} from '../../../lib/worksite-settings';
 
 // In-memory cache for recent detections (last 50 per camera)
 const recentDetections = new Map<string, any[]>();
@@ -26,17 +32,60 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get camera and worksite settings
+    const camera = await prisma.camera.findUnique({
+      where: { id: camera_id },
+      include: { worksite: true }
+    });
+
+    if (!camera) {
+      return NextResponse.json(
+        { error: 'Camera not found' },
+        { status: 404 }
+      );
+    }
+
+    // Load worksite settings
+    const settings = await getWorksiteSettings(camera.worksiteId);
+
+    // Check if auto-detection is enabled
+    if (!shouldProcessDetection(settings.camera.autoDetect)) {
+      return NextResponse.json({
+        success: true,
+        message: 'Auto-detection disabled for this worksite',
+        skipped: true
+      });
+    }
+
+    // Filter detections by confidence threshold
+    const filteredDetections = filterDetectionsByConfidence(
+      detections,
+      settings.camera.detectionConfidence
+    );
+
+    // If no detections pass the threshold, skip processing
+    if (filteredDetections.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: 'No detections above confidence threshold',
+        filtered: detections.length,
+        threshold: settings.camera.detectionConfidence
+      });
+    }
+
     const processedData = {
       cameraId: camera_id,
       timestamp: new Date(timestamp),
-      detections: detections,
+      detections: filteredDetections, // Use filtered detections
       frameData: frame_data,
       frameWidth: frame_width,
       frameHeight: frame_height,
       metadata: {
-        detectionCount: detections.length,
-        classes: detections.map(d => d.class_name),
-        avgConfidence: detections.reduce((sum, d) => sum + d.confidence, 0) / detections.length
+        detectionCount: filteredDetections.length,
+        originalCount: detections.length,
+        classes: filteredDetections.map(d => d.class_name || d.class),
+        avgConfidence: filteredDetections.reduce((sum, d) => sum + (d.confidence || d.conf || 0), 0) / filteredDetections.length,
+        confidenceThreshold: settings.camera.detectionConfidence
       }
     };
 
@@ -68,8 +117,9 @@ export async function POST(request: NextRequest) {
     ).catch(console.error);
 
     // Check for safety violations asynchronously with retry logic (non-blocking)
+    // Use filtered detections and pass settings
     dbPool.executeWithRetry(
-      () => checkSafetyViolations(camera_id, detections)
+      () => checkSafetyViolations(camera_id, filteredDetections, camera.worksiteId, settings)
     ).catch(console.error);
 
     return NextResponse.json({
@@ -140,8 +190,45 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function checkSafetyViolations(cameraId: string, detections: any[]) {
+async function checkSafetyViolations(
+  cameraId: string, 
+  detections: any[], 
+  worksiteId: string,
+  settings: any
+) {
   try {
+    // Check violation rate limit before processing
+    const withinRateLimit = await checkViolationRateLimit(
+      worksiteId,
+      settings.safety.maxViolationsPerHour
+    );
+
+    if (!withinRateLimit) {
+      console.log(`Violation rate limit exceeded for worksite ${worksiteId}. Skipping violation checks.`);
+      
+      // If auto-escalate is enabled, create an escalation alert
+      if (settings.safety.autoEscalate) {
+        await dbPool.executeWithRetry(
+          () => prisma.alert.create({
+            data: {
+              title: 'Violation Rate Limit Exceeded',
+              description: `Maximum violations per hour (${settings.safety.maxViolationsPerHour}) exceeded. Auto-escalation triggered.`,
+              severity: 'HIGH',
+              source: 'SYSTEM',
+              location: 'Worksite-wide',
+              worksiteId: worksiteId,
+              metadata: {
+                type: 'rate_limit_exceeded',
+                maxViolationsPerHour: settings.safety.maxViolationsPerHour,
+                autoEscalated: true
+              }
+            }
+          })
+        );
+      }
+      return;
+    }
+
     // Get active alert rules for this camera with retry logic
     const alertRules = await dbPool.executeWithRetry(
       () => prisma.alertRule.findMany({
@@ -155,30 +242,40 @@ async function checkSafetyViolations(cameraId: string, detections: any[]) {
       })
     );
 
+    // Track violations to check against alert threshold
+    let violationCount = 0;
+
     for (const rule of alertRules) {
       const violations = checkRuleViolations(rule, detections);
       
       if (violations.length > 0) {
-        // Create alert for each violation with retry logic
-        for (const violation of violations) {
-          await dbPool.executeWithRetry(
-            () => prisma.alert.create({
-              data: {
-                title: rule.name,
-                description: `${rule.description} - ${violation.details}`,
-                severity: rule.severity,
-                source: 'AI_DETECTION',
-                location: violation.location || 'Unknown',
-                worksiteId: rule.worksiteId,
-                metadata: {
-                  cameraId,
-                  ruleId: rule.id,
-                  violation: violation,
-                  detectionData: violation.detection
+        violationCount += violations.length;
+        
+        // Only create alerts if we've reached the alert threshold
+        if (violationCount >= settings.camera.alertThreshold) {
+          // Create alert for each violation with retry logic
+          for (const violation of violations) {
+            await dbPool.executeWithRetry(
+              () => prisma.alert.create({
+                data: {
+                  title: rule.name,
+                  description: `${rule.description} - ${violation.details}`,
+                  severity: rule.severity,
+                  source: 'AI_DETECTION',
+                  location: violation.location || 'Unknown',
+                  worksiteId: rule.worksiteId,
+                  metadata: {
+                    cameraId,
+                    ruleId: rule.id,
+                    violation: violation,
+                    detectionData: violation.detection,
+                    alertThreshold: settings.camera.alertThreshold,
+                    violationCount: violationCount
+                  }
                 }
-              }
-            })
-          );
+              })
+            );
+          }
         }
       }
     }

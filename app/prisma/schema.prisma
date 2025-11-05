@@ -409,6 +409,7 @@ model Camera {
   rtspPath          String?           // RTSP path (e.g., /stream1)
   hlsUrl            String?           // Direct HLS URL (if available)
   mediamtxPath      String?           // MediaMTX path name
+  metadata          Json?             // Camera settings and configuration (detection zones, etc.)
   worksiteId        String
   worksite          Worksite          @relation(fields: [worksiteId], references: [id])
   detections        Detection[]

@@ -28,9 +28,8 @@ export async function requireAuth(options: AuthGuardOptions = {}) {
   const session = await getServerSession(authOptions);
 
   // If authentication is required but no session exists
-  // Temporarily disable hard redirect to allow dashboard work without auth
   if (requireAuth && !session) {
-    return { session: null } as any;
+    redirect(redirectTo);
   }
 
   // If a specific role is required

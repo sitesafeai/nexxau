@@ -2,6 +2,10 @@
 import { prisma } from './prisma';
 import { logInfo, logError, logWarning } from './logger';
 import { multiSmsService } from './multi-sms-service';
+import { 
+  getWorksiteSettings, 
+  shouldSendNotification 
+} from './worksite-settings';
 
 interface DetectionData {
   objects: Array<{
@@ -427,10 +431,29 @@ export class CustomRuleEngine {
     result: RuleEvaluationResult
   ): Promise<void> {
     try {
+      // Load worksite settings if worksiteId is available
+      let worksiteSettings = null;
+      if (rule.worksiteId) {
+        worksiteSettings = await getWorksiteSettings(rule.worksiteId);
+      }
+
       const message = this.formatNotificationMessage(rule, violation, result);
 
-      // Send SMS if enabled
-      if (rule.smsEnabled && rule.smsRecipients && rule.smsRecipients.length > 0) {
+      // Check if we should send notifications based on frequency setting
+      const shouldSend = worksiteSettings && rule.worksiteId
+        ? await shouldSendNotification(worksiteSettings, rule.worksiteId)
+        : true;
+
+      if (!shouldSend) {
+        logInfo(`Notification frequency limit reached for worksite ${rule.worksiteId}. Skipping notifications.`);
+        return;
+      }
+
+      // Send SMS if enabled in both rule and worksite settings
+      const smsEnabled = rule.smsEnabled && 
+        (!worksiteSettings || worksiteSettings.notifications.smsEnabled);
+      
+      if (smsEnabled && rule.smsRecipients && rule.smsRecipients.length > 0) {
         for (const phoneNumber of rule.smsRecipients) {
           try {
             const smsResult = await multiSmsService.sendSafetyViolationSMS(phoneNumber, {
@@ -459,14 +482,20 @@ export class CustomRuleEngine {
         }
       }
 
-      // Send email if enabled (placeholder)
-      if (rule.emailEnabled && rule.emailRecipients && rule.emailRecipients.length > 0) {
+      // Send email if enabled in both rule and worksite settings
+      const emailEnabled = rule.emailEnabled && 
+        (!worksiteSettings || worksiteSettings.notifications.emailEnabled);
+      
+      if (emailEnabled && rule.emailRecipients && rule.emailRecipients.length > 0) {
         // Email implementation would go here
         logInfo(`Email notification sent for rule ${rule.name}`);
       }
 
-      // Dashboard notification is always enabled
-      logInfo(`Dashboard notification created for rule ${rule.name}`);
+      // Push/dashboard notification is always enabled (but respect pushEnabled setting)
+      const pushEnabled = !worksiteSettings || worksiteSettings.notifications.pushEnabled;
+      if (pushEnabled) {
+        logInfo(`Dashboard notification created for rule ${rule.name}`);
+      }
 
     } catch (error) {
       logError(`Error sending notifications for rule ${rule.name}:`, error);
