@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, AlertTriangle, CheckCircle, Info, MapPin } from 'lucide-react';
 import { 
   DETECTION_CLASSES, 
@@ -17,7 +17,9 @@ import CameraFeed from '@/app/components/CameraFeed';
 
 export default function AlertBuilderPage() {
   const router = useRouter();
-  const { cameras } = useCameraStore();
+  const searchParams = useSearchParams();
+  const worksiteParam = searchParams.get('worksite');
+  const { cameras } = useCameraStore(worksiteParam || undefined);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const [step, setStep] = useState(1);

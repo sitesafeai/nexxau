@@ -7,6 +7,12 @@ import {
   shouldProcessDetection,
   checkViolationRateLimit
 } from '../../../lib/worksite-settings';
+import {
+  checkZoneViolations,
+  getCameraZones,
+  getViolationDescription,
+  type Detection as ZoneDetection
+} from '../../../lib/zone-detection';
 
 // In-memory cache for recent detections (last 50 per camera)
 const recentDetections = new Map<string, any[]>();
@@ -71,6 +77,70 @@ export async function POST(request: NextRequest) {
         filtered: detections.length,
         threshold: settings.camera.detectionConfidence
       });
+    }
+
+    // Check for zone violations
+    const cameraZones = getCameraZones(camera.metadata);
+    let zoneViolations: any[] = [];
+    
+    if (cameraZones.length > 0) {
+      // Convert filtered detections to zone detection format
+      const zoneDetections: ZoneDetection[] = filteredDetections.map(d => ({
+        class: d.class_name || d.class,
+        score: d.confidence || d.conf || 0,
+        bbox: d.bbox || [d.x || 0, d.y || 0, d.width || 0, d.height || 0]
+      }));
+
+      // Check zones
+      zoneViolations = checkZoneViolations(
+        zoneDetections,
+        cameraZones,
+        frame_width || 1920,
+        frame_height || 1080
+      );
+
+      // Log zone violations
+      if (zoneViolations.length > 0) {
+        console.log(`🚨 Zone violations detected:`, {
+          cameraId: camera_id,
+          violations: zoneViolations.map(v => ({
+            zone: v.zone.name,
+            object: v.detection.class,
+            severity: v.severity
+          }))
+        });
+
+        // Create alerts for zone violations asynchronously
+        for (const violation of zoneViolations) {
+          dbPool.executeWithRetry(
+            () => prisma.alert.create({
+              data: {
+                title: `Zone Violation: ${violation.zone.name}`,
+                description: getViolationDescription(violation),
+                severity: violation.severity,
+                source: 'AI_DETECTION',
+                location: `Camera: ${camera.name} - Zone: ${violation.zone.name}`,
+                worksiteId: camera.worksiteId,
+                status: 'ACTIVE',
+                metadata: {
+                  type: 'zone_violation',
+                  cameraId: camera_id,
+                  cameraName: camera.name,
+                  zoneId: violation.zone.id,
+                  zoneName: violation.zone.name,
+                  zoneType: violation.zone.type,
+                  detectedObject: violation.detection.class,
+                  confidence: violation.detection.score,
+                  bbox: violation.detection.bbox,
+                  timestamp: new Date().toISOString(),
+                  frameWidth: frame_width,
+                  frameHeight: frame_height
+                }
+              }
+            })
+          ).catch(err => console.error('Error creating zone violation alert:', err));
+        }
+      }
     }
 
     const processedData = {

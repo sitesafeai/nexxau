@@ -24,6 +24,7 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
+  const router = useRouter();
   const [selected, setSelected] = useState('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { state, selectSite, hasPermission, addNotification } = useDashboard();
@@ -151,6 +152,15 @@ function DashboardContent() {
                   icon: (
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  )
+                },
+                { 
+                  key: 'alert-rules', 
+                  name: 'Alert Rules', 
+                  icon: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
                   )
                 },
@@ -316,6 +326,15 @@ function DashboardContent() {
                       )
                     },
                     { 
+                      key: 'alert-rules', 
+                      name: 'Alert Rules', 
+                      icon: (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                      )
+                    },
+                    { 
                       key: 'reports', 
                       name: 'Reports', 
                       icon: (
@@ -389,6 +408,10 @@ function DashboardContent() {
             {selected === 'sites' && <SitesPage sites={accessibleSites} currentUser={state.currentUser} />}
             {selected === 'cameras' && <CamerasPage currentSite={selectedSite} />}
             {selected === 'alerts' && <AlertsPage currentSite={selectedSite} />}
+            {selected === 'alert-rules' && (() => {
+              router.push(`/dashboard/alert-rules?worksite=${selectedSite?.id || ''}`);
+              return null;
+            })()}
             {selected === 'reports' && <ReportsPage currentSite={selectedSite} />}
             {selected === 'workflows' && <WorkflowsPage currentSite={selectedSite} />}
             {selected === 'settings' && <SettingsPage currentUser={state.currentUser} />}

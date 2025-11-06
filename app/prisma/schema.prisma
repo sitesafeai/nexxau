@@ -228,6 +228,7 @@ model Worksite {
   safetyScoreConfig SafetyScoreConfig?
   violationClassifications ViolationClassification[]
   worksiteUsers     WorksiteUser[] // Multi-tenant user access
+  trainingImages   TrainingImage[]
 }
 
 model Worker {
@@ -419,6 +420,7 @@ model Camera {
   customRules      CustomRule[]
   ruleTriggers     CustomRuleTrigger[]
   ruleViolations   CustomRuleViolation[]
+  trainingImages   TrainingImage[]
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 }
@@ -444,6 +446,26 @@ model Detection {
   metadata    Json?    // Additional detection metadata
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model TrainingImage {
+  id          String    @id @default(cuid())
+  imageUrl    String    // Cloud storage URL
+  cameraId    String
+  camera      Camera    @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+  worksiteId  String
+  worksite    Worksite  @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  category    String?   // hardhat, vest, person, forklift, etc.
+  labeled     Boolean   @default(false)
+  annotations Json?     // Bounding boxes and labels
+  metadata    Json?     // Additional metadata
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([cameraId])
+  @@index([worksiteId])
+  @@index([category])
+  @@index([labeled])
 }
 
 model BlogPost {
