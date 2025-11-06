@@ -144,9 +144,14 @@ async function uploadToS3(file: Buffer | string, options: UploadOptions): Promis
   }
 
   try {
-    const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+    // Dynamic import only when actually using S3
+    // Note: To use S3, install: npm install @aws-sdk/client-s3
+    const S3 = await import('@aws-sdk/client-s3').catch(() => {
+      console.error('AWS SDK not installed. Run: npm install @aws-sdk/client-s3');
+      throw new Error('AWS SDK not installed');
+    });
     
-    const s3Client = new S3Client({
+    const s3Client = new S3.S3Client({
       region: process.env.AWS_REGION || 'us-east-1',
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -164,7 +169,7 @@ async function uploadToS3(file: Buffer | string, options: UploadOptions): Promis
       ? Buffer.from(file, 'base64')
       : file;
 
-    const command = new PutObjectCommand({
+    const command = new S3.PutObjectCommand({
       Bucket: bucket,
       Key: key,
       Body: buffer,
@@ -188,7 +193,9 @@ async function uploadToS3(file: Buffer | string, options: UploadOptions): Promis
     };
   } catch (error) {
     console.error('S3 upload error:', error);
-    throw error;
+    // Fall back to local storage if S3 fails
+    console.warn('Falling back to local storage');
+    return uploadToLocal(file, options);
   }
 }
 
@@ -209,7 +216,11 @@ async function uploadToCloudinary(file: Buffer | string, options: UploadOptions)
   }
 
   try {
-    const cloudinary = await import('cloudinary');
+    const cloudinary = await import('cloudinary').catch(() => {
+      console.error('Cloudinary SDK not installed. Run: npm install cloudinary');
+      throw new Error('Cloudinary SDK not installed');
+    });
+    
     cloudinary.v2.config({
       cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
       api_key: process.env.CLOUDINARY_API_KEY,
