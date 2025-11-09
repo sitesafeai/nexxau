@@ -17,8 +17,41 @@ export default function AlertsPage() {
 
   useEffect(() => {
     loadAlerts();
-    const interval = setInterval(loadAlerts, 10000);
-    return () => clearInterval(interval);
+  }, [worksiteParam]);
+
+  useEffect(() => {
+    const worksiteId = worksiteParam || '';
+    const source = new EventSource(`/api/alerts/stream${worksiteId ? `?worksiteId=${worksiteId}` : ''}`);
+
+    source.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (!data?.id || data?.ready) return;
+
+        setAlerts((prev) => {
+          if (data.status && data.status !== 'ACTIVE') {
+            return prev.filter((alert) => alert.id !== data.id);
+          }
+
+          const exists = prev.some((alert) => alert.id === data.id);
+          if (exists) {
+            return prev.map((alert) => (alert.id === data.id ? { ...alert, ...data } : alert));
+          }
+
+          return [data, ...prev];
+        });
+      } catch (error) {
+        console.error('Failed to parse alert event:', error);
+      }
+    };
+
+    source.onerror = (error) => {
+      console.error('Alert stream error:', error);
+    };
+
+    return () => {
+      source.close();
+    };
   }, [worksiteParam]);
 
   const loadAlerts = async () => {

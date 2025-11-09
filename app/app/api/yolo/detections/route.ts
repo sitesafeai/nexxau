@@ -15,6 +15,7 @@ import {
 } from '../../../lib/zone-detection';
 import { captureCameraClip } from '../../../lib/video-recorder';
 import { uploadVideoClip } from '../../../lib/cloud-storage';
+import { emitAlertCreated } from '../../../lib/alert-events';
 
 // In-memory cache for recent detections (last 50 per camera)
 const recentDetections = new Map<string, any[]>();
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
               frameHeight: frame_height
             };
 
-            const alert = await prisma.alert.create({
+            let alert = await prisma.alert.create({
               data: {
                 title: `Zone Violation: ${violation.zone.name}`,
                 description: getViolationDescription(violation),
@@ -144,7 +145,11 @@ export async function POST(request: NextRequest) {
 
             // Attempt to capture and upload video clip
             try {
-              const clip = await captureCameraClip(camera);
+              const clip = await captureCameraClip({
+                id: camera.id,
+                name: camera.name,
+                streamUrl: camera.hlsUrl || camera.streamUrl || undefined,
+              });
               if (clip) {
                 const videoUrl = await uploadVideoClip(
                   clip.buffer,
@@ -153,7 +158,7 @@ export async function POST(request: NextRequest) {
                   { fileName: clip.filename }
                 );
 
-                await prisma.alert.update({
+                alert = await prisma.alert.update({
                   where: { id: alert.id },
                   data: {
                     metadata: {
@@ -166,6 +171,21 @@ export async function POST(request: NextRequest) {
             } catch (error) {
               console.error('Failed to capture/upload video clip:', error);
             }
+
+            const finalMetadata = (alert.metadata ?? baseMetadata) as Record<string, any>;
+
+            emitAlertCreated({
+              id: alert.id,
+              title: alert.title,
+              description: alert.description,
+              severity: alert.severity,
+              source: alert.source,
+              location: alert.location,
+              worksiteId: camera.worksiteId,
+              status: alert.status,
+              metadata: finalMetadata,
+              createdAt: alert.createdAt instanceof Date ? alert.createdAt.toISOString() : alert.createdAt
+            });
 
             return alert;
           }).catch(err => console.error('Error creating zone violation alert:', err));
