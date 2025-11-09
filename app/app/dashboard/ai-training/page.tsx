@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Image, Download, Tag, Check, X } from 'lucide-react';
+import { ArrowLeft, Image, Download, Tag, Check, X, Loader2 } from 'lucide-react';
 
 export default function AITrainingPage() {
   const router = useRouter();
@@ -13,6 +13,8 @@ export default function AITrainingPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'labeled' | 'unlabeled'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [updating, setUpdating] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     loadImages();
@@ -40,6 +42,59 @@ export default function AITrainingPage() {
 
   const categories = ['all', 'hardhat', 'safety_vest', 'person', 'forklift', 'vehicle', 'unlabeled'];
 
+  const updateImage = async (id: string, updates: Record<string, any>) => {
+    setUpdating(id);
+    try {
+      const res = await fetch(`/api/training/snapshots/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+
+      if (res.ok) {
+        await loadImages();
+      } else {
+        alert('Failed to update training image');
+      }
+    } catch (error) {
+      console.error('Error updating training image:', error);
+      alert('Error updating training image');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const exportDataset = async () => {
+    try {
+      setExporting(true);
+      let url = '/api/training/export?';
+      if (worksiteParam) url += `worksiteId=${worksiteParam}&`;
+      if (filter !== 'all') url += `labeled=${filter === 'labeled'}&`;
+      if (categoryFilter !== 'all') url += `category=${categoryFilter}&`;
+
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to export dataset');
+
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: 'application/json',
+      });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `training-dataset-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export dataset');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 p-8">
       <div className="max-w-7xl mx-auto">
@@ -65,6 +120,24 @@ export default function AITrainingPage() {
                 </p>
               </div>
             </div>
+
+            <button
+              onClick={exportDataset}
+              disabled={exporting}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {exporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Export Dataset
+                </>
+              )}
+            </button>
           </div>
         </div>
 
@@ -197,17 +270,40 @@ export default function AITrainingPage() {
                     <span className="text-white font-medium text-sm truncate">
                       {image.camera?.name || 'Unknown Camera'}
                     </span>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      image.category === 'unlabeled'
-                        ? 'bg-gray-700 text-gray-300'
-                        : 'bg-purple-600 text-white'
-                    }`}>
-                      {image.category || 'N/A'}
-                    </span>
+                    <select
+                      value={image.category || 'unlabeled'}
+                      onChange={(e) => updateImage(image.id, { category: e.target.value })}
+                      disabled={updating === image.id}
+                      className="bg-gray-700 border border-gray-600 rounded text-xs text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      {['unlabeled', 'hardhat', 'safety_vest', 'person', 'forklift', 'vehicle'].map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat.replace('_', ' ')}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <p className="text-gray-400 text-xs">
                     {new Date(image.createdAt).toLocaleString()}
                   </p>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      onClick={() => updateImage(image.id, { labeled: !image.labeled })}
+                      disabled={updating === image.id}
+                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                        image.labeled
+                          ? 'bg-green-600 text-white hover:bg-green-500'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      {image.labeled ? 'Mark Unlabeled' : 'Mark Labeled'}
+                    </button>
+
+                    {updating === image.id && (
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
