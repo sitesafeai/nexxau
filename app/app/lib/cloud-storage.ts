@@ -67,17 +67,18 @@ export async function uploadFile(
 export async function uploadVideoClip(
   videoBuffer: Buffer,
   alertId: string,
-  cameraId: string
+  cameraId: string,
+  options: { fileName?: string; duration?: number } = {}
 ): Promise<string> {
   const result = await uploadFile(videoBuffer, {
     folder: `video-clips/${cameraId}`,
-    fileName: `${alertId}-${Date.now()}.mp4`,
+    fileName: options.fileName || `${alertId}-${Date.now()}.mp4`,
     contentType: 'video/mp4',
     metadata: {
       alertId,
       cameraId,
       type: 'alert-clip',
-      duration: 20
+      duration: options.duration || Number(process.env.VIDEO_CLIP_DURATION || 20)
     },
     expiresIn: 90 // Auto-delete after 90 days
   });

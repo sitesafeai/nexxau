@@ -13,6 +13,8 @@ import {
   getViolationDescription,
   type Detection as ZoneDetection
 } from '../../../lib/zone-detection';
+import { captureCameraClip } from '../../../lib/video-recorder';
+import { uploadVideoClip } from '../../../lib/cloud-storage';
 
 // In-memory cache for recent detections (last 50 per camera)
 const recentDetections = new Map<string, any[]>();
@@ -110,10 +112,24 @@ export async function POST(request: NextRequest) {
           }))
         });
 
-        // Create alerts for zone violations asynchronously
         for (const violation of zoneViolations) {
-          dbPool.executeWithRetry(
-            () => prisma.alert.create({
+          dbPool.executeWithRetry(async () => {
+            const baseMetadata = {
+              type: 'zone_violation',
+              cameraId: camera_id,
+              cameraName: camera.name,
+              zoneId: violation.zone.id,
+              zoneName: violation.zone.name,
+              zoneType: violation.zone.type,
+              detectedObject: violation.detection.class,
+              confidence: violation.detection.score,
+              bbox: violation.detection.bbox,
+              timestamp: new Date().toISOString(),
+              frameWidth: frame_width,
+              frameHeight: frame_height
+            };
+
+            const alert = await prisma.alert.create({
               data: {
                 title: `Zone Violation: ${violation.zone.name}`,
                 description: getViolationDescription(violation),
@@ -122,23 +138,37 @@ export async function POST(request: NextRequest) {
                 location: `Camera: ${camera.name} - Zone: ${violation.zone.name}`,
                 worksiteId: camera.worksiteId,
                 status: 'ACTIVE',
-                metadata: {
-                  type: 'zone_violation',
-                  cameraId: camera_id,
-                  cameraName: camera.name,
-                  zoneId: violation.zone.id,
-                  zoneName: violation.zone.name,
-                  zoneType: violation.zone.type,
-                  detectedObject: violation.detection.class,
-                  confidence: violation.detection.score,
-                  bbox: violation.detection.bbox,
-                  timestamp: new Date().toISOString(),
-                  frameWidth: frame_width,
-                  frameHeight: frame_height
-                }
+                metadata: baseMetadata
               }
-            })
-          ).catch(err => console.error('Error creating zone violation alert:', err));
+            });
+
+            // Attempt to capture and upload video clip
+            try {
+              const clip = await captureCameraClip(camera);
+              if (clip) {
+                const videoUrl = await uploadVideoClip(
+                  clip.buffer,
+                  alert.id,
+                  camera_id,
+                  { fileName: clip.filename }
+                );
+
+                await prisma.alert.update({
+                  where: { id: alert.id },
+                  data: {
+                    metadata: {
+                      ...baseMetadata,
+                      videoClipUrl: videoUrl
+                    }
+                  }
+                });
+              }
+            } catch (error) {
+              console.error('Failed to capture/upload video clip:', error);
+            }
+
+            return alert;
+          }).catch(err => console.error('Error creating zone violation alert:', err));
         }
       }
     }

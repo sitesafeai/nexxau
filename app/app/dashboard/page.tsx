@@ -165,6 +165,15 @@ function DashboardContent() {
                   )
                 },
                 { 
+                  key: 'ai-training', 
+                  name: 'AI Training', 
+                  icon: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 6h6M9 10h6m-6 4h6m-9 4h12a2 2 0 002-2V6a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  )
+                },
+                { 
                   key: 'reports', 
                   name: 'Reports', 
                   icon: (
@@ -335,6 +344,15 @@ function DashboardContent() {
                       )
                     },
                     { 
+                      key: 'ai-training', 
+                      name: 'AI Training', 
+                      icon: (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 6h6M9 10h6m-6 4h6m-9 4h12a2 2 0 002-2V6a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      )
+                    },
+                    { 
                       key: 'reports', 
                       name: 'Reports', 
                       icon: (
@@ -410,6 +428,10 @@ function DashboardContent() {
             {selected === 'alerts' && <AlertsPage currentSite={selectedSite} />}
             {selected === 'alert-rules' && (() => {
               router.push(`/dashboard/alert-rules?worksite=${selectedSite?.id || ''}`);
+              return null;
+            })()}
+            {selected === 'ai-training' && (() => {
+              router.push(`/dashboard/ai-training?worksite=${selectedSite?.id || ''}`);
               return null;
             })()}
             {selected === 'reports' && <ReportsPage currentSite={selectedSite} />}
@@ -1396,6 +1418,32 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
   const [enableDetection, setEnableDetection] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const [selectedCameraForLive, setSelectedCameraForLive] = useState<any>(null);
+  const [savingSnapshot, setSavingSnapshot] = useState<string | null>(null);
+
+  const handleSaveForTraining = async (cameraId: string, cameraName: string) => {
+    setSavingSnapshot(cameraId);
+    try {
+      const response = await fetch('/api/training/snapshots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cameraId,
+          category: 'unlabeled'
+        })
+      });
+
+      if (response.ok) {
+        alert(`✅ Snapshot saved for training from ${cameraName}!`);
+      } else {
+        alert('❌ Failed to save snapshot');
+      }
+    } catch (error) {
+      console.error('Error saving snapshot:', error);
+      alert('❌ Error saving snapshot');
+    } finally {
+      setSavingSnapshot(null);
+    }
+  };
   
   const camerasPerPage = 4;
   const totalPages = Math.ceil(cameras.length / camerasPerPage);
@@ -1511,6 +1559,23 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
                 </div>
               </div>
               <div className="flex items-center space-x-2">
+                  <button 
+                    onClick={() => handleSaveForTraining(camera.id, camera.name)}
+                    disabled={savingSnapshot === camera.id}
+                    className="text-gray-400 hover:text-green-400 transition-colors disabled:opacity-50"
+                    title="Save snapshot for AI training"
+                  >
+                  {savingSnapshot === camera.id ? (
+                    <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  )}
+                </button>
                   <button 
                     onClick={() => router.push(`/dashboard/camera-settings/${camera.id}?worksite=${currentSite.id}`)}
                     className="text-gray-400 hover:text-white transition-colors"

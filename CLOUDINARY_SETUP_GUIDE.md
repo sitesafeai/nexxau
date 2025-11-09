@@ -44,6 +44,8 @@ STORAGE_PROVIDER="cloudinary"
 CLOUDINARY_CLOUD_NAME="democloud123"
 CLOUDINARY_API_KEY="123456789012345"
 CLOUDINARY_API_SECRET="AbCdEfGhIjKlMnOpQrStUvWx"
+# Fallback clip if camera stream recording unavailable
+DEFAULT_CLIP_SOURCE="https://res.cloudinary.com/demo/video/upload/dog.mp4"
 ```
 
 4. **Save** the file
