@@ -53,8 +53,11 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          console.warn('[auth] Missing credentials');
           return null;
         }
+
+        console.info('[auth] Attempting login for', credentials.email);
 
         const user = await prisma.user.findUnique({
           where: {
@@ -63,6 +66,7 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (!user || !user.password) {
+          console.warn('[auth] User not found or missing password', credentials.email);
           return null;
         }
 
@@ -72,8 +76,11 @@ export const authOptions: NextAuthOptions = {
         );
 
         if (!isPasswordValid) {
+          console.warn('[auth] Invalid password for', credentials.email);
           return null;
         }
+
+        console.info('[auth] Login success for', credentials.email);
 
         return {
           id: user.id,

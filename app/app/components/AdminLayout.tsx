@@ -13,6 +13,7 @@ import {
   BuildingOfficeIcon,
   VideoCameraIcon,
   BellIcon,
+  PhotoIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -24,6 +25,7 @@ const navigation = [
   { name: 'Camera Mgmt', href: '/admin/cameras', icon: VideoCameraIcon },
   { name: 'Alert History', href: '/admin/alerts', icon: BellIcon },
   { name: 'User Mgmt', href: '/admin/users', icon: UserGroupIcon },
+  { name: 'AI Training', href: '/dashboard/ai-training', icon: PhotoIcon },
   { name: 'System Config', href: '/admin/settings', icon: Cog6ToothIcon },
 ];
 

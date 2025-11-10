@@ -1,6 +1,7 @@
 import twilio from 'twilio';
 import { prisma } from './prisma';
 import { broadcastNotification } from './websocket';
+import { ADMIN_ROLES } from './roles';
 
 export interface SMSConfig {
   accountSid: string;
@@ -329,7 +330,7 @@ Reply STOP to unsubscribe from safety alerts.`;
     try {
       const managers = await prisma.user.findMany({
         where: {
-          role: { in: ['admin', 'manager', 'site-manager'] },
+          role: { in: [...ADMIN_ROLES, 'SUPERVISOR'] },
           isActive: true,
           ...(worksiteId && { worksiteId })
         },

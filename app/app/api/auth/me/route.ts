@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/app/lib/auth';
 
 /**
  * GET /api/auth/me
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
             id: 'dev-user-1',
             name: 'Development User',
             email: 'dev@nexxau.com',
-            role: 'admin',
+            role: 'SUPER_ADMIN',
             image: null
           }
         });
@@ -47,7 +47,8 @@ export async function GET(request: NextRequest) {
           id: 'dev-user-1',
           name: 'Development User',
           email: 'dev@nexxau.com',
-          role: 'admin',
+          role: 'SUPER_ADMIN',
+          role: 'SUPER_ADMIN',
           image: null
         }
       });

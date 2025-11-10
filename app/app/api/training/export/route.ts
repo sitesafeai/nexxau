@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import { prisma } from '@/app/lib/prisma';
+import { authOptions } from '@/app/lib/auth';
+import { normalizeRole } from '@/app/lib/roles';
 
 /**
  * GET /api/training/export
@@ -7,6 +10,12 @@ import { prisma } from '@/app/lib/prisma';
  */
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    const role = normalizeRole(session?.user?.role);
+    if (!session || role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const worksiteId = searchParams.get('worksiteId');
     const labeled = searchParams.get('labeled');

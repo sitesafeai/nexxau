@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { NotificationService } from './notification-service';
+import { ADMIN_ROLES } from './roles';
 
 export interface CameraHealthData {
   cameraId: string;
@@ -66,7 +67,7 @@ export class CameraHealthMonitor {
               users: {
                 where: {
                   role: {
-                    in: ['admin', 'site-manager'],
+                    in: [...ADMIN_ROLES, 'SUPERVISOR'],
                   },
                 },
               },

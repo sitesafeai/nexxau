@@ -166,7 +166,7 @@ const mockUsers = [
     id: '1',
     name: 'John Smith',
     email: 'john@nexxau.com',
-    role: 'site-manager',
+    role: 'SITE_ADMIN',
     company: 'Nexxau',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-20')
@@ -175,7 +175,7 @@ const mockUsers = [
     id: '2',
     name: 'Sarah Johnson',
     email: 'sarah@nexxau.com',
-    role: 'site-manager',
+    role: 'SITE_ADMIN',
     company: 'Nexxau',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-20')
@@ -184,7 +184,7 @@ const mockUsers = [
     id: '3',
     name: 'Mike Wilson',
     email: 'mike@nexxau.com',
-    role: 'admin',
+    role: 'COMPANY_ADMIN',
     company: 'Nexxau',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-20')

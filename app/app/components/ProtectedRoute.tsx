@@ -51,7 +51,7 @@ export default function ProtectedRoute({
 // Convenience components for specific roles
 export function AdminOnly({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
   return (
-    <ProtectedRoute requiredRole="admin" fallback={fallback}>
+    <ProtectedRoute requiredRole="ADMIN" fallback={fallback}>
       {children}
     </ProtectedRoute>
   );
@@ -59,7 +59,7 @@ export function AdminOnly({ children, fallback }: { children: ReactNode; fallbac
 
 export function SiteManagerOnly({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
   return (
-    <ProtectedRoute requiredRole="site-manager" fallback={fallback}>
+    <ProtectedRoute requiredRole="SITE_ADMIN" fallback={fallback}>
       {children}
     </ProtectedRoute>
   );
@@ -67,7 +67,7 @@ export function SiteManagerOnly({ children, fallback }: { children: ReactNode; f
 
 export function WorkerOnly({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
   return (
-    <ProtectedRoute requiredRole="worker" fallback={fallback}>
+    <ProtectedRoute requiredRole="WORKER" fallback={fallback}>
       {children}
     </ProtectedRoute>
   );
@@ -75,7 +75,7 @@ export function WorkerOnly({ children, fallback }: { children: ReactNode; fallba
 
 export function ViewerOnly({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
   return (
-    <ProtectedRoute requiredRole="viewer" fallback={fallback}>
+    <ProtectedRoute requiredRole="VIEWER" fallback={fallback}>
       {children}
     </ProtectedRoute>
   );

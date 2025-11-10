@@ -1,6 +1,11 @@
 import { getServerSession } from "next-auth/next";
 import { redirect } from "next/navigation";
 import { authOptions } from "./auth";
+import {
+  hasRequiredRole,
+  normalizeRole,
+  normalizeRoles,
+} from "./roles";
 
 export interface AuthGuardOptions {
   requiredRole?: string;
@@ -27,26 +32,12 @@ export async function requireAuth(options: AuthGuardOptions = {}) {
 
   const session = await getServerSession(authOptions);
 
-  // If authentication is required but no session exists
   if (requireAuth && !session) {
     redirect(redirectTo);
   }
 
-  // If a specific role is required
-  if (requiredRole && session?.user?.role !== requiredRole) {
-    // Redirect based on user's role
-    switch (session?.user?.role) {
-      case "admin":
-        redirect("/admin");
-      case "site-manager":
-        redirect("/dashboard");
-      case "worker":
-        redirect("/dashboard");
-      case "viewer":
-        redirect("/dashboard");
-      default:
-        redirect("/login");
-    }
+  if (requiredRole && !hasRequiredRole(session?.user?.role, requiredRole)) {
+    redirect(redirectTo);
   }
 
   return session as UserSession;
@@ -54,57 +45,53 @@ export async function requireAuth(options: AuthGuardOptions = {}) {
 
 // Role-based access control
 export function hasRole(userRole: string, requiredRoles: string | string[]): boolean {
-  if (typeof requiredRoles === "string") {
-    requiredRoles = [requiredRoles];
-  }
-
-  // Admin has access to everything
-  if (userRole === "admin") return true;
-
-  // Site manager has access to most things
-  if (userRole === "site-manager" && requiredRoles.includes("site-manager")) return true;
-
-  // Worker has limited access
-  if (userRole === "worker" && requiredRoles.includes("worker")) return true;
-
-  // Viewer has very limited access
-  if (userRole === "viewer" && requiredRoles.includes("viewer")) return true;
-
-  return false;
+  return hasRequiredRole(userRole, requiredRoles);
 }
 
 // Route protection based on user role
 export function getProtectedRoutes(userRole: string) {
-  const routes = {
-    admin: [
+  const normalizedRole = normalizeRole(userRole);
+  const routes: Record<string, string[]> = {
+    SUPER_ADMIN: [
       "/admin",
       "/admin/companies",
       "/admin/worksites",
       "/admin/workers",
       "/admin/settings",
     ],
-    "site-manager": [
+    COMPANY_ADMIN: [
+      "/admin",
+      "/admin/companies",
+      "/admin/worksites",
+      "/admin/workers",
+      "/admin/settings",
+    ],
+    SITE_ADMIN: [
       "/dashboard",
       "/dashboard/object-detection",
       "/workflow",
       "/cameras",
     ],
-    worker: [
+    SUPERVISOR: [
       "/dashboard",
       "/dashboard/object-detection",
     ],
-    viewer: [
+    WORKER: [
+      "/dashboard",
+      "/dashboard/object-detection",
+    ],
+    VIEWER: [
       "/dashboard",
     ],
   };
 
-  return routes[userRole as keyof typeof routes] || [];
+  return routes[normalizedRole] || [];
 }
 
 // Check if user can access a specific route
 export function canAccessRoute(userRole: string, route: string): boolean {
   const protectedRoutes = getProtectedRoutes(userRole);
-  return protectedRoutes.some(protectedRoute => 
+  return protectedRoutes.some(protectedRoute =>
     route.startsWith(protectedRoute)
   );
-} 
+}

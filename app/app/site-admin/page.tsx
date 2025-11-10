@@ -19,7 +19,21 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'manager' | 'operator' | 'viewer';
+  role:
+    | 'SUPER_ADMIN'
+    | 'COMPANY_ADMIN'
+    | 'SITE_ADMIN'
+    | 'SUPERVISOR'
+    | 'WORKER'
+    | 'VIEWER'
+    | 'SALES_ADMIN'
+    | 'MARKETING_ADMIN'
+    | 'OPERATIONS_ADMIN'
+    | 'SAFETY_ADMIN'
+    | 'FINANCE_ADMIN'
+    | 'HR_ADMIN'
+    | 'SUPPORT_ADMIN'
+    | 'CUSTOMER_SUCCESS';
   status: 'active' | 'inactive' | 'suspended';
   lastLogin: string;
   createdAt: string;

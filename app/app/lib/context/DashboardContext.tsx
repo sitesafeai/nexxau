@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, ReactNode, useCallback } from 'react';
 import { useCurrentUser, useSites } from '../hooks/useApi';
+import { isAdminRole, normalizeRole } from '../roles';
 
 // Types
 interface DashboardState {
@@ -146,16 +147,14 @@ export function DashboardProvider({ children }: DashboardProviderProps) {
       // Filter sites based on user role (simplified logic)
       const accessibleSites = sitesArray.filter((site: any) => {
         if (!currentUser) return false;
-        
-        // Admin can see all sites
-        if (currentUser.role === 'admin') return true;
-        
-        // Site managers can see sites they manage
-        if (currentUser.role === 'site-manager') {
+        const normalizedRole = normalizeRole(currentUser.role);
+
+        if (isAdminRole(normalizedRole)) return true;
+
+        if (normalizedRole === 'SITE_ADMIN') {
           return site.managers?.includes(currentUser.email);
         }
-        
-        // Viewers can see assigned sites (simplified)
+
         return true;
       });
       
@@ -217,12 +216,11 @@ export function DashboardProvider({ children }: DashboardProviderProps) {
 
   const hasPermission = (permission: string): boolean => {
     if (!currentUser) return false;
+    const normalizedRole = normalizeRole(currentUser.role);
+
+    if (isAdminRole(normalizedRole)) return true;
     
-    // Admin has all permissions
-    if (currentUser.role === 'admin') return true;
-    
-    // Site manager permissions
-    if (currentUser.role === 'site-manager') {
+    if (normalizedRole === 'SITE_ADMIN') {
       const siteManagerPermissions = [
         'view_site',
         'edit_site',
@@ -236,7 +234,7 @@ export function DashboardProvider({ children }: DashboardProviderProps) {
     }
     
     // Viewer permissions
-    if (currentUser.role === 'viewer') {
+    if (normalizedRole === 'VIEWER') {
       const viewerPermissions = [
         'view_site',
         'view_cameras',

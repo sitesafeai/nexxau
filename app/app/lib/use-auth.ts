@@ -3,6 +3,12 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import {
+  ADMIN_ROLES,
+  hasRequiredRole,
+  normalizeRole,
+  normalizeRoles,
+} from './roles';
 
 export interface UseAuthOptions {
   requiredRole?: string;
@@ -13,103 +19,85 @@ export interface UseAuthOptions {
 export function useAuth(options: UseAuthOptions = {}) {
   const {
     requiredRole,
-    redirectTo = "/login",
+    redirectTo = '/login',
     requireAuth = true,
   } = options;
 
   const { data: session, status } = useSession();
   const router = useRouter();
+  const userRole = normalizeRole(session?.user?.role);
 
   useEffect(() => {
-    // If still loading, don't do anything
     if (status === 'loading') return;
 
-    // If authentication is required and user is not authenticated, redirect
     if (requireAuth && status === 'unauthenticated') {
       router.push(redirectTo);
       return;
     }
 
-    // If a specific role is required
-    if (requiredRole && session?.user?.role !== requiredRole) {
-      // Redirect based on user's role
-      switch (session?.user?.role) {
-        case "admin":
-          router.push("/admin");
-          break;
-        case "site-manager":
-        case "worker":
-        case "viewer":
-          router.push("/dashboard");
-          break;
-        default:
-          router.push("/login");
-          break;
-      }
-      return;
+    if (requiredRole && !hasRequiredRole(userRole, requiredRole)) {
+      router.push(redirectTo);
     }
-  }, [session, status, requireAuth, requiredRole, redirectTo, router]);
+  }, [
+    status,
+    requireAuth,
+    requiredRole,
+    redirectTo,
+    router,
+    userRole,
+    ADMIN_ROLES,
+  ]);
 
   const isAuthenticated = status === 'authenticated';
   const isLoading = status === 'loading';
   const user = session?.user;
 
-  // Role-based access control helpers
   const hasRole = (requiredRoles: string | string[]) => {
-    if (!user?.role) return false;
-    
-    if (typeof requiredRoles === "string") {
-      requiredRoles = [requiredRoles];
-    }
-
-    // Admin has access to everything
-    if (user.role === "admin") return true;
-
-    // Site manager has access to most things
-    if (user.role === "site-manager" && requiredRoles.includes("site-manager")) return true;
-
-    // Worker has limited access
-    if (user.role === "worker" && requiredRoles.includes("worker")) return true;
-
-    // Viewer has very limited access
-    if (user.role === "viewer" && requiredRoles.includes("viewer")) return true;
-
-    return false;
+    if (isLoading) return false;
+    return hasRequiredRole(userRole, requiredRoles);
   };
 
   const canAccessRoute = (route: string) => {
-    if (!user?.role) return false;
+    if (!userRole) return false;
 
     const protectedRoutes = {
-      admin: [
-        "/admin",
-        "/admin/companies",
-        "/admin/worksites",
-        "/admin/workers",
-        "/admin/settings",
+      SUPER_ADMIN: [
+        '/admin',
+        '/admin/companies',
+        '/admin/worksites',
+        '/admin/workers',
+        '/admin/settings',
       ],
-      "site-manager": [
-        "/dashboard",
-        "/dashboard/object-detection",
-        "/workflow",
-        "/cameras",
+      COMPANY_ADMIN: [
+        '/admin',
+        '/admin/companies',
+        '/admin/worksites',
+        '/admin/workers',
+        '/admin/settings',
       ],
-      worker: [
-        "/dashboard",
-        "/dashboard/object-detection",
+      SITE_ADMIN: [
+        '/dashboard',
+        '/dashboard/object-detection',
+        '/workflow',
+        '/cameras',
       ],
-      viewer: [
-        "/dashboard",
+      SUPERVISOR: [
+        '/dashboard',
+        '/dashboard/object-detection',
       ],
-    };
+      WORKER: [
+        '/dashboard',
+      ],
+      VIEWER: [
+        '/dashboard',
+      ],
+    } as Record<string, string[]>;
 
-    const userRoutes = protectedRoutes[user.role as keyof typeof protectedRoutes] || [];
+    const userRoutes = protectedRoutes[userRole] || [];
     return userRoutes.some(protectedRoute => route.startsWith(protectedRoute));
   };
 
-  // Ensure hasRole is always a function, even during loading
   const safeHasRole = (requiredRoles: string | string[]) => {
-    if (isLoading || !user?.role) return false;
     return hasRole(requiredRoles);
   };
 
@@ -121,5 +109,6 @@ export function useAuth(options: UseAuthOptions = {}) {
     hasRole: safeHasRole,
     canAccessRoute,
     status,
+    userRole,
   };
-} 
+}

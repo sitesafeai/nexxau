@@ -3,7 +3,8 @@
 import { useSession, signOut } from 'next-auth/react';
 import { useAuth } from '../lib/use-auth';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { formatRoleLabel, isAdminRole, normalizeRole } from '../lib/roles';
 
 export default function Navigation() {
   const { data: session, status } = useSession();
@@ -25,6 +26,17 @@ export default function Navigation() {
     }
     return false;
   };
+
+  const normalizedRole = normalizeRole(user?.role);
+
+  const roleBadgeClass = useMemo(() => {
+    if (!normalizedRole) return 'bg-gray-700 text-gray-200';
+    if (normalizedRole === 'SUPER_ADMIN') return 'bg-purple-900 text-purple-200';
+    if (isAdminRole(normalizedRole)) return 'bg-blue-900 text-blue-200';
+    if (normalizedRole === 'SUPERVISOR') return 'bg-green-900 text-green-200';
+    if (normalizedRole === 'WORKER') return 'bg-amber-900 text-amber-200';
+    return 'bg-gray-700 text-gray-200';
+  }, [normalizedRole]);
 
   if (status === 'loading') {
     return (
@@ -68,7 +80,7 @@ export default function Navigation() {
                 Dashboard
               </Link>
               
-              {checkRole(['admin', 'site-manager']) && (
+              {checkRole(['ADMIN', 'SITE_ADMIN']) && (
                 <Link
                   href="/workflow"
                   className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
@@ -77,7 +89,7 @@ export default function Navigation() {
                 </Link>
               )}
               
-              {checkRole(['admin', 'site-manager']) && (
+              {checkRole(['ADMIN', 'SITE_ADMIN']) && (
                 <Link
                   href="/cameras"
                   className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
@@ -86,7 +98,7 @@ export default function Navigation() {
                 </Link>
               )}
               
-              {checkRole(['admin', 'site-manager', 'worker']) && (
+              {checkRole(['ADMIN', 'SITE_ADMIN', 'SUPERVISOR', 'WORKER']) && (
                 <Link
                   href="/dashboard/object-detection"
                   className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
@@ -95,7 +107,7 @@ export default function Navigation() {
                 </Link>
               )}
               
-              {checkRole('admin') && (
+              {checkRole('ADMIN') && (
                 <Link
                   href="/admin"
                   className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
@@ -114,13 +126,8 @@ export default function Navigation() {
                   <span className="text-sm text-gray-300">
                     {user?.name || user?.email}
                   </span>
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    user?.role === 'admin' ? 'bg-purple-900 text-purple-200' :
-                    user?.role === 'site-manager' ? 'bg-blue-900 text-blue-200' :
-                    user?.role === 'worker' ? 'bg-green-900 text-green-200' :
-                    'bg-gray-700 text-gray-200'
-                  }`}>
-                    {user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).replace('-', ' ') : 'User'}
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${roleBadgeClass}`}>
+                    {formatRoleLabel(user?.role)}
                   </span>
                   <button
                     onClick={handleSignOut}
@@ -166,7 +173,7 @@ export default function Navigation() {
               Dashboard
             </Link>
             
-            {checkRole(['admin', 'site-manager']) && (
+            {checkRole(['ADMIN', 'SITE_ADMIN']) && (
               <Link
                 href="/workflow"
                 className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
@@ -176,7 +183,7 @@ export default function Navigation() {
               </Link>
             )}
             
-            {checkRole(['admin', 'site-manager']) && (
+            {checkRole(['ADMIN', 'SITE_ADMIN']) && (
               <Link
                 href="/cameras"
                 className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
@@ -186,7 +193,7 @@ export default function Navigation() {
               </Link>
             )}
             
-            {checkRole(['admin', 'site-manager', 'worker']) && (
+            {checkRole(['ADMIN', 'SITE_ADMIN', 'SUPERVISOR', 'WORKER']) && (
               <Link
                 href="/dashboard/object-detection"
                 className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
@@ -196,7 +203,7 @@ export default function Navigation() {
               </Link>
             )}
             
-            {checkRole('admin') && (
+            {checkRole('ADMIN') && (
               <Link
                 href="/admin"
                 className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"

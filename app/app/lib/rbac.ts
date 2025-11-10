@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from './prisma';
 import { jwtManager, JWTPayload } from './jwt';
+import { ADMIN_ROLES, isAdminRole, normalizeRole } from './roles';
 
 // Define permission types
 export enum Permission {
@@ -45,70 +46,83 @@ export enum Permission {
 }
 
 // Define role permissions
+const ADMIN_PERMISSIONS: Permission[] = [
+  Permission.CREATE_USER,
+  Permission.READ_USER,
+  Permission.UPDATE_USER,
+  Permission.DELETE_USER,
+  Permission.CREATE_WORKSITE,
+  Permission.READ_WORKSITE,
+  Permission.UPDATE_WORKSITE,
+  Permission.DELETE_WORKSITE,
+  Permission.CREATE_CAMERA,
+  Permission.READ_CAMERA,
+  Permission.UPDATE_CAMERA,
+  Permission.DELETE_CAMERA,
+  Permission.READ_DETECTION,
+  Permission.CREATE_DETECTION,
+  Permission.UPDATE_DETECTION,
+  Permission.DELETE_DETECTION,
+  Permission.CREATE_ALERT,
+  Permission.READ_ALERT,
+  Permission.UPDATE_ALERT,
+  Permission.DELETE_ALERT,
+  Permission.READ_ANALYTICS,
+  Permission.EXPORT_ANALYTICS,
+  Permission.SYSTEM_ADMIN,
+  Permission.MANAGE_SETTINGS,
+  Permission.VIEW_LOGS,
+];
+
+const SITE_ADMIN_PERMISSIONS: Permission[] = [
+  Permission.READ_USER,
+  Permission.UPDATE_USER,
+  Permission.CREATE_WORKSITE,
+  Permission.READ_WORKSITE,
+  Permission.UPDATE_WORKSITE,
+  Permission.CREATE_CAMERA,
+  Permission.READ_CAMERA,
+  Permission.UPDATE_CAMERA,
+  Permission.DELETE_CAMERA,
+  Permission.READ_DETECTION,
+  Permission.CREATE_DETECTION,
+  Permission.READ_ALERT,
+  Permission.UPDATE_ALERT,
+  Permission.READ_ANALYTICS,
+  Permission.EXPORT_ANALYTICS,
+];
+
+const SUPERVISOR_PERMISSIONS: Permission[] = [
+  Permission.READ_CAMERA,
+  Permission.READ_DETECTION,
+  Permission.CREATE_ALERT,
+  Permission.READ_ALERT,
+  Permission.UPDATE_ALERT,
+  Permission.READ_ANALYTICS,
+];
+
+const WORKER_PERMISSIONS: Permission[] = [
+  Permission.READ_CAMERA,
+  Permission.READ_DETECTION,
+  Permission.READ_ALERT,
+  Permission.READ_ANALYTICS,
+];
+
 export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  'admin': [
-    // Full access to everything
-    Permission.CREATE_USER,
-    Permission.READ_USER,
-    Permission.UPDATE_USER,
-    Permission.DELETE_USER,
-    Permission.CREATE_WORKSITE,
-    Permission.READ_WORKSITE,
-    Permission.UPDATE_WORKSITE,
-    Permission.DELETE_WORKSITE,
-    Permission.CREATE_CAMERA,
-    Permission.READ_CAMERA,
-    Permission.UPDATE_CAMERA,
-    Permission.DELETE_CAMERA,
-    Permission.READ_DETECTION,
-    Permission.CREATE_DETECTION,
-    Permission.UPDATE_DETECTION,
-    Permission.DELETE_DETECTION,
-    Permission.CREATE_ALERT,
-    Permission.READ_ALERT,
-    Permission.UPDATE_ALERT,
-    Permission.DELETE_ALERT,
-    Permission.READ_ANALYTICS,
-    Permission.EXPORT_ANALYTICS,
-    Permission.SYSTEM_ADMIN,
-    Permission.MANAGE_SETTINGS,
-    Permission.VIEW_LOGS
-  ],
-  
-  'site-manager': [
-    // Worksite and camera management
-    Permission.READ_USER,
-    Permission.UPDATE_USER,
-    Permission.CREATE_WORKSITE,
-    Permission.READ_WORKSITE,
-    Permission.UPDATE_WORKSITE,
-    Permission.CREATE_CAMERA,
-    Permission.READ_CAMERA,
-    Permission.UPDATE_CAMERA,
-    Permission.DELETE_CAMERA,
-    Permission.READ_DETECTION,
-    Permission.CREATE_DETECTION,
-    Permission.READ_ALERT,
-    Permission.UPDATE_ALERT,
-    Permission.READ_ANALYTICS,
-    Permission.EXPORT_ANALYTICS
-  ],
-  
-  'worker': [
-    // Limited access
-    Permission.READ_CAMERA,
-    Permission.READ_DETECTION,
-    Permission.READ_ALERT,
-    Permission.READ_ANALYTICS
-  ],
-  
-  'viewer': [
-    // Read-only access
-    Permission.READ_CAMERA,
-    Permission.READ_DETECTION,
-    Permission.READ_ALERT,
-    Permission.READ_ANALYTICS
-  ]
+  SUPER_ADMIN: ADMIN_PERMISSIONS,
+  COMPANY_ADMIN: ADMIN_PERMISSIONS,
+  SALES_ADMIN: ADMIN_PERMISSIONS,
+  MARKETING_ADMIN: ADMIN_PERMISSIONS,
+  OPERATIONS_ADMIN: ADMIN_PERMISSIONS,
+  SAFETY_ADMIN: ADMIN_PERMISSIONS,
+  FINANCE_ADMIN: ADMIN_PERMISSIONS,
+  HR_ADMIN: ADMIN_PERMISSIONS,
+  SUPPORT_ADMIN: ADMIN_PERMISSIONS,
+  CUSTOMER_SUCCESS: ADMIN_PERMISSIONS,
+  SITE_ADMIN: SITE_ADMIN_PERMISSIONS,
+  SUPERVISOR: SUPERVISOR_PERMISSIONS,
+  WORKER: WORKER_PERMISSIONS,
+  VIEWER: WORKER_PERMISSIONS,
 };
 
 // Resource access levels
@@ -133,7 +147,8 @@ export class RBACManager {
 
   // Check if user has permission
   public hasPermission(userRole: string, permission: Permission): boolean {
-    const rolePermissions = ROLE_PERMISSIONS[userRole] || [];
+    const normalizedRole = normalizeRole(userRole);
+    const rolePermissions = ROLE_PERMISSIONS[normalizedRole] || [];
     return rolePermissions.includes(permission);
   }
 
@@ -147,8 +162,9 @@ export class RBACManager {
     userCompanyId?: string
   ): Promise<boolean> {
     try {
-      // Admin has global access
-      if (userRole === 'admin') {
+      const normalizedRole = normalizeRole(userRole);
+
+      if (isAdminRole(normalizedRole)) {
         return true;
       }
 
@@ -157,12 +173,13 @@ export class RBACManager {
       if (!resource) return false;
 
       // Check access based on role
-      switch (userRole) {
-        case 'site-manager':
+      switch (normalizedRole) {
+        case 'SITE_ADMIN':
+        case 'SUPERVISOR':
           return resource.worksiteId === userWorksiteId;
         
-        case 'worker':
-        case 'viewer':
+        case 'WORKER':
+        case 'VIEWER':
           return resource.worksiteId === userWorksiteId;
         
         default:
@@ -176,17 +193,18 @@ export class RBACManager {
 
   // Get user permissions
   public getUserPermissions(userRole: string): Permission[] {
-    return ROLE_PERMISSIONS[userRole] || [];
+    const normalizedRole = normalizeRole(userRole);
+    return ROLE_PERMISSIONS[normalizedRole] || [];
   }
 
   // Check multiple permissions
   public hasAllPermissions(userRole: string, permissions: Permission[]): boolean {
-    return permissions.every(permission => this.hasPermission(userRole, permission));
+    return permissions.every(permission => this.hasPermission(normalizeRole(userRole), permission));
   }
 
   // Check any permission
   public hasAnyPermission(userRole: string, permissions: Permission[]): boolean {
-    return permissions.some(permission => this.hasPermission(userRole, permission));
+    return permissions.some(permission => this.hasPermission(normalizeRole(userRole), permission));
   }
 
   // Get resource details

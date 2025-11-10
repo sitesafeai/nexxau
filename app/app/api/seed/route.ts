@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         data: {
           name: 'John Smith',
           email: 'john.smith@buildsafeinc.com',
-          role: 'site-manager',
+          role: 'SITE_ADMIN',
           worksiteId: worksite.id,
           isClaimed: false
         }
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
         data: {
           name: 'Sarah Johnson',
           email: 'sarah.johnson@buildsafeinc.com',
-          role: 'worker',
+          role: 'WORKER',
           worksiteId: worksite.id,
           isClaimed: false
         }
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         data: {
           name: 'Mike Davis',
           email: 'mike.davis@buildsafeinc.com',
-          role: 'worker',
+          role: 'WORKER',
           worksiteId: worksite.id,
           isClaimed: false
         }
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
         data: {
           name: 'Lisa Wilson',
           email: 'lisa.wilson@buildsafeinc.com',
-          role: 'viewer',
+          role: 'VIEWER',
           worksiteId: worksite.id,
           isClaimed: false
         }
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
         name: 'Admin User',
         email: 'admin@nexxau.com',
         password: hashedPassword,
-        role: 'admin',
+        role: 'COMPANY_ADMIN',
         isActivated: true,
         approved: true
       }

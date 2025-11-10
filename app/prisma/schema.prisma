@@ -125,6 +125,14 @@ enum UserRole {
   SUPER_ADMIN      // You - full system access
   COMPANY_ADMIN    // Manages a company
   SITE_ADMIN       // Manages worksites, invites workers
+  SALES_ADMIN      // Sales leadership
+  MARKETING_ADMIN  // Marketing leadership
+  OPERATIONS_ADMIN // Operations / logistics leadership
+  SAFETY_ADMIN     // Safety & compliance leadership
+  FINANCE_ADMIN    // Finance leadership
+  HR_ADMIN         // People/HR leadership
+  SUPPORT_ADMIN    // Support / customer operations
+  CUSTOMER_SUCCESS // Customer success / account mgmt
   SUPERVISOR       // Can manage alerts, limited admin
   WORKER           // Basic access
   VIEWER           // Read-only

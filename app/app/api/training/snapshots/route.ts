@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import { prisma } from '@/app/lib/prisma';
 import { uploadTrainingImage, captureCameraSnapshot } from '@/app/lib/cloud-storage';
+import { authOptions } from '@/app/lib/auth';
+import { normalizeRole } from '@/app/lib/roles';
 
 /**
  * POST /api/training/snapshots
@@ -8,6 +11,12 @@ import { uploadTrainingImage, captureCameraSnapshot } from '@/app/lib/cloud-stor
  */
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    const role = normalizeRole(session?.user?.role);
+    if (!session || role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { cameraId, imageData, category, bbox } = body;
 
@@ -87,6 +96,12 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    const role = normalizeRole(session?.user?.role);
+    if (!session || role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const cameraId = searchParams.get('cameraId');
     const worksiteId = searchParams.get('worksiteId');

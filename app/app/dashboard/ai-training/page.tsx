@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Image, Download, Tag, Check, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, Image, Download, Tag, Check, X, Loader2, Upload } from 'lucide-react';
+import { useAuth } from '../../lib/use-auth';
+import { formatRoleLabel } from '../../lib/roles';
 
 export default function AITrainingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const worksiteParam = searchParams.get('worksite');
+  const { userRole, isLoading } = useAuth({ requiredRole: 'SUPER_ADMIN' });
   
   const [images, setImages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,12 +18,27 @@ export default function AITrainingPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [updating, setUpdating] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [availableCameras, setAvailableCameras] = useState<any[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('');
+  const [uploadCategory, setUploadCategory] = useState<string>('unlabeled');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
-    loadImages();
-  }, [worksiteParam, filter, categoryFilter]);
+    if (userRole === 'SUPER_ADMIN' && !isLoading) {
+      loadImages();
+    }
+  }, [worksiteParam, filter, categoryFilter, userRole, isLoading]);
+
+  useEffect(() => {
+    if (userRole === 'SUPER_ADMIN' && worksiteParam) {
+      loadCameras();
+    }
+  }, [userRole, worksiteParam]);
 
   const loadImages = async () => {
+    if (userRole !== 'SUPER_ADMIN') return;
     try {
       setLoading(true);
       let url = '/api/training/snapshots?';
@@ -37,6 +55,82 @@ export default function AITrainingPage() {
       console.error('Error loading training images:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCameras = async () => {
+    try {
+      let url = '/api/cameras?';
+      if (worksiteParam) {
+        url += `worksiteId=${worksiteParam}`;
+      }
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to load cameras');
+      const data = await res.json();
+      const list = data.data || [];
+      setAvailableCameras(list);
+      if (list.length > 0) {
+        setSelectedCameraId(list[0].id);
+      }
+    } catch (error) {
+      console.error('Error loading cameras for upload:', error);
+      setAvailableCameras([]);
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    setSelectedFile(file);
+    setUploadError(null);
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleUpload = async () => {
+    if (!selectedCameraId) {
+      setUploadError('Select a camera to associate the training image with.');
+      return;
+    }
+    if (!selectedFile) {
+      setUploadError('Choose an image file to upload.');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setUploadError(null);
+
+      const base64 = await fileToBase64(selectedFile);
+      const res = await fetch('/api/training/snapshots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cameraId: selectedCameraId,
+          imageData: base64,
+          category: uploadCategory === 'unlabeled' ? undefined : uploadCategory,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => null);
+        throw new Error(error?.error || 'Failed to upload image');
+      }
+
+      setSelectedFile(null);
+      setUploadCategory('unlabeled');
+      await loadImages();
+    } catch (error) {
+      console.error('Upload error:', error);
+      setUploadError(error instanceof Error ? error.message : 'Failed to upload image');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -108,7 +202,7 @@ export default function AITrainingPage() {
             Back
           </button>
           
-          <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-xl bg-gradient-to-br from-purple-600 to-purple-700">
                 <Image className="w-6 h-6 text-white" />
@@ -139,6 +233,91 @@ export default function AITrainingPage() {
               )}
             </button>
           </div>
+        </div>
+
+        {/* Upload Panel */}
+        <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Upload className="w-5 h-5" />
+                Upload Training Images
+              </h2>
+              <p className="text-sm text-gray-400">
+                Only SUPER_ADMIN can upload training data. You are logged in as {formatRoleLabel(userRole)}.
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="block text-sm text-gray-300">Camera</label>
+              <select
+                value={selectedCameraId}
+                onChange={(e) => setSelectedCameraId(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {availableCameras.length === 0 && (
+                  <option value="">No cameras available for this worksite</option>
+                )}
+                {availableCameras.map((camera) => (
+                  <option key={camera.id} value={camera.id}>
+                    {camera.name} • {camera.worksite?.name || 'Worksite'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm text-gray-300">Category</label>
+              <select
+                value={uploadCategory}
+                onChange={(e) => setUploadCategory(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {['unlabeled', 'hardhat', 'safety_vest', 'person', 'forklift', 'vehicle'].map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat.replace('_', ' ')}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center gap-4">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="text-sm text-gray-300"
+            />
+            <button
+              onClick={handleUpload}
+              disabled={uploading || !selectedFile || !selectedCameraId}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  Upload Image
+                </>
+              )}
+            </button>
+          </div>
+          {selectedFile && (
+            <p className="mt-2 text-xs text-gray-400">
+              Selected file: {selectedFile.name} · {(selectedFile.size / 1024).toFixed(1)} KB
+            </p>
+          )}
+          {uploadError && (
+            <p className="mt-2 text-sm text-red-400">
+              {uploadError}
+            </p>
+          )}
         </div>
 
         {/* Filters */}
