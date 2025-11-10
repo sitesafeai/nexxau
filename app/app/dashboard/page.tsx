@@ -1357,6 +1357,9 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
 function MonitoringTab({ currentSite }: { currentSite: any }) {
   const router = useRouter();
   const { cameras } = useCameraStore(currentSite?.id);
+  const { state } = useDashboard();
+  const normalizedRole = normalizeRole(state.currentUser?.role);
+  const isSuperAdmin = normalizedRole === 'SUPER_ADMIN';
 
   const [enableDetection, setEnableDetection] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
@@ -1364,6 +1367,7 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
   const [savingSnapshot, setSavingSnapshot] = useState<string | null>(null);
 
   const handleSaveForTraining = async (cameraId: string, cameraName: string) => {
+    if (!isSuperAdmin) return;
     setSavingSnapshot(cameraId);
     try {
       const response = await fetch('/api/training/snapshots', {

@@ -14,7 +14,15 @@ export default function CamerasPage() {
   const [cameras, setCameras] = useState<any[]>([]);
   const [loadingCameras, setLoadingCameras] = useState(false);
   const [errorCameras, setErrorCameras] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', location: '', rtspUrl: '' });
+  const [form, setForm] = useState({
+    name: '',
+    location: '',
+    rtspUrl: '',
+    username: '',
+    password: '',
+    ipAddress: '',
+    port: '',
+  });
   const [cameraKey, setCameraKey] = useState(0);
   const [enableDetection, setEnableDetection] = useState(true);
 
@@ -73,10 +81,20 @@ export default function CamerasPage() {
   const handleAddCamera = async () => {
     try {
       if (!form.name || !form.rtspUrl) {
-        alert('Please provide a name and RTSP URL');
+        alert('Please provide a name and streaming URL (RTSP or HLS)');
         return;
       }
       setShowAddCamera(false);
+
+      let rtspPath: string | undefined;
+      try {
+        const url = new URL(form.rtspUrl);
+        if (url.protocol.startsWith('rtsp')) {
+          rtspPath = url.pathname.replace(/^\//, '') || undefined;
+        }
+      } catch {
+        // ignore parse errors, optional field
+      }
 
       const createRes = await fetch('/api/cameras', {
         method: 'POST',
@@ -85,7 +103,12 @@ export default function CamerasPage() {
           name: form.name,
           location: form.location,
           type: 'IP Camera',
-          streamUrl: form.rtspUrl
+          streamUrl: form.rtspUrl,
+          username: form.username || undefined,
+          password: form.password || undefined,
+          ipAddress: form.ipAddress || undefined,
+          port: form.port ? Number(form.port) : undefined,
+          rtspPath,
         })
       });
       if (!createRes.ok) {
@@ -102,7 +125,7 @@ export default function CamerasPage() {
         body: JSON.stringify({ cameraId: newCamera.id, rtspUrl: form.rtspUrl, mediamtxPath })
       }).catch(() => undefined);
 
-      setForm({ name: '', location: '', rtspUrl: '' });
+      setForm({ name: '', location: '', rtspUrl: '', username: '', password: '', ipAddress: '', port: '' });
       await refreshCameras();
     } catch (e: any) {
       alert(e.message || 'Failed to add camera');
@@ -577,14 +600,60 @@ export default function CamerasPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">RTSP URL</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Stream URL</label>
                   <input
                     type="text"
                     className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="rtsp://user:pass@ip:554/path"
+                    placeholder="rtsp://user:pass@ip:554/path or https://.../stream.m3u8"
                     value={form.rtspUrl}
                     onChange={(e) => setForm((f) => ({ ...f, rtspUrl: e.target.value }))}
                   />
+                  <p className="text-xs text-gray-400 mt-1">For RTSP feeds include credentials in the URL or provide them below.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Camera Username (optional)</label>
+                    <input
+                      type="text"
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="admin"
+                      value={form.username}
+                      onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Camera Password (optional)</label>
+                    <input
+                      type="password"
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="••••••••"
+                      value={form.password}
+                      onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Camera IP / Host (optional)</label>
+                    <input
+                      type="text"
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="192.168.1.20"
+                      value={form.ipAddress}
+                      onChange={(e) => setForm((f) => ({ ...f, ipAddress: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Port (optional)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="554"
+                      value={form.port}
+                      onChange={(e) => setForm((f) => ({ ...f, port: e.target.value }))}
+                    />
+                  </div>
                 </div>
                 <div className="flex space-x-3 pt-4">
                   <button 

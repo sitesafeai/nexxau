@@ -1,5 +1,3 @@
-'use client';
-
 const ROLE_ALIAS_MAP: Record<string, string> = {
   ADMIN: 'COMPANY_ADMIN',
   SITE_MANAGER: 'SITE_ADMIN',
