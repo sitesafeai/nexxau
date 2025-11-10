@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import {
   Bars3Icon,
@@ -17,17 +17,24 @@ import {
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-// import { useSession } from 'next-auth/react';
+import { useAuth } from '../lib/use-auth';
+import { formatRoleLabel } from '../lib/roles';
 
-const navigation = [
-  { name: 'Operations', href: '/admin', icon: HomeIcon },
-  { name: 'Worksites', href: '/admin/sites', icon: BuildingOfficeIcon },
-  { name: 'Camera Mgmt', href: '/admin/cameras', icon: VideoCameraIcon },
-  { name: 'Alert History', href: '/admin/alerts', icon: BellIcon },
-  { name: 'User Mgmt', href: '/admin/users', icon: UserGroupIcon },
-  { name: 'AI Training', href: '/dashboard/ai-training', icon: PhotoIcon },
-  { name: 'System Config', href: '/admin/settings', icon: Cog6ToothIcon },
+const baseNavigation = [
+  { key: 'operations', name: 'Operations', href: '/admin', icon: HomeIcon },
+  { key: 'worksites', name: 'Worksites', href: '/admin/sites', icon: BuildingOfficeIcon },
+  { key: 'camera-mgmt', name: 'Camera Mgmt', href: '/admin/cameras', icon: VideoCameraIcon },
+  { key: 'alert-history', name: 'Alert History', href: '/admin/alerts', icon: BellIcon },
+  { key: 'user-mgmt', name: 'User Mgmt', href: '/admin/users', icon: UserGroupIcon },
+  { key: 'system-config', name: 'System Config', href: '/admin/settings', icon: Cog6ToothIcon },
 ];
+
+const aiTrainingNav = {
+  key: 'ai-training',
+  name: 'AI Training',
+  href: '/dashboard/ai-training',
+  icon: PhotoIcon,
+};
 
 function classNames(...classes: string[]) {
   return classes.filter(Boolean).join(' ');
@@ -36,8 +43,26 @@ function classNames(...classes: string[]) {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
-  // const { data: session } = useSession();
-  const session = { user: { name: 'Admin User', image: 'https://avatar.vercel.sh/user' } }; // Temporary fix until NextAuth is properly configured
+  const { user, userRole, isLoading } = useAuth({ requiredRole: 'ADMIN' });
+  const avatarUrl = user?.email
+    ? `https://avatar.vercel.sh/${encodeURIComponent(user.email)}`
+    : 'https://avatar.vercel.sh/user';
+
+  const navigation = useMemo(() => {
+    const items = [...baseNavigation];
+    if (userRole === 'SUPER_ADMIN') {
+      items.splice(5, 0, aiTrainingNav);
+    }
+    return items;
+  }, [userRole]);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-900 text-gray-200">
+        Loading admin console...
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -89,7 +114,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       <li>
                         <ul role="list" className="-mx-2 space-y-1">
                           {navigation.map((item) => (
-                            <li key={item.name}>
+                            <li key={item.key}>
                               <Link
                                 href={item.href}
                                 className={classNames(
@@ -119,11 +144,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         >
                           <img
                             className="h-8 w-8 rounded-full bg-gray-50"
-                            src={session?.user?.image || 'https://avatar.vercel.sh/user'}
+                            src={avatarUrl}
                             alt=""
                           />
                           <span className="sr-only">Your profile</span>
-                          <span aria-hidden="true">{session?.user?.name}</span>
+                          <span aria-hidden="true">{user?.name || user?.email || 'Admin'}</span>
                         </Link>
                       </li>
                     </ul>
@@ -144,7 +169,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <li>
                 <ul role="list" className="-mx-2 space-y-1">
                   {navigation.map((item) => (
-                    <li key={item.name}>
+                    <li key={item.key}>
                       <Link
                         href={item.href}
                         className={classNames(
@@ -174,11 +199,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <img
                     className="h-8 w-8 rounded-full bg-gray-50"
-                    src={session?.user?.image || 'https://avatar.vercel.sh/user'}
+                    src={avatarUrl}
                     alt=""
                   />
                   <span className="sr-only">Your profile</span>
-                  <span aria-hidden="true">{session?.user?.name}</span>
+                  <span aria-hidden="true">{user?.name || user?.email || 'Admin'}</span>
                 </Link>
               </li>
             </ul>
@@ -207,12 +232,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <span className="sr-only">Open user menu</span>
                 <img
                   className="h-8 w-8 rounded-full bg-gray-50"
-                  src={session?.user?.image || 'https://avatar.vercel.sh/user'}
+                  src={avatarUrl}
                   alt=""
                 />
                 <span className="hidden lg:flex lg:items-center">
                   <span className="ml-4 text-sm font-semibold leading-6 text-white" aria-hidden="true">
-                    {session?.user?.name}
+                    {user?.name || user?.email || 'Admin'}
+                  </span>
+                  <span className="ml-3 inline-flex items-center rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-400">
+                    {formatRoleLabel(userRole)}
                   </span>
                 </span>
               </Link>

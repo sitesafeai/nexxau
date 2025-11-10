@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import React from 'react';
 import { DashboardProvider, useDashboard, useSiteManagement, useNotifications } from '../lib/context/DashboardContext';
 import { useAlerts, useCameras, useAnalytics } from '../lib/hooks/useApi';
@@ -13,6 +13,7 @@ import RealtimeDetectionOverlay from '../components/RealtimeDetectionOverlay';
 import ExportButton from '../components/ExportButton';
 import { useCameraStore } from '../lib/camera-store';
 import SafetyScoreCard from '../components/SafetyScoreCard';
+import { formatRoleLabel, isAdminRole, normalizeRole } from '../lib/roles';
 
 // Wrapper component that provides the dashboard context
 export default function DashboardPage() {
@@ -33,6 +34,125 @@ function DashboardContent() {
   const welcomeNotificationShown = useRef(false);
   const searchParams = useSearchParams();
   const worksiteParam = searchParams.get('worksite');
+  const normalizedUserRole = normalizeRole(state.currentUser?.role);
+  const isSuperAdmin = normalizedUserRole === 'SUPER_ADMIN';
+  const isAdminUser = isAdminRole(normalizedUserRole);
+  const roleBadgeClass = useMemo(() => {
+    if (normalizedUserRole === 'SUPER_ADMIN') {
+      return 'bg-purple-900 text-purple-300';
+    }
+    if (isAdminUser) {
+      return 'bg-blue-900 text-blue-300';
+    }
+    if (normalizedUserRole === 'SUPERVISOR') {
+      return 'bg-green-900 text-green-300';
+    }
+    if (normalizedUserRole === 'WORKER') {
+      return 'bg-amber-900 text-amber-300';
+    }
+    return 'bg-gray-700 text-gray-300';
+  }, [normalizedUserRole, isAdminUser]);
+
+  const navigationItems = useMemo(() => {
+    const items = [
+      {
+        key: 'overview',
+        name: 'Overview',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v2H8V5z" />
+          </svg>
+        ),
+      },
+      {
+        key: 'sites',
+        name: 'Site Management',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+        ),
+      },
+      {
+        key: 'cameras',
+        name: 'Cameras',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        ),
+      },
+      {
+        key: 'alerts',
+        name: 'Alerts',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+        ),
+      },
+      {
+        key: 'alert-rules',
+        name: 'Alert Rules',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+        ),
+      },
+      {
+        key: 'reports',
+        name: 'Reports',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        ),
+      },
+      {
+        key: 'workflows',
+        name: 'Workflows',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        ),
+      },
+      {
+        key: 'settings',
+        name: 'Settings',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        ),
+      },
+    ];
+
+    if (isSuperAdmin) {
+      items.splice(5, 0, {
+        key: 'ai-training',
+        name: 'AI Training',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 6h6M9 10h6m-6 4h6m-9 4h12a2 2 0 002-2V6a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        ),
+      });
+    }
+
+    return items;
+  }, [isSuperAdmin]);
+
+  useEffect(() => {
+    if (!isSuperAdmin && selected === 'ai-training') {
+      setSelected('overview');
+    }
+  }, [isSuperAdmin, selected]);
 
   // Auto-select worksite from URL parameter or default to first available
   useEffect(() => {
@@ -43,8 +163,8 @@ function DashboardContent() {
         selectSite(worksiteParam);
       } else if (!selectedSiteId) {
         // Fallback to first site if parameter doesn't match
-        selectSite(accessibleSites[0].id);
-      }
+      selectSite(accessibleSites[0].id);
+    }
     } else if (!selectedSiteId && accessibleSites.length > 0) {
       // No parameter, select first available site
       selectSite(accessibleSites[0].id);
@@ -116,96 +236,13 @@ function DashboardContent() {
     </div>
 
             <nav className="mt-6 flex-1 space-y-1.5 bg-transparent px-3">
-              {[
-                { 
-                  key: 'overview', 
-                  name: 'Overview', 
-                  icon: (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v2H8V5z" />
-                    </svg>
-                  )
-                },
-                { 
-                  key: 'sites', 
-                  name: 'Site Management', 
-                  icon: (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                  )
-                },
-                { 
-                  key: 'cameras', 
-                  name: 'Cameras', 
-                  icon: (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  )
-                },
-                { 
-                  key: 'alerts', 
-                  name: 'Alerts', 
-                  icon: (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                    </svg>
-                  )
-                },
-                { 
-                  key: 'alert-rules', 
-                  name: 'Alert Rules', 
-                  icon: (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                  )
-                },
-                { 
-                  key: 'ai-training', 
-                  name: 'AI Training', 
-                  icon: (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 6h6M9 10h6m-6 4h6m-9 4h12a2 2 0 002-2V6a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  )
-                },
-                { 
-                  key: 'reports', 
-                  name: 'Reports', 
-                  icon: (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                  )
-                },
-                { 
-                  key: 'workflows', 
-                  name: 'Workflows', 
-                  icon: (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  )
-                },
-                { 
-                  key: 'settings', 
-                  name: 'Settings', 
-                  icon: (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  )
-                },
-              ].map((item) => (
+              {navigationItems.map((item) => (
                 <button
                   key={item.key}
-                  onClick={() => setSelected(item.key)}
+                  onClick={() => {
+                    setSelected(item.key);
+                    setIsMobileMenuOpen(false);
+                  }}
                   className={`group flex w-full items-center px-3.5 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${
                     selected === item.key
                       ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/20'
@@ -224,12 +261,8 @@ function DashboardContent() {
                         <p className="text-xs text-gray-400">Logged in as</p>
                         <p className="text-sm font-medium text-white">{state.currentUser?.name || 'Loading...'}</p>
                         <p className="text-xs text-gray-400">{state.currentUser?.email || 'Loading...'}</p>
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${
-                          state.currentUser?.role === 'admin' ? 'bg-purple-900 text-purple-300' :
-                          state.currentUser?.role === 'site-manager' ? 'bg-blue-900 text-blue-300' :
-                          'bg-green-900 text-green-300'
-                        }`}>
-                          {state.currentUser?.role || 'Loading...'}
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${roleBadgeClass}`}>
+                          {formatRoleLabel(state.currentUser?.role)}
                         </span>
                       </div>
                       
@@ -295,93 +328,7 @@ function DashboardContent() {
 
                 {/* Navigation */}
             <nav className="mt-5 flex-1 space-y-1 bg-gray-900 px-2">
-              {[
-                    { 
-                      key: 'overview', 
-                      name: 'Overview', 
-                      icon: (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v2H8V5z" />
-                        </svg>
-                      )
-                    },
-                    { 
-                      key: 'sites', 
-                      name: 'Site Management', 
-                      icon: (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
-                      )
-                    },
-                    { 
-                      key: 'cameras', 
-                      name: 'Cameras', 
-                      icon: (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      )
-                    },
-                    { 
-                      key: 'alerts', 
-                      name: 'Alerts', 
-                      icon: (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                        </svg>
-                      )
-                    },
-                    { 
-                      key: 'alert-rules', 
-                      name: 'Alert Rules', 
-                      icon: (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                        </svg>
-                      )
-                    },
-                    { 
-                      key: 'ai-training', 
-                      name: 'AI Training', 
-                      icon: (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 6h6M9 10h6m-6 4h6m-9 4h12a2 2 0 002-2V6a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      )
-                    },
-                    { 
-                      key: 'reports', 
-                      name: 'Reports', 
-                      icon: (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
-                      )
-                    },
-                    { 
-                      key: 'workflows', 
-                      name: 'Workflows', 
-                      icon: (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      )
-                    },
-                    { 
-                      key: 'settings', 
-                      name: 'Settings', 
-                      icon: (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      )
-                    },
-              ].map((item) => (
+              {navigationItems.map((item) => (
                 <button
                   key={item.key}
                       onClick={() => {
@@ -406,12 +353,8 @@ function DashboardContent() {
                         <p className="text-xs text-gray-400">Logged in as</p>
                         <p className="text-sm font-medium text-white">{state.currentUser?.name || 'Loading...'}</p>
                         <p className="text-xs text-gray-400">{state.currentUser?.email || 'Loading...'}</p>
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${
-                          state.currentUser?.role === 'admin' ? 'bg-purple-900 text-purple-300' :
-                          state.currentUser?.role === 'site-manager' ? 'bg-blue-900 text-blue-300' :
-                          'bg-green-900 text-green-300'
-                        }`}>
-                          {state.currentUser?.role || 'Loading...'}
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${roleBadgeClass}`}>
+                          {formatRoleLabel(state.currentUser?.role)}
                         </span>
                       </div>
                     </div>
@@ -430,7 +373,7 @@ function DashboardContent() {
               router.push(`/dashboard/alert-rules?worksite=${selectedSite?.id || ''}`);
               return null;
             })()}
-            {selected === 'ai-training' && (() => {
+            {isSuperAdmin && selected === 'ai-training' && (() => {
               router.push(`/dashboard/ai-training?worksite=${selectedSite?.id || ''}`);
               return null;
             })()}
@@ -1330,11 +1273,11 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
                       </video>
                     </div>
                   ) : (
-                    <div className="text-center">
-                      <div className="text-4xl mb-2">🎥</div>
+                  <div className="text-center">
+                    <div className="text-4xl mb-2">🎥</div>
                       <p className="text-gray-400">Video clip unavailable</p>
                       <p className="text-sm text-gray-500 mt-2">~20 second clip of the incident</p>
-                    </div>
+                  </div>
                   )}
                 </div>
               </div>
@@ -1371,10 +1314,10 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
                       <p className="text-white capitalize">{selectedAlert.status}</p>
                     </div>
                     {selectedAlert.worksite && (
-                      <div>
+                    <div>
                         <label className="text-sm font-medium text-gray-400">Worksite</label>
                         <p className="text-white">{selectedAlert.worksite.name}</p>
-                      </div>
+                    </div>
                     )}
                   </div>
                 </div>
@@ -1855,13 +1798,14 @@ function SitesTab({ currentSite }: { currentSite: any }) {
   );
 }
 
-function SitesPage({ sites, currentUser }: { sites: any[], currentUser: any }) {
+function SitesPage({ sites, currentUser }: { sites: any[]; currentUser: any; }) {
   const router = useRouter();
+  const [filteredSites, setFilteredSites] = useState(sites);
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedSite, setSelectedSite] = useState<any>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  
-  // Filter sites based on user role
-  const filteredSites = sites;  // Sites are already filtered by the DashboardContext based on user permissions
+  const normalizedRole = normalizeRole(currentUser?.role);
+  const isAdminUser = isAdminRole(normalizedRole);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -1889,12 +1833,12 @@ function SitesPage({ sites, currentUser }: { sites: any[], currentUser: any }) {
         <div>
           <h1 className="text-3xl font-bold text-white">Site Management</h1>
           <p className="text-gray-300">
-            {currentUser?.role === 'ADMIN' || currentUser?.role === 'admin' 
-              ? `Managing all accessible worksites (${filteredSites.length})` 
-              : `Managing your assigned worksites (${filteredSites.length})`}
+            {isAdminUser 
+               ? `Managing all accessible worksites (${filteredSites.length})` 
+               : `Managing your assigned worksites (${filteredSites.length})`}
           </p>
         </div>
-        {(currentUser?.role === 'ADMIN' || currentUser?.role === 'admin') && (
+        {isAdminUser && (
         <button 
           onClick={() => router.push('/dashboard/worksite-create')}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
@@ -1963,7 +1907,7 @@ function SitesPage({ sites, currentUser }: { sites: any[], currentUser: any }) {
               >
                 Open Dashboard
               </button>
-              {(currentUser.role === 'admin' || site.managers?.includes(currentUser.email)) && (
+              {(isAdminUser || site.managers?.includes(currentUser.email)) && (
               <button 
                 onClick={() => {
                   // Navigate to site settings
@@ -2118,7 +2062,7 @@ function SitesPage({ sites, currentUser }: { sites: any[], currentUser: any }) {
             </svg>
             <div className="font-semibold">Configure Alerts</div>
           </button>
-          {currentUser?.role === 'admin' && (
+          {isAdminUser && (
           <button 
             onClick={() => router.push('/admin')}
             className="bg-gradient-to-br from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white p-4 rounded-xl text-center transition-all shadow-lg hover:shadow-violet-500/25"
