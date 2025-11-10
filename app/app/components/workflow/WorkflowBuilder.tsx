@@ -42,13 +42,19 @@ interface WorkflowBuilderProps {
 }
 
 const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
-  initialNodes = [],
-  initialConnections = [],
+  initialNodes: initialNodesProp,
+  initialConnections: initialConnectionsProp,
   onWorkflowChange,
   readOnly = false
 }) => {
   const [nodes, setNodes] = React.useState<Node[]>([]);
   const [edges, setEdges] = React.useState<Edge[]>([]);
+
+  const initialNodes = React.useMemo(() => initialNodesProp ?? [], [initialNodesProp]);
+  const initialConnections = React.useMemo(
+    () => initialConnectionsProp ?? [],
+    [initialConnectionsProp]
+  );
 
   // Convert our custom format to ReactFlow format
   React.useEffect(() => {

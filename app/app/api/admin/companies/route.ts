@@ -14,6 +14,35 @@ export async function GET(request: NextRequest) {
             worksites: true,
             users: true
           }
+        },
+        worksites: {
+          include: {
+            cameras: {
+              select: {
+                id: true,
+                status: true
+              }
+            },
+            safetyScores: {
+              orderBy: {
+                date: 'desc'
+              },
+              take: 1,
+              select: {
+                safetyScore: true,
+                date: true
+              }
+            },
+            alerts: {
+              orderBy: {
+                createdAt: 'desc'
+              },
+              take: 1,
+              select: {
+                createdAt: true
+              }
+            }
+          }
         }
       },
       orderBy: {
@@ -21,17 +50,96 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    const enriched = companies.map(company => ({
-      id: company.id,
-      name: company.name,
-      companyName: company.companyUsername, // Map to companyName for frontend
-      email: company.email,
-      phone: company.phone,
-      address: company.address,
-      worksiteCount: company._count.worksites,
-      userCount: company._count.users,
-      createdAt: company.createdAt
-    }));
+    const enriched = companies.map(company => {
+      const worksiteSummaries = company.worksites.map(worksite => {
+        const cameraCount = worksite.cameras.length;
+        const onlineCameras = worksite.cameras.filter(camera => {
+          const status = (camera.status || 'active').toLowerCase();
+          return status === 'online' || status === 'active';
+        }).length;
+        const latestScore = worksite.safetyScores[0]?.safetyScore ?? null;
+        const latestScoreDate = worksite.safetyScores[0]?.date ?? null;
+        const latestAlert = worksite.alerts[0]?.createdAt ?? null;
+        const lastActivityCandidates = [
+          worksite.updatedAt,
+          latestAlert,
+          latestScoreDate
+        ].filter((value): value is Date => Boolean(value));
+        const lastActivity = lastActivityCandidates.length > 0
+          ? new Date(
+              Math.max(
+                ...lastActivityCandidates.map(candidate => candidate.getTime())
+              )
+            )
+          : null;
+
+        return {
+          id: worksite.id,
+          name: worksite.name,
+          location: worksite.location,
+          status: worksite.status,
+          cameraCount,
+          onlineCameraCount: onlineCameras,
+          latestScore,
+          latestScoreDate,
+          lastActivity
+        };
+      });
+
+      const totalCameras = worksiteSummaries.reduce(
+        (sum, item) => sum + item.cameraCount,
+        0
+      );
+      const onlineCameras = worksiteSummaries.reduce(
+        (sum, item) => sum + item.onlineCameraCount,
+        0
+      );
+      const scores = worksiteSummaries
+        .map(item => item.latestScore)
+        .filter((score): score is number => typeof score === 'number' && !Number.isNaN(score));
+
+      const averageScore =
+        scores.length > 0
+          ? scores.reduce((sum, score) => sum + score, 0) / scores.length
+          : null;
+
+      const lastActivity = worksiteSummaries.reduce<Date | null>((latest, item) => {
+        if (!item.lastActivity) return latest;
+        if (!latest || item.lastActivity > latest) {
+          return item.lastActivity;
+        }
+        return latest;
+      }, null);
+
+      return {
+        id: company.id,
+        name: company.name,
+        companyName: company.companyUsername, // Map to companyName for frontend
+        email: company.email,
+        phone: company.phone,
+        address: company.address,
+        worksiteCount: company._count.worksites,
+        userCount: company._count.users,
+        cameraCount: totalCameras,
+        onlineCameraCount: onlineCameras,
+        avgSafetyScore: averageScore,
+        complianceRate: averageScore !== null ? averageScore / 100 : null,
+        lastActivity: lastActivity ? lastActivity.toISOString() : null,
+        worksiteSnapshots: worksiteSummaries.slice(0, 4).map(summary => ({
+          id: summary.id,
+          name: summary.name,
+          location: summary.location,
+          status: summary.status,
+          cameraCount: summary.cameraCount,
+          onlineCameraCount: summary.onlineCameraCount,
+          latestScore: summary.latestScore,
+          lastActivity: summary.lastActivity
+            ? summary.lastActivity.toISOString()
+            : null
+        })),
+        createdAt: company.createdAt
+      };
+    });
 
     return NextResponse.json({
       success: true,

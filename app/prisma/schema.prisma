@@ -205,6 +205,7 @@ model Company {
   worksites       Worksite[]
   users           User[]        // Primary users
   companyUsers    CompanyUser[] // Multi-tenant access
+  billingRecords  CompanyBillingRecord[]
 }
 
 model Worksite {
@@ -237,6 +238,21 @@ model Worksite {
   violationClassifications ViolationClassification[]
   worksiteUsers     WorksiteUser[] // Multi-tenant user access
   trainingImages   TrainingImage[]
+}
+
+model CompanyBillingRecord {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  proofUrl    String?
+  paidThrough DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([paidThrough])
+  @@index([createdAt])
 }
 
 model Worker {

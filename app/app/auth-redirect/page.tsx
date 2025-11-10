@@ -23,7 +23,7 @@ export default function AuthRedirectPage() {
 
       switch (userRole) {
         case 'SUPER_ADMIN':
-          router.push('/admin');
+          router.push('/super-admin');
           break;
         case 'COMPANY_ADMIN':
           router.push('/company/dashboard');

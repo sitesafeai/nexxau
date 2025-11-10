@@ -53,6 +53,30 @@ function DashboardContent() {
     return 'bg-gray-700 text-gray-300';
   }, [normalizedUserRole, isAdminUser]);
 
+  useEffect(() => {
+    if (normalizedUserRole === 'SUPER_ADMIN') {
+      router.replace('/super-admin');
+    }
+  }, [normalizedUserRole, router]);
+
+  if (normalizedUserRole === 'SUPER_ADMIN') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-slate-200">
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-900/80 px-6 py-8 text-center shadow-xl shadow-black/40">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-purple-500/10 text-purple-300">
+            <svg className="h-6 w-6 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M5 9a7 7 0 0114 0v6a7 7 0 11-14 0V9z" />
+            </svg>
+          </div>
+          <h2 className="mt-4 text-lg font-semibold text-white">Redirecting to Super Admin Console</h2>
+          <p className="mt-2 text-sm text-slate-400">
+            The global control tower lives under <code className="rounded bg-slate-800 px-1.5 py-0.5 text-xs text-slate-200">/super-admin</code>.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const navigationItems = useMemo(() => {
     const items = [
       {
@@ -1810,7 +1834,7 @@ function SitesPage({ sites, currentUser }: { sites: any[]; currentUser: any; }) 
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const normalizedRole = normalizeRole(currentUser?.role);
   const isAdminUser = isAdminRole(normalizedRole);
-
+  
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'bg-green-900 text-green-300';

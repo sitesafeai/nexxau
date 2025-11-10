@@ -1,0 +1,4523 @@
+'use client';
+
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+  type ReactNode,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react';
+import Link from 'next/link';
+import {
+  Loader2,
+  RefreshCw,
+  AlertTriangle,
+  ShieldCheck,
+  Factory,
+  Building2,
+  Cpu,
+  Activity,
+  Users,
+  MapPin,
+  TrendingUp,
+  BarChart3,
+  BellRing,
+  LineChart,
+  Layers3,
+  Settings,
+  FileBarChart2,
+  DollarSign,
+  LifeBuoy,
+  X,
+  Handshake,
+  CloudUpload,
+  CheckCircle2,
+  Shield,
+  Plug,
+  CalendarClock
+} from 'lucide-react';
+import { useAuth } from '@/app/lib/use-auth';
+
+type TimeRangeOption = '30d' | '90d' | 'year';
+
+const normalizeStreamUrl = (url?: string | null) => {
+  if (!url) return null;
+  if (url.startsWith('http://')) {
+    return `https://${url.slice(7)}`;
+  }
+  return url;
+};
+
+interface SummaryTotals {
+  companies: number;
+  worksites: number;
+  cameras: number;
+  users: number;
+}
+
+interface AlertsOverview {
+  severity: {
+    critical: number;
+    warning: number;
+    info: number;
+    total: number;
+  };
+  status: {
+    active: number;
+    acknowledged: number;
+    resolved: number;
+    escalated: number;
+    total: number;
+  };
+}
+
+interface TrendPoint {
+  date: string;
+  value?: number;
+  detections?: number;
+}
+
+interface CompanyInsight {
+  id: string;
+  name: string;
+  slug?: string | null;
+  siteCount: number;
+  cameraCount: number;
+  avgSafetyScore: number | null;
+  complianceRate: number | null;
+  latestActivity: string | null;
+}
+
+interface WorksiteActivityItem {
+  id: string;
+  name: string;
+  status: string;
+  location: string | null;
+  companyId: string | null;
+  companyName: string;
+  cameraCount: number;
+  onlineCameras: number;
+  latestScore: number | null;
+  latestScoreDate: string | null;
+  lastActivity: string | null;
+}
+
+interface CameraStatusSummary {
+  total: number;
+  online: number;
+  offline: number;
+  error: number;
+  other: number;
+}
+
+interface SubscriptionSummary {
+  totalCompanies: number;
+  placeholder?: boolean;
+  message?: string;
+}
+
+interface CompanyWorksiteSnapshot {
+  id: string;
+  name: string;
+  location?: string | null;
+  status?: string | null;
+  cameraCount: number;
+  onlineCameraCount: number;
+  latestScore: number | null;
+  lastActivity: string | null;
+}
+
+interface AdminCompanySummary {
+  id: string;
+  name: string;
+  companyName: string;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  worksiteCount?: number;
+  userCount?: number;
+  cameraCount?: number;
+  onlineCameraCount?: number;
+  avgSafetyScore?: number | null;
+  complianceRate?: number | null;
+  lastActivity?: string | null;
+  createdAt: string;
+  worksiteSnapshots?: CompanyWorksiteSnapshot[];
+}
+
+interface AdminCompaniesResponse {
+  success: boolean;
+  data?: AdminCompanySummary[];
+  error?: string;
+  details?: string;
+}
+
+interface AdminWorksiteSummary {
+  id: string;
+  name: string;
+  status: string | null;
+  location?: string | null;
+  address?: string | null;
+  companyId: string;
+  company?: {
+    id: string;
+    name: string;
+    slug?: string | null;
+  } | null;
+  cameraCount: number;
+  onlineCameraCount: number;
+  latestScore: number | null;
+  complianceRate: number | null;
+  lastActivity: string | null;
+  alerts: Array<{
+    id: string;
+    severity: string;
+    status: string;
+    createdAt: string;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AdminWorksitesResponse {
+  success: boolean;
+  data?: AdminWorksiteSummary[];
+  count?: number;
+  error?: string;
+  details?: string;
+}
+
+interface AdminCameraSummary {
+  id: string;
+  name: string;
+  status: string | null;
+  type: string | null;
+  streamUrl?: string | null;
+  hlsUrl?: string | null;
+  mediamtxPath?: string | null;
+  metadata?: Record<string, any> | null;
+  ipAddress?: string | null;
+  port?: number | null;
+  username?: string | null;
+  worksiteId: string | null;
+  worksite?: {
+    id: string;
+    name: string;
+    location?: string | null;
+    status?: string | null;
+    company?: {
+      id: string;
+      name: string;
+      slug?: string | null;
+    } | null;
+  } | null;
+  lastHeartbeat?: string | null;
+  online: boolean;
+  trainingImageCount: number;
+  lastUpdated: string;
+  createdAt: string;
+}
+
+interface BillingRecordSummary {
+  id: string;
+  companyId: string;
+  proofUrl: string | null;
+  paidThrough: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface BillingCompanySummary {
+  company: {
+    id: string;
+    name: string;
+    address?: string | null;
+  };
+  latestRecord: BillingRecordSummary | null;
+  worksites: Array<{
+    id: string;
+    name: string;
+  }>;
+}
+
+type IntegrationStatus = 'Connected' | 'Onboarding' | 'Ready for outreach';
+
+interface IntegrationClientSummary {
+  id: string;
+  name: string;
+  contact: string;
+  worksiteCount: number;
+  status: IntegrationStatus;
+}
+
+interface IntegrationsSectionProps {
+  companies: AdminCompanySummary[] | null;
+  worksites: AdminWorksiteSummary[] | null;
+  loadingCompanies: boolean;
+  loadingWorksites: boolean;
+  onRefresh: () => void;
+  onManageConnection: (company: IntegrationClientSummary) => void;
+}
+
+interface BillingSectionProps {
+  companies: BillingCompanySummary[] | null;
+  loading: boolean;
+  error: string | null;
+  uploadingCompanyId: string | null;
+  onRefresh: () => void;
+  onUploadReceipt: (input: { companyId: string; file: File; paidThrough?: string; notes?: string }) => Promise<void> | void;
+  onUpdateRecord: (input: { recordId: string; companyId: string; paidThrough?: string | null; notes?: string }) => Promise<void> | void;
+}
+
+interface OnboardingSectionProps {
+  companies: AdminCompanySummary[] | null;
+  worksites: AdminWorksiteSummary[] | null;
+  onRefresh: () => void;
+}
+
+interface UsersRolesSectionProps {
+  companies: AdminCompanySummary[] | null;
+  worksites: AdminWorksiteSummary[] | null;
+  onRefresh: () => void;
+}
+
+interface SuperAdminOverviewResponse {
+  success: boolean;
+  generatedAt: string;
+  data: {
+    summary: {
+      totals: SummaryTotals;
+      detectionVolumeLast24h: number;
+      complianceRate: number | null;
+      cameraUptime: number | null;
+    };
+    alerts: AlertsOverview;
+    companies: {
+      topPerformers: CompanyInsight[];
+      atRisk: CompanyInsight[];
+      totalTracked: number;
+    };
+    worksiteActivity: WorksiteActivityItem[];
+    charts: {
+      complianceTrend: TrendPoint[];
+      detectionTrend: TrendPoint[];
+    };
+    cameraStatus: CameraStatusSummary;
+    subscription: SubscriptionSummary;
+  };
+}
+
+const NAVIGATION = [
+  { key: 'overview', label: 'Dashboard Overview', icon: BarChart3 },
+  { key: 'companies', label: 'Companies', icon: Factory },
+  { key: 'worksites', label: 'Worksites', icon: Building2 },
+  { key: 'onboarding', label: 'Onboarding', icon: Plug },
+  { key: 'cameras', label: 'Cameras', icon: Activity },
+  { key: 'integrations', label: 'Integrations', icon: Handshake },
+  { key: 'billing', label: 'Billing & Collections', icon: DollarSign },
+  { key: 'users', label: 'Users & Roles', icon: Users },
+  { key: 'reports', label: 'Reports & Analytics', icon: FileBarChart2 },
+  { key: 'ai', label: 'AI & Detection', icon: Cpu },
+  { key: 'settings', label: 'System Settings', icon: Settings },
+  { key: 'support', label: 'Support & Audit Logs', icon: LifeBuoy },
+  { key: 'extras', label: 'Labs & Feature Flags', icon: Layers3 },
+] as const;
+
+const TIME_RANGE_OPTIONS: { value: TimeRangeOption; label: string }[] = [
+  { value: '30d', label: 'Last 30 days' },
+  { value: '90d', label: 'Last 90 days' },
+  { value: 'year', label: 'Year to date' },
+];
+
+export default function SuperAdminDashboardPage() {
+  const { isLoading: authLoading, isAuthenticated, userRole } = useAuth({
+    requiredRole: 'SUPER_ADMIN',
+    redirectTo: '/login',
+  });
+
+  const [activeSection, setActiveSection] = useState<typeof NAVIGATION[number]['key']>('overview');
+  const [timeRange, setTimeRange] = useState<TimeRangeOption>('30d');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<SuperAdminOverviewResponse['data'] | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [companiesData, setCompaniesData] = useState<AdminCompanySummary[] | null>(null);
+  const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [companiesError, setCompaniesError] = useState<string | null>(null);
+  const [worksitesData, setWorksitesData] = useState<AdminWorksiteSummary[] | null>(null);
+  const [worksitesLoading, setWorksitesLoading] = useState(false);
+  const [worksitesError, setWorksitesError] = useState<string | null>(null);
+  const [selectedWorksitesCompany, setSelectedWorksitesCompany] = useState<string>('ALL');
+  const [camerasData, setCamerasData] = useState<AdminCameraSummary[] | null>(null);
+  const [camerasLoading, setCamerasLoading] = useState(false);
+  const [camerasError, setCamerasError] = useState<string | null>(null);
+  const [selectedCamerasCompany, setSelectedCamerasCompany] = useState<string>('ALL');
+  const [selectedCamerasWorksite, setSelectedCamerasWorksite] = useState<string>('ALL');
+  const [selectedCamera, setSelectedCamera] = useState<AdminCameraSummary | null>(null);
+  const [billingData, setBillingData] = useState<BillingCompanySummary[] | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState<string | null>(null);
+  const [billingUploadingCompany, setBillingUploadingCompany] = useState<string | null>(null);
+  const [integrationSelection, setIntegrationSelection] =
+    useState<IntegrationClientSummary | null>(null);
+
+  const fetchOverview = async (signal?: AbortSignal) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch('/api/admin/overview', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal,
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || `Failed to load overview (${response.status})`);
+      }
+
+      const payload = (await response.json()) as SuperAdminOverviewResponse;
+      setData(payload.data);
+      setLastUpdated(payload.generatedAt);
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+      console.error('[super-admin] overview fetch failed', err);
+      setError(err?.message || 'Unable to refresh dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchOverview(controller.signal);
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchOverview().catch(() => undefined);
+    }, 1000 * 60 * 5);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchCompanies = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        setCompaniesLoading(true);
+        setCompaniesError(null);
+
+        const response = await fetch('/api/admin/companies', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal,
+          cache: 'no-store',
+        });
+
+        let payload: AdminCompaniesResponse | null = null;
+        try {
+          payload = (await response.json()) as AdminCompaniesResponse;
+        } catch {
+          payload = null;
+        }
+
+        if (!response.ok || !payload?.success || !payload.data) {
+          const message =
+            payload?.error ||
+            payload?.details ||
+            `Failed to load companies (${response.status})`;
+          throw new Error(message);
+        }
+
+        setCompaniesData(payload.data);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('[super-admin] companies fetch failed', err);
+        setCompaniesError(err?.message || 'Unable to load company summaries');
+      } finally {
+        setCompaniesLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (companiesData || companiesLoading) return;
+    const controller = new AbortController();
+    fetchCompanies(controller.signal).catch(() => undefined);
+    return () => controller.abort();
+  }, [companiesData, companiesLoading, fetchCompanies]);
+
+  useEffect(() => {
+    if (activeSection === 'companies') {
+      const controller = new AbortController();
+      if (!companiesData) {
+        fetchCompanies(controller.signal).catch(() => undefined);
+      }
+      return () => controller.abort();
+    }
+    return undefined;
+  }, [activeSection, companiesData, fetchCompanies]);
+
+  useEffect(() => {
+    if (!companiesData || companiesData.length === 0) return;
+    if (
+      selectedWorksitesCompany !== 'ALL' &&
+      !companiesData.some((company) => company.id === selectedWorksitesCompany)
+    ) {
+      setSelectedWorksitesCompany('ALL');
+      setWorksitesData(null);
+    }
+  }, [companiesData, selectedWorksitesCompany]);
+
+  useEffect(() => {
+    if (!companiesData || companiesData.length === 0) return;
+    if (
+      selectedCamerasCompany !== 'ALL' &&
+      !companiesData.some((company) => company.id === selectedCamerasCompany)
+    ) {
+      setSelectedCamerasCompany('ALL');
+      setSelectedCamerasWorksite('ALL');
+      setCamerasData(null);
+    }
+  }, [companiesData, selectedCamerasCompany]);
+
+  const fetchWorksites = useCallback(
+    async (companyId?: string, signal?: AbortSignal) => {
+      try {
+        setWorksitesLoading(true);
+        setWorksitesError(null);
+
+        const query = new URLSearchParams();
+        if (companyId) {
+          query.set('companyId', companyId);
+        }
+
+        const response = await fetch(
+          `/api/admin/worksites${query.toString() ? `?${query.toString()}` : ''}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            signal,
+            cache: 'no-store',
+          }
+        );
+
+        let payload: AdminWorksitesResponse | null = null;
+        try {
+          payload = (await response.json()) as AdminWorksitesResponse;
+        } catch {
+          payload = null;
+        }
+
+        if (!response.ok || !payload?.success || !payload.data) {
+          const message =
+            payload?.error ||
+            payload?.details ||
+            `Failed to load worksites (${response.status})`;
+          throw new Error(message);
+        }
+
+        setWorksitesData(payload.data);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('[super-admin] worksites fetch failed', err);
+        setWorksitesError(err?.message || 'Unable to load worksites');
+      } finally {
+        setWorksitesLoading(false);
+      }
+    },
+    []
+  );
+
+  const fetchCameras = useCallback(
+    async (
+      companyId?: string,
+      worksiteId?: string,
+      signal?: AbortSignal
+    ) => {
+      try {
+        setCamerasLoading(true);
+        setCamerasError(null);
+
+        const query = new URLSearchParams();
+        if (companyId) {
+          query.set('companyId', companyId);
+        }
+        if (worksiteId) {
+          query.set('worksiteId', worksiteId);
+        }
+
+        const response = await fetch(
+          `/api/admin/cameras${query.toString() ? `?${query.toString()}` : ''}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            signal,
+            cache: 'no-store',
+          }
+        );
+
+        let payload: { success: boolean; data?: AdminCameraSummary[]; error?: string; details?: string } | null =
+          null;
+        try {
+          payload = (await response.json()) as {
+            success: boolean;
+            data?: AdminCameraSummary[];
+            error?: string;
+            details?: string;
+          };
+        } catch {
+          payload = null;
+        }
+
+        if (!response.ok || !payload?.success || !payload.data) {
+          const message =
+            payload?.error ||
+            payload?.details ||
+            `Failed to load cameras (${response.status})`;
+          throw new Error(message);
+        }
+
+        setCamerasData(payload.data);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('[super-admin] cameras fetch failed', err);
+        setCamerasError(err?.message || 'Unable to load cameras');
+      } finally {
+        setCamerasLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (activeSection === 'worksites') {
+      const controller = new AbortController();
+      const companyId =
+        selectedWorksitesCompany && selectedWorksitesCompany !== 'ALL'
+          ? selectedWorksitesCompany
+          : undefined;
+      fetchWorksites(companyId, controller.signal).catch(() => undefined);
+      return () => controller.abort();
+    }
+    return undefined;
+  }, [activeSection, selectedWorksitesCompany, fetchWorksites]);
+
+  useEffect(() => {
+    if (activeSection === 'reports') {
+      const controller = new AbortController();
+      fetchWorksites(undefined, controller.signal).catch(() => undefined);
+      return () => controller.abort();
+    }
+    return undefined;
+  }, [activeSection, fetchWorksites]);
+
+  useEffect(() => {
+    if (activeSection === 'cameras') {
+      const controller = new AbortController();
+      const companyId =
+        selectedCamerasCompany !== 'ALL' ? selectedCamerasCompany : undefined;
+      const worksiteId =
+        selectedCamerasWorksite !== 'ALL' ? selectedCamerasWorksite : undefined;
+      fetchCameras(companyId, worksiteId, controller.signal).catch(
+        () => undefined
+      );
+      return () => controller.abort();
+    }
+    return undefined;
+  }, [
+    activeSection,
+    selectedCamerasCompany,
+    selectedCamerasWorksite,
+    fetchCameras,
+  ]);
+
+  useEffect(() => {
+    setSelectedCamerasWorksite('ALL');
+  }, [selectedCamerasCompany]);
+
+  const fetchBilling = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        setBillingLoading(true);
+        setBillingError(null);
+        const response = await fetch('/api/admin/billing', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal,
+          cache: 'no-store',
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.error || 'Failed to load billing records');
+        }
+        setBillingData(payload.data ?? []);
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+        console.error('[super-admin] billing fetch failed', err);
+        setBillingError(err?.message || 'Unable to load billing data');
+      } finally {
+        setBillingLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (activeSection === 'billing') {
+      const controller = new AbortController();
+      fetchBilling(controller.signal).catch(() => undefined);
+      return () => controller.abort();
+    }
+    return undefined;
+  }, [activeSection, fetchBilling]);
+
+  const openCameraDetails = useCallback((camera: AdminCameraSummary) => {
+    setSelectedCamera(camera);
+  }, []);
+
+  const handleBillingUpload = useCallback(
+    async ({
+      companyId,
+      file,
+      paidThrough,
+      notes,
+    }: {
+      companyId: string;
+      file: File;
+      paidThrough?: string;
+      notes?: string;
+    }) => {
+      if (!file) {
+        setBillingError('Upload a proof of payment PDF before marking as paid.');
+        return;
+      }
+      try {
+        setBillingUploadingCompany(companyId);
+        setBillingError(null);
+        const formData = new FormData();
+        formData.append('companyId', companyId);
+        formData.append('file', file);
+        if (paidThrough) {
+          formData.append('paidThrough', paidThrough);
+        }
+        if (notes) {
+          formData.append('notes', notes);
+        }
+        const response = await fetch('/api/admin/billing', {
+          method: 'POST',
+          body: formData,
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.error || 'Failed to upload billing proof');
+        }
+        await fetchBilling();
+    } catch (err: any) {
+      console.error('[super-admin] billing upload failed', err);
+      const message = err?.message || 'Unable to upload billing proof.';
+      setBillingError(message);
+      throw err;
+    } finally {
+        setBillingUploadingCompany(null);
+      }
+    },
+    [fetchBilling]
+  );
+
+  const handleBillingSchedule = useCallback(
+    async ({
+      recordId,
+      companyId,
+      paidThrough,
+      notes,
+    }: {
+      recordId: string;
+      companyId: string;
+      paidThrough?: string | null;
+      notes?: string;
+    }) => {
+      try {
+        setBillingUploadingCompany(companyId);
+        setBillingError(null);
+        const response = await fetch('/api/admin/billing', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            recordId,
+            paidThrough,
+            notes,
+          }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.error || 'Failed to update billing record');
+        }
+        await fetchBilling();
+    } catch (err: any) {
+      console.error('[super-admin] billing update failed', err);
+      const message = err?.message || 'Unable to update billing record.';
+      setBillingError(message);
+      throw err;
+    } finally {
+        setBillingUploadingCompany(null);
+      }
+    },
+    [fetchBilling]
+  );
+
+  const complianceAverage = useMemo(() => {
+    if (!data?.summary.complianceRate) return null;
+    return Number(data.summary.complianceRate.toFixed(1));
+  }, [data?.summary.complianceRate]);
+
+  const uptimePercentage = useMemo(() => {
+    if (!data?.summary.cameraUptime && data?.summary.cameraUptime !== 0) return null;
+    return data.summary.cameraUptime;
+  }, [data?.summary.cameraUptime]);
+
+  const renderContent = () => {
+    if (loading && !data) {
+      return (
+        <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-slate-800/60 bg-slate-900/60">
+          <Loader2 className="h-10 w-10 animate-spin text-blue-400" />
+          <p className="mt-4 text-sm text-slate-300">Loading SiteSafe control tower...</p>
+        </div>
+      );
+    }
+
+    if (error && !data) {
+      return (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-2xl border border-red-500/40 bg-red-950/30 p-10 text-center">
+          <AlertTriangle className="h-10 w-10 text-red-400" />
+          <div>
+            <h3 className="text-lg font-semibold text-red-200">Unable to load metrics</h3>
+            <p className="mt-2 max-w-lg text-sm text-red-200/80">{error}</p>
+          </div>
+          <button
+            onClick={() => fetchOverview()}
+            className="inline-flex items-center gap-2 rounded-lg bg-red-500/90 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-500"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Retry
+          </button>
+        </div>
+      );
+    }
+
+    switch (activeSection) {
+      case 'overview':
+        return (
+          <OverviewSection
+            data={data}
+            loading={loading}
+            error={error}
+            onRefresh={() => fetchOverview()}
+            lastUpdated={lastUpdated}
+            complianceAverage={complianceAverage}
+            uptimePercentage={uptimePercentage}
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+          />
+        );
+      case 'companies':
+        return (
+          <CompaniesSection
+            companies={companiesData}
+            loading={companiesLoading}
+            error={companiesError}
+            onRefresh={() => fetchCompanies().catch(() => undefined)}
+          />
+        );
+      case 'worksites':
+        return (
+          <WorksitesSection
+            companies={companiesData}
+            selectedCompanyId={selectedWorksitesCompany}
+            onSelectedCompanyChange={setSelectedWorksitesCompany}
+            worksites={worksitesData}
+            loading={worksitesLoading}
+            error={worksitesError}
+            onRefresh={() =>
+              fetchWorksites(
+                selectedWorksitesCompany !== 'ALL'
+                  ? selectedWorksitesCompany
+                  : undefined
+              ).catch(() => undefined)
+            }
+          />
+        );
+      case 'cameras':
+        return (
+          <CamerasSection
+            companies={companiesData}
+            selectedCompanyId={selectedCamerasCompany}
+            onSelectedCompanyChange={setSelectedCamerasCompany}
+            selectedWorksiteId={selectedCamerasWorksite}
+            onSelectedWorksiteChange={setSelectedCamerasWorksite}
+            cameras={camerasData}
+            loading={camerasLoading}
+            error={camerasError}
+            onRefresh={() =>
+              fetchCameras(
+                selectedCamerasCompany !== 'ALL'
+                  ? selectedCamerasCompany
+                  : undefined,
+                selectedCamerasWorksite !== 'ALL'
+                  ? selectedCamerasWorksite
+                  : undefined
+              ).catch(() => undefined)
+            }
+            onOpenCameraDetails={openCameraDetails}
+          />
+        );
+      case 'onboarding':
+        return (
+          <OnboardingSection
+            companies={companiesData}
+            worksites={worksitesData}
+            onRefresh={() => {
+              fetchCompanies().catch(() => undefined);
+              fetchWorksites(undefined).catch(() => undefined);
+            }}
+          />
+        );
+      case 'integrations':
+        return (
+          <IntegrationsSection
+            companies={companiesData}
+            worksites={worksitesData}
+            loadingCompanies={companiesLoading}
+            loadingWorksites={worksitesLoading}
+            onRefresh={() => {
+              fetchCompanies().catch(() => undefined);
+              fetchWorksites(undefined).catch(() => undefined);
+            }}
+            onManageConnection={setIntegrationSelection}
+          />
+        );
+      case 'billing':
+        return (
+          <BillingSection
+            companies={billingData}
+            loading={billingLoading}
+            error={billingError}
+            uploadingCompanyId={billingUploadingCompany}
+            onRefresh={() => fetchBilling().catch(() => undefined)}
+            onUploadReceipt={handleBillingUpload}
+            onUpdateRecord={handleBillingSchedule}
+          />
+        );
+      case 'users':
+        return (
+          <UsersRolesSection
+            companies={companiesData}
+            worksites={worksitesData}
+            onRefresh={() => {
+              fetchCompanies().catch(() => undefined);
+              fetchWorksites(undefined).catch(() => undefined);
+            }}
+          />
+        );
+      case 'ai':
+        return (
+          <ComingSoon
+            title="AI & Detection Settings"
+            description="Roll out YOLO model updates, manage inference thresholds, and audit detection performance."
+            actions={[
+              { label: 'Open AI training workspace', href: '/dashboard/ai-training' },
+            ]}
+          />
+        );
+      case 'reports':
+        return (
+          <ReportsSection
+            overview={data}
+            companies={companiesData}
+            worksites={worksitesData}
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+            loading={loading}
+            companiesLoading={companiesLoading}
+            worksitesLoading={worksitesLoading}
+            onRefresh={() => {
+              void fetchOverview();
+              fetchCompanies().catch(() => undefined);
+              fetchWorksites(undefined).catch(() => undefined);
+            }}
+          />
+        );
+      case 'settings':
+        return (
+          <ComingSoon
+            title="System Settings"
+            description="Configure API keys, integrations, observability, and maintenance windows."
+            actions={[
+              { label: 'Current settings area', href: '/dashboard/settings' },
+            ]}
+          />
+        );
+      case 'support':
+        return (
+          <ComingSoon
+            title="Support & Audit"
+            description="Audit trail of all super-admin actions, support tickets, and diagnostic event streams."
+            actions={[
+              { label: 'Audit logs API', href: '/api/admin/audit-logs', disabled: true },
+            ]}
+          />
+        );
+      case 'extras':
+        return (
+          <ComingSoon
+            title="Labs & Feature Flags"
+            description="Enable beta features for pilot customers, manage partner integrations, and launch experiments."
+            accent="purple"
+            actions={[
+              { label: 'Feature flag roadmap', href: '/FEATURE_FLAGS.md', disabled: true },
+            ]}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  if (authLoading || !isAuthenticated || userRole !== 'SUPER_ADMIN') {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+        <p className="mt-4 text-sm text-slate-300">Authorizing super admin access...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen bg-slate-950 text-slate-100">
+      <div className="flex h-full overflow-hidden">
+        <aside className="hidden lg:flex lg:w-72 lg:flex-col overflow-y-auto border-r border-slate-800/80 bg-slate-950/70 backdrop-blur lg:sticky lg:top-0 lg:h-full">
+          <div className="flex h-20 items-center gap-3 border-b border-slate-800/60 px-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/20 text-blue-300">
+              <ShieldCheck className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wider text-slate-400">SiteSafe</p>
+              <h1 className="text-lg font-semibold text-white">Global Control Tower</h1>
+            </div>
+          </div>
+          <nav className="flex-1 overflow-y-auto px-4 py-6">
+            <div className="space-y-1">
+              {NAVIGATION.map(({ key, label, icon: Icon }) => {
+                const isActive = activeSection === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActiveSection(key)}
+                    className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium transition ${
+                      isActive
+                        ? 'bg-blue-500/20 text-blue-100 ring-1 ring-inset ring-blue-400/60'
+                        : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+          <div className="border-t border-slate-800/60 px-6 py-5 text-xs text-slate-500">
+            <p className="font-semibold text-slate-300">Operational Guardrails</p>
+            <p className="mt-1">
+              Before production deployment, replace COCO-SSD fallback model with custom YOLO PPE detection (Option B).
+            </p>
+          </div>
+        </aside>
+
+        <main className="flex-1 overflow-hidden">
+          <header className="border-b border-slate-800/60 bg-slate-950/80 px-6 py-6 shadow-lg shadow-black/30">
+            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+              <div>
+                <h2 className="text-2xl font-semibold text-white">Super Admin Dashboard</h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Monitor global safety performance, tenants, and platform health in real time.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="hidden items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-300 sm:flex">
+                  <Activity className="h-4 w-4 text-emerald-400" />
+                  {uptimePercentage !== null ? (
+                    <>
+                      {uptimePercentage.toFixed(1)}% <span className="text-slate-500">camera uptime</span>
+                    </>
+                  ) : (
+                    'Uptime data pending'
+                  )}
+                </div>
+                <button
+                  onClick={() => fetchOverview()}
+                  className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Refresh
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <section className="relative h-full overflow-y-auto px-6 py-8">
+            <div className="mx-auto max-w-7xl space-y-8">
+              {lastUpdated && (
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  Updated {new Date(lastUpdated).toLocaleString()}
+                  {loading && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-300">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Syncing
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {renderContent()}
+            </div>
+          </section>
+          {selectedCamera && (
+            <CameraDetailModal
+              camera={selectedCamera}
+              onClose={() => setSelectedCamera(null)}
+            />
+          )}
+        </main>
+        {integrationSelection && (
+          <IntegrationDrawer
+            company={integrationSelection}
+            onClose={() => setIntegrationSelection(null)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface OverviewSectionProps {
+  data: SuperAdminOverviewResponse['data'] | null;
+  loading: boolean;
+  error: string | null;
+  onRefresh: () => void;
+  lastUpdated: string | null;
+  complianceAverage: number | null;
+  uptimePercentage: number | null;
+  timeRange: TimeRangeOption;
+  onTimeRangeChange: (range: TimeRangeOption) => void;
+}
+
+function OverviewSection({
+  data,
+  loading,
+  error,
+  onRefresh,
+  lastUpdated,
+  complianceAverage,
+  uptimePercentage,
+  timeRange,
+  onTimeRangeChange,
+}: OverviewSectionProps) {
+  if (!data) {
+    return (
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6 text-slate-300">
+        No data available yet.
+      </div>
+    );
+  }
+
+  const { summary, alerts, companies, worksiteActivity, charts, cameraStatus, subscription } = data;
+
+  return (
+    <div className="space-y-8">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          title="Active Companies"
+          value={summary.totals.companies}
+          icon={Factory}
+          subtitle={`${companies.totalTracked} tracked in analytics`}
+        />
+        <MetricCard
+          title="Live Worksites"
+          value={summary.totals.worksites}
+          icon={Building2}
+          subtitle={`${cameraStatus.total} cameras deployed`}
+        />
+        <MetricCard
+          title="Global Compliance"
+          value={complianceAverage !== null ? `${complianceAverage.toFixed(1)}%` : 'Pending'}
+          icon={ShieldCheck}
+          subtitle={complianceAverage !== null ? 'Based on latest safety scores' : 'Awaiting safety score data'}
+          accent="emerald"
+        />
+        <MetricCard
+          title="Detections (24h)"
+          value={summary.detectionVolumeLast24h.toLocaleString()}
+          icon={Cpu}
+          subtitle="AI inference volume last 24 hours"
+          accent="violet"
+        />
+      </div>
+
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Global Trends</h3>
+            <p className="text-sm text-slate-400">
+              Monitor compliance and detection throughput across the entire platform.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <TimeRangeSelector value={timeRange} onChange={onTimeRangeChange} />
+            <button
+              onClick={onRefresh}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:bg-slate-700"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Sync
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <TrendPanel
+            title="Compliance Trend"
+            description="Average safety score across all worksites"
+            icon={LineChart}
+            data={charts.complianceTrend}
+            valueKey="value"
+            suffix="%"
+            color="#38bdf8"
+          />
+          <TrendPanel
+            title="Detection Volume"
+            description="AI detections captured daily"
+            icon={Activity}
+            data={charts.detectionTrend}
+            valueKey="detections"
+            color="#a855f7"
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+          <SectionHeader
+            title="Alert Summary"
+            description="System-wide alert posture by severity and status."
+            icon={BellRing}
+            accent="red"
+          />
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <AlertSummaryCard
+              headline="By Severity"
+              data={[
+                { label: 'Critical', value: alerts.severity.critical, color: 'text-red-300' },
+                { label: 'Warning', value: alerts.severity.warning, color: 'text-amber-300' },
+                { label: 'Info', value: alerts.severity.info, color: 'text-slate-300' },
+              ]}
+              total={alerts.severity.total}
+            />
+            <AlertSummaryCard
+              headline="By Status"
+              data={[
+                { label: 'Active', value: alerts.status.active, color: 'text-blue-300' },
+                { label: 'Acknowledged', value: alerts.status.acknowledged, color: 'text-emerald-300' },
+                { label: 'Resolved', value: alerts.status.resolved, color: 'text-slate-300' },
+                { label: 'Escalated', value: alerts.status.escalated, color: 'text-red-300' },
+              ]}
+              total={alerts.status.total}
+            />
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+          <SectionHeader
+            title="Camera Uptime"
+            description="Real-time health of the camera fleet"
+            icon={Activity}
+            accent="emerald"
+          />
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <StatusGauge
+              label="Fleet uptime"
+              value={uptimePercentage !== null ? uptimePercentage : undefined}
+              helper="Percent of cameras reporting online or active"
+            />
+            <StatusBreakdown
+              totals={cameraStatus}
+              items={[
+                { label: 'Online', value: cameraStatus.online, color: 'bg-emerald-500/20 text-emerald-300' },
+                { label: 'Offline', value: cameraStatus.offline, color: 'bg-red-500/20 text-red-300' },
+                { label: 'Error', value: cameraStatus.error, color: 'bg-amber-500/20 text-amber-300' },
+                { label: 'Other', value: cameraStatus.other, color: 'bg-slate-500/20 text-slate-300' },
+              ]}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <CompaniesTable
+          title="Top Performing Companies"
+          description="Highest average safety scores across their worksites."
+          companies={companies.topPerformers}
+          variant="positive"
+        />
+        <CompaniesTable
+          title="At-Risk Companies"
+          description="Lowest compliance scores or declining activity."
+          companies={companies.atRisk}
+          variant="risk"
+        />
+      </div>
+
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <SectionHeader
+          title="Worksite Activity"
+          description="Recent activity across key worksites."
+          icon={MapPin}
+          accent="sky"
+        />
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {worksiteActivity.length === 0 ? (
+            <p className="col-span-full rounded-lg border border-slate-800/80 bg-slate-900/60 px-4 py-5 text-sm text-slate-400">
+              No recent worksite activity recorded yet.
+            </p>
+          ) : (
+            worksiteActivity.map((worksite) => (
+              <WorksiteTile key={worksite.id} worksite={worksite} />
+            ))
+          )}
+        </div>
+      </div>
+
+      {subscription.placeholder && (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-6 text-amber-100">
+          <div className="flex items-center gap-3">
+            <DollarSign className="h-5 w-5" />
+            <div>
+              <h3 className="text-lg font-semibold text-white">Billing dashboard coming soon</h3>
+              <p className="text-sm text-amber-100/80">
+                {subscription.message ||
+                  'Revenue analytics will surface once billing integration is connected. This card tracks readiness.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-200">
+          {error}
+        </div>
+      )}
+
+      {lastUpdated && (
+        <p className="text-right text-xs text-slate-500">
+          Snapshot generated {new Date(lastUpdated).toLocaleString()}
+        </p>
+      )}
+    </div>
+  );
+}
+
+interface CompaniesSectionProps {
+  companies: AdminCompanySummary[] | null;
+  loading: boolean;
+  error: string | null;
+  onRefresh: () => void;
+}
+
+function CompaniesSection({ companies, loading, error, onRefresh }: CompaniesSectionProps) {
+  const hasCompanies = Array.isArray(companies) && companies.length > 0;
+  const [searchTerm, setSearchTerm] = useState('');
+  const [performanceFilter, setPerformanceFilter] = useState<'all' | 'strong' | 'watch'>('all');
+  const [page, setPage] = useState(0);
+  const pageSize = 3;
+
+  const filteredCompanies = useMemo(() => {
+    if (!companies) return [];
+    const term = searchTerm.trim().toLowerCase();
+    return companies.filter((company) => {
+      const complianceScore =
+        company.complianceRate ??
+        (typeof company.avgSafetyScore === 'number' ? company.avgSafetyScore / 100 : null);
+
+      const matchesFilter =
+        performanceFilter === 'all' ||
+        (performanceFilter === 'strong' && (complianceScore ?? 0) >= 0.9) ||
+        (performanceFilter === 'watch' && (complianceScore ?? 1) < 0.75);
+
+      if (!matchesFilter) return false;
+
+      if (term.length === 0) return true;
+
+      const fields = [
+        company.name,
+        company.companyName,
+        company.email,
+        company.phone,
+        company.address,
+      ]
+        .filter(Boolean)
+        .map((value) => value!.toLowerCase());
+
+      return fields.some((value) => value.includes(term));
+    });
+  }, [companies, performanceFilter, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCompanies.length / pageSize));
+  const paginatedCompanies = useMemo(() => {
+    const start = page * pageSize;
+    return filteredCompanies.slice(start, start + pageSize);
+  }, [filteredCompanies, page, pageSize]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm, performanceFilter, companies?.length]);
+
+  useEffect(() => {
+    if (page > totalPages - 1) {
+      setPage(totalPages - 1);
+    }
+  }, [page, totalPages]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <SectionHeader
+          title="Companies Directory"
+          description="Monitor each tenant’s footprint, compliance, and camera coverage."
+          icon={Factory}
+          accent="sky"
+        />
+        <button
+          onClick={onRefresh}
+          className="inline-flex items-center gap-2 self-start rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+          disabled={loading}
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-blue-300' : 'text-slate-300'}`} />
+          {loading ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <input
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="Search by company name, email, address…"
+          className="w-full md:w-72 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+        />
+        <div className="flex items-center gap-2">
+          <FilterChip
+            active={performanceFilter === 'all'}
+            onClick={() => setPerformanceFilter('all')}
+          >
+            All
+          </FilterChip>
+          <FilterChip
+            active={performanceFilter === 'strong'}
+            onClick={() => setPerformanceFilter('strong')}
+          >
+            High compliance
+          </FilterChip>
+          <FilterChip
+            active={performanceFilter === 'watch'}
+            onClick={() => setPerformanceFilter('watch')}
+          >
+            Needs attention
+          </FilterChip>
+        </div>
+      </div>
+
+      {loading && !hasCompanies && (
+        <div className="flex h-56 items-center justify-center rounded-2xl border border-slate-800/60 bg-slate-900/60">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+          <span className="ml-3 text-sm text-slate-300">Loading companies…</span>
+        </div>
+      )}
+
+      {!loading && !hasCompanies && !error && (
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-10 text-center text-slate-300">
+          <p className="text-lg font-semibold text-white">No companies yet</p>
+          <p className="mt-2 text-sm text-slate-400">
+            Once tenants are onboarded they’ll appear here with summary metrics.
+          </p>
+          <a
+            href="/admin/companies"
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+          >
+            Manage companies
+          </a>
+        </div>
+      )}
+
+      {error && !hasCompanies && (
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+          {error}
+        </div>
+      )}
+
+      {hasCompanies && (
+        <>
+          {error && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-100">
+              {error} — showing previously loaded company data.
+            </div>
+          )}
+          {filteredCompanies.length === 0 ? (
+            <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-10 text-center text-slate-300">
+              <p className="text-lg font-semibold text-white">No companies match your filters</p>
+              <p className="mt-2 text-sm text-slate-400">
+                Try adjusting the search terms or performance filters.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {paginatedCompanies.map((company) => (
+                  <CompanyCard key={company.id} company={company} />
+                ))}
+              </div>
+              <PaginationControls
+                page={page}
+                totalPages={totalPages}
+                onPrev={() => setPage((prev) => Math.max(0, prev - 1))}
+                onNext={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))}
+              />
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function CompanyCard({ company }: { company: AdminCompanySummary }) {
+  const complianceDisplay =
+    typeof company.avgSafetyScore === 'number'
+      ? `${company.avgSafetyScore.toFixed(1)}%`
+      : 'Pending';
+  const lastActivityDisplay = formatRelativeActivity(company.lastActivity);
+  const createdDisplay = formatDateString(company.createdAt);
+
+  return (
+    <Link
+      href={`/admin/companies/${company.id}`}
+      className="group block rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 transition hover:border-blue-500/60 hover:bg-slate-900/80"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">
+            @{company.companyName}
+          </p>
+          <h3 className="mt-1 text-xl font-semibold text-white group-hover:text-blue-300">
+            {company.name}
+          </h3>
+        </div>
+        <span className="rounded-full bg-slate-800 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+          {company.worksiteCount ?? 0} sites
+        </span>
+      </div>
+
+      <div className="mt-6 grid grid-cols-3 gap-4">
+        <CompanyStat label="Worksites" value={company.worksiteCount ?? 0} />
+        <CompanyStat
+          label="Cameras"
+          value={company.cameraCount ?? 0}
+          helper={`${company.onlineCameraCount ?? 0} online`}
+        />
+        <CompanyStat
+          label="Compliance"
+          value={complianceDisplay}
+          helper={
+            typeof company.avgSafetyScore === 'number'
+              ? 'Avg safety score'
+              : 'Awaiting data'
+          }
+        />
+      </div>
+
+      {company.worksiteSnapshots && company.worksiteSnapshots.length > 0 && (
+        <div className="mt-6 space-y-2">
+          {company.worksiteSnapshots.slice(0, 3).map((snapshot) => (
+            <WorksiteSnapshotRow key={snapshot.id} snapshot={snapshot} />
+          ))}
+          {company.worksiteSnapshots.length > 3 && (
+            <p className="text-xs text-slate-500">
+              +{company.worksiteSnapshots.length - 3} more worksites
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="mt-6 flex items-center justify-between text-xs text-slate-500">
+        <span>Created {createdDisplay}</span>
+        <span>Last activity: {lastActivityDisplay}</span>
+      </div>
+    </Link>
+  );
+}
+
+function CompanyStat({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: number | string;
+  helper?: string;
+}) {
+  const displayValue =
+    typeof value === 'number' ? value.toLocaleString() : value;
+
+  return (
+    <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+      <p className="mt-1 text-xl font-semibold text-white leading-tight break-words">
+        {displayValue}
+      </p>
+      {helper && (
+        <p className="mt-1 text-xs text-slate-500 leading-snug break-words">
+          {helper}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function WorksiteSnapshotRow({ snapshot }: { snapshot: CompanyWorksiteSnapshot }) {
+  const complianceDisplay =
+    typeof snapshot.latestScore === 'number'
+      ? `${snapshot.latestScore.toFixed(1)}%`
+      : 'Pending';
+
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-slate-800/80 bg-slate-900/40 px-3 py-2">
+      <div>
+        <p className="text-sm font-medium text-white">{snapshot.name}</p>
+        <p className="text-xs text-slate-500">
+          {snapshot.location || 'Location pending'}
+        </p>
+      </div>
+      <div className="flex items-center gap-4 text-xs text-slate-400">
+        <span>
+          {snapshot.onlineCameraCount}/{snapshot.cameraCount} cams
+        </span>
+        <span>{complianceDisplay}</span>
+      </div>
+    </div>
+  );
+}
+
+interface WorksitesSectionProps {
+  companies: AdminCompanySummary[] | null;
+  selectedCompanyId: string;
+  onSelectedCompanyChange: (value: string) => void;
+  worksites: AdminWorksiteSummary[] | null;
+  loading: boolean;
+  error: string | null;
+  onRefresh: () => void;
+}
+
+function WorksitesSection({
+  companies,
+  selectedCompanyId,
+  onSelectedCompanyChange,
+  worksites,
+  loading,
+  error,
+  onRefresh,
+}: WorksitesSectionProps) {
+  const hasWorksites = Array.isArray(worksites) && worksites.length > 0;
+  const companyOptions = useMemo(() => {
+    const options = companies?.map((company) => ({
+      label: company.name,
+      value: company.id,
+    })) ?? [];
+    return [{ label: 'All Companies', value: 'ALL' }, ...options];
+  }, [companies]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'ALERT' | 'INACTIVE'>('ALL');
+  const [page, setPage] = useState(0);
+  const pageSize = 3;
+
+  const filteredWorksites = useMemo(() => {
+    if (!worksites) return [];
+    const term = searchTerm.trim().toLowerCase();
+    return worksites.filter((worksite) => {
+      const matchesCompany =
+        selectedCompanyId === 'ALL' || worksite.companyId === selectedCompanyId;
+
+      if (!matchesCompany) return false;
+
+      const matchesStatus =
+        statusFilter === 'ALL' ||
+        (statusFilter === 'ACTIVE' && (worksite.status || '').toUpperCase() === 'ACTIVE') ||
+        (statusFilter === 'ALERT' && (worksite.status || '').toUpperCase() === 'ALERT') ||
+        (statusFilter === 'INACTIVE' && (worksite.status || '').toUpperCase() === 'INACTIVE');
+
+      if (!matchesStatus) return false;
+
+      if (term.length === 0) return true;
+
+      const fields = [
+        worksite.name,
+        worksite.location,
+        worksite.company?.name,
+      ]
+        .filter(Boolean)
+        .map((value) => value!.toLowerCase());
+
+      return fields.some((value) => value.includes(term));
+    });
+  }, [worksites, searchTerm, statusFilter, selectedCompanyId]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredWorksites.length / pageSize));
+  const paginatedWorksites = useMemo(() => {
+    const start = page * pageSize;
+    return filteredWorksites.slice(start, start + pageSize);
+  }, [filteredWorksites, page, pageSize]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm, statusFilter, selectedCompanyId]);
+
+  useEffect(() => {
+    if (page > totalPages - 1) {
+      setPage(totalPages - 1);
+    }
+  }, [page, totalPages]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-2">
+          <SectionHeader
+            title="Worksite Explorer"
+            description="Filter by company to inspect worksite readiness, compliance, and camera coverage."
+            icon={Building2}
+            accent="violet"
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Company
+            </label>
+            <select
+              value={selectedCompanyId}
+              onChange={(event) => {
+                onSelectedCompanyChange(event.target.value);
+              }}
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
+              {companyOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {(!companies || companies.length === 0) && (
+              <span className="text-xs text-slate-500">
+                No companies available yet. Add tenants to populate this filter.
+              </span>
+            )}
+          </div>
+        </div>
+        <button
+          onClick={onRefresh}
+          className="inline-flex items-center gap-2 self-start rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+          disabled={loading}
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-blue-300' : 'text-slate-300'}`} />
+          {loading ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <input
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="Search by worksite name or location…"
+          className="w-full md:w-72 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+        />
+        <div className="flex items-center gap-2">
+          <FilterChip active={statusFilter === 'ALL'} onClick={() => setStatusFilter('ALL')}>
+            All
+          </FilterChip>
+          <FilterChip active={statusFilter === 'ACTIVE'} onClick={() => setStatusFilter('ACTIVE')}>
+            Active
+          </FilterChip>
+          <FilterChip active={statusFilter === 'ALERT'} onClick={() => setStatusFilter('ALERT')}>
+            Alerting
+          </FilterChip>
+          <FilterChip
+            active={statusFilter === 'INACTIVE'}
+            onClick={() => setStatusFilter('INACTIVE')}
+          >
+            Inactive
+          </FilterChip>
+        </div>
+      </div>
+
+      {loading && !hasWorksites && (
+        <div className="flex h-56 items-center justify-center rounded-2xl border border-slate-800/60 bg-slate-900/60">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+          <span className="ml-3 text-sm text-slate-300">Fetching worksites…</span>
+        </div>
+      )}
+
+      {!loading && !hasWorksites && !error && (
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-10 text-center text-slate-300">
+          <p className="text-lg font-semibold text-white">No worksites found</p>
+          <p className="mt-2 text-sm text-slate-400">
+            Create worksites for the selected company to see monitoring details here.
+          </p>
+        </div>
+      )}
+
+      {error && !hasWorksites && (
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+          {error}
+        </div>
+      )}
+
+      {hasWorksites && (
+        <>
+          {error && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-100">
+              {error} — showing previously loaded worksites.
+            </div>
+          )}
+          {filteredWorksites.length === 0 ? (
+            <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-10 text-center text-slate-300">
+              <p className="text-lg font-semibold text-white">No worksites match your filters</p>
+              <p className="mt-2 text-sm text-slate-400">
+                Adjust the search term or status filter to broaden your results.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {paginatedWorksites.map((worksite) => (
+                  <WorksiteCard key={worksite.id} worksite={worksite} />
+                ))}
+              </div>
+              <PaginationControls
+                page={page}
+                totalPages={totalPages}
+                onPrev={() => setPage((prev) => Math.max(0, prev - 1))}
+                onNext={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))}
+              />
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+interface ReportsSectionProps {
+  overview: SuperAdminOverviewResponse['data'] | null;
+  companies: AdminCompanySummary[] | null;
+  worksites: AdminWorksiteSummary[] | null;
+  timeRange: TimeRangeOption;
+  onTimeRangeChange: (value: TimeRangeOption) => void;
+  loading: boolean;
+  companiesLoading: boolean;
+  worksitesLoading: boolean;
+  onRefresh: () => void;
+}
+
+interface ReportDataset {
+  key: 'compliance' | 'alerts' | 'camera-health';
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+function ReportsSection({
+  overview,
+  companies,
+  worksites,
+  timeRange,
+  onTimeRangeChange,
+  loading,
+  companiesLoading,
+  worksitesLoading,
+  onRefresh,
+}: ReportsSectionProps) {
+  const [selectedCompany, setSelectedCompany] = useState<string>('ALL');
+  const [selectedWorksite, setSelectedWorksite] = useState<string>('ALL');
+  const [exportingKey, setExportingKey] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const companyOptions = useMemo(() => {
+    const options =
+      companies?.map((company) => ({
+        value: company.id,
+        label: company.name,
+      })) ?? [];
+    return [{ value: 'ALL', label: 'All companies' }, ...options];
+  }, [companies]);
+
+  useEffect(() => {
+    if (
+      selectedCompany !== 'ALL' &&
+      !companyOptions.some((option) => option.value === selectedCompany)
+    ) {
+      setSelectedCompany('ALL');
+    }
+  }, [companyOptions, selectedCompany]);
+
+  const filteredWorksites = useMemo(() => {
+    if (!worksites) return [];
+    return worksites.filter((worksite) => {
+      if (selectedCompany !== 'ALL' && worksite.companyId !== selectedCompany) {
+        return false;
+      }
+      return true;
+    });
+  }, [worksites, selectedCompany]);
+
+  const worksiteOptions = useMemo(() => {
+    const options = filteredWorksites.map((worksite) => ({
+      value: worksite.id,
+      label: worksite.name,
+    }));
+    return [{ value: 'ALL', label: 'All worksites' }, ...options];
+  }, [filteredWorksites]);
+
+  useEffect(() => {
+    setSelectedWorksite('ALL');
+  }, [selectedCompany]);
+
+  useEffect(() => {
+    if (
+      selectedWorksite !== 'ALL' &&
+      !worksiteOptions.some((option) => option.value === selectedWorksite)
+    ) {
+      setSelectedWorksite('ALL');
+    }
+  }, [selectedWorksite, worksiteOptions]);
+
+  const datasets: ReportDataset[] = [
+    {
+      key: 'compliance',
+      title: 'Compliance Snapshot',
+      description: 'Latest safety scores, camera coverage, and activity per worksite.',
+      icon: ShieldCheck,
+    },
+    {
+      key: 'alerts',
+      title: 'Alert Activity',
+      description: 'Alert volume and severity breakdown for the selected scope.',
+      icon: BellRing,
+    },
+    {
+      key: 'camera-health',
+      title: 'Camera Health',
+      description: 'Online/offline status, last heartbeat, and stream metadata per camera.',
+      icon: Activity,
+    },
+  ];
+
+  const buildReportPayload = useCallback(
+    (datasetKey: ReportDataset['key']) => {
+      const timestamp = new Date().toISOString();
+      const baseFilters = {
+        timeRange,
+        companyId: selectedCompany !== 'ALL' ? selectedCompany : null,
+        worksiteId: selectedWorksite !== 'ALL' ? selectedWorksite : null,
+      } as const;
+
+      if (datasetKey === 'compliance') {
+        const scopedWorksites =
+          (selectedWorksite !== 'ALL'
+            ? filteredWorksites.filter((worksite) => worksite.id === selectedWorksite)
+            : filteredWorksites) ?? [];
+
+        if (scopedWorksites.length === 0) {
+          throw new Error('No worksites found for the selected filters.');
+        }
+
+        return {
+          type: 'compliance-snapshot',
+          generatedAt: timestamp,
+          filters: baseFilters,
+          records: scopedWorksites.map((worksite) => ({
+            worksiteId: worksite.id,
+            worksiteName: worksite.name,
+            companyId: worksite.companyId,
+            companyName: worksite.company?.name ?? null,
+            complianceRate: worksite.complianceRate,
+            latestScore: worksite.latestScore,
+            cameraCount: worksite.cameraCount,
+            onlineCameraCount: worksite.onlineCameraCount,
+            lastActivity: worksite.lastActivity,
+            status: worksite.status,
+          })),
+        };
+      }
+
+      if (datasetKey === 'alerts') {
+        const alertSummary = overview?.alerts;
+        if (!alertSummary) {
+          throw new Error('Alert metrics are not available yet.');
+        }
+
+        return {
+          type: 'alert-activity',
+          generatedAt: timestamp,
+          filters: baseFilters,
+          summary: alertSummary,
+          detections: overview?.charts.detectionTrend ?? [],
+        };
+      }
+
+      if (datasetKey === 'camera-health') {
+        const scopedWorksites =
+          (selectedWorksite !== 'ALL'
+            ? filteredWorksites.filter((worksite) => worksite.id === selectedWorksite)
+            : filteredWorksites) ?? [];
+
+        if (scopedWorksites.length === 0) {
+          throw new Error('No worksites available to generate camera health data.');
+        }
+
+        const cameraRecords = scopedWorksites.map((worksite) => ({
+          worksiteId: worksite.id,
+          worksiteName: worksite.name,
+          companyId: worksite.companyId,
+          companyName: worksite.company?.name ?? null,
+          cameraCount: worksite.cameraCount,
+          onlineCameraCount: worksite.onlineCameraCount,
+          complianceRate: worksite.complianceRate,
+          status: worksite.status,
+          lastActivity: worksite.lastActivity,
+        }));
+
+        return {
+          type: 'camera-health',
+          generatedAt: timestamp,
+          filters: baseFilters,
+          totals: overview?.summary ?? null,
+          records: cameraRecords,
+        };
+      }
+
+      throw new Error('Unsupported dataset');
+    },
+    [filteredWorksites, overview, selectedCompany, selectedWorksite, timeRange]
+  );
+
+  const handleExport = useCallback(
+    (datasetKey: ReportDataset['key']) => {
+      setExportError(null);
+      setExportingKey(datasetKey);
+      try {
+        const payload = buildReportPayload(datasetKey);
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {
+          type: 'application/json',
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const companySegment =
+          selectedCompany !== 'ALL' ? `company-${selectedCompany}` : 'all-companies';
+        const worksiteSegment =
+          selectedWorksite !== 'ALL' ? `worksite-${selectedWorksite}` : 'all-worksites';
+        link.href = url;
+        link.download = `${datasetKey}-${companySegment}-${worksiteSegment}-${timeRange}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (err: any) {
+        setExportError(err?.message || 'Unable to export report.');
+      } finally {
+        setExportingKey(null);
+      }
+    },
+    [buildReportPayload, selectedCompany, selectedWorksite, timeRange]
+  );
+
+  const complianceRate = overview?.summary.complianceRate ?? null;
+  const cameraUptime = overview?.summary.cameraUptime ?? null;
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <SectionHeader
+            title="Reports & Analytics"
+            description="Export executive-ready insights filtered by time, company, and worksite scope."
+            icon={FileBarChart2}
+            accent="violet"
+          />
+          <div className="flex items-center gap-3">
+            <TimeRangeSelector value={timeRange} onChange={onTimeRangeChange} />
+            <button
+              onClick={onRefresh}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh data
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <MetricCard
+            title="Total Companies"
+            value={overview?.summary.totals.companies ?? (companies?.length ?? 0)}
+            icon={Factory}
+          />
+          <MetricCard
+            title="Global Compliance"
+            value={
+              complianceRate !== null ? `${(complianceRate * 100).toFixed(1)}%` : 'Pending'
+            }
+            subtitle="Average across all monitored worksites"
+            icon={ShieldCheck}
+            accent="emerald"
+          />
+          <MetricCard
+            title="Camera Uptime"
+            value={cameraUptime !== null ? `${(cameraUptime * 100).toFixed(1)}%` : 'Pending'}
+            subtitle="Active cameras during selected window"
+            icon={Activity}
+            accent="violet"
+          />
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Company scope
+            </label>
+            <select
+              value={selectedCompany}
+              onChange={(event) => setSelectedCompany(event.target.value)}
+              disabled={companiesLoading && companyOptions.length === 0}
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-slate-900 disabled:text-slate-500"
+            >
+              {companyOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Worksite scope
+            </label>
+            <select
+              value={selectedWorksite}
+              onChange={(event) => setSelectedWorksite(event.target.value)}
+              disabled={worksitesLoading && filteredWorksites.length === 0}
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-slate-900 disabled:text-slate-500"
+            >
+              {worksiteOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          {datasets.map((dataset) => (
+            <ReportCard
+              key={dataset.key}
+              dataset={dataset}
+              onExport={() => handleExport(dataset.key)}
+              exporting={exportingKey === dataset.key}
+            />
+          ))}
+        </div>
+
+        {exportError && (
+          <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-100">
+            {exportError}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WorksiteCard({ worksite }: { worksite: AdminWorksiteSummary }) {
+  const complianceDisplay =
+    typeof worksite.latestScore === 'number'
+      ? `${worksite.latestScore.toFixed(1)}%`
+      : 'Pending';
+  const lastActivityDisplay = formatRelativeActivity(worksite.lastActivity);
+
+  const statusClass = (() => {
+    const status = (worksite.status || '').toUpperCase();
+    if (status === 'ACTIVE') return 'bg-emerald-500/20 text-emerald-300';
+    if (status === 'INACTIVE') return 'bg-slate-500/20 text-slate-300';
+    if (status === 'MAINTENANCE') return 'bg-amber-500/20 text-amber-300';
+    if (status === 'ALERT') return 'bg-red-500/20 text-red-300';
+    return 'bg-slate-500/20 text-slate-300';
+  })();
+
+  return (
+    <Link
+      href={`/dashboard?worksite=${worksite.id}`}
+      className="group block rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 transition hover:border-blue-500/60 hover:bg-slate-900/80"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">
+            {worksite.company?.name || 'Unassigned'}
+          </p>
+          <h3 className="mt-1 text-xl font-semibold text-white group-hover:text-blue-300">
+            {worksite.name}
+          </h3>
+          {worksite.location && (
+            <p className="text-xs text-slate-500">{worksite.location}</p>
+          )}
+        </div>
+        <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${statusClass}`}>
+          {worksite.status || 'Unknown'}
+        </span>
+      </div>
+
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <CompanyStat
+          label="Cameras"
+          value={worksite.cameraCount}
+          helper={`${worksite.onlineCameraCount} online`}
+        />
+        <CompanyStat
+          label="Compliance"
+          value={complianceDisplay}
+          helper={
+            typeof worksite.latestScore === 'number'
+              ? 'Latest safety score'
+              : 'Awaiting data'
+          }
+        />
+        <CompanyStat label="Activity" value={lastActivityDisplay} />
+      </div>
+
+      {worksite.alerts.length > 0 && (
+        <div className="mt-6 space-y-2">
+          {worksite.alerts.slice(0, 3).map((alert) => (
+            <WorksiteAlertRow key={alert.id} alert={alert} />
+          ))}
+        </div>
+      )}
+    </Link>
+  );
+}
+
+function WorksiteAlertRow({
+  alert,
+}: {
+  alert: AdminWorksiteSummary['alerts'][number];
+}) {
+  const severityClass = (() => {
+    const severity = alert.severity.toUpperCase();
+    if (severity === 'CRITICAL' || severity === 'EMERGENCY') {
+      return 'text-red-300';
+    }
+    if (severity === 'HIGH' || severity === 'WARNING') {
+      return 'text-amber-300';
+    }
+    return 'text-slate-300';
+  })();
+
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-slate-800/70 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
+      <span className={`font-semibold ${severityClass}`}>
+        {alert.severity}
+      </span>
+      <span>{formatRelativeActivity(alert.createdAt)}</span>
+      <span className="uppercase tracking-wide text-slate-500">{alert.status}</span>
+    </div>
+  );
+}
+
+interface CamerasSectionProps {
+  companies: AdminCompanySummary[] | null;
+  selectedCompanyId: string;
+  onSelectedCompanyChange: (value: string) => void;
+  selectedWorksiteId: string;
+  onSelectedWorksiteChange: (value: string) => void;
+  cameras: AdminCameraSummary[] | null;
+  loading: boolean;
+  error: string | null;
+  onRefresh: () => void;
+  onOpenCameraDetails: (camera: AdminCameraSummary) => void;
+}
+
+function CamerasSection({
+  companies,
+  selectedCompanyId,
+  onSelectedCompanyChange,
+  selectedWorksiteId,
+  onSelectedWorksiteChange,
+  cameras,
+  loading,
+  error,
+  onRefresh,
+  onOpenCameraDetails,
+}: CamerasSectionProps) {
+  const companyOptions = useMemo(() => {
+    const explicitCompanies =
+      companies?.map((company) => ({
+        label: company.name,
+        value: company.id,
+      })) ?? [];
+
+    const derivedFromCameras =
+      cameras
+        ?.map((camera) => camera.worksite?.company)
+        .filter((company): company is NonNullable<typeof company> => Boolean(company))
+        .map((company) => ({
+          label: company.name || 'Unnamed company',
+          value: company.id,
+        })) ?? [];
+
+    const map = new Map<string, string>();
+
+    [...explicitCompanies, ...derivedFromCameras].forEach(({ value, label }) => {
+      if (value) {
+        map.set(value, label);
+      }
+    });
+
+    const entries = Array.from(map.entries()).map(([value, label]) => ({
+      value,
+      label,
+    }));
+
+    return [{ label: 'All Companies', value: 'ALL' }, ...entries];
+  }, [companies, cameras]);
+
+  const worksiteOptions = useMemo(() => {
+    if (!cameras || cameras.length === 0) {
+      return [{ label: 'All Worksites', value: 'ALL' }];
+    }
+    const map = new Map<string, string>();
+    cameras.forEach((camera) => {
+      const worksite = camera.worksite;
+      const cameraCompanyId = worksite?.company?.id;
+      if (
+        worksite &&
+        worksite.id &&
+        (selectedCompanyId === 'ALL' || cameraCompanyId === selectedCompanyId)
+      ) {
+        map.set(worksite.id, worksite.name || 'Unnamed worksite');
+      }
+    });
+    const entries = Array.from(map.entries()).map(([value, label]) => ({
+      label,
+      value,
+    }));
+    return [{ label: 'All Worksites', value: 'ALL' }, ...entries];
+  }, [cameras, selectedCompanyId]);
+
+  useEffect(() => {
+    if (selectedWorksiteId === 'ALL') return;
+    if (!worksiteOptions.some((option) => option.value === selectedWorksiteId)) {
+      onSelectedWorksiteChange('ALL');
+    }
+  }, [selectedWorksiteId, worksiteOptions, onSelectedWorksiteChange]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-3">
+          <SectionHeader
+            title="Camera Fleet"
+            description="Monitor connection health, stream endpoints, and AI readiness across every deployed camera."
+            icon={Activity}
+            accent="emerald"
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Company
+              </label>
+              <select
+                value={selectedCompanyId}
+                onChange={(event) => {
+                  onSelectedCompanyChange(event.target.value);
+                }}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                {companyOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Worksite
+              </label>
+              <select
+                value={selectedWorksiteId}
+                onChange={(event) => {
+                  onSelectedWorksiteChange(event.target.value);
+                }}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                {worksiteOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={onRefresh}
+          className="inline-flex items-center gap-2 self-start rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+          disabled={loading}
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-blue-300' : 'text-slate-300'}`} />
+          {loading ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+
+      {loading && (!cameras || cameras.length === 0) && (
+        <div className="flex h-56 items-center justify-center rounded-2xl border border-slate-800/60 bg-slate-900/60">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+          <span className="ml-3 text-sm text-slate-300">Loading cameras…</span>
+        </div>
+      )}
+
+      {!loading && (!cameras || cameras.length === 0) && !error && (
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-10 text-center text-slate-300">
+          <p className="text-lg font-semibold text-white">No cameras found</p>
+          <p className="mt-2 text-sm text-slate-400">
+            Assign cameras to the selected company/worksite to see them here.
+          </p>
+          <a
+            href="/dashboard/cameras"
+            className="mt-6 inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+          >
+            Manage cameras (current portal)
+          </a>
+        </div>
+      )}
+
+      {error && (!cameras || cameras.length === 0) && (
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+          {error}
+        </div>
+      )}
+
+      {cameras && cameras.length > 0 && (
+        <>
+          {error && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-100">
+              {error} — showing previously loaded camera data.
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {cameras.map((camera) => (
+              <CameraCard
+                key={camera.id}
+                camera={camera}
+                onViewDetails={onOpenCameraDetails}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function CameraCard({
+  camera,
+  onViewDetails,
+}: {
+  camera: AdminCameraSummary;
+  onViewDetails: (camera: AdminCameraSummary) => void;
+}) {
+  const hlsUrl = normalizeStreamUrl(camera.hlsUrl || camera.streamUrl);
+  const sourceUrl = normalizeStreamUrl(camera.streamUrl);
+
+  const statusBadge = (() => {
+    const status = (camera.status || '').toUpperCase();
+    if (status === 'ONLINE' || camera.online) {
+      return { label: 'Online', className: 'bg-emerald-500/20 text-emerald-300' };
+    }
+    if (status === 'OFFLINE') {
+      return { label: 'Offline', className: 'bg-red-500/20 text-red-300' };
+    }
+    if (status === 'ERROR') {
+      return { label: 'Error', className: 'bg-amber-500/20 text-amber-300' };
+    }
+    return { label: status || 'Unknown', className: 'bg-slate-500/20 text-slate-300' };
+  })();
+
+  const lastHeartbeat = camera.lastHeartbeat
+    ? formatRelativeActivity(camera.lastHeartbeat)
+    : 'No heartbeat';
+  const worksite = camera.worksite;
+  const company = worksite?.company;
+
+  return (
+    <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 transition hover:border-blue-500/60 hover:bg-slate-900/80">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">
+            {company?.name || 'Unassigned'}
+          </p>
+          <h3 className="mt-1 text-lg font-semibold text-white">{camera.name}</h3>
+          {worksite?.name && (
+            <p className="text-xs text-slate-500">{worksite.name}</p>
+          )}
+        </div>
+        <span
+          className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${statusBadge.className}`}
+        >
+          {statusBadge.label}
+        </span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-4 text-sm text-slate-300">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">Stream</p>
+          <p className="mt-1 text-xs text-slate-400 break-all">
+            {hlsUrl || 'Not configured'}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">Last heartbeat</p>
+          <p className="mt-1">{lastHeartbeat}</p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">AI training data</p>
+          <p className="mt-1">
+            {camera.trainingImageCount}{' '}
+            <span className="text-xs text-slate-500">snapshots</span>
+          </p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">Last updated</p>
+          <p className="mt-1">{formatRelativeActivity(camera.lastUpdated)}</p>
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+        {camera.type && (
+          <span className="rounded-lg border border-slate-700/70 bg-slate-900 px-2 py-1">
+            {camera.type}
+          </span>
+        )}
+        {camera.metadata?.modelVersion && (
+          <span className="rounded-lg border border-slate-700/70 bg-slate-900 px-2 py-1">
+            Model {camera.metadata.modelVersion}
+          </span>
+        )}
+        {camera.mediamtxPath && (
+          <span className="rounded-lg border border-slate-700/70 bg-slate-900 px-2 py-1">
+            MediaMTX: {camera.mediamtxPath}
+          </span>
+        )}
+      </div>
+
+      <div className="mt-6 flex flex-wrap gap-3">
+        <button
+          onClick={() => onViewDetails(camera)}
+          className="inline-flex items-center gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20"
+        >
+          Open Camera Details
+        </button>
+        {sourceUrl && (
+          <a
+            href={sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-800"
+          >
+            Open Raw Stream
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CameraDetailModal({
+  camera,
+  onClose,
+}: {
+  camera: AdminCameraSummary;
+  onClose: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsUrl = normalizeStreamUrl(camera.hlsUrl || camera.streamUrl);
+  const sourceUrl = normalizeStreamUrl(camera.streamUrl);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (!hlsUrl) {
+      video.removeAttribute('src');
+      video.load();
+      return;
+    }
+    video.src = hlsUrl;
+    video.load();
+  }, [hlsUrl]);
+
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between border-b border-slate-800 px-6 py-4">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-slate-500">
+              {camera.worksite?.company?.name || 'Unassigned company'}
+            </p>
+            <h3 className="text-2xl font-semibold text-white">{camera.name}</h3>
+            {camera.worksite?.name && (
+              <p className="text-xs text-slate-500">{camera.worksite.name}</p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-full border border-slate-700 bg-slate-900 p-2 text-slate-300 transition hover:bg-slate-800 hover:text-white"
+            aria-label="Close camera details"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="max-h-[80vh] overflow-y-auto px-6 py-6 space-y-6">
+          <div>
+            {hlsUrl ? (
+              <video
+                key={hlsUrl}
+                ref={videoRef}
+                controls
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="h-64 w-full rounded-lg bg-black"
+              />
+            ) : (
+              <div className="rounded-lg border border-dashed border-slate-700 bg-slate-900/70 px-4 py-6 text-sm text-slate-400">
+                No HLS stream configured for this camera.
+              </div>
+            )}
+            <p className="mt-2 text-xs text-slate-500">
+              Demo streams may return HTTP 403 from the CDN. Replace the HLS URL with a camera feed you can access, or download the raw stream below to test in your own player.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <DetailField
+              label="Status"
+              value={camera.status || (camera.online ? 'ONLINE' : 'UNKNOWN')}
+            />
+            <DetailField
+              label="Last heartbeat"
+              value={
+                camera.lastHeartbeat
+                  ? formatRelativeActivity(camera.lastHeartbeat)
+                  : 'No heartbeat registered'
+              }
+            />
+            <DetailField
+              label="Last updated"
+              value={formatRelativeActivity(camera.lastUpdated)}
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <DetailField
+              label="Company"
+              value={camera.worksite?.company?.name || 'Unassigned'}
+            />
+            <DetailField
+              label="Worksite"
+              value={camera.worksite?.name || 'Unassigned'}
+            />
+            <DetailField
+              label="Location"
+              value={camera.worksite?.location || 'Unknown'}
+            />
+            <DetailField
+              label="MediaMTX Path"
+              value={camera.mediamtxPath || '—'}
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <DetailField label="IP Address" value={camera.ipAddress || '—'} />
+            <DetailField
+              label="Port"
+              value={camera.port ? camera.port.toString() : '—'}
+            />
+            <DetailField
+              label="Stream URL"
+              value={
+                sourceUrl ? (
+                  <a
+                    href={sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-300 hover:text-blue-200 break-all"
+                  >
+                    {sourceUrl}
+                  </a>
+                ) : (
+                  '—'
+                )
+              }
+            />
+            <DetailField
+              label="Credentials"
+              value={
+                camera.username
+                  ? `${camera.username}${camera.metadata?.password ? ` / ${camera.metadata.password}` : ''}`
+                  : '—'
+              }
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {sourceUrl && (
+              <a
+                href={sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-800"
+              >
+                Open Raw Stream in New Tab
+              </a>
+            )}
+            <button
+              onClick={onClose}
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-500/40 bg-blue-500/10 px-4 py-2 text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OnboardingSection({
+  companies,
+  worksites,
+  onRefresh,
+}: OnboardingSectionProps) {
+  const [companyForm, setCompanyForm] = useState({
+    companyName: '',
+    contactEmail: '',
+    phone: '',
+    address: '',
+  });
+  const [worksiteForm, setWorksiteForm] = useState({
+    companyId: '',
+    worksiteName: '',
+    location: '',
+  });
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const companyOptions =
+    companies?.map((company) => ({ value: company.id, label: company.name })) ?? [];
+
+  const handleCompanySubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFeedback(
+      'Client record staged. Connect this form to your CRM or provisioning workflow to persist the company.'
+    );
+    setCompanyForm({ companyName: '', contactEmail: '', phone: '', address: '' });
+    onRefresh();
+  };
+
+  const handleWorksiteSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!worksiteForm.companyId) {
+      setFeedback('Select a company before adding a worksite.');
+      return;
+    }
+    setFeedback(
+      `Worksite "${worksiteForm.worksiteName}" queued for provisioning. Wire this form to your onboarding service to finalize creation.`
+    );
+    setWorksiteForm({ companyId: '', worksiteName: '', location: '' });
+    onRefresh();
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <SectionHeader
+            title="Client Onboarding"
+            description="Capture company details, primary contacts, and initial worksites before granting dashboard access."
+            icon={Plug}
+            accent="sky"
+          />
+          <button
+            onClick={onRefresh}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Sync latest records
+          </button>
+        </div>
+        <p className="mt-4 text-sm text-slate-400">
+          These forms are scaffolded for the super-admin workflow. Wire them to Airtable,
+          HubSpot, or a custom API to automate provisioning. Until then, submissions stay local
+          and help standardize data collection.
+        </p>
+      </div>
+
+      {feedback && (
+        <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+          {feedback}
+        </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <form
+          onSubmit={handleCompanySubmit}
+          className="flex h-full flex-col gap-4 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6"
+        >
+          <h3 className="text-lg font-semibold text-white">1. Company intake</h3>
+          <p className="text-sm text-slate-400">
+            Capture the basics so billing, integrations, and access policies can be configured.
+          </p>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Company name
+              </label>
+              <input
+                required
+                value={companyForm.companyName}
+                onChange={(event) =>
+                  setCompanyForm((prev) => ({ ...prev, companyName: event.target.value }))
+                }
+                placeholder="Acme Construction LLC"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Primary contact email
+              </label>
+              <input
+                type="email"
+                required
+                value={companyForm.contactEmail}
+                onChange={(event) =>
+                  setCompanyForm((prev) => ({ ...prev, contactEmail: event.target.value }))
+                }
+                placeholder="ops@acme.co"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Phone
+                </label>
+                <input
+                  value={companyForm.phone}
+                  onChange={(event) =>
+                    setCompanyForm((prev) => ({ ...prev, phone: event.target.value }))
+                  }
+                  placeholder="(555) 123-0101"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Headquarters
+                </label>
+                <input
+                  value={companyForm.address}
+                  onChange={(event) =>
+                    setCompanyForm((prev) => ({ ...prev, address: event.target.value }))
+                  }
+                  placeholder="Austin, TX"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="mt-auto flex items-center justify-between">
+            <p className="text-xs text-slate-500">
+              {companyOptions.length} companies already onboarded.
+            </p>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-500"
+            >
+              Stage company
+            </button>
+          </div>
+        </form>
+
+        <form
+          onSubmit={handleWorksiteSubmit}
+          className="flex h-full flex-col gap-4 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6"
+        >
+          <h3 className="text-lg font-semibold text-white">2. Worksite intake</h3>
+          <p className="text-sm text-slate-400">
+            Assign project sites to a client. Once saved, camera ingestion and alert routing can
+            be configured from the company dashboard.
+          </p>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Company
+              </label>
+              <select
+                value={worksiteForm.companyId}
+                onChange={(event) =>
+                  setWorksiteForm((prev) => ({ ...prev, companyId: event.target.value }))
+                }
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                <option value="">Select company…</option>
+                {companyOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Worksite name
+              </label>
+              <input
+                required
+                value={worksiteForm.worksiteName}
+                onChange={(event) =>
+                  setWorksiteForm((prev) => ({ ...prev, worksiteName: event.target.value }))
+                }
+                placeholder="Downtown Tower Expansion"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Location
+              </label>
+              <input
+                value={worksiteForm.location}
+                onChange={(event) =>
+                  setWorksiteForm((prev) => ({ ...prev, location: event.target.value }))
+                }
+                placeholder="Houston, TX"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+          </div>
+          <div className="mt-auto flex items-center justify-between">
+            <p className="text-xs text-slate-500">
+              {worksites?.length ?? 0} worksites managed from this hub.
+            </p>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500"
+            >
+              Stage worksite
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function IntegrationsSection({
+  companies,
+  worksites,
+  loadingCompanies,
+  loadingWorksites,
+  onRefresh,
+  onManageConnection,
+}: IntegrationsSectionProps) {
+  const totalCompanies = companies?.length ?? 0;
+  const totalWorksites = worksites?.length ?? 0;
+  const [syncing, setSyncing] = useState(false);
+
+  const partnerPrograms = useMemo(
+    () => [
+      {
+        id: 'guardian',
+        name: 'Guardian Mutual Risk Alliance',
+        status: 'Active',
+        coverage: ['General Liability', 'Workers’ Compensation'],
+        sla: '24h endorsements',
+      },
+      {
+        id: 'fortress',
+        name: 'Fortress Industrial Insurance',
+        status: 'Pilot',
+        coverage: ['Heavy Equipment', 'Builder’s Risk'],
+        sla: '48h bind & issue',
+      },
+      {
+        id: 'summit',
+        name: 'Summit Specialty Underwriters',
+        status: 'Discovery',
+        coverage: ['Environmental Liability', 'Umbrella'],
+        sla: 'Custom quoting',
+      },
+    ],
+    []
+  );
+
+  const integrationRows = useMemo(() => {
+    if (!companies) return [];
+    return companies.map((company, index) => {
+      const worksiteCount =
+        worksites?.filter((worksite) => worksite.companyId === company.id).length ?? 0;
+      const statusCycle = index % 3;
+      const status: IntegrationStatus =
+        statusCycle === 0
+          ? 'Connected'
+          : statusCycle === 1
+          ? 'Onboarding'
+          : 'Ready for outreach';
+      return {
+        id: company.id,
+        name: company.name,
+        contact: company.email || 'Not provided',
+        worksiteCount,
+        status,
+      };
+    });
+  }, [companies, worksites]);
+
+  const connectedClients = integrationRows.filter(
+    (row) => row.status === 'Connected'
+  ).length;
+  const clientsNeedingAttention = integrationRows.filter(
+    (row) => row.status !== 'Connected'
+  ).length;
+
+  useEffect(() => {
+    if (loadingCompanies || loadingWorksites) {
+      setSyncing(true);
+      return;
+    }
+    const timeout = setTimeout(() => setSyncing(false), 300);
+    return () => clearTimeout(timeout);
+  }, [loadingCompanies, loadingWorksites]);
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <SectionHeader
+            title="Insurance Integrations Control"
+            description="You control every carrier connection. Clients can review their coverage, but cannot alter integration credentials."
+            icon={Handshake}
+            accent="emerald"
+          />
+          <button
+            onClick={onRefresh}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh status
+          </button>
+        </div>
+        <p className="mt-4 text-sm text-slate-400">
+          Centralizing insurance programs keeps sensitive premium and payment settings out of
+          client dashboards. Your super-admin team can activate carriers, adjust coverage
+          tiers, and audit renewals from one place.
+        </p>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <MetricCard
+            title="Partner Programs"
+            value={partnerPrograms.length}
+            subtitle="Carriers available in the platform"
+            icon={Shield}
+            accent="violet"
+          />
+          <MetricCard
+            title="Clients Connected"
+            value={`${connectedClients}/${totalCompanies}`}
+            subtitle="Active companies with insurance configured"
+            icon={CheckCircle2}
+            accent="emerald"
+          />
+          <MetricCard
+            title="Worksites Covered"
+            value={totalWorksites}
+            subtitle="Sites tied to an insurance profile"
+            icon={Building2}
+            accent="default"
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-5">
+        <div className="space-y-4 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6 lg:col-span-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold text-white">Carrier Programs</h3>
+            {syncing && (
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-300">
+                <Loader2 className="h-3 w-3 animate-spin text-blue-300" />
+                Syncing
+              </div>
+            )}
+          </div>
+          <div className="space-y-4">
+            {partnerPrograms.map((partner) => (
+              <div
+                key={partner.id}
+                className="rounded-xl border border-slate-800 bg-slate-900/70 p-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{partner.name}</p>
+                    <p className="text-xs text-slate-500">{partner.status}</p>
+                  </div>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-300">
+                    <Plug className="h-3.5 w-3.5" />
+                    Managed by admin
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                  {partner.coverage.map((coverage) => (
+                    <span
+                      key={coverage}
+                      className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                    >
+                      {coverage}
+                    </span>
+                  ))}
+                  <span className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1">
+                    <CalendarClock className="h-3.5 w-3.5" />
+                    {partner.sla}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6 lg:col-span-2">
+          <h3 className="text-base font-semibold text-white">Client dashboard message</h3>
+          <p className="text-sm text-emerald-100/90">
+            Clients see an &ldquo;Insurance Settings&rdquo; page where they can review active
+            coverage, download certificates, and request adjustments. They cannot modify the
+            carrier integration or billing credentials—those remain super-admin only.
+          </p>
+          <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/20 p-4 text-xs text-emerald-50">
+            <strong>Tip:</strong> Keep messaging consistent so clients understand how to
+            request endorsements or changes without touching sensitive settings.
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-white">Company integration status</h3>
+          <span className="text-xs text-slate-500">
+            {connectedClients} connected · {clientsNeedingAttention} needing attention
+          </span>
+          {syncing && (
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-300">
+              <Loader2 className="h-3 w-3 animate-spin text-blue-300" />
+              Syncing
+            </div>
+          )}
+        </div>
+        {integrationRows.length === 0 ? (
+          <p className="mt-4 rounded-lg border border-dashed border-slate-800 bg-slate-900/70 p-6 text-sm text-slate-400">
+            No companies are onboarded yet. Once clients are mapped to a carrier, their
+            status will appear here.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-3">
+            {integrationRows.map((row) => (
+              <div
+                key={row.id}
+                className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4 md:flex-row md:items-center md:justify-between"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-white">{row.name}</p>
+                  <p className="text-xs text-slate-500">{row.contact}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                  <span className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1">
+                    {row.worksiteCount} worksites
+                  </span>
+                  <span
+                    className={`rounded-lg border px-2 py-1 ${
+                      row.status === 'Connected'
+                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                        : row.status === 'Onboarding'
+                        ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
+                        : 'border-slate-700 bg-slate-900 text-slate-300'
+                    }`}
+                  >
+                    {row.status}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onManageConnection(row)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800"
+                >
+                  Manage connection
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BillingSection({
+  companies,
+  loading,
+  error,
+  uploadingCompanyId,
+  onRefresh,
+  onUploadReceipt,
+  onUpdateRecord,
+}: BillingSectionProps) {
+  const [formState, setFormState] = useState<
+    Record<string, { paidThrough?: string; notes?: string; file?: File | null }>
+  >({});
+  const [feedback, setFeedback] = useState<Record<string, { success?: string; error?: string }>>(
+    {}
+  );
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  useEffect(() => {
+    if (!companies) return;
+    setFormState((prev) => {
+      const next = { ...prev };
+      companies.forEach((entry) => {
+        if (!next[entry.company.id]) {
+          next[entry.company.id] = {};
+        }
+      });
+      return next;
+    });
+  }, [companies]);
+
+  const handlePaidThroughChange = (companyId: string, value: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      [companyId]: {
+        ...prev[companyId],
+        paidThrough: value,
+      },
+    }));
+  };
+
+  const handleNotesChange = (companyId: string, value: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      [companyId]: {
+        ...prev[companyId],
+        notes: value,
+      },
+    }));
+  };
+
+  const handleFileChange = (companyId: string, event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    setFormState((prev) => ({
+      ...prev,
+      [companyId]: {
+        ...prev[companyId],
+        file,
+      },
+    }));
+    setFeedback((prev) => ({
+      ...prev,
+      [companyId]: {
+        success: undefined,
+        error: undefined,
+      },
+    }));
+  };
+
+  const resetForm = (companyId: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      [companyId]: {
+        paidThrough: prev[companyId]?.paidThrough,
+        notes: '',
+        file: null,
+      },
+    }));
+    const inputRef = fileInputRefs.current[companyId];
+    if (inputRef) {
+      inputRef.value = '';
+    }
+  };
+
+  const handleSubmit = (companyId: string) => async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const state = formState[companyId];
+    if (!state?.file) {
+      setFeedback((prev) => ({
+        ...prev,
+        [companyId]: { error: 'Upload a PDF or image of the paid invoice first.' },
+      }));
+      return;
+    }
+    try {
+      await onUploadReceipt({
+        companyId,
+        file: state.file,
+        paidThrough: state.paidThrough,
+        notes: state.notes,
+      });
+      setFeedback((prev) => ({
+        ...prev,
+        [companyId]: { success: 'Proof uploaded and payment recorded.' },
+      }));
+      resetForm(companyId);
+    } catch (uploadErr: any) {
+      setFeedback((prev) => ({
+        ...prev,
+        [companyId]: { error: uploadErr?.message || 'Upload failed.' },
+      }));
+    }
+  };
+
+  const handleExtend = (companyId: string, recordId: string | null) => async () => {
+    const state = formState[companyId];
+    if (!recordId) {
+      setFeedback((prev) => ({
+        ...prev,
+        [companyId]: { error: 'Upload proof before setting a paid-through date.' },
+      }));
+      return;
+    }
+    if (!state?.paidThrough) {
+      setFeedback((prev) => ({
+        ...prev,
+        [companyId]: { error: 'Pick a paid-through date before updating.' },
+      }));
+      return;
+    }
+    try {
+      await onUpdateRecord({
+        recordId,
+        companyId,
+        paidThrough: state.paidThrough,
+        notes: state.notes,
+      });
+      setFeedback((prev) => ({
+        ...prev,
+        [companyId]: { success: 'Paid-through date updated.' },
+      }));
+    } catch (err: any) {
+      setFeedback((prev) => ({
+        ...prev,
+        [companyId]: { error: err?.message || 'Unable to update billing status.' },
+      }));
+    }
+  };
+
+  const handleMarkUnpaid = (companyId: string, recordId: string | null) => async () => {
+    if (!recordId) {
+      setFeedback((prev) => ({
+        ...prev,
+        [companyId]: { error: 'No billing record to clear yet.' },
+      }));
+      return;
+    }
+    try {
+      await onUpdateRecord({
+        recordId,
+        companyId,
+        paidThrough: null,
+      });
+      setFeedback((prev) => ({
+        ...prev,
+        [companyId]: { success: 'Marked as unpaid. Awaiting new proof.' },
+      }));
+    } catch (err: any) {
+      setFeedback((prev) => ({
+        ...prev,
+        [companyId]: { error: err?.message || 'Unable to clear billing status.' },
+      }));
+    }
+  };
+
+  const hasCompanies = companies && companies.length > 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <SectionHeader
+          title="Billing & Collections"
+          description="Upload invoice proof and control paid-through windows for each client company."
+          icon={DollarSign}
+          accent="amber"
+        />
+        <button
+          onClick={onRefresh}
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Refresh billing data
+        </button>
+      </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+          {error}
+        </div>
+      )}
+
+      {loading && !hasCompanies && (
+        <div className="flex h-56 items-center justify-center rounded-2xl border border-slate-800/60 bg-slate-900/60">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+          <span className="ml-3 text-sm text-slate-300">Loading company billing records…</span>
+        </div>
+      )}
+
+      {!loading && !hasCompanies && !error && (
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-10 text-center text-slate-300">
+          <p className="text-lg font-semibold text-white">No companies onboarded</p>
+          <p className="mt-2 text-sm text-slate-400">
+            Once clients are added, you can track invoice proof and paid status here.
+          </p>
+        </div>
+      )}
+
+      {hasCompanies && (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          {companies!.map((entry) => {
+            const latest = entry.latestRecord;
+            const companyId = entry.company.id;
+            const statusBadge =
+              latest?.paidThrough && new Date(latest.paidThrough) >= new Date()
+                ? {
+                    label: `Paid through ${new Date(latest.paidThrough).toLocaleDateString()}`,
+                    className: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200',
+                  }
+                : {
+                    label: 'Payment required',
+                    className: 'border-amber-500/40 bg-amber-500/10 text-amber-200',
+                  };
+            const companyFeedback = feedback[companyId];
+            const formValues = formState[companyId] || {};
+
+            return (
+              <form
+                key={companyId}
+                onSubmit={handleSubmit(companyId)}
+                className="flex h-full flex-col gap-4 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">{entry.company.name}</h3>
+                    <p className="text-xs text-slate-500">{entry.company.address || 'Address pending'}</p>
+                    <p className="mt-2 text-xs text-slate-500">
+                      {entry.worksites.length} worksites · Proofs stored centrally
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${statusBadge.className}`}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {statusBadge.label}
+                  </span>
+                </div>
+
+                <div className="grid gap-4 rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>Latest proof</span>
+                    <span>
+                      {latest ? new Date(latest.createdAt).toLocaleString() : '—'}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
+                    {latest?.proofUrl ? (
+                      <a
+                        href={latest.proofUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-blue-200 transition hover:bg-slate-800"
+                      >
+                        <FileBarChart2 className="h-3.5 w-3.5" />
+                        View proof of payment
+                      </a>
+                    ) : (
+                      <span className="text-xs text-slate-500">No invoice uploaded yet.</span>
+                    )}
+                    {latest?.notes && (
+                      <span className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-400">
+                        {latest.notes}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Paid-through date
+                    </label>
+                    <input
+                      type="date"
+                      value={formValues.paidThrough || ''}
+                      onChange={(event) =>
+                        handlePaidThroughChange(companyId, event.target.value)
+                      }
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                    <p className="text-xs text-slate-500">
+                      Optional: extend or adjust the paid-through window after proof is on file.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Upload proof (PDF / image)
+                    </label>
+                    <input
+                      ref={(node) => {
+                        fileInputRefs.current[companyId] = node;
+                      }}
+                      type="file"
+                      accept=".pdf,image/*"
+                      onChange={(event) => handleFileChange(companyId, event)}
+                      className="w-full rounded-lg border border-dashed border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                    <textarea
+                      value={formValues.notes || ''}
+                      onChange={(event) => handleNotesChange(companyId, event.target.value)}
+                      placeholder="Optional internal note"
+                      className="h-16 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+                </div>
+
+                {companyFeedback?.error && (
+                  <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200">
+                    {companyFeedback.error}
+                  </div>
+                )}
+                {companyFeedback?.success && (
+                  <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-200">
+                    {companyFeedback.success}
+                  </div>
+                )}
+
+                <div className="mt-auto flex flex-wrap gap-3">
+                  <button
+                    type="submit"
+                    disabled={uploadingCompanyId === companyId}
+                    className="inline-flex items-center gap-2 rounded-lg border border-blue-500/50 bg-blue-500/10 px-4 py-2 text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {uploadingCompanyId === companyId ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Uploading…
+                      </>
+                    ) : (
+                      <>
+                        <CloudUpload className="h-3.5 w-3.5" />
+                        Upload proof & mark paid
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExtend(companyId, latest?.id ?? null)}
+                    disabled={!latest || uploadingCompanyId === companyId}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <CalendarClock className="h-3.5 w-3.5" />
+                    Update paid-through date
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleMarkUnpaid(companyId, latest?.id ?? null)}
+                    disabled={!latest || uploadingCompanyId === companyId}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-4 py-2 text-xs font-semibold text-amber-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-300" />
+                    Mark unpaid / needs proof
+                  </button>
+                </div>
+              </form>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UsersRolesSection({
+  companies,
+  worksites,
+  onRefresh,
+}: UsersRolesSectionProps) {
+  const totalCompanies = companies?.length ?? 0;
+  const totalWorksites = worksites?.length ?? 0;
+
+  const roleCatalog = useMemo(
+    () => [
+      {
+        role: 'SUPER_ADMIN',
+        audience: 'Internal',
+        description: 'Full platform control. Reserved for SiteSafe core team.',
+      },
+      {
+        role: 'COMPANY_ADMIN',
+        audience: 'Client',
+        description: 'Manages company-wide settings, billing, and worksites.',
+      },
+      {
+        role: 'SITE_ADMIN',
+        audience: 'Client',
+        description: 'Oversees individual worksites, cameras, and alert routing.',
+      },
+      {
+        role: 'SUPERVISOR',
+        audience: 'Client',
+        description: 'Acknowledges alerts, reviews detections, limited admin authority.',
+      },
+      {
+        role: 'WORKER',
+        audience: 'Client',
+        description: 'View-only portal access with personal alert history.',
+      },
+    ],
+    []
+  );
+
+  const [inviteForm, setInviteForm] = useState({
+    email: '',
+    role: 'COMPANY_ADMIN',
+    companyId: '',
+  });
+  const [inviteFeedback, setInviteFeedback] = useState<string | null>(null);
+
+  const companyOptions =
+    companies?.map((company) => ({
+      value: company.id,
+      label: company.name,
+    })) ?? [];
+
+  const handleInvite = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!inviteForm.email.trim()) {
+      setInviteFeedback('Provide an email address to send the invite.');
+      return;
+    }
+    setInviteFeedback(
+      `Invite drafted for ${inviteForm.email} as ${inviteForm.role}. Hook this form to your identity provider or NextAuth invitation flow to send real emails.`
+    );
+    setInviteForm({ email: '', role: inviteForm.role, companyId: '' });
+    onRefresh();
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <SectionHeader
+            title="Users & Roles"
+            description="Grant access to client stakeholders while maintaining least-privilege control."
+            icon={Users}
+            accent="sky"
+          />
+          <button
+            onClick={onRefresh}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh directory
+          </button>
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <MetricCard
+            title="Companies"
+            value={totalCompanies}
+            subtitle="Mapped to the platform"
+            icon={Factory}
+          />
+          <MetricCard
+            title="Worksites"
+            value={totalWorksites}
+            subtitle="Actively monitored"
+            icon={Building2}
+            accent="emerald"
+          />
+          <MetricCard
+            title="Role catalog"
+            value={roleCatalog.length}
+            subtitle="Standard roles ready for assignment"
+            icon={ShieldCheck}
+            accent="violet"
+          />
+        </div>
+      </div>
+
+      {inviteFeedback && (
+        <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+          {inviteFeedback}
+        </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <form
+          onSubmit={handleInvite}
+          className="flex h-full flex-col gap-4 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6"
+        >
+          <h3 className="text-lg font-semibold text-white">Invite a user</h3>
+          <p className="text-sm text-slate-400">
+            Emails are not sent automatically yet. Connect this flow to your identity provider
+            or customer success tooling.
+          </p>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                value={inviteForm.email}
+                onChange={(event) =>
+                  setInviteForm((prev) => ({ ...prev, email: event.target.value }))
+                }
+                placeholder="safety.manager@client.com"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Role
+                </label>
+                <select
+                  value={inviteForm.role}
+                  onChange={(event) =>
+                    setInviteForm((prev) => ({ ...prev, role: event.target.value }))
+                  }
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  {['COMPANY_ADMIN', 'SITE_ADMIN', 'SUPERVISOR', 'WORKER'].map((role) => (
+                    <option key={role} value={role}>
+                      {role.replace('_', ' ')}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Company (optional)
+                </label>
+                <select
+                  value={inviteForm.companyId}
+                  onChange={(event) =>
+                    setInviteForm((prev) => ({ ...prev, companyId: event.target.value }))
+                  }
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="">Unassigned</option>
+                  {companyOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+          <div className="mt-auto flex items-center justify-end">
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-500"
+            >
+              Send invite
+            </button>
+          </div>
+        </form>
+
+        <div className="space-y-4 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+          <h3 className="text-lg font-semibold text-white">Role catalog</h3>
+          <p className="text-sm text-slate-400">
+            Map each user type to responsibilities. For advanced scenarios, extend the Prisma
+            `UserRole` enum and add conditional UI gating.
+          </p>
+          <div className="space-y-3">
+            {roleCatalog.map((item) => (
+              <div
+                key={item.role}
+                className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-white">{item.role}</p>
+                  <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    {item.audience}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-slate-400">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailField({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+      <div className="mt-1 text-sm text-slate-200 break-words">{value ?? '—'}</div>
+    </div>
+  );
+}
+
+function ReportCard({
+  dataset,
+  onExport,
+  exporting,
+}: {
+  dataset: ReportDataset;
+  onExport: () => void;
+  exporting: boolean;
+}) {
+  const Icon = dataset.icon;
+
+  return (
+    <div className="flex flex-col justify-between rounded-2xl border border-slate-800/60 bg-slate-900/60 p-5">
+      <div className="flex items-start gap-3">
+        <div className="rounded-xl border border-slate-700 bg-slate-900 p-2.5 text-blue-200">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-white">{dataset.title}</h3>
+          <p className="mt-1 text-sm text-slate-400">{dataset.description}</p>
+        </div>
+      </div>
+      <button
+        onClick={onExport}
+        disabled={exporting}
+        className="mt-6 inline-flex items-center justify-center gap-2 rounded-lg border border-blue-500/50 bg-blue-500/10 px-4 py-2 text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-70"
+        type="button"
+      >
+        {exporting ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Preparing…
+          </>
+        ) : (
+          <>
+            <FileBarChart2 className="h-4 w-4" />
+            Export JSON
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
+
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+        active
+          ? 'border-blue-500/60 bg-blue-500/20 text-blue-200'
+          : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-600 hover:text-white'
+      }`}
+      type="button"
+    >
+      {children}
+    </button>
+  );
+}
+
+function PaginationControls({
+  page,
+  totalPages,
+  onPrev,
+  onNext,
+}: {
+  page: number;
+  totalPages: number;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-end gap-3 pt-4">
+      <button
+        onClick={onPrev}
+        disabled={page === 0}
+        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+        type="button"
+      >
+        Previous
+      </button>
+      <span className="text-xs text-slate-500">
+        Page {totalPages === 0 ? 0 : page + 1} of {totalPages}
+      </span>
+      <button
+        onClick={onNext}
+        disabled={page >= totalPages - 1}
+        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+        type="button"
+      >
+        Next
+      </button>
+    </div>
+  );
+}
+
+function IntegrationDrawer({
+  company,
+  onClose,
+}: {
+  company: IntegrationClientSummary;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 backdrop-blur sm:items-center"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="w-full max-w-lg rounded-3xl border border-slate-800 bg-slate-900/95 p-6 shadow-2xl sm:max-w-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-slate-500">Integration control</p>
+            <h3 className="mt-1 text-xl font-semibold text-white">{company.name}</h3>
+            <p className="text-xs text-slate-400">{company.contact}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-full border border-slate-700 bg-slate-900 p-2 text-slate-300 transition hover:bg-slate-800 hover:text-white"
+            aria-label="Close integration drawer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-6 space-y-4 text-sm text-slate-300">
+          <p>
+            Status:{' '}
+            <span
+              className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${
+                company.status === 'Connected'
+                  ? 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                  : company.status === 'Onboarding'
+                  ? 'border border-amber-500/40 bg-amber-500/10 text-amber-200'
+                  : 'border border-slate-700 bg-slate-900 text-slate-300'
+              }`}
+            >
+              {company.status}
+            </span>
+          </p>
+          <p>
+            Worksites tied to insurance program:{' '}
+            <span className="font-semibold text-white">{company.worksiteCount}</span>
+          </p>
+          <p className="text-xs text-slate-400">
+            Update carrier credentials, endorsements, or coverage tiers from this panel. Clients
+            can only request changes from their dashboard—they cannot modify integration details.
+          </p>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <a
+            href={`mailto:insurance@sitesafe.ai?subject=Insurance%20update%20for%20${encodeURIComponent(
+              company.name
+            )}`}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-500/50 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-200 transition hover:bg-blue-500/20"
+          >
+            Email insurance desk
+          </a>
+          <button
+            onClick={() => {
+              navigator?.clipboard
+                ?.writeText(company.contact)
+                .catch(() => undefined);
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-800"
+          >
+            Copy client contact
+          </button>
+          <a
+            href="/dashboard/integrations/insurance"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-800 sm:col-span-2"
+          >
+            View client-facing insurance page
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+interface MetricCardProps {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  accent?: 'default' | 'emerald' | 'violet';
+}
+
+function MetricCard({ title, value, subtitle, icon: Icon, accent = 'default' }: MetricCardProps) {
+  const accentClasses =
+    accent === 'emerald'
+      ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+      : accent === 'violet'
+      ? 'bg-violet-500/10 text-violet-300 border-violet-500/20'
+      : 'bg-blue-500/10 text-blue-300 border-blue-500/20';
+
+  return (
+    <div className="flex items-center gap-4 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${accentClasses}`}>
+        <Icon className="h-6 w-6" />
+      </div>
+      <div>
+        <p className="text-sm text-slate-400">{title}</p>
+        <p className="mt-1 text-2xl font-semibold text-white">
+          {typeof value === 'number' ? value.toLocaleString() : value}
+        </p>
+        {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
+      </div>
+    </div>
+  );
+}
+
+interface SectionHeaderProps {
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  accent?: 'red' | 'emerald' | 'sky' | 'violet';
+}
+
+function SectionHeader({ title, description, icon: Icon, accent = 'violet' }: SectionHeaderProps) {
+  const accentMap: Record<string, string> = {
+    red: 'text-red-300 bg-red-500/10',
+    emerald: 'text-emerald-300 bg-emerald-500/10',
+    sky: 'text-sky-300 bg-sky-500/10',
+    violet: 'text-violet-300 bg-violet-500/10',
+  };
+
+  return (
+    <div className="flex items-start gap-3">
+      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${accentMap[accent]}`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div>
+        <h3 className="text-lg font-semibold text-white">{title}</h3>
+        <p className="mt-1 text-sm text-slate-400">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+interface TrendPanelProps {
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  data: TrendPoint[];
+  valueKey: 'value' | 'detections';
+  color: string;
+  suffix?: string;
+}
+
+function TrendPanel({ title, description, icon: Icon, data, valueKey, color, suffix }: TrendPanelProps) {
+  const latestValue =
+    data.length > 0 && data[data.length - 1][valueKey] !== undefined
+      ? data[data.length - 1][valueKey]
+      : null;
+
+  return (
+    <div className="flex h-full flex-col rounded-xl border border-slate-800/60 bg-slate-900/60 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm text-slate-400">{title}</p>
+          <h4 className="mt-1 text-2xl font-semibold text-white">
+            {latestValue !== null ? (
+              <>
+                {latestValue?.toLocaleString()}
+                {suffix}
+              </>
+            ) : (
+              '--'
+            )}
+          </h4>
+        </div>
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-800 bg-slate-900/80">
+          <Icon className="h-5 w-5 text-slate-300" />
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">{description}</p>
+      <div className="mt-5 flex-1">
+        {data.length < 2 ? (
+          <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-800 text-xs text-slate-500">
+            Not enough datapoints yet
+          </div>
+        ) : (
+          <Sparkline data={data} valueKey={valueKey} color={color} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface SparklineProps {
+  data: TrendPoint[];
+  valueKey: 'value' | 'detections';
+  color: string;
+}
+
+function Sparkline({ data, valueKey, color }: SparklineProps) {
+  const points = data
+    .map((point, idx) => ({
+      index: idx,
+      value: point[valueKey] ?? 0,
+    }))
+    .filter((point) => point.value !== null && !Number.isNaN(point.value));
+
+  if (points.length < 2) {
+    return (
+      <div className="flex h-full items-center justify-center text-xs text-slate-500">
+        Not enough data
+      </div>
+    );
+  }
+
+  const minValue = Math.min(...points.map((p) => Number(p.value)));
+  const maxValue = Math.max(...points.map((p) => Number(p.value)));
+  const range = maxValue - minValue || 1;
+
+  const coords = points
+    .map((point, idx) => {
+      const x = (idx / (points.length - 1)) * 100;
+      const normalized = (Number(point.value) - minValue) / range;
+      const y = 100 - normalized * 100;
+      return `${x},${y}`;
+    })
+    .join(' ');
+
+  const gradientId = `sparkline-gradient-${btoa(color).replace(/=/g, '')}`;
+
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-32 w-full">
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.6} />
+          <stop offset="100%" stopColor={color} stopOpacity={0.05} />
+        </linearGradient>
+      </defs>
+      <polygon
+        fill={`url(#${gradientId})`}
+        stroke="none"
+        points={`0,100 ${coords} 100,100`}
+      />
+      <polyline
+        fill="none"
+        stroke={color}
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        points={coords}
+      />
+    </svg>
+  );
+}
+
+interface AlertSummaryCardProps {
+  headline: string;
+  data: Array<{ label: string; value: number; color?: string }>;
+  total: number;
+}
+
+function AlertSummaryCard({ headline, data, total }: AlertSummaryCardProps) {
+  return (
+    <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-5">
+      <p className="text-xs uppercase tracking-wide text-slate-500">{headline}</p>
+      <p className="mt-2 text-3xl font-semibold text-white">{total.toLocaleString()}</p>
+      <div className="mt-4 space-y-3 text-sm">
+        {data.map((item) => (
+          <div key={item.label} className="flex items-center justify-between">
+            <span className={`text-slate-300 ${item.color ?? ''}`}>{item.label}</span>
+            <span className="font-semibold text-white">{item.value.toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface StatusGaugeProps {
+  label: string;
+  value?: number;
+  helper?: string;
+}
+
+function StatusGauge({ label, value, helper }: StatusGaugeProps) {
+  const displayValue = value !== undefined ? value : null;
+
+  return (
+    <div className="flex h-full flex-col justify-between rounded-xl border border-slate-800/60 bg-slate-900/40 p-5">
+      <div>
+        <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+        <p className="mt-2 text-4xl font-bold text-white">
+          {displayValue !== null ? `${displayValue.toFixed(1)}%` : '--'}
+        </p>
+      </div>
+      {helper && <p className="text-xs text-slate-400">{helper}</p>}
+    </div>
+  );
+}
+
+interface StatusBreakdownProps {
+  totals: CameraStatusSummary;
+  items: Array<{ label: string; value: number; color: string }>;
+}
+
+function StatusBreakdown({ totals, items }: StatusBreakdownProps) {
+  const total = totals.total || 1;
+
+  return (
+    <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-5 text-sm text-slate-300">
+      <p className="text-xs uppercase tracking-wide text-slate-500">Camera Status</p>
+      <div className="mt-3 space-y-3">
+        {items.map((item) => {
+          const percent = total > 0 ? (item.value / total) * 100 : 0;
+          return (
+            <div key={item.label}>
+              <div className="flex items-center justify-between">
+                <span>{item.label}</span>
+                <span className="text-slate-200">{item.value.toLocaleString()}</span>
+              </div>
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-800">
+                <div
+                  className={`h-full rounded-full ${item.color}`}
+                  style={{ width: `${Math.min(percent, 100)}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+interface CompaniesTableProps {
+  title: string;
+  description: string;
+  companies: CompanyInsight[];
+  variant: 'positive' | 'risk';
+}
+
+function CompaniesTable({ title, description, companies, variant }: CompaniesTableProps) {
+  const badgeClass =
+    variant === 'positive'
+      ? 'bg-emerald-500/10 text-emerald-300'
+      : 'bg-amber-500/10 text-amber-300';
+
+  return (
+    <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold text-white">{title}</h3>
+          <p className="mt-1 text-sm text-slate-400">{description}</p>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${badgeClass}`}>
+          {variant === 'positive' ? 'High performers' : 'Needs attention'}
+        </span>
+      </div>
+      <div className="mt-4 space-y-3">
+        {companies.length === 0 ? (
+          <p className="rounded-lg border border-slate-800/80 bg-slate-900/60 px-4 py-4 text-sm text-slate-400">
+            No companies on record yet.
+          </p>
+        ) : (
+          companies.map((company) => (
+            <div
+              key={company.id}
+              className="flex flex-col gap-2 rounded-xl border border-slate-800/60 bg-slate-900/40 px-4 py-3 md:flex-row md:items-center md:justify-between"
+            >
+              <div>
+                <p className="text-sm font-semibold text-white">{company.name}</p>
+                <p className="text-xs text-slate-500">
+                  {company.siteCount} worksites • {company.cameraCount} cameras
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Score</p>
+                  <p className="text-sm font-semibold text-white">
+                    {company.avgSafetyScore !== null ? company.avgSafetyScore.toFixed(1) : '--'}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">Last Activity</p>
+                  <p className="text-sm text-slate-300">
+                    {company.latestActivity ? new Date(company.latestActivity).toLocaleDateString() : 'Unknown'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WorksiteTile({ worksite }: { worksite: WorksiteActivityItem }) {
+  const activeRatio =
+    worksite.cameraCount > 0 ? (worksite.onlineCameras / worksite.cameraCount) * 100 : 0;
+
+  return (
+    <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-5">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-white">{worksite.name}</p>
+          <p className="text-xs text-slate-500">{worksite.companyName}</p>
+        </div>
+        <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-200">
+          {worksite.status}
+        </span>
+      </div>
+      <div className="mt-4 space-y-3 text-xs text-slate-400">
+        {worksite.location && (
+          <div className="flex items-center gap-2">
+            <MapPin className="h-3.5 w-3.5 text-slate-400" />
+            {worksite.location}
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <span>Cameras online</span>
+          <span className="text-slate-200">
+            {worksite.onlineCameras}/{worksite.cameraCount} ({Math.round(activeRatio)}%)
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span>Compliance score</span>
+          <span className="text-slate-200">
+            {worksite.latestScore !== null ? `${worksite.latestScore.toFixed(1)}%` : 'Pending'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span>Last activity</span>
+          <span className="text-slate-200">
+            {worksite.lastActivity ? new Date(worksite.lastActivity).toLocaleString() : 'No signals yet'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface ComingSoonProps {
+  title: string;
+  description: string;
+  actions?: Array<{ label: string; href: string; disabled?: boolean }>;
+  accent?: 'default' | 'purple' | 'amber';
+  children?: React.ReactNode;
+}
+
+function ComingSoon({ title, description, actions = [], accent = 'default', children }: ComingSoonProps) {
+  const accentClass =
+    accent === 'purple'
+      ? 'border-violet-500/40 bg-violet-500/10 text-violet-100'
+      : accent === 'amber'
+      ? 'border-amber-500/40 bg-amber-500/10 text-amber-100'
+      : 'border-slate-800/70 bg-slate-900/60 text-slate-200';
+
+  return (
+    <div className={`min-h-[360px] rounded-2xl border ${accentClass} p-8`}>
+      <h3 className="text-2xl font-semibold text-white">{title}</h3>
+      <p className="mt-2 max-w-3xl text-sm text-slate-200/80">{description}</p>
+      {children && <div className="mt-6">{children}</div>}
+      {actions.length > 0 && (
+        <div className="mt-8 flex flex-wrap gap-3">
+          {actions.map((action) =>
+            action.disabled ? (
+              <span
+                key={action.label}
+                className="inline-flex items-center gap-2 rounded-lg border border-dashed border-slate-300/40 px-4 py-2 text-sm text-slate-200/60"
+              >
+                {action.label}
+                <span className="text-[10px] uppercase tracking-wide text-slate-400">Coming soon</span>
+              </span>
+            ) : (
+              <a
+                key={action.href}
+                href={action.href}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+              >
+                {action.label}
+              </a>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlaceholderInsight({ message }: { message?: string }) {
+  return (
+    <div className="mt-6 rounded-xl border border-dashed border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-100/90">
+      {message ||
+        'Integrate Stripe or preferred billing provider to populate MRR, churn, and plan metrics here.'}
+    </div>
+  );
+}
+
+function TimeRangeSelector({
+  value,
+  onChange,
+}: {
+  value: TimeRangeOption;
+  onChange: (next: TimeRangeOption) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-2 py-1">
+      {TIME_RANGE_OPTIONS.map((option) => {
+        const isActive = value === option.value;
+        return (
+          <button
+            key={option.value}
+            onClick={() => onChange(option.value)}
+            className={`rounded-md px-3 py-1 text-xs font-semibold uppercase tracking-wide transition ${
+              isActive
+                ? 'bg-blue-500/80 text-white'
+                : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function formatRelativeActivity(value?: string | null) {
+  if (!value) return 'No activity yet';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'No activity yet';
+
+  const diffMs = Date.now() - parsed.getTime();
+  const minute = 1000 * 60;
+  const hour = minute * 60;
+  const day = hour * 24;
+
+  if (diffMs < minute) {
+    return 'Just now';
+  }
+  if (diffMs < hour) {
+    const minutes = Math.round(diffMs / minute);
+    return `${minutes} min${minutes === 1 ? '' : 's'} ago`;
+  }
+  if (diffMs < day) {
+    const hours = Math.round(diffMs / hour);
+    return `${hours} hr${hours === 1 ? '' : 's'} ago`;
+  }
+  const days = Math.round(diffMs / day);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+}
+
+function formatDateString(value?: string | null) {
+  if (!value) return 'Unknown';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Unknown';
+  return parsed.toLocaleDateString();
+}
+

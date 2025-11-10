@@ -24,6 +24,7 @@ const baseNavigation = [
   { key: 'operations', name: 'Operations', href: '/admin', icon: HomeIcon },
   { key: 'worksites', name: 'Worksites', href: '/admin/sites', icon: BuildingOfficeIcon },
   { key: 'camera-mgmt', name: 'Camera Mgmt', href: '/admin/cameras', icon: VideoCameraIcon },
+  { key: 'insurance', name: 'Insurance', href: '/dashboard/integrations/insurance', icon: DocumentTextIcon },
   { key: 'alert-history', name: 'Alert History', href: '/admin/alerts', icon: BellIcon },
   { key: 'user-mgmt', name: 'User Mgmt', href: '/admin/users', icon: UserGroupIcon },
   { key: 'system-config', name: 'System Config', href: '/admin/settings', icon: Cog6ToothIcon },
@@ -49,7 +50,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     : 'https://avatar.vercel.sh/user';
 
   const navigation = useMemo(() => {
-    const items = [...baseNavigation];
+    const items = baseNavigation.map((item) => {
+      if (item.key === 'operations') {
+        if (userRole === 'SUPER_ADMIN') {
+          return {
+            ...item,
+            name: 'Admin Dashboard',
+            href: '/super-admin',
+          };
+        }
+        return item;
+      }
+      return item;
+    });
     if (userRole === 'SUPER_ADMIN') {
       items.splice(5, 0, aiTrainingNav);
     }
