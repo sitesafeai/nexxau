@@ -64,7 +64,7 @@ export default function CompaniesPage() {
 
       if (result.success) {
         setShowCreateModal(false);
-        setFormData({ name: '', companyName: '', email: '', phone: '', address: '' });
+        setFormData({ name: '', companyUsername: '', email: '', contactEmail: '', phone: '', address: '' });
         fetchCompanies();
       } else {
         alert(result.error || 'Failed to create company');
