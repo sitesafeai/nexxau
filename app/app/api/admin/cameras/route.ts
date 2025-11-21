@@ -117,7 +117,9 @@ export async function GET(request: NextRequest) {
                 : null,
             }
           : null,
-        lastHeartbeat: camera.metadata?.lastHeartbeat ?? null,
+        lastHeartbeat: (camera.metadata && typeof camera.metadata === 'object' && 'lastHeartbeat' in camera.metadata)
+          ? (camera.metadata as any).lastHeartbeat ?? null
+          : null,
         online: isOnline,
         trainingImageCount: camera.trainingImages.length,
         lastUpdated: lastUpdated.toISOString(),
