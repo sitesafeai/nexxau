@@ -274,7 +274,7 @@ export default function CompanyDetailPage() {
               <MapPin className="h-6 w-6 text-blue-400" />
               <h3 className="text-gray-300 text-sm">Worksites</h3>
             </div>
-            <p className="text-4xl font-bold text-white">{company._count.worksites}</p>
+            <p className="text-4xl font-bold text-white">{company._count?.worksites ?? company.worksites?.length ?? 0}</p>
           </div>
 
           <div className="bg-gradient-to-br from-purple-600/20 to-purple-800/20 rounded-xl p-6 border border-purple-500/30">
@@ -282,7 +282,7 @@ export default function CompanyDetailPage() {
               <Users className="h-6 w-6 text-purple-400" />
               <h3 className="text-gray-300 text-sm">Users</h3>
             </div>
-            <p className="text-4xl font-bold text-white">{company._count.users}</p>
+            <p className="text-4xl font-bold text-white">{company._count?.users ?? company.users?.length ?? 0}</p>
           </div>
 
           <div className="bg-gradient-to-br from-green-600/20 to-green-800/20 rounded-xl p-6 border border-green-500/30">
@@ -291,7 +291,7 @@ export default function CompanyDetailPage() {
               <h3 className="text-gray-300 text-sm">Total Cameras</h3>
             </div>
             <p className="text-4xl font-bold text-white">
-              {company.worksites.reduce((acc, ws) => acc + ws._count.cameras, 0)}
+              {company.worksites?.reduce((acc, ws) => acc + (ws._count?.cameras ?? 0), 0) ?? 0}
             </p>
           </div>
         </div>
@@ -352,7 +352,7 @@ export default function CompanyDetailPage() {
                         Cameras
                       </div>
                       <div className="text-lg font-bold text-white">
-                        {worksite._count.cameras}
+                        {worksite._count?.cameras ?? 0}
                       </div>
                     </div>
                     <div className="bg-slate-900/50 rounded-lg p-3">
@@ -361,7 +361,7 @@ export default function CompanyDetailPage() {
                         Alerts
                       </div>
                       <div className="text-lg font-bold text-white">
-                        {worksite._count.alerts}
+                        {worksite._count?.alerts ?? 0}
                       </div>
                     </div>
                     <div className="bg-slate-900/50 rounded-lg p-3">
@@ -370,7 +370,7 @@ export default function CompanyDetailPage() {
                         Workers
                       </div>
                       <div className="text-lg font-bold text-white">
-                        {worksite._count.workers}
+                        {worksite._count?.workers ?? 0}
                       </div>
                     </div>
                   </div>
