@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { createCompanySchema } from '@/app/lib/validation/companies';
+import { validateBody } from '@/app/lib/validation/common';
 
 /**
  * GET /api/admin/companies
@@ -118,6 +120,15 @@ export async function GET(request: NextRequest) {
         email: company.email,
         phone: company.phone,
         address: company.address,
+        // Metadata fields
+        billingTier: company.billingTier || 'standard',
+        contractStart: company.contractStart?.toISOString() || null,
+        contractEnd: company.contractEnd?.toISOString() || null,
+        slaLevel: company.slaLevel || 'standard',
+        insuranceCoverageStatus: company.insuranceCoverageStatus || null,
+        modelVersion: company.modelVersion || null,
+        mrr: company.mrr ? Number(company.mrr) : null,
+        churnRisk: company.churnRisk || null,
         worksiteCount: company._count.worksites,
         userCount: company._count.users,
         cameraCount: totalCameras,
@@ -163,23 +174,40 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, companyUsername, email, contactEmail, phone, address } = body;
+    const validation = validateBody(createCompanySchema, body);
 
-    if (!name || !companyUsername || !email) {
+    if (!validation.success) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields: name, companyUsername, email' },
+        {
+          success: false,
+          error: 'Validation failed',
+          details: validation.error.errors,
+        },
         { status: 400 }
       );
     }
 
+    const { name, companyUsername, email, contactEmail, phone, address } = validation.data;
+
     // Check if company username already exists
-    const existing = await prisma.company.findUnique({
+    const existingUsername = await prisma.company.findUnique({
       where: { companyUsername }
     });
 
-    if (existing) {
+    if (existingUsername) {
       return NextResponse.json(
         { success: false, error: 'Company username already exists' },
+        { status: 409 }
+      );
+    }
+
+    const existingEmail = await prisma.company.findUnique({
+      where: { email }
+    });
+
+    if (existingEmail) {
+      return NextResponse.json(
+        { success: false, error: 'Company email already exists' },
         { status: 409 }
       );
     }
