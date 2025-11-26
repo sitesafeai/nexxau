@@ -1,7 +1,7 @@
 datasource db {
-  provider  = "postgresql"
-  url       = env("DIRECT_URL")      // Use direct connection to bypass pooler TLS issues
-  directUrl = env("DIRECT_URL")
+  provider     = "postgresql"
+  url          = env("DIRECT_URL") // Use direct connection to bypass pooler TLS issues
+  directUrl    = env("DIRECT_URL")
   relationMode = "prisma"
 }
 
@@ -51,68 +51,68 @@ model User {
   phoneNumber   String?
   accounts      Account[]
   sessions      Session[]
-  
+
   // Multi-tenant Role System
-  role          UserRole  @default(WORKER)
-  
+  role UserRole @default(WORKER)
+
   // Primary company/worksite (for backwards compatibility)
-  companyId     String?
-  company       Company?  @relation(fields: [companyId], references: [id])
-  worksiteId    String?
-  worksite      Worksite? @relation(fields: [worksiteId], references: [id])
-  
+  companyId  String?
+  company    Company?  @relation(fields: [companyId], references: [id])
+  worksiteId String?
+  worksite   Worksite? @relation(fields: [worksiteId], references: [id])
+
   // Multi-worksite access
   worksiteAccess WorksiteUser[]
   companyAccess  CompanyUser[]
-  
+
   // Invitation & Onboarding
-  inviteToken      String?   @unique
-  inviteExpires    DateTime?
-  invitedBy        String?   // User ID who invited them (stored as string, not relation)
-  isActivated      Boolean   @default(false)
-  approved         Boolean   @default(false)
-  onboardingComplete Boolean @default(false)
-  verificationToken String?  @unique
-  
+  inviteToken        String?   @unique
+  inviteExpires      DateTime?
+  invitedBy          String? // User ID who invited them (stored as string, not relation)
+  isActivated        Boolean   @default(false)
+  approved           Boolean   @default(false)
+  onboardingComplete Boolean   @default(false)
+  verificationToken  String?   @unique
+
   // MFA fields
-  mfaEnabled    Boolean   @default(false)
-  mfaSecret     String?
+  mfaEnabled     Boolean @default(false)
+  mfaSecret      String?
   mfaBackupCodes Json?
-  
+
   // Session management
-  lastLogin     DateTime?
-  timezone      String?   @default("America/New_York")
-  
+  lastLogin DateTime?
+  timezone  String?   @default("America/New_York")
+
   // Existing relations
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   alertResponses AlertResponse[]
-  alertRules    AlertRule[]
-  workflows     Workflow[]
-  blogPosts     BlogPost[]
-  mfaCodes      MFACode[]
-  apiKeys       ApiKey[]
-  activities    UserActivity[]
-  notifications Notification[]
-  errorLogs     ErrorLog[]
-  customRules   CustomRule[]
-  auditLogs     AuditLog[]
+  alertRules     AlertRule[]
+  workflows      Workflow[]
+  blogPosts      BlogPost[]
+  mfaCodes       MFACode[]
+  apiKeys        ApiKey[]
+  activities     UserActivity[]
+  notifications  Notification[]
+  errorLogs      ErrorLog[]
+  customRules    CustomRule[]
+  auditLogs      AuditLog[]
 }
 
 // Audit Log for compliance and debugging
 model AuditLog {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  action      String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, INVITE, etc.
-  entity      String   // User, Worksite, Camera, Alert, Company, etc.
-  entityId    String?  // ID of the affected entity
-  changes     Json?    // Before/after values for updates
-  ipAddress   String?
-  userAgent   String?
-  metadata    Json?    // Additional context
-  createdAt   DateTime @default(now())
-  
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, INVITE, etc.
+  entity    String // User, Worksite, Camera, Alert, Company, etc.
+  entityId  String? // ID of the affected entity
+  changes   Json? // Before/after values for updates
+  ipAddress String?
+  userAgent String?
+  metadata  Json? // Additional context
+  createdAt DateTime @default(now())
+
   @@index([userId])
   @@index([action])
   @@index([entity])
@@ -122,20 +122,20 @@ model AuditLog {
 
 // New: User role enum
 enum UserRole {
-  SUPER_ADMIN      // You - full system access
-  COMPANY_ADMIN    // Manages a company
-  SITE_ADMIN       // Manages worksites, invites workers
-  SALES_ADMIN      // Sales leadership
-  MARKETING_ADMIN  // Marketing leadership
+  SUPER_ADMIN // You - full system access
+  COMPANY_ADMIN // Manages a company
+  SITE_ADMIN // Manages worksites, invites workers
+  SALES_ADMIN // Sales leadership
+  MARKETING_ADMIN // Marketing leadership
   OPERATIONS_ADMIN // Operations / logistics leadership
-  SAFETY_ADMIN     // Safety & compliance leadership
-  FINANCE_ADMIN    // Finance leadership
-  HR_ADMIN         // People/HR leadership
-  SUPPORT_ADMIN    // Support / customer operations
+  SAFETY_ADMIN // Safety & compliance leadership
+  FINANCE_ADMIN // Finance leadership
+  HR_ADMIN // People/HR leadership
+  SUPPORT_ADMIN // Support / customer operations
   CUSTOMER_SUCCESS // Customer success / account mgmt
-  SUPERVISOR       // Can manage alerts, limited admin
-  WORKER           // Basic access
-  VIEWER           // Read-only
+  SUPERVISOR // Can manage alerts, limited admin
+  WORKER // Basic access
+  VIEWER // Read-only
 }
 
 // New: User-Worksite relationship (many-to-many)
@@ -146,10 +146,10 @@ model WorksiteUser {
   worksiteId  String
   worksite    Worksite     @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
   role        WorksiteRole @default(WORKER)
-  permissions Json?        // Custom permissions per user
+  permissions Json? // Custom permissions per user
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
-  
+
   @@unique([userId, worksiteId])
   @@index([userId])
   @@index([worksiteId])
@@ -164,15 +164,15 @@ enum WorksiteRole {
 
 // New: User-Company relationship (many-to-many)
 model CompanyUser {
-  id         String      @id @default(cuid())
-  userId     String
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  companyId  String
-  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  role       CompanyRole @default(VIEWER)
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role      CompanyRole @default(VIEWER)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
   @@unique([userId, companyId])
   @@index([userId])
   @@index([companyId])
@@ -193,62 +193,72 @@ model VerificationToken {
 }
 
 model Company {
-  id              String        @id @default(cuid())
-  name            String
-  companyUsername String        @unique // e.g., "abc-construction" (URL-friendly name)
-  email           String        @unique // Company email
-  contactEmail    String?       // Contact person email for notifications
-  phone           String?
-  address         String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  worksites       Worksite[]
-  users           User[]        // Primary users
-  companyUsers    CompanyUser[] // Multi-tenant access
-  billingRecords  CompanyBillingRecord[]
+  id                     String                 @id @default(cuid())
+  name                   String
+  companyUsername        String                 @unique // e.g., "abc-construction" (URL-friendly name)
+  email                  String                 @unique // Company email
+  contactEmail           String? // Contact person email for notifications
+  phone                  String?
+  address                String?
+  // NOTE: The following metadata fields are defined but may not exist in DB yet.
+  // Run `prisma db push` to add them when database connection is available.
+  // billingTier            String?                @default("standard") // free, pilot, standard, premium
+  // contractStart          DateTime?
+  // contractEnd            DateTime?
+  // slaLevel               String?                @default("standard") // standard, premium, enterprise
+  // insuranceCoverageStatus String? // active, pending, expired
+  // modelVersion           String? // AI model version deployed for this company
+  // mrr                    Decimal? // Monthly Recurring Revenue
+  // churnRisk              String? // low, medium, high
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  worksites              Worksite[]
+  users                  User[] // Primary users
+  companyUsers           CompanyUser[] // Multi-tenant access
+  billingRecords         CompanyBillingRecord[]
 }
 
 model Worksite {
-  id                String            @id @default(cuid())
-  name              String
-  worksiteName      String            @unique // e.g., "downtown-site-a" or "b93xa2"
-  location          String?           // City, State (e.g., "New York, NY")
-  address           String?           // Full address
-  companyId         String
-  company           Company           @relation(fields: [companyId], references: [id])
-  cameraSystemType  String            @default("mixed")
-  status            String            @default("ACTIVE") // ACTIVE, INACTIVE, ARCHIVED
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  cameraSystemConfig CameraSystemConfig?
-  workers           Worker[]
-  users             User[]
-  cameras           Camera[]
-  alerts            Alert[]
-  alertRules        AlertRule[]
-  safetyViolations SafetyViolation[]
-  smsNotifications SMSNotification[]
-  emergencyContacts EmergencyContact[]
-  safetyRules       SafetyRule[]
-  customRules       CustomRule[]
-  ruleTriggers      CustomRuleTrigger[]
-  ruleViolations    CustomRuleViolation[]
-  safetyScores      SafetyScore[]
-  safetyScoreConfig SafetyScoreConfig?
+  id                       String                    @id @default(cuid())
+  name                     String
+  worksiteName             String                    @unique // e.g., "downtown-site-a" or "b93xa2"
+  location                 String? // City, State (e.g., "New York, NY")
+  address                  String? // Full address
+  companyId                String
+  company                  Company                   @relation(fields: [companyId], references: [id])
+  cameraSystemType         String                    @default("mixed")
+  status                   String                    @default("ACTIVE") // ACTIVE, INACTIVE, ARCHIVED
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  cameraSystemConfig       CameraSystemConfig?
+  workers                  Worker[]
+  users                    User[]
+  cameras                  Camera[]
+  alerts                   Alert[]
+  alertRules               AlertRule[]
+  safetyViolations         SafetyViolation[]
+  smsNotifications         SMSNotification[]
+  emergencyContacts        EmergencyContact[]
+  safetyRules              SafetyRule[]
+  customRules              CustomRule[]
+  ruleTriggers             CustomRuleTrigger[]
+  ruleViolations           CustomRuleViolation[]
+  safetyScores             SafetyScore[]
+  safetyScoreConfig        SafetyScoreConfig?
   violationClassifications ViolationClassification[]
-  worksiteUsers     WorksiteUser[] // Multi-tenant user access
-  trainingImages   TrainingImage[]
+  worksiteUsers            WorksiteUser[] // Multi-tenant user access
+  trainingImages           TrainingImage[]
 }
 
 model CompanyBillingRecord {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   companyId   String
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   proofUrl    String?
   paidThrough DateTime?
   notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([companyId])
   @@index([paidThrough])
@@ -256,81 +266,81 @@ model CompanyBillingRecord {
 }
 
 model Worker {
-  id        String    @id @default(cuid())
-  name      String
-  email     String
-  role      String    @default("worker")
+  id         String   @id @default(cuid())
+  name       String
+  email      String
+  role       String   @default("worker")
   worksiteId String
   worksite   Worksite @relation(fields: [worksiteId], references: [id])
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  isClaimed Boolean   @default(false) // Track if worker has claimed their account
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isClaimed  Boolean  @default(false) // Track if worker has claimed their account
 
   @@unique([worksiteId, email]) // Ensure unique email per worksite
 }
 
 model Alert {
-  id          String      @id @default(cuid())
+  id          String          @id @default(cuid())
   title       String
   description String
   severity    AlertSeverity
-  status      AlertStatus  @default(ACTIVE)
-  source      String      // e.g., "camera", "sensor", "manual"
-  location    String?     // Optional location information
-  metadata    Json?       // Additional alert data
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  status      AlertStatus     @default(ACTIVE)
+  source      String // e.g., "camera", "sensor", "manual"
+  location    String? // Optional location information
+  metadata    Json? // Additional alert data
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
   resolvedAt  DateTime?
-  rule        AlertRule?  @relation(fields: [ruleId], references: [id])
+  rule        AlertRule?      @relation(fields: [ruleId], references: [id])
   ruleId      String?
-  worksite    Worksite?   @relation(fields: [worksiteId], references: [id])
+  worksite    Worksite?       @relation(fields: [worksiteId], references: [id])
   worksiteId  String?
   responses   AlertResponse[]
 }
 
 model AlertRule {
-  id          String    @id @default(cuid())
+  id          String        @id @default(cuid())
   name        String
   description String?
   category    RuleCategory
   severity    AlertSeverity
-  isActive    Boolean   @default(true)
-  
+  isActive    Boolean       @default(true)
+
   // Rule targeting
-  targetType  TargetType  @default(SITE_WIDE)
-  targetZones String[]    // Array of zone IDs
-  targetCameras String[]  // Array of camera IDs
+  targetType        TargetType @default(SITE_WIDE)
+  targetZones       String[] // Array of zone IDs
+  targetCameras     String[] // Array of camera IDs
   targetWorkerRoles String[] // Array of worker role IDs
-  
+
   // Rule conditions
-  condition   Json      // Stores the rule conditions (thresholds, triggers, etc.)
-  
+  condition Json // Stores the rule conditions (thresholds, triggers, etc.)
+
   // Alert actions
-  actions     Json      // Array of actions to take when rule is triggered
-  
+  actions Json // Array of actions to take when rule is triggered
+
   // Escalation settings
   escalationEnabled Boolean @default(false)
-  escalationDelay  Int     @default(300) // seconds
-  escalationLevels Json    // Array of escalation steps
-  
+  escalationDelay   Int     @default(300) // seconds
+  escalationLevels  Json // Array of escalation steps
+
   // Integration settings
   webhookUrl  String?
   apiEndpoint String?
-  
+
   // Metadata
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  alerts      Alert[]
-  worksite    Worksite? @relation(fields: [worksiteId], references: [id])
-  worksiteId  String?
-  userId      String?
-  user        User?     @relation(fields: [userId], references: [id])
-  
+  alerts     Alert[]
+  worksite   Worksite? @relation(fields: [worksiteId], references: [id])
+  worksiteId String?
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id])
+
   // Rule performance tracking
-  triggerCount Int       @default(0)
-  lastTriggered DateTime?
+  triggerCount        Int       @default(0)
+  lastTriggered       DateTime?
   averageResponseTime Int? // seconds
 }
 
@@ -340,38 +350,38 @@ model AlertResponse {
   alert     Alert    @relation(fields: [alertId], references: [id])
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  response  String   // e.g., "acknowledged", "investigating", "resolved"
+  response  String // e.g., "acknowledged", "investigating", "resolved"
   notes     String?
   createdAt DateTime @default(now())
 }
 
 model Site {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   name        String
   description String?
   location    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
   workflows   Workflow[]
 }
 
 model Workflow {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  nodes       Json     // Workflow nodes configuration
-  connections Json     // Workflow connections
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  site        Site?    @relation(fields: [siteId], references: [id])
-  siteId      String?
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id])
+  id                   String    @id @default(cuid())
+  name                 String
+  description          String?
+  nodes                Json // Workflow nodes configuration
+  connections          Json // Workflow connections
+  isActive             Boolean   @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  site                 Site?     @relation(fields: [siteId], references: [id])
+  siteId               String?
+  userId               String?
+  user                 User?     @relation(fields: [userId], references: [id])
   // Workflow execution tracking
-  executionCount Int      @default(0)
-  lastExecuted  DateTime?
-  successRate   Float?    // Success rate percentage
+  executionCount       Int       @default(0)
+  lastExecuted         DateTime?
+  successRate          Float? // Success rate percentage
   averageExecutionTime Int? // Average execution time in seconds
 }
 
@@ -421,23 +431,23 @@ enum AlertStatus {
 }
 
 model Camera {
-  id                String            @id @default(cuid())
-  name              String
-  type              String
-  status            String            @default("active")
-  streamUrl         String?           // RTSP or HLS stream URL
-  location          String?           // Camera location description
-  ipAddress         String?           // Camera IP address
-  port              Int?              // Camera port
-  username          String?           // Camera username (if needed)
-  password          String?           // Camera password (if needed)
-  rtspPath          String?           // RTSP path (e.g., /stream1)
-  hlsUrl            String?           // Direct HLS URL (if available)
-  mediamtxPath      String?           // MediaMTX path name
-  metadata          Json?             // Camera settings and configuration (detection zones, etc.)
-  worksiteId        String
-  worksite          Worksite          @relation(fields: [worksiteId], references: [id])
-  detections        Detection[]
+  id               String                @id @default(cuid())
+  name             String
+  type             String
+  status           String                @default("active")
+  streamUrl        String? // RTSP or HLS stream URL
+  location         String? // Camera location description
+  ipAddress        String? // Camera IP address
+  port             Int? // Camera port
+  username         String? // Camera username (if needed)
+  password         String? // Camera password (if needed)
+  rtspPath         String? // RTSP path (e.g., /stream1)
+  hlsUrl           String? // Direct HLS URL (if available)
+  mediamtxPath     String? // MediaMTX path name
+  metadata         Json? // Camera settings and configuration (detection zones, etc.)
+  worksiteId       String
+  worksite         Worksite              @relation(fields: [worksiteId], references: [id])
+  detections       Detection[]
   health           CameraHealth[]
   safetyViolations SafetyViolation[]
   smsNotifications SMSNotification[]
@@ -445,17 +455,17 @@ model Camera {
   ruleTriggers     CustomRuleTrigger[]
   ruleViolations   CustomRuleViolation[]
   trainingImages   TrainingImage[]
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 }
 
 model CameraSystemConfig {
-  id        String   @id @default(cuid())
-  worksiteId String  @unique
+  id         String   @id @default(cuid())
+  worksiteId String   @unique
   worksite   Worksite @relation(fields: [worksiteId], references: [id])
   config     Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model Detection {
@@ -463,28 +473,39 @@ model Detection {
   cameraId    String
   camera      Camera   @relation(fields: [cameraId], references: [id])
   timestamp   DateTime
-  detections  Json     // Array of detection objects
-  frameData   String?  // Base64 encoded frame image
+  detections  Json // Array of detection objects
+  frameData   String? // Base64 encoded frame image
   frameWidth  Int?
   frameHeight Int?
-  metadata    Json?    // Additional detection metadata
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  metadata    Json? // Additional detection metadata
+
+  // User feedback fields
+  userFeedback String? // 'true_positive', 'false_positive', 'needs_review'
+  feedbackBy   String? // User ID who provided feedback
+  feedbackAt   DateTime? // When feedback was provided
+  feedbackNote String? // Optional note from user
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userFeedback])
+  @@index([feedbackBy])
+  @@index([timestamp])
 }
 
 model TrainingImage {
-  id          String    @id @default(cuid())
-  imageUrl    String    // Cloud storage URL
+  id          String   @id @default(cuid())
+  imageUrl    String // Cloud storage URL
   cameraId    String
-  camera      Camera    @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+  camera      Camera   @relation(fields: [cameraId], references: [id], onDelete: Cascade)
   worksiteId  String
-  worksite    Worksite  @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
-  category    String?   // hardhat, vest, person, forklift, etc.
-  labeled     Boolean   @default(false)
-  annotations Json?     // Bounding boxes and labels
-  metadata    Json?     // Additional metadata
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  worksite    Worksite @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  category    String? // hardhat, vest, person, forklift, etc.
+  labeled     Boolean  @default(false)
+  annotations Json? // Bounding boxes and labels
+  metadata    Json? // Additional metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([cameraId])
   @@index([worksiteId])
@@ -493,98 +514,98 @@ model TrainingImage {
 }
 
 model BlogPost {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   title         String
   description   String
   content       String
   category      String
-  featured      Boolean  @default(false)
+  featured      Boolean   @default(false)
   publishedAt   DateTime?
-  status        String   @default("draft") // 'published' or 'draft'
-  author        User?    @relation(fields: [authorId], references: [id])
+  status        String    @default("draft") // 'published' or 'draft'
+  author        User?     @relation(fields: [authorId], references: [id])
   authorId      String?
   featuredImage String?
-  slug          String   @unique
-  tags          String   @default("") // Store as comma-separated string
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  slug          String    @unique
+  tags          String    @default("") // Store as comma-separated string
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model MFACode {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   userId      String
   code        String
-  type        String   // 'sms', 'email', 'totp'
+  type        String // 'sms', 'email', 'totp'
   expiresAt   DateTime
-  used        Boolean  @default(false)
+  used        Boolean   @default(false)
   usedAt      DateTime?
   phoneNumber String?
   email       String?
-  createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ApiKey {
-  id          String   @id @default(cuid())
-  name        String
-  key         String   @unique
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permissions Json     // Array of permissions
-  rateLimit   Int      @default(1000) // Requests per hour
-  isActive    Boolean  @default(true)
-  lastUsed    DateTime?
-  expiresAt   DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String    @id @default(cuid())
+  name          String
+  key           String    @unique
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions   Json // Array of permissions
+  rateLimit     Int       @default(1000) // Requests per hour
+  isActive      Boolean   @default(true)
+  lastUsed      DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   // Usage tracking
-  requestCount Int      @default(0)
+  requestCount  Int       @default(0)
   lastRequestAt DateTime?
 }
 
 model UserActivity {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  action      String   // e.g., 'login', 'logout', 'view_dashboard', 'create_alert'
-  resource    String?  // Resource being acted upon
-  resourceId  String?  // ID of the resource
-  metadata    Json?    // Additional activity data
-  ipAddress   String?
-  userAgent   String?
-  location    String?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action     String // e.g., 'login', 'logout', 'view_dashboard', 'create_alert'
+  resource   String? // Resource being acted upon
+  resourceId String? // ID of the resource
+  metadata   Json? // Additional activity data
+  ipAddress  String?
+  userAgent  String?
+  location   String?
+  createdAt  DateTime @default(now())
 }
 
 model Notification {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title       String
-  message     String
-  type        NotificationType
-  priority    NotificationPriority @default(MEDIUM)
-  isRead      Boolean  @default(false)
-  readAt      DateTime?
-  metadata    Json?    // Additional notification data
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String               @id @default(cuid())
+  userId    String
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      NotificationType
+  priority  NotificationPriority @default(MEDIUM)
+  isRead    Boolean              @default(false)
+  readAt    DateTime?
+  metadata  Json? // Additional notification data
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
 }
 
 model CameraHealth {
-  id          String   @id @default(cuid())
-  cameraId    String
-  camera      Camera   @relation(fields: [cameraId], references: [id], onDelete: Cascade)
-  status      CameraStatus
-  streamQuality Float?  // Stream quality percentage (0-100)
-  frameRate   Float?   // Current frame rate
-  resolution  String?  // Current resolution
-  bitrate     Int?     // Current bitrate
-  latency     Int?     // Stream latency in ms
-  errors      Json?    // Array of error messages
-  lastCheck   DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String       @id @default(cuid())
+  cameraId      String
+  camera        Camera       @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+  status        CameraStatus
+  streamQuality Float? // Stream quality percentage (0-100)
+  frameRate     Float? // Current frame rate
+  resolution    String? // Current resolution
+  bitrate       Int? // Current bitrate
+  latency       Int? // Stream latency in ms
+  errors        Json? // Array of error messages
+  lastCheck     DateTime     @default(now())
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 }
 
 enum NotificationType {
@@ -612,29 +633,29 @@ enum CameraStatus {
 }
 
 model ErrorLog {
-  id          String   @id @default(cuid())
-  message     String
-  stack       String?
-  severity    String   // low, medium, high, critical
-  category    String   // authentication, authorization, validation, database, external, system, business
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  endpoint    String?
-  method      String?
-  ipAddress   String?
-  userAgent   String?
-  metadata    Json?
-  resolved    Boolean  @default(false)
-  resolvedAt  DateTime?
-  resolvedBy  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String    @id @default(cuid())
+  message    String
+  stack      String?
+  severity   String // low, medium, high, critical
+  category   String // authentication, authorization, validation, database, external, system, business
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  endpoint   String?
+  method     String?
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?
+  resolved   Boolean   @default(false)
+  resolvedAt DateTime?
+  resolvedBy String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 }
 
 model SafetyViolation {
-  id            String   @id @default(cuid())
-  violationType String   // e.g., "hard_hat_violation", "safety_equipment_missing", "unsafe_behavior"
-  severity      String   // low, medium, high, critical
+  id            String    @id @default(cuid())
+  violationType String // e.g., "hard_hat_violation", "safety_equipment_missing", "unsafe_behavior"
+  severity      String // low, medium, high, critical
   location      String
   description   String
   worksiteId    String?
@@ -642,19 +663,19 @@ model SafetyViolation {
   cameraId      String?
   camera        Camera?   @relation(fields: [cameraId], references: [id], onDelete: SetNull)
   detectedAt    DateTime
-  smsSent       Boolean  @default(false)
+  smsSent       Boolean   @default(false)
   smsSentAt     DateTime?
-  resolved      Boolean  @default(false)
+  resolved      Boolean   @default(false)
   resolvedAt    DateTime?
   resolvedBy    String?
   metadata      Json?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model SMSNotification {
-  id            String   @id @default(cuid())
-  messageId     String   @unique // Twilio message SID
+  id            String    @id @default(cuid())
+  messageId     String    @unique // Twilio message SID
   phoneNumber   String
   message       String
   violationType String?
@@ -664,176 +685,176 @@ model SMSNotification {
   worksite      Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
   cameraId      String?
   camera        Camera?   @relation(fields: [cameraId], references: [id], onDelete: SetNull)
-  status        String   // sent, delivered, failed, undelivered
+  status        String // sent, delivered, failed, undelivered
   errorCode     String?
   errorMessage  String?
-  retryCount    Int      @default(0)
+  retryCount    Int       @default(0)
   lastRetryAt   DateTime?
-  sentAt        DateTime @default(now())
+  sentAt        DateTime  @default(now())
   deliveredAt   DateTime?
-  updatedAt     DateTime @updatedAt
+  updatedAt     DateTime  @updatedAt
 }
 
 model EmergencyContact {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
   phoneNumber String
   email       String?
-  role        String   // emergency, manager, supervisor
+  role        String // emergency, manager, supervisor
   worksiteId  String?
   worksite    Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
-  isActive    Boolean  @default(true)
-  priority    Int      @default(1) // 1 = highest priority
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive    Boolean   @default(true)
+  priority    Int       @default(1) // 1 = highest priority
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model SafetyRule {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   name                String
-  violationType       String   // e.g., "hard_hat_violation", "safety_equipment_missing"
-  severity            String   // low, medium, high, critical
-  confidenceThreshold Int      @default(80) // 0-100
-  smsEnabled          Boolean  @default(true)
-  smsRecipients       Json     // Array of phone numbers
-  isActive            Boolean  @default(true)
+  violationType       String // e.g., "hard_hat_violation", "safety_equipment_missing"
+  severity            String // low, medium, high, critical
+  confidenceThreshold Int       @default(80) // 0-100
+  smsEnabled          Boolean   @default(true)
+  smsRecipients       Json // Array of phone numbers
+  isActive            Boolean   @default(true)
   worksiteId          String?
   worksite            Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }
 
 // Enhanced Custom Rule Engine Models
 model CustomRule {
-  id                  String   @id @default(cuid())
-  name                String
-  description         String?
-  ruleType            String   // "object_detection", "behavior_analysis", "area_monitoring", "time_based"
-  category            String   // "safety", "security", "compliance", "operational"
-  severity            String   // low, medium, high, critical
-  isActive            Boolean  @default(true)
-  priority            Int      @default(1) // 1 = highest priority
-  
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  ruleType    String // "object_detection", "behavior_analysis", "area_monitoring", "time_based"
+  category    String // "safety", "security", "compliance", "operational"
+  severity    String // low, medium, high, critical
+  isActive    Boolean @default(true)
+  priority    Int     @default(1) // 1 = highest priority
+
   // Rule Configuration
-  detectionCriteria   Json     // Object detection criteria, behavior patterns, etc.
-  triggerConditions   Json     // When to trigger the rule
-  alertSettings       Json     // Alert configuration (SMS, email, dashboard)
-  
+  detectionCriteria Json // Object detection criteria, behavior patterns, etc.
+  triggerConditions Json // When to trigger the rule
+  alertSettings     Json // Alert configuration (SMS, email, dashboard)
+
   // Time and Location Constraints
-  timeConstraints     Json?    // Time-based rules (e.g., only during work hours)
-  locationConstraints Json?    // Location-based rules (e.g., specific areas)
-  
+  timeConstraints     Json? // Time-based rules (e.g., only during work hours)
+  locationConstraints Json? // Location-based rules (e.g., specific areas)
+
   // AI Model Configuration
-  aiModelType         String?  // "yolo", "custom", "behavior_analysis"
-  confidenceThreshold Float    @default(0.8) // 0.0 to 1.0
-  customModelPath     String?  // Path to custom AI model
-  
+  aiModelType         String? // "yolo", "custom", "behavior_analysis"
+  confidenceThreshold Float   @default(0.8) // 0.0 to 1.0
+  customModelPath     String? // Path to custom AI model
+
   // Notification Settings
-  smsEnabled          Boolean  @default(true)
-  emailEnabled        Boolean  @default(false)
-  dashboardEnabled    Boolean  @default(true)
-  smsRecipients       Json?    // Array of phone numbers
-  emailRecipients     Json?    // Array of email addresses
-  
+  smsEnabled       Boolean @default(true)
+  emailEnabled     Boolean @default(false)
+  dashboardEnabled Boolean @default(true)
+  smsRecipients    Json? // Array of phone numbers
+  emailRecipients  Json? // Array of email addresses
+
   // Cooldown and Rate Limiting
-  cooldownMinutes     Int      @default(15) // Prevent spam notifications
-  maxAlertsPerHour    Int      @default(10) // Rate limiting
-  
+  cooldownMinutes  Int @default(15) // Prevent spam notifications
+  maxAlertsPerHour Int @default(10) // Rate limiting
+
   // Relationships
-  worksiteId          String?
-  worksite            Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
-  cameraId            String?
-  camera              Camera?   @relation(fields: [cameraId], references: [id], onDelete: SetNull)
-  createdBy           String?
-  creator             User?     @relation(fields: [createdBy], references: [id], onDelete: SetNull)
-  
+  worksiteId String?
+  worksite   Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
+  cameraId   String?
+  camera     Camera?   @relation(fields: [cameraId], references: [id], onDelete: SetNull)
+  createdBy  String?
+  creator    User?     @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
   // Tracking
-  triggerCount        Int      @default(0) // How many times this rule has been triggered
-  lastTriggeredAt     DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  
+  triggerCount    Int       @default(0) // How many times this rule has been triggered
+  lastTriggeredAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
   // Related models
-  ruleTriggers        CustomRuleTrigger[]
-  ruleViolations      CustomRuleViolation[]
+  ruleTriggers   CustomRuleTrigger[]
+  ruleViolations CustomRuleViolation[]
 }
 
 model CustomRuleTrigger {
-  id              String   @id @default(cuid())
-  ruleId          String
-  rule            CustomRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
-  
+  id     String     @id @default(cuid())
+  ruleId String
+  rule   CustomRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
   // Trigger Details
-  triggerType     String   // "object_detected", "behavior_detected", "area_violation", "time_violation"
-  confidence      Float    // Confidence score from AI
-  detectionData   Json     // Raw detection data from AI service
-  
+  triggerType   String // "object_detected", "behavior_detected", "area_violation", "time_violation"
+  confidence    Float // Confidence score from AI
+  detectionData Json // Raw detection data from AI service
+
   // Context
-  cameraId        String?
-  camera          Camera?  @relation(fields: [cameraId], references: [id], onDelete: SetNull)
-  worksiteId      String?
-  worksite        Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
-  
+  cameraId   String?
+  camera     Camera?   @relation(fields: [cameraId], references: [id], onDelete: SetNull)
+  worksiteId String?
+  worksite   Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
+
   // Location and Time
-  location        String?  // GPS coordinates or area name
-  timestamp       DateTime @default(now())
-  
+  location  String? // GPS coordinates or area name
+  timestamp DateTime @default(now())
+
   // Status
-  status          String   @default("triggered") // triggered, processed, acknowledged, resolved
-  processedAt     DateTime?
-  acknowledgedAt  DateTime?
-  acknowledgedBy  String?
-  resolvedAt      DateTime?
-  resolvedBy      String?
-  
+  status         String    @default("triggered") // triggered, processed, acknowledged, resolved
+  processedAt    DateTime?
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+  resolvedAt     DateTime?
+  resolvedBy     String?
+
   // Notifications
-  smsSent         Boolean  @default(false)
-  emailSent       Boolean  @default(false)
-  dashboardAlert  Boolean  @default(true)
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  smsSent        Boolean @default(false)
+  emailSent      Boolean @default(false)
+  dashboardAlert Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model CustomRuleViolation {
-  id              String   @id @default(cuid())
-  ruleId          String
-  rule            CustomRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
-  triggerId       String?  // Reference to the trigger that caused this violation
-  
+  id        String     @id @default(cuid())
+  ruleId    String
+  rule      CustomRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  triggerId String? // Reference to the trigger that caused this violation
+
   // Violation Details
-  violationType   String   // Type of violation detected
-  severity        String   // Severity level
-  description     String   // Human-readable description
-  
+  violationType String // Type of violation detected
+  severity      String // Severity level
+  description   String // Human-readable description
+
   // Detection Data
-  detectionData   Json     // AI detection results, bounding boxes, etc.
-  imageUrl        String?  // Snapshot of the violation
-  videoUrl        String?  // Video clip of the violation
-  
+  detectionData Json // AI detection results, bounding boxes, etc.
+  imageUrl      String? // Snapshot of the violation
+  videoUrl      String? // Video clip of the violation
+
   // Context
-  cameraId        String?
-  camera          Camera?  @relation(fields: [cameraId], references: [id], onDelete: SetNull)
-  worksiteId      String?
-  worksite        Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
-  
+  cameraId   String?
+  camera     Camera?   @relation(fields: [cameraId], references: [id], onDelete: SetNull)
+  worksiteId String?
+  worksite   Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
+
   // Location and Time
-  location        String?
-  detectedAt      DateTime @default(now())
-  
+  location   String?
+  detectedAt DateTime @default(now())
+
   // Status
-  status          String   @default("active") // active, acknowledged, resolved, false_positive
-  acknowledgedAt  DateTime?
-  acknowledgedBy  String?
-  resolvedAt      DateTime?
-  resolvedBy      String?
-  
+  status         String    @default("active") // active, acknowledged, resolved, false_positive
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+  resolvedAt     DateTime?
+  resolvedBy     String?
+
   // Notifications
-  smsSent         Boolean  @default(false)
-  emailSent       Boolean  @default(false)
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  smsSent   Boolean @default(false)
+  emailSent Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ============================================
@@ -842,115 +863,114 @@ model CustomRuleViolation {
 // ============================================
 
 model SafetyScore {
-  id                  String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Site and Date
-  worksiteId          String
-  worksite            Worksite @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
-  date                DateTime @db.Date
-  
+  worksiteId String
+  worksite   Worksite @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  date       DateTime @db.Date
+
   // Raw Inputs
-  totalDetections     Int      @default(0)
-  majorViolations     Int      @default(0)
-  minorViolations     Int      @default(0)
-  customAlerts        Json?    // [{type, count, weight, name}]
-  
+  totalDetections Int   @default(0)
+  majorViolations Int   @default(0)
+  minorViolations Int   @default(0)
+  customAlerts    Json? // [{type, count, weight, name}]
+
   // Calculated Components
-  baseCompliance      Float    // C (0.0 - 1.0)
-  coverageFactor      Float    // F_cov (0.0 - 1.0)
-  violationPenalty    Float    // P (0.0 - 1.0)
-  
+  baseCompliance   Float // C (0.0 - 1.0)
+  coverageFactor   Float // F_cov (0.0 - 1.0)
+  violationPenalty Float // P (0.0 - 1.0)
+
   // Breakdown for transparency
-  majorPenalty        Float    @default(0)
-  minorPenalty        Float    @default(0)
-  customAlertPenalty  Float    @default(0)
-  scalingFactor       Float    @default(1)
-  
+  majorPenalty       Float @default(0)
+  minorPenalty       Float @default(0)
+  customAlertPenalty Float @default(0)
+  scalingFactor      Float @default(1)
+
   // Bonuses
-  consecutiveSafeDays Int      @default(0)
-  safetyBonus         Float    @default(0)
-  
+  consecutiveSafeDays Int   @default(0)
+  safetyBonus         Float @default(0)
+
   // Final Score
-  safetyScore         Float    // 0.0 - 100.0
-  grade               String   // A+, A, A-, B+, etc.
-  
+  safetyScore Float // 0.0 - 100.0
+  grade       String // A+, A, A-, B+, etc.
+
   // Metadata
-  calculationVersion  Int      @default(1)
-  calculatedAt        DateTime @default(now())
-  
+  calculationVersion Int      @default(1)
+  calculatedAt       DateTime @default(now())
+
   // Trends (stored for quick access)
-  yesterdayScore      Float?
-  weekAvgScore        Float?
-  monthAvgScore       Float?
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  
+  yesterdayScore Float?
+  weekAvgScore   Float?
+  monthAvgScore  Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([worksiteId, date])
   @@index([worksiteId, date])
   @@index([date])
 }
 
 model SafetyScoreConfig {
-  id                  String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Site-specific or global
-  worksiteId          String?  @unique
-  worksite            Worksite? @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
-  isGlobal            Boolean  @default(false) // Global config for all sites
-  
+  worksiteId String?   @unique
+  worksite   Worksite? @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  isGlobal   Boolean   @default(false) // Global config for all sites
+
   // Violation Weights
-  alpha               Float    @default(1.0)   // Major violations
-  beta                Float    @default(0.25)  // Minor violations
-  gamma               Float    @default(1.0)   // Custom alerts
-  
+  alpha Float @default(1.0) // Major violations
+  beta  Float @default(0.25) // Minor violations
+  gamma Float @default(1.0) // Custom alerts
+
   // Alert Weight Bounds
-  alertWeightMin      Float    @default(0.1)
-  alertWeightMax      Float    @default(2.0)
-  defaultAlertWeight  Float    @default(0.5)
-  
+  alertWeightMin     Float @default(0.1)
+  alertWeightMax     Float @default(2.0)
+  defaultAlertWeight Float @default(0.5)
+
   // Penalty Caps
-  maxPenalty          Float    @default(0.5)   // P_max (50%)
-  perTypeAlertCap     Int      @default(50)    // Max alerts of same type
-  
+  maxPenalty      Float @default(0.5) // P_max (50%)
+  perTypeAlertCap Int   @default(50) // Max alerts of same type
+
   // Time Decay
-  lambda              Float    @default(0.1)   // Decay rate (10% per day)
-  
+  lambda Float @default(0.1) // Decay rate (10% per day)
+
   // Deduplication
-  timeWindowSeconds   Int      @default(300)   // 5 minutes
+  timeWindowSeconds      Int   @default(300) // 5 minutes
   spatialThresholdMeters Float @default(10.0)
-  
+
   // Bonuses
-  safeDayBonusRate    Float    @default(0.01)  // 1% per day
-  maxBonus            Float    @default(0.10)  // Max 10%
-  safeDayThreshold    Int      @default(7)     // Days needed
-  
+  safeDayBonusRate Float @default(0.01) // 1% per day
+  maxBonus         Float @default(0.10) // Max 10%
+  safeDayThreshold Int   @default(7) // Days needed
+
   // Data Requirements
-  minDetections       Int      @default(100)
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  minDetections Int @default(100)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ViolationClassification {
-  id                  String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Classification
-  violationType       String   @unique // e.g., "no_hardhat", "zone_breach"
-  name                String   // Display name
-  description         String?
-  severity            String   // major, minor
-  
+  violationType String  @unique // e.g., "no_hardhat", "zone_breach"
+  name          String // Display name
+  description   String?
+  severity      String // major, minor
+
   // Scoring
-  defaultWeight       Float    @default(1.0)
-  
+  defaultWeight Float @default(1.0)
+
   // Custom per site
-  worksiteId          String?
-  worksite            Worksite? @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  
+  worksiteId String?
+  worksite   Worksite? @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([worksiteId])
 }
-

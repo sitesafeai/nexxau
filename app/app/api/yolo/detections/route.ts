@@ -82,6 +82,24 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Save detection to database first (so we can link alerts to it)
+    const savedDetection = await prisma.detection.create({
+      data: {
+        cameraId: camera_id,
+        timestamp: new Date(timestamp),
+        detections: filteredDetections,
+        frameData: frame_data,
+        frameWidth: frame_width,
+        frameHeight: frame_height,
+        metadata: {
+          confidence: filteredDetections.length > 0 
+            ? filteredDetections.reduce((max, d) => Math.max(max, d.score || d.confidence || d.conf || 0), 0)
+            : 0,
+          detectionCount: filteredDetections.length,
+        },
+      },
+    });
+
     // Check for zone violations
     const cameraZones = getCameraZones(camera.metadata);
     let zoneViolations: any[] = [];
@@ -127,7 +145,8 @@ export async function POST(request: NextRequest) {
               bbox: violation.detection.bbox,
               timestamp: new Date().toISOString(),
               frameWidth: frame_width,
-              frameHeight: frame_height
+              frameHeight: frame_height,
+              detectionId: savedDetection.id, // Link alert to detection for feedback
             };
 
             let alert = await prisma.alert.create({
@@ -229,12 +248,7 @@ export async function POST(request: NextRequest) {
       console.error('Error broadcasting detection:', error);
     }
 
-    // Store in database asynchronously with retry logic (non-blocking)
-    dbPool.executeWithRetry(
-      () => prisma.detection.create({
-        data: processedData
-      })
-    ).catch(console.error);
+    // Detection already saved above, no need to save again
 
     // Check for safety violations asynchronously with retry logic (non-blocking)
     // Use filtered detections and pass settings

@@ -16,7 +16,7 @@ const EMAIL_CONFIG = {
   },
 };
 
-const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@sitesafe.ai';
+const FROM_EMAIL = process.env.FROM_EMAIL || 'sitesafeai@gmail.com';
 const FROM_NAME = process.env.FROM_NAME || 'SiteSafe';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
@@ -25,6 +25,22 @@ let transporter: nodemailer.Transporter | null = null;
 
 const getTransporter = () => {
   if (!transporter) {
+    // Log configuration (without password) for debugging
+    console.log('[email-service] Initializing transporter with:', {
+      host: EMAIL_CONFIG.host,
+      port: EMAIL_CONFIG.port,
+      secure: EMAIL_CONFIG.secure,
+      user: EMAIL_CONFIG.auth.user,
+      hasPassword: !!EMAIL_CONFIG.auth.pass,
+    });
+
+    if (!EMAIL_CONFIG.auth.user || !EMAIL_CONFIG.auth.pass) {
+      console.error('[email-service] Missing SMTP credentials!');
+      console.error('[email-service] SMTP_USER:', EMAIL_CONFIG.auth.user ? 'Set' : 'MISSING');
+      console.error('[email-service] SMTP_PASSWORD:', EMAIL_CONFIG.auth.pass ? 'Set' : 'MISSING');
+      throw new Error('SMTP credentials not configured. Please set SMTP_USER and SMTP_PASSWORD in .env');
+    }
+
     transporter = nodemailer.createTransport(EMAIL_CONFIG);
   }
   return transporter;
@@ -145,6 +161,9 @@ export async function sendInvitationEmail(
   token: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    console.log('[email-service] Sending invitation email to:', to);
+    console.log('[email-service] From:', FROM_EMAIL);
+    
     const inviteUrl = `${APP_URL}/auth/claim-account?token=${token}`;
     
     const content = `
@@ -163,7 +182,7 @@ export async function sendInvitationEmail(
       </ul>
     `;
 
-    await getTransporter().sendMail({
+    const mailOptions = {
       from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
       to,
       subject: `You've been invited to join ${companyName} on SiteSafe`,
@@ -173,12 +192,27 @@ export async function sendInvitationEmail(
         'Claim Your Account',
         inviteUrl
       ),
+    };
+
+    console.log('[email-service] Mail options:', {
+      from: mailOptions.from,
+      to: mailOptions.to,
+      subject: mailOptions.subject,
     });
+
+    const result = await getTransporter().sendMail(mailOptions);
+    console.log('[email-service] ✅ Email sent successfully! MessageId:', result.messageId);
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error sending invitation email:', error);
-    return { success: false, error: error.message };
+    console.error('[email-service] ❌ Error sending invitation email:', error);
+    console.error('[email-service] Error details:', {
+      message: error.message,
+      code: error.code,
+      command: error.command,
+      response: error.response,
+    });
+    return { success: false, error: error.message || 'Unknown error sending email' };
   }
 }
 

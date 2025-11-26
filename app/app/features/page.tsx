@@ -1,168 +1,213 @@
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
-import Navbar from '@/components/Navbar';
+import Image from 'next/image';
 import { 
-  ShieldCheckIcon, 
-  ChartBarIcon, 
-  BellIcon, 
-  CameraIcon, 
-  ExclamationTriangleIcon, 
-  CheckCircleIcon,
-  UserGroupIcon,
-  DocumentCheckIcon,
-  ChartPieIcon,
-  ClockIcon,
+  EyeIcon,
+  BellAlertIcon,
+  ChartBarIcon,
   DevicePhoneMobileIcon,
-  CloudIcon
+  CpuChipIcon,
+  ShieldCheckIcon,
+  CheckCircleIcon
 } from '@heroicons/react/24/outline';
-
-const features = [
-  {
-    name: 'Real-time Safety Monitoring',
-    description: '24/7 AI-powered surveillance that instantly detects safety violations and potential hazards on your construction site.',
-    longDescription: 'Our advanced computer vision system continuously monitors your site, identifying safety violations in real-time. From missing PPE to unsafe work practices, our AI instantly detects and alerts you to potential hazards before they become incidents.',
-    icon: CameraIcon,
-    benefits: [
-      'Instant detection of safety violations',
-      '24/7 automated monitoring',
-      'Reduced response time to hazards',
-      'Proactive safety management'
-    ]
-  },
-  {
-    name: 'Compliance Tracking',
-    description: 'Automated tracking of safety compliance metrics and instant reporting for regulatory requirements.',
-    longDescription: 'Stay ahead of compliance requirements with our comprehensive tracking system. Automatically monitor and document safety protocols, training certifications, and regulatory compliance. Generate detailed reports for audits and inspections with just a few clicks.',
-    icon: DocumentCheckIcon,
-    benefits: [
-      'Automated compliance documentation',
-      'Real-time compliance status',
-      'Customizable reporting',
-      'Regulatory requirement tracking'
-    ]
-  },
-  {
-    name: 'Nexxau Copilot',
-    description: 'Your AI assistant for smarter safety management, from creating alerts to actionable feedback.',
-    longDescription: 'Nexxau Copilot is your intelligent AI assistant designed to help you manage site safety with ease. Copilot can create custom alerts, analyze your site data, and provide actionable feedback such as identifying the most dangerous worksites, the most frequently repeated alerts, and more. It empowers you to make data-driven decisions and continuously improve safety outcomes.',
-    icon: ShieldCheckIcon,
-    benefits: [
-      'AI-powered alert creation',
-      'Feedback on most dangerous worksites',
-      'Insights on most repeated alerts',
-      'Personalized safety recommendations',
-      'Continuous improvement suggestions'
-    ]
-  },
-  {
-    name: 'Analytics Dashboard',
-    description: 'Comprehensive analytics and insights to improve safety performance and reduce incidents.',
-    longDescription: 'Make data-driven safety decisions with our powerful analytics dashboard. Track safety metrics, identify trends, and measure the effectiveness of your safety programs. Visualize your safety data with interactive charts and reports.',
-    icon: ChartPieIcon,
-    benefits: [
-      'Real-time safety metrics',
-      'Trend analysis',
-      'Customizable dashboards',
-      'Performance benchmarking'
-    ]
-  },
-  {
-    name: 'Mobile Alerts',
-    description: 'Instant notifications and alerts delivered to your mobile device for immediate response.',
-    longDescription: 'Never miss a safety incident with our mobile alert system. Receive instant notifications about safety violations, compliance issues, or potential hazards. Respond quickly with our mobile app, which allows you to acknowledge, document, and resolve issues on the go.',
-    icon: DevicePhoneMobileIcon,
-    benefits: [
-      'Real-time mobile notifications',
-      'Quick response capabilities',
-      'Mobile incident documentation',
-      'On-the-go safety management'
-    ]
-  },
-  {
-    name: 'Cloud Storage',
-    description: 'Secure cloud storage for all safety documentation, incident reports, and compliance records.',
-    longDescription: 'Keep all your safety documentation secure and easily accessible with our cloud storage solution. Store incident reports, safety audits, training records, and compliance documentation in one secure location. Access your safety records from anywhere, anytime.',
-    icon: CloudIcon,
-    benefits: [
-      'Secure document storage',
-      'Easy access to records',
-      'Automated backups',
-      'Version control'
-    ]
-  }
-];
 
 export default function FeaturesPage() {
   return (
-    <div className="min-h-screen bg-gray-900">
-      <Navbar />
-      
-      {/* Hero Section */}
-      <div className="relative py-24 sm:py-32">
+    <div className="bg-gray-900 min-h-screen">
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-gray-900/90 backdrop-blur-sm border-b border-white/10">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Link href="/test-homepage" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <Image src="/nexxau-logo-resized.png" alt="Nexxau Logo" width={32} height={32} className="w-8 h-8 object-contain" />
+              <span className="text-xl tracking-tight text-white font-bold">NEXXAU</span>
+            </Link>
+            <nav className="hidden md:flex items-center gap-8">
+              <Link href="/test-homepage" className="text-gray-400 hover:text-white transition-colors text-sm">Home</Link>
+              <Link href="/features" className="text-white transition-colors text-sm">Features</Link>
+              <Link href="/industries" className="text-gray-400 hover:text-white transition-colors text-sm">Industries</Link>
+              <Link href="/partners/insurance" className="text-gray-400 hover:text-white transition-colors text-sm">For Insurance</Link>
+              <Link href="/about" className="text-gray-400 hover:text-white transition-colors text-sm">About</Link>
+              <Link href="/contact" className="text-gray-400 hover:text-white transition-colors text-sm">Contact</Link>
+            </nav>
+            <Link href="/contact/sales" className="px-4 py-1.5 bg-white text-gray-900 hover:bg-white/90 rounded-lg transition-colors font-semibold text-sm">
+              Request Demo
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <div className="relative pt-32 pb-16">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center">
-            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
-              Powerful Features for Modern Safety
+          <div className="mx-auto max-w-3xl text-center">
+            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+              Features That Cut Violations Before They Become Injuries
             </h1>
-            <p className="mt-6 text-lg leading-8 text-gray-300">
-              Discover how Nexxau's comprehensive suite of features can transform your construction site safety management.
+            <p className="mt-6 text-lg text-gray-300">
+              Detection accuracy 95%+. Alert latency under 2 seconds. Built for construction, not conferences.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Features Grid */}
-      <div className="mx-auto max-w-7xl px-6 lg:px-8 pb-24">
-        <div className="mx-auto grid max-w-2xl grid-cols-1 gap-8 lg:mx-0 lg:max-w-none lg:grid-cols-2">
-          {features.map((feature) => (
-            <div key={feature.name} className="flex flex-col bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
-              <div className="flex items-center gap-4 mb-6">
-                <feature.icon className="h-8 w-8 text-blue-400" aria-hidden="true" />
-                <h3 className="text-xl font-semibold text-white">{feature.name}</h3>
-              </div>
-              <p className="text-gray-300 mb-6">{feature.longDescription}</p>
-              <div className="mt-auto">
-                <h4 className="text-sm font-semibold text-blue-400 mb-4">Key Benefits:</h4>
-                <ul className="space-y-3">
-                  {feature.benefits.map((benefit) => (
-                    <li key={benefit} className="flex items-center gap-2 text-gray-300">
-                      <CheckCircleIcon className="h-5 w-5 text-blue-400" />
-                      {benefit}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+      {/* Core Suite */}
+      <div className="bg-gray-800 py-20">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <h2 className="text-2xl font-bold text-white mb-10 text-center">Core Enforcement Suite</h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-gray-900 rounded-lg p-6 border border-gray-700">
+              <EyeIcon className="h-8 w-8 text-blue-400 mb-4" />
+              <h3 className="text-lg font-semibold text-white mb-2">Detection</h3>
+              <p className="text-sm text-gray-400">PPE violations, zone breaches, unsafe proximity — detected in under 2 seconds via your existing cameras.</p>
             </div>
-          ))}
+            <div className="bg-gray-900 rounded-lg p-6 border border-gray-700">
+              <BellAlertIcon className="h-8 w-8 text-blue-400 mb-4" />
+              <h3 className="text-lg font-semibold text-white mb-2">Alerts</h3>
+              <p className="text-sm text-gray-400">Mobile push, email, SMS. Severity-based routing. Escalation rules if unresolved after X minutes.</p>
+            </div>
+            <div className="bg-gray-900 rounded-lg p-6 border border-gray-700">
+              <ChartBarIcon className="h-8 w-8 text-blue-400 mb-4" />
+              <h3 className="text-lg font-semibold text-white mb-2">Analytics</h3>
+              <p className="text-sm text-gray-400">Violation heatmaps, contractor rankings, shift comparisons, trend analysis — exportable for insurers.</p>
+            </div>
+            <div className="bg-gray-900 rounded-lg p-6 border border-gray-700">
+              <DevicePhoneMobileIcon className="h-8 w-8 text-blue-400 mb-4" />
+              <h3 className="text-lg font-semibold text-white mb-2">Mobile</h3>
+              <p className="text-sm text-gray-400">Supervisors get alerts on their phones. Acknowledge, escalate, or mark resolved — from anywhere.</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* CTA Section */}
-      <div className="bg-gray-800">
-        <div className="mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Ready to Transform Your Site Safety?
-            </h2>
-            <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-gray-300">
-              Join leading construction companies who trust Nexxau to protect their workers and improve compliance.
-            </p>
-            <div className="mt-10 flex items-center justify-center gap-x-6">
-              <Link
-                href="/contact"
-                className="rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-              >
-                Get Started
-              </Link>
-              <Link href="/demo" className="text-sm font-semibold leading-6 text-white">
-                Watch Demo <span aria-hidden="true">→</span>
-              </Link>
+      {/* Copilot - Concrete */}
+      <div className="py-20">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl">
+            <div className="grid md:grid-cols-2 gap-12 items-center">
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <CpuChipIcon className="h-8 w-8 text-blue-400" />
+                  <h2 className="text-2xl font-bold text-white">Nexxau Copilot</h2>
+                </div>
+                <p className="text-gray-300 mb-6">
+                  Not a chatbot. A safety analyst that flags patterns you'd miss and surfaces them before they escalate.
+                </p>
+                <ul className="space-y-3">
+                  <li className="flex items-start gap-2 text-sm text-gray-300">
+                    <CheckCircleIcon className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                    <span>"Site B's 3rd-shift violations spiked 40% this week"</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-sm text-gray-300">
+                    <CheckCircleIcon className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                    <span>"Contractor X has 3x the hardhat violations of average"</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-sm text-gray-300">
+                    <CheckCircleIcon className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                    <span>"Zone 4 breach frequency suggests signage issue"</span>
+                  </li>
+                </ul>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">What Copilot Does</p>
+                <ul className="space-y-2 text-sm text-gray-300">
+                  <li>→ Flags problem shifts, subcontractors, zones</li>
+                  <li>→ Auto-generates weekly summaries</li>
+                  <li>→ Tunes detection thresholds based on site conditions</li>
+                  <li>→ Predicts violation spikes before they happen</li>
+                </ul>
+              </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Differentiator */}
+      <div className="bg-gray-800 py-20 border-y border-gray-700">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl">
+            <h2 className="text-2xl font-bold text-white mb-8 text-center">Why This Beats Manual Patrols</h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-gray-900 rounded-lg p-6 border border-gray-700">
+                <h3 className="text-lg font-semibold text-red-400 mb-3">Traditional Approach</h3>
+                <ul className="space-y-2 text-sm text-gray-400">
+                  <li>• Random patrols catch maybe 5% of violations</li>
+                  <li>• No evidence if incident occurs</li>
+                  <li>• Subjective enforcement varies by shift</li>
+                  <li>• No trend data for insurers</li>
+                </ul>
+              </div>
+              <div className="bg-gray-900 rounded-lg p-6 border border-blue-500/50">
+                <h3 className="text-lg font-semibold text-blue-400 mb-3">With Nexxau</h3>
+                <ul className="space-y-2 text-sm text-gray-300">
+                  <li>• Every camera is a 24/7 safety monitor</li>
+                  <li>• Video evidence for every violation</li>
+                  <li>• Consistent detection, every shift</li>
+                  <li>• Structured data for underwriting</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Setup */}
+      <div className="py-20">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl text-center">
+            <h2 className="text-2xl font-bold text-white mb-6">Setup in Days, Not Months</h2>
+            <p className="text-gray-400 mb-8">
+              We connect to your existing IP cameras via RTSP. No new hardware. Configuration and calibration typically take 2-5 business days depending on site complexity.
+            </p>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <p className="text-2xl font-bold text-white">Day 1-2</p>
+                <p className="text-xs text-gray-400">Camera integration</p>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <p className="text-2xl font-bold text-white">Day 3-4</p>
+                <p className="text-xs text-gray-400">Zone configuration</p>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <p className="text-2xl font-bold text-white">Day 5</p>
+                <p className="text-xs text-gray-400">Live + training</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Security */}
+      <div className="bg-gray-800 py-16 border-t border-gray-700">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl">
+            <div className="flex items-center gap-3 mb-6">
+              <ShieldCheckIcon className="h-6 w-6 text-blue-400" />
+              <h2 className="text-lg font-semibold text-white">Security & Privacy</h2>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="text-gray-400"><span className="text-white">TLS 1.3</span> in transit</div>
+              <div className="text-gray-400"><span className="text-white">AES-256</span> at rest</div>
+              <div className="text-gray-400"><span className="text-white">Role-based</span> access</div>
+              <div className="text-gray-400"><span className="text-white">Configurable</span> retention</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CTA */}
+      <div className="py-16">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-2xl font-bold text-white mb-4">See It Detect Violations Live</h2>
+            <p className="text-gray-400 mb-8">30-minute demo on your schedule.</p>
+            <Link href="/contact/sales" className="inline-block rounded-md bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-500">
+              Request Demo
+            </Link>
           </div>
         </div>
       </div>
     </div>
   );
-} 
+}

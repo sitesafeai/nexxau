@@ -14,6 +14,7 @@ import ExportButton from '../components/ExportButton';
 import { useCameraStore } from '../lib/camera-store';
 import SafetyScoreCard from '../components/SafetyScoreCard';
 import { formatRoleLabel, isAdminRole, normalizeRole } from '../lib/roles';
+import DetectionFeedback from '../components/DetectionFeedback';
 
 // Wrapper component that provides the dashboard context
 export default function DashboardPage() {
@@ -53,30 +54,7 @@ function DashboardContent() {
     return 'bg-gray-700 text-gray-300';
   }, [normalizedUserRole, isAdminUser]);
 
-  useEffect(() => {
-    if (normalizedUserRole === 'SUPER_ADMIN') {
-      router.replace('/super-admin');
-    }
-  }, [normalizedUserRole, router]);
-
-  if (normalizedUserRole === 'SUPER_ADMIN') {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-slate-200">
-        <div className="rounded-2xl border border-slate-700/60 bg-slate-900/80 px-6 py-8 text-center shadow-xl shadow-black/40">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-purple-500/10 text-purple-300">
-            <svg className="h-6 w-6 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M5 9a7 7 0 0114 0v6a7 7 0 11-14 0V9z" />
-            </svg>
-          </div>
-          <h2 className="mt-4 text-lg font-semibold text-white">Redirecting to Super Admin Console</h2>
-          <p className="mt-2 text-sm text-slate-400">
-            The global control tower lives under <code className="rounded bg-slate-800 px-1.5 py-0.5 text-xs text-slate-200">/super-admin</code>.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   const navigationItems = useMemo(() => {
     const items = [
       {
@@ -173,6 +151,12 @@ function DashboardContent() {
   }, [isSuperAdmin]);
 
   useEffect(() => {
+    if (normalizedUserRole === 'SUPER_ADMIN') {
+      router.replace('/super-admin');
+    }
+  }, [normalizedUserRole, router]);
+
+  useEffect(() => {
     if (!isSuperAdmin && selected === 'ai-training') {
       setSelected('overview');
     }
@@ -187,13 +171,25 @@ function DashboardContent() {
         selectSite(worksiteParam);
       } else if (!selectedSiteId) {
         // Fallback to first site if parameter doesn't match
-      selectSite(accessibleSites[0].id);
-    }
+        const firstSite = accessibleSites[0];
+        if (firstSite) {
+          selectSite(firstSite.id);
+          // Update URL to include worksite parameter
+          router.replace(`/dashboard?worksite=${firstSite.id}`);
+        }
+      }
     } else if (!selectedSiteId && accessibleSites.length > 0) {
-      // No parameter, select first available site
-      selectSite(accessibleSites[0].id);
+      // No parameter, select first available site and update URL
+      const firstSite = accessibleSites[0];
+      if (firstSite) {
+        selectSite(firstSite.id);
+        router.replace(`/dashboard?worksite=${firstSite.id}`);
+      }
+    } else if (selectedSiteId && !worksiteParam) {
+      // We have a selected site but no URL parameter - add it
+      router.replace(`/dashboard?worksite=${selectedSiteId}`);
     }
-  }, [worksiteParam, selectedSiteId, accessibleSites.length]);
+  }, [worksiteParam, selectedSiteId, accessibleSites.length, selectSite, router]);
 
   // Show welcome notification (only once)
   useEffect(() => {
@@ -229,7 +225,14 @@ function DashboardContent() {
               </label>
               <select
                 value={selectedSiteId || ''}
-                onChange={(e) => selectSite(e.target.value)}
+                onChange={(e) => {
+                  const newSiteId = e.target.value;
+                  selectSite(newSiteId);
+                  // Update URL immediately when worksite changes
+                  if (newSiteId) {
+                    router.replace(`/dashboard?worksite=${newSiteId}`);
+                  }
+                }}
                 className="w-full bg-slate-800/50 border border-slate-600/50 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200 backdrop-blur-sm font-medium"
               >
                 {accessibleSites.map((site) => (
@@ -252,7 +255,11 @@ function DashboardContent() {
                       {selectedSite.status}
                     </span>
                     <span className="text-xs font-semibold text-slate-300">
-                      Safety: <span className="text-blue-400">{selectedSite.safetyScore}%</span>
+                      Safety: <span className="text-blue-400">
+                        {selectedSite.safetyScore !== null && selectedSite.safetyScore !== undefined 
+                          ? `${selectedSite.safetyScore}%` 
+                          : 'Not calculated'}
+                      </span>
                     </span>
         </div>
         </div>
@@ -343,7 +350,9 @@ function DashboardContent() {
                       {selectedSite.status}
                     </span>
                     <span className="ml-2 text-xs text-gray-400">
-                      Safety: {selectedSite.safetyScore}%
+                      Safety: {selectedSite.safetyScore !== null && selectedSite.safetyScore !== undefined 
+                        ? `${selectedSite.safetyScore}%` 
+                        : 'Not calculated'}
                     </span>
         </div>
         </div>
@@ -424,6 +433,7 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
     }
   }, []);
 
+  // Early return AFTER all hooks are called
   if (!currentSite) {
   return (
     <div className="space-y-6">
@@ -493,15 +503,19 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
           <p className="text-gray-300">{currentSite.address}</p>
         </div>
         <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-2">
-          <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
-            currentSite.status === 'active' ? 'bg-green-900 text-green-300' :
-            currentSite.status === 'maintenance' ? 'bg-yellow-900 text-yellow-300' :
-            'bg-red-900 text-red-300'
-          }`}>
-            {currentSite.status}
-          </span>
-          <span className="text-sm text-gray-400">Safety Score: {currentSite.safetyScore}%</span>
+          <div className="flex items-center space-x-2">
+            <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+              currentSite.status === 'active' ? 'bg-green-900 text-green-300' :
+              currentSite.status === 'maintenance' ? 'bg-yellow-900 text-yellow-300' :
+              'bg-red-900 text-red-300'
+            }`}>
+              {currentSite.status}
+            </span>
+            <span className="text-sm text-gray-400">
+              Safety Score: {currentSite.safetyScore !== null && currentSite.safetyScore !== undefined 
+                ? `${currentSite.safetyScore}%` 
+                : 'Not calculated'}
+            </span>
           </div>
           <ExportButton 
             siteId={currentSite.id}
@@ -534,11 +548,11 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
 
       {/* Tab Content */}
       <div className="mt-6">
-        {activeTab === 'overview' && <OverviewTab currentSite={currentSite} />}
-        {activeTab === 'alerts' && <AlertsTab currentSite={currentSite} />}
-        {activeTab === 'monitoring' && <MonitoringTab currentSite={currentSite} />}
-        {activeTab === 'reports' && <ReportsTab currentSite={currentSite} />}
-        {activeTab === 'sites' && <SitesTab currentSite={currentSite} />}
+        {activeTab === 'overview' && <OverviewTab key="overview" currentSite={currentSite} />}
+        {activeTab === 'alerts' && <AlertsTab key="alerts" currentSite={currentSite} />}
+        {activeTab === 'monitoring' && <MonitoringTab key="monitoring" currentSite={currentSite} />}
+        {activeTab === 'reports' && <ReportsTab key="reports" currentSite={currentSite} />}
+        {activeTab === 'sites' && <SitesTab key="sites" currentSite={currentSite} />}
       </div>
     </div>
   );
@@ -546,7 +560,8 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
 
 function OverviewTab({ currentSite }: { currentSite: any }) {
   const router = useRouter();
-  const { cameras } = useCameraStore(currentSite?.id);
+  // Always call hooks, even if currentSite is null/undefined
+  const { cameras } = useCameraStore(currentSite?.id || undefined);
 
   const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -714,7 +729,11 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
         </div>
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-lg font-semibold text-white">Safety Score</h3>
-          <p className="text-3xl font-bold text-yellow-400">{currentSite.safetyScore}%</p>
+          <p className="text-3xl font-bold text-yellow-400">
+            {currentSite.safetyScore !== null && currentSite.safetyScore !== undefined 
+              ? `${currentSite.safetyScore}%` 
+              : 'N/A'}
+          </p>
         </div>
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-lg font-semibold text-white">Last Activity</h3>
@@ -1236,10 +1255,30 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
                           >
                             Download Report
                           </button>
+                          {alert.metadata?.detectionId && (
+                            <button
+                              onClick={() => {
+                                setSelectedAlert(alert);
+                                setShowFullAlert(true);
+                              }}
+                              className="block px-3 py-2 text-xs text-gray-300 hover:bg-gray-600 w-full text-left"
+                            >
+                              Provide Feedback
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
                   </td>
+                  {/* Feedback indicator in table */}
+                  {alert.metadata?.detectionId && (
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <DetectionFeedback
+                        detectionId={alert.metadata.detectionId}
+                        compact={true}
+                      />
+                    </td>
+                  )}
                 </tr>
               ))
               )}
@@ -1350,6 +1389,23 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
                   <h4 className="text-lg font-semibold text-white mb-3">Description</h4>
                   <p className="text-gray-300">{selectedAlert.description || 'No description available'}</p>
                 </div>
+
+                {/* Detection Feedback Section */}
+                {selectedAlert.metadata?.detectionId && (
+                  <div className="bg-gray-700 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-white mb-2">Detection Feedback</h4>
+                    <p className="text-xs text-gray-400 mb-3">
+                      Help improve our AI by marking this detection as accurate or incorrect.
+                    </p>
+                    <DetectionFeedback
+                      detectionId={selectedAlert.metadata.detectionId}
+                      onFeedbackSubmitted={() => {
+                        // Refresh alert data if needed
+                        console.log('Feedback submitted for detection:', selectedAlert.metadata.detectionId);
+                      }}
+                    />
+                  </div>
+                )}
 
                 <div className="flex space-x-3">
                   <button 
@@ -1751,7 +1807,11 @@ function SitesTab({ currentSite }: { currentSite: any }) {
             </div>
             <div>
               <label className="text-sm font-medium text-gray-400">Safety Score</label>
-              <p className="text-white">{currentSite.safetyScore}%</p>
+              <p className="text-white">
+                {currentSite.safetyScore !== null && currentSite.safetyScore !== undefined 
+                  ? `${currentSite.safetyScore}%` 
+                  : 'Not calculated'}
+              </p>
             </div>
           </div>
         </div>
@@ -1912,8 +1972,10 @@ function SitesPage({ sites, currentUser }: { sites: any[]; currentUser: any; }) 
             <div className="flex justify-between items-center mb-4">
               <div>
                 <p className="text-gray-400 text-sm">Safety Score</p>
-                <p className={`text-2xl font-bold ${getSafetyScoreColor(site.safetyScore)}`}>
-                  {site.safetyScore}%
+                <p className={`text-2xl font-bold ${getSafetyScoreColor(site.safetyScore ?? 0)}`}>
+                  {site.safetyScore !== null && site.safetyScore !== undefined 
+                    ? `${site.safetyScore}%` 
+                    : 'N/A'}
                 </p>
               </div>
               <div>
@@ -2009,8 +2071,10 @@ function SitesPage({ sites, currentUser }: { sites: any[]; currentUser: any; }) 
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Safety Score</span>
-                      <span className={`font-bold text-xl ${getSafetyScoreColor(selectedSite.safetyScore || 0)}`}>
-                        {selectedSite.safetyScore || 0}%
+                      <span className={`font-bold text-xl ${getSafetyScoreColor(selectedSite.safetyScore ?? 0)}`}>
+                        {selectedSite.safetyScore !== null && selectedSite.safetyScore !== undefined 
+                          ? `${selectedSite.safetyScore}%` 
+                          : 'Not calculated'}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">

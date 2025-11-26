@@ -174,9 +174,16 @@ export function DashboardProvider({ children }: DashboardProviderProps) {
   }, []);
 
   // Helper functions
-  const selectSite = (siteId: string | null) => {
+  const selectSite = useCallback((siteId: string | null) => {
     dispatch({ type: 'SET_SELECTED_SITE', payload: siteId });
-  };
+    
+    // Update URL parameter when site is selected (only if we're on dashboard)
+    if (typeof window !== 'undefined' && siteId && window.location.pathname.startsWith('/dashboard')) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('worksite', siteId);
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
 
   const addNotification = useCallback((notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
     const newNotification: Notification = {

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getSession } from '@/app/lib/auth';
 import { logCreate } from '@/app/lib/audit-logger';
+import { createWorksiteSchema } from '@/app/lib/validation/worksites';
+import { validateQuery, validateBody } from '@/app/lib/validation/common';
 
 /**
  * GET /api/worksites
@@ -74,6 +76,11 @@ export async function GET(request: NextRequest) {
           }
         });
 
+        // If no safety score exists, return null (will show "Not calculated" in UI)
+        // Safety scores should be calculated via scheduled jobs or manual triggers
+        const safetyScore = latestScore?.safetyScore ?? null;
+        const grade = latestScore?.grade ?? null;
+
     // Get active alerts count (using proper ENUM values)
     const activeAlertsCount = await prisma.alert.count({
       where: {
@@ -107,7 +114,11 @@ export async function GET(request: NextRequest) {
           : 'No activity';
 
         // Determine site status based on camera status
-        const onlineCameras = worksite.cameras.filter(c => c.status === 'online').length;
+        // Check both 'online' and 'active' status (camera.status is a string, not enum)
+        const onlineCameras = worksite.cameras.filter(c => 
+          c.status?.toLowerCase() === 'online' || 
+          c.status?.toLowerCase() === 'active'
+        ).length;
         const totalCameras = worksite.cameras.length;
         
         let status = 'active';
@@ -130,8 +141,8 @@ export async function GET(request: NextRequest) {
           alerts: activeAlertsCount,
           workers: worksite._count.workers,
           lastActivity,
-          safetyScore: latestScore?.safetyScore || 0,
-          grade: latestScore?.grade || 'N/A',
+          safetyScore: safetyScore ?? null,
+          grade: grade ?? null,
           cameraSystemType: worksite.cameraSystemType,
           createdAt: worksite.createdAt,
           updatedAt: worksite.updatedAt
@@ -182,14 +193,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, worksiteName: providedWorksiteName, location, address, companyId, cameraSystemType } = body;
+    const validation = validateBody(createWorksiteSchema, body);
 
-    if (!name || !companyId) {
+    if (!validation.success) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields: name, companyId' },
+        {
+          success: false,
+          error: 'Validation failed',
+          details: validation.error.errors,
+        },
         { status: 400 }
       );
     }
+
+    const { name, worksiteName: providedWorksiteName, location, address, companyId, cameraSystemType } = validation.data;
 
     // Company admins can only create worksites in their own company
     if (user.role === 'COMPANY_ADMIN' && companyId !== user.companyId) {

@@ -113,6 +113,9 @@ export async function GET(request: NextRequest) {
         return latest;
       }, null);
 
+      // Access optional metadata fields safely
+      const companyAny = company as any;
+      
       return {
         id: company.id,
         name: company.name,
@@ -120,15 +123,15 @@ export async function GET(request: NextRequest) {
         email: company.email,
         phone: company.phone,
         address: company.address,
-        // Metadata fields
-        billingTier: company.billingTier || 'standard',
-        contractStart: company.contractStart?.toISOString() || null,
-        contractEnd: company.contractEnd?.toISOString() || null,
-        slaLevel: company.slaLevel || 'standard',
-        insuranceCoverageStatus: company.insuranceCoverageStatus || null,
-        modelVersion: company.modelVersion || null,
-        mrr: company.mrr ? Number(company.mrr) : null,
-        churnRisk: company.churnRisk || null,
+        // Metadata fields (optional - may not exist in database)
+        billingTier: companyAny.billingTier || 'standard',
+        contractStart: companyAny.contractStart?.toISOString?.() || null,
+        contractEnd: companyAny.contractEnd?.toISOString?.() || null,
+        slaLevel: companyAny.slaLevel || 'standard',
+        insuranceCoverageStatus: companyAny.insuranceCoverageStatus || null,
+        modelVersion: companyAny.modelVersion || null,
+        mrr: companyAny.mrr ? Number(companyAny.mrr) : null,
+        churnRisk: companyAny.churnRisk || null,
         worksiteCount: company._count.worksites,
         userCount: company._count.users,
         cameraCount: totalCameras,

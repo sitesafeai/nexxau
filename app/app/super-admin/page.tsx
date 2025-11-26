@@ -37,9 +37,28 @@ import {
   CheckCircle2,
   Shield,
   Plug,
-  CalendarClock
+  CalendarClock,
+  Video,
+  Wifi,
+  WifiOff,
+  ArrowRight,
+  TrendingDown
 } from 'lucide-react';
 import { useAuth } from '@/app/lib/use-auth';
+type ClassValue = string | false | null | undefined;
+const classNames = (...classes: ClassValue[]) => classes.filter(Boolean).join(' ');
+
+const slugify = (text: string) =>
+  text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/&/g, '-and-')
+    .replace(/[^\w\-]+/g, '')
+    .replace(/\-\-+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
 
 type TimeRangeOption = '30d' | '90d' | 'year';
 
@@ -137,6 +156,14 @@ interface AdminCompanySummary {
   email?: string | null;
   phone?: string | null;
   address?: string | null;
+  billingTier?: string | null;
+  contractStart?: string | null;
+  contractEnd?: string | null;
+  slaLevel?: string | null;
+  insuranceCoverageStatus?: string | null;
+  modelVersion?: string | null;
+  mrr?: number | null;
+  churnRisk?: string | null;
   worksiteCount?: number;
   userCount?: number;
   cameraCount?: number;
@@ -276,13 +303,863 @@ interface BillingSectionProps {
 interface OnboardingSectionProps {
   companies: AdminCompanySummary[] | null;
   worksites: AdminWorksiteSummary[] | null;
+  currentUser: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+  } | null;
   onRefresh: () => void;
 }
+
+const INVITE_ROLE_OPTIONS = [
+  { value: 'COMPANY_ADMIN', label: 'Company Admin' },
+  { value: 'SITE_ADMIN', label: 'Site Admin' },
+  { value: 'SUPERVISOR', label: 'Supervisor' },
+  { value: 'VIEWER', label: 'Viewer' },
+] as const;
+const DEFAULT_INVITE_ROLE = INVITE_ROLE_OPTIONS[0].value;
 
 interface UsersRolesSectionProps {
   companies: AdminCompanySummary[] | null;
   worksites: AdminWorksiteSummary[] | null;
   onRefresh: () => void;
+  companiesLoading?: boolean;
+}
+
+function OnboardingSection({
+  companies,
+  worksites,
+  currentUser,
+  onRefresh,
+}: OnboardingSectionProps) {
+  const [companyForm, setCompanyForm] = useState({
+    name: '',
+    handle: '',
+    companyEmail: '',
+    contactEmail: '',
+    phone: '',
+    address: '',
+  });
+  const [handleTouched, setHandleTouched] = useState(false);
+  const [inviteEmailTouched, setInviteEmailTouched] = useState(false);
+  const [worksiteForm, setWorksiteForm] = useState({
+    companyId: '',
+    worksiteName: '',
+    location: '',
+  });
+  const [inviteForm, setInviteForm] = useState({
+    companyId: '',
+    worksiteId: '',
+    email: '',
+    role: DEFAULT_INVITE_ROLE,
+  });
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedbackTone, setFeedbackTone] = useState<'success' | 'error' | 'info' | null>(null);
+  const [invitePreview, setInvitePreview] = useState<string | null>(null);
+  const [companySubmitting, setCompanySubmitting] = useState(false);
+  const [worksiteSubmitting, setWorksiteSubmitting] = useState(false);
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
+
+  const companyOptions = useMemo(
+    () => companies?.map((company) => ({ value: company.id, label: company.name })) ?? [],
+    [companies]
+  );
+
+  const inviteWorksiteOptions = useMemo(
+    () =>
+      worksites?.filter((worksite) => worksite.companyId === inviteForm.companyId) ?? [],
+    [worksites, inviteForm.companyId]
+  );
+
+  const clearStatus = useCallback(() => {
+    setFeedback(null);
+    setFeedbackTone(null);
+    setInvitePreview(null);
+  }, []);
+
+  useEffect(() => {
+    if (handleTouched) return;
+    const computed = slugify(companyForm.name);
+    if (computed !== companyForm.handle) {
+      setCompanyForm((prev) => ({ ...prev, handle: computed }));
+    }
+  }, [companyForm.name, companyForm.handle, handleTouched]);
+
+  useEffect(() => {
+    if (inviteEmailTouched) return;
+    if (companyForm.contactEmail) {
+      setInviteForm((prev) => ({ ...prev, email: companyForm.contactEmail }));
+    }
+  }, [companyForm.contactEmail, inviteEmailTouched]);
+
+  useEffect(() => {
+    if (!worksiteForm.companyId && companyOptions.length > 0) {
+      setWorksiteForm((prev) => ({
+        ...prev,
+        companyId: companyOptions[0].value,
+      }));
+    }
+  }, [companyOptions, worksiteForm.companyId]);
+
+  useEffect(() => {
+    if (!inviteForm.companyId && companyOptions.length > 0) {
+      setInviteForm((prev) => ({
+        ...prev,
+        companyId: companyOptions[0].value,
+        worksiteId: '',
+      }));
+    }
+  }, [companyOptions, inviteForm.companyId]);
+
+  const handleCompanySubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (companySubmitting) return;
+
+    clearStatus();
+    setCompanySubmitting(true);
+
+    try {
+      const trimmedName = companyForm.name.trim();
+      if (!trimmedName) {
+        throw new Error('Company name is required.');
+      }
+
+      const trimmedCompanyEmail = companyForm.companyEmail.trim().toLowerCase();
+      if (!trimmedCompanyEmail) {
+        throw new Error('Company email is required.');
+      }
+
+      const baseHandle = slugify(companyForm.handle || trimmedName);
+      if (!baseHandle) {
+        throw new Error('Unable to generate a company handle from the provided name.');
+      }
+
+      const trimmedContactEmail = companyForm.contactEmail.trim().toLowerCase();
+
+      const payloadBase = {
+        name: trimmedName,
+        email: trimmedCompanyEmail,
+        contactEmail: trimmedContactEmail || null,
+        phone: companyForm.phone?.trim() || null,
+        address: companyForm.address?.trim() || null,
+      };
+
+      let attempt = 0;
+      let slugCandidate = baseHandle;
+      let createdCompany:
+        | {
+            id: string;
+            name: string;
+            companyUsername?: string;
+            contactEmail?: string | null;
+          }
+        | null = null;
+      let lastError: string | null = null;
+
+      while (attempt < 3 && !createdCompany) {
+        const response = await fetch('/api/admin/companies', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...payloadBase,
+            companyUsername: slugCandidate,
+          }),
+        });
+
+        const result = await response.json().catch(() => null);
+
+        if (response.status === 409) {
+          lastError =
+            result?.error ||
+            'A company with a similar handle already exists. Adjust the company name or handle and try again.';
+          attempt += 1;
+          slugCandidate = `${baseHandle}-${Math.floor(Math.random() * 9000 + 1000)}`;
+          continue;
+        }
+
+        if (!response.ok || !result?.success || !result?.data) {
+          lastError =
+            result?.error ||
+            result?.details ||
+            `Failed to create company (${response.status})`;
+          throw new Error(lastError || 'Unknown error');
+        }
+
+        createdCompany = result.data as {
+          id: string;
+          name: string;
+          companyUsername?: string;
+          contactEmail?: string | null;
+        };
+      }
+
+      if (!createdCompany) {
+        throw new Error(
+          lastError ||
+            'Unable to create the company after multiple attempts. Please adjust the details and try again.'
+        );
+      }
+
+      let inviteMessage = '';
+      let tone: 'success' | 'info' = 'success';
+
+      if (trimmedContactEmail && currentUser?.id) {
+        const inviteResponse = await fetch('/api/invitations/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: trimmedContactEmail,
+            role: 'COMPANY_ADMIN',
+            companyId: createdCompany.id,
+            invitedBy: currentUser.id,
+          }),
+        });
+
+        const invitePayload = await inviteResponse.json().catch(() => null);
+
+        if (!inviteResponse.ok || !invitePayload?.success) {
+          inviteMessage =
+            invitePayload?.error ||
+            invitePayload?.details ||
+            'Company created, but the invitation email could not be sent.';
+          tone = 'info';
+        } else {
+          inviteMessage = 'Invitation email sent to the primary contact.';
+          if (invitePayload?.data?.inviteUrl) {
+            setInvitePreview(invitePayload.data.inviteUrl as string);
+          }
+        }
+      } else if (!trimmedContactEmail) {
+        inviteMessage =
+          'Company created. Add a contact email or use the invite form below when you are ready to send access.';
+        tone = 'info';
+      } else {
+        inviteMessage =
+          'Company created. Invitation email not sent because the current admin session could not be identified.';
+        tone = 'info';
+      }
+
+      const message = `Company "${createdCompany.name}" created successfully.${
+        inviteMessage ? ` ${inviteMessage}` : ''
+      }`;
+
+      setFeedback(message);
+      setFeedbackTone(tone);
+
+      setCompanyForm({
+        name: '',
+        handle: '',
+        companyEmail: '',
+        contactEmail: '',
+        phone: '',
+        address: '',
+      });
+      setHandleTouched(false);
+      setInviteEmailTouched(false);
+      setWorksiteForm((prev) => ({
+        companyId: createdCompany?.id ?? prev.companyId,
+        worksiteName: '',
+        location: '',
+      }));
+      setInviteForm((prev) => ({
+        ...prev,
+        companyId: createdCompany?.id ?? prev.companyId,
+        worksiteId: '',
+        email: trimmedContactEmail || '',
+        role: DEFAULT_INVITE_ROLE,
+      }));
+      onRefresh();
+    } catch (error: any) {
+      console.error('[super-admin][onboarding] create company failed', error);
+      setFeedback(error?.message || 'Failed to create company. Please try again.');
+      setFeedbackTone('error');
+    } finally {
+      setCompanySubmitting(false);
+    }
+  };
+
+  const handleWorksiteSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (worksiteSubmitting) return;
+
+    if (!worksiteForm.companyId) {
+      clearStatus();
+      setFeedback('Select a company before adding a worksite.');
+      setFeedbackTone('error');
+      return;
+    }
+
+    clearStatus();
+    setWorksiteSubmitting(true);
+
+    try {
+      const trimmedName = worksiteForm.worksiteName.trim();
+      if (!trimmedName) {
+        throw new Error('Worksite name is required.');
+      }
+
+      const locationValue = (worksiteForm.location || '').trim();
+
+      const response = await fetch('/api/worksites', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: trimmedName,
+          worksiteName: slugify(trimmedName),
+          location: locationValue || undefined,
+          address: locationValue || undefined,
+          companyId: worksiteForm.companyId,
+          cameraSystemType: 'mixed',
+        }),
+      });
+
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.success || !result?.data) {
+        const message =
+          result?.error || result?.details || `Failed to create worksite (${response.status})`;
+        throw new Error(message);
+      }
+
+      const worksite = result.data as { name: string; companyId: string };
+      const companyName =
+        companies?.find((company) => company.id === worksite.companyId)?.name || 'selected company';
+
+      setFeedback(`Worksite "${worksite.name}" created for ${companyName}.`);
+      setFeedbackTone('success');
+      setWorksiteForm({
+        companyId: worksite.companyId,
+        worksiteName: '',
+        location: '',
+      });
+      onRefresh();
+    } catch (error: any) {
+      console.error('[super-admin][onboarding] create worksite failed', error);
+      setFeedback(error?.message || 'Failed to create worksite. Please try again.');
+      setFeedbackTone('error');
+    } finally {
+      setWorksiteSubmitting(false);
+    }
+  };
+
+  const handleInviteSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (inviteSubmitting) return;
+
+    clearStatus();
+
+    if (!currentUser?.id) {
+      setFeedback('You must be signed in as a super admin to send invitations.');
+      setFeedbackTone('error');
+      return;
+    }
+
+    if (!inviteForm.companyId) {
+      setFeedback('Select the company you want to invite this user to.');
+      setFeedbackTone('error');
+      return;
+    }
+
+    const trimmedEmail = inviteForm.email.trim().toLowerCase();
+    if (!trimmedEmail) {
+      setFeedback('Enter an email address to send the invitation.');
+      setFeedbackTone('error');
+      return;
+    }
+
+    setInviteSubmitting(true);
+    try {
+      const payload: Record<string, unknown> = {
+        email: trimmedEmail,
+        role: inviteForm.role,
+        invitedBy: currentUser.id,
+        companyId: inviteForm.companyId,
+      };
+      if (inviteForm.worksiteId) {
+        payload.worksiteId = inviteForm.worksiteId;
+      }
+
+      const response = await fetch('/api/invitations/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.success) {
+        const message =
+          result?.error ||
+          result?.details ||
+          `Failed to send invitation (${response.status})`;
+        throw new Error(message);
+      }
+
+      const companyLabel =
+        companyOptions.find((option) => option.value === inviteForm.companyId)?.label ??
+        'selected company';
+
+      setFeedback(`Invitation sent to ${trimmedEmail} for ${companyLabel}.`);
+      setFeedbackTone('success');
+      if (result?.data?.inviteUrl) {
+        setInvitePreview(result.data.inviteUrl as string);
+      } else {
+        setInvitePreview(null);
+      }
+
+      setInviteForm((prev) => ({
+        ...prev,
+        email: '',
+        worksiteId: '',
+        role: DEFAULT_INVITE_ROLE,
+      }));
+      setInviteEmailTouched(false);
+    } catch (error: any) {
+      console.error('[super-admin][onboarding] invite user failed', error);
+      setFeedback(error?.message || 'Failed to send invitation. Please try again.');
+      setFeedbackTone('error');
+    } finally {
+      setInviteSubmitting(false);
+    }
+  };
+
+  // Calculate onboarding progress
+  const onboardingSteps = [
+    { id: 'company', label: 'Create Company', complete: (companies?.length || 0) > 0 },
+    { id: 'worksite', label: 'Add Worksite', complete: (worksites?.length || 0) > 0 },
+    { id: 'invite', label: 'Invite User', complete: false }, // Can track invites if needed
+  ];
+  const completedSteps = onboardingSteps.filter(s => s.complete).length;
+  const progressPercent = (completedSteps / onboardingSteps.length) * 100;
+
+  return (
+    <div className="space-y-6">
+      {/* Progress Tracker */}
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <SectionHeader
+            title="Client Onboarding"
+            description="Capture company details, primary contacts, and initial worksites before granting dashboard access."
+            icon={Plug}
+            accent="sky"
+          />
+          <button
+            onClick={onRefresh}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Sync latest records
+          </button>
+        </div>
+
+        {/* Onboarding Progress Steps */}
+        <div className="mt-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-slate-400">Onboarding Progress</span>
+            <span className="text-sm font-medium text-white">{completedSteps}/{onboardingSteps.length} steps</span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-slate-700 overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all duration-500" 
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-4">
+            {onboardingSteps.map((step, index) => (
+              <div key={step.id} className="flex items-center gap-2">
+                <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${step.complete ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                  {step.complete ? '✓' : index + 1}
+                </div>
+                <span className={`text-sm ${step.complete ? 'text-emerald-400' : 'text-slate-400'}`}>{step.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="mt-6 grid grid-cols-3 gap-4">
+          <div className="rounded-lg bg-slate-800/50 p-3 text-center">
+            <p className="text-2xl font-bold text-white">{companies?.length || 0}</p>
+            <p className="text-xs text-slate-500">Companies</p>
+          </div>
+          <div className="rounded-lg bg-slate-800/50 p-3 text-center">
+            <p className="text-2xl font-bold text-white">{worksites?.length || 0}</p>
+            <p className="text-xs text-slate-500">Worksites</p>
+          </div>
+          <div className="rounded-lg bg-slate-800/50 p-3 text-center">
+            <p className="text-2xl font-bold text-white">--</p>
+            <p className="text-xs text-slate-500">Pending Invites</p>
+          </div>
+        </div>
+      </div>
+
+      {feedback && (
+        <div
+          className={classNames(
+            'rounded-xl border p-4 text-sm transition-colors',
+            feedbackTone === 'error'
+              ? 'border-rose-500/40 bg-rose-500/10 text-rose-100'
+              : feedbackTone === 'info'
+              ? 'border-amber-500/40 bg-amber-500/10 text-amber-100'
+              : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
+          )}
+        >
+          <p>{feedback}</p>
+          {invitePreview && (
+            <p className="mt-2 text-xs text-slate-200/80">
+              Invite link (dev):{' '}
+              <span className="break-all font-mono text-slate-100/90">{invitePreview}</span>
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <form
+          onSubmit={handleCompanySubmit}
+          className="flex h-full flex-col gap-4 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6"
+        >
+          <h3 className="text-lg font-semibold text-white">1. Company intake</h3>
+          <p className="text-sm text-slate-400">
+            Capture the basics so billing, integrations, and access policies can be configured.
+          </p>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Company name
+              </label>
+              <input
+                required
+                value={companyForm.name}
+                onChange={(event) =>
+                  setCompanyForm((prev) => ({ ...prev, name: event.target.value }))
+                }
+                placeholder="Acme Construction LLC"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Company handle (URL friendly)
+              </label>
+              <div className="space-y-1">
+                <input
+                  value={companyForm.handle}
+                  onChange={(event) => {
+                    setHandleTouched(true);
+                    setCompanyForm((prev) => ({
+                      ...prev,
+                      handle: slugify(event.target.value),
+                    }));
+                  }}
+                  onBlur={() => setHandleTouched(true)}
+                  placeholder="acme-construction"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+                <p className="text-[10px] uppercase tracking-wide text-slate-500">
+                  Used in dashboards and invite links (letters, numbers, dashes)
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Company email
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={companyForm.companyEmail}
+                  onChange={(event) =>
+                    setCompanyForm((prev) => ({ ...prev, companyEmail: event.target.value }))
+                  }
+                  placeholder="hq@acme.co"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Primary contact email
+                </label>
+                <input
+                  type="email"
+                  value={companyForm.contactEmail}
+                  onChange={(event) =>
+                    setCompanyForm((prev) => ({ ...prev, contactEmail: event.target.value }))
+                  }
+                  placeholder="safety@acme.co"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+                <p className="text-[10px] uppercase tracking-wide text-slate-500">
+                  Optional: automatically invited as company admin
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Phone
+                </label>
+                <input
+                  value={companyForm.phone}
+                  onChange={(event) =>
+                    setCompanyForm((prev) => ({ ...prev, phone: event.target.value }))
+                  }
+                  placeholder="(555) 123-0101"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Headquarters
+                </label>
+                <input
+                  value={companyForm.address}
+                  onChange={(event) =>
+                    setCompanyForm((prev) => ({ ...prev, address: event.target.value }))
+                  }
+                  placeholder="Austin, TX"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="mt-auto flex items-center justify-between">
+            <p className="text-xs text-slate-500">
+              {companies?.length ?? 0} companies already onboarded.
+            </p>
+            <button
+              type="submit"
+              disabled={companySubmitting}
+              aria-busy={companySubmitting}
+              className={classNames(
+                'inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition',
+                companySubmitting ? 'cursor-not-allowed opacity-70' : 'hover:bg-blue-500'
+              )}
+            >
+              {companySubmitting ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                'Create company'
+              )}
+            </button>
+          </div>
+        </form>
+
+        <form
+          onSubmit={handleWorksiteSubmit}
+          className="flex h-full flex-col gap-4 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6"
+        >
+          <h3 className="text-lg font-semibold text-white">2. Worksite intake</h3>
+          <p className="text-sm text-slate-400">
+            Assign project sites to a client. Once saved, camera ingestion and alert routing can
+            be configured from the company dashboard.
+          </p>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Company
+              </label>
+              <select
+                value={worksiteForm.companyId}
+                onChange={(event) =>
+                  setWorksiteForm((prev) => ({ ...prev, companyId: event.target.value }))
+                }
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                <option value="">Select company…</option>
+                {companyOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Worksite name
+              </label>
+              <input
+                required
+                value={worksiteForm.worksiteName}
+                onChange={(event) =>
+                  setWorksiteForm((prev) => ({ ...prev, worksiteName: event.target.value }))
+                }
+                placeholder="Downtown Tower Expansion"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Location
+              </label>
+              <input
+                value={worksiteForm.location}
+                onChange={(event) =>
+                  setWorksiteForm((prev) => ({ ...prev, location: event.target.value }))
+                }
+                placeholder="Houston, TX"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+          </div>
+          <div className="mt-auto flex items-center justify-between">
+            <p className="text-xs text-slate-500">
+              {worksites?.length ?? 0} worksites managed from this hub.
+            </p>
+            <button
+              type="submit"
+              disabled={worksiteSubmitting}
+              aria-busy={worksiteSubmitting}
+              className={classNames(
+                'inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition',
+                worksiteSubmitting ? 'cursor-not-allowed opacity-70' : 'hover:bg-emerald-500'
+              )}
+            >
+              {worksiteSubmitting ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                'Create worksite'
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <form
+        onSubmit={handleInviteSubmit}
+        className="flex flex-col gap-4 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6"
+      >
+        <h3 className="text-lg font-semibold text-white">3. Send an invitation</h3>
+        <p className="text-sm text-slate-400">
+          Give a customer or teammate access immediately. Invitations include a secure link to
+          claim their account and set a password.
+        </p>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Company
+            </label>
+            <select
+              value={inviteForm.companyId}
+              onChange={(event) =>
+                setInviteForm((prev) => ({
+                  ...prev,
+                  companyId: event.target.value,
+                  worksiteId: '',
+                }))
+              }
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
+              <option value="">Select company…</option>
+              {companyOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Worksite (optional)
+            </label>
+            <select
+              value={inviteForm.worksiteId}
+              onChange={(event) =>
+                setInviteForm((prev) => ({ ...prev, worksiteId: event.target.value }))
+              }
+              disabled={!inviteForm.companyId || inviteWorksiteOptions.length === 0}
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="">No specific worksite</option>
+              {inviteWorksiteOptions.map((worksite) => (
+                <option key={worksite.id} value={worksite.id}>
+                  {worksite.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Invitee email
+            </label>
+            <input
+              type="email"
+              required
+              value={inviteForm.email}
+              onChange={(event) => {
+                setInviteEmailTouched(true);
+                setInviteForm((prev) => ({ ...prev, email: event.target.value }));
+              }}
+              placeholder="ceo@client-company.com"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Role
+            </label>
+            <select
+              value={inviteForm.role}
+              onChange={(event) =>
+                setInviteForm((prev) => ({ ...prev, role: event.target.value as typeof prev.role }))
+              }
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
+              {INVITE_ROLE_OPTIONS.map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="text-[10px] uppercase tracking-wide text-slate-500">
+          Invitations expire after 72 hours. Resend from the Users & Roles tab if needed.
+        </div>
+
+        <div className="mt-auto flex items-center justify-end">
+          <button
+            type="submit"
+            disabled={inviteSubmitting}
+            aria-busy={inviteSubmitting}
+            className={classNames(
+              'inline-flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-xs font-semibold text-white transition',
+              inviteSubmitting ? 'cursor-not-allowed opacity-70' : 'hover:bg-blue-400'
+            )}
+          >
+            {inviteSubmitting ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Sending…
+              </>
+            ) : (
+              'Send invite'
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 }
 
 interface SuperAdminOverviewResponse {
@@ -334,7 +1211,7 @@ const TIME_RANGE_OPTIONS: { value: TimeRangeOption; label: string }[] = [
 ];
 
 export default function SuperAdminDashboardPage() {
-  const { isLoading: authLoading, isAuthenticated, userRole } = useAuth({
+  const { isLoading: authLoading, isAuthenticated, userRole, user } = useAuth({
     requiredRole: 'SUPER_ADMIN',
     redirectTo: '/login',
   });
@@ -364,6 +1241,8 @@ export default function SuperAdminDashboardPage() {
   const [billingUploadingCompany, setBillingUploadingCompany] = useState<string | null>(null);
   const [integrationSelection, setIntegrationSelection] =
     useState<IntegrationClientSummary | null>(null);
+  const [metricsData, setMetricsData] = useState<any>(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
 
   const fetchOverview = async (signal?: AbortSignal) => {
     try {
@@ -404,9 +1283,51 @@ export default function SuperAdminDashboardPage() {
   useEffect(() => {
     const interval = setInterval(() => {
       fetchOverview().catch(() => undefined);
+      fetchMetrics().catch(() => undefined);
     }, 1000 * 60 * 5);
 
     return () => clearInterval(interval);
+  }, []);
+
+  const fetchMetrics = async () => {
+    try {
+      setMetricsLoading(true);
+      const response = await fetch('/api/admin/metrics', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setMetricsData(result.data);
+        }
+      }
+    } catch (error) {
+      console.error('[super-admin] metrics fetch failed', error);
+    } finally {
+      setMetricsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMetrics();
+  }, []);
+
+  // Expose setActiveSection to window for clickable cards in OverviewSection
+  useEffect(() => {
+    (window as any).__setActiveTab = (tab: string) => {
+      const validTabs = ['overview', 'companies', 'worksites', 'cameras', 'integrations', 'billing', 'onboarding', 'users', 'reports', 'settings', 'support'];
+      if (validTabs.includes(tab)) {
+        setActiveSection(tab as typeof NAVIGATION[number]['key']);
+      }
+    };
+    return () => {
+      delete (window as any).__setActiveTab;
+    };
   }, []);
 
   const fetchCompanies = useCallback(
@@ -773,12 +1694,12 @@ export default function SuperAdminDashboardPage() {
           throw new Error(payload?.error || 'Failed to update billing record');
         }
         await fetchBilling();
-    } catch (err: any) {
-      console.error('[super-admin] billing update failed', err);
-      const message = err?.message || 'Unable to update billing record.';
-      setBillingError(message);
-      throw err;
-    } finally {
+      } catch (err: any) {
+        console.error('[super-admin] billing update failed', err);
+        const message = err?.message || 'Unable to update billing record.';
+        setBillingError(message);
+        throw err;
+      } finally {
         setBillingUploadingCompany(null);
       }
     },
@@ -829,9 +1750,14 @@ export default function SuperAdminDashboardPage() {
         return (
           <OverviewSection
             data={data}
+            metrics={metricsData}
+            metricsLoading={metricsLoading}
             loading={loading}
             error={error}
-            onRefresh={() => fetchOverview()}
+            onRefresh={() => {
+              fetchOverview();
+              fetchMetrics();
+            }}
             lastUpdated={lastUpdated}
             complianceAverage={complianceAverage}
             uptimePercentage={uptimePercentage}
@@ -895,6 +1821,7 @@ export default function SuperAdminDashboardPage() {
           <OnboardingSection
             companies={companiesData}
             worksites={worksitesData}
+            currentUser={user ?? null}
             onRefresh={() => {
               fetchCompanies().catch(() => undefined);
               fetchWorksites(undefined).catch(() => undefined);
@@ -932,6 +1859,7 @@ export default function SuperAdminDashboardPage() {
           <UsersRolesSection
             companies={companiesData}
             worksites={worksitesData}
+            companiesLoading={companiesLoading}
             onRefresh={() => {
               fetchCompanies().catch(() => undefined);
               fetchWorksites(undefined).catch(() => undefined);
@@ -968,23 +1896,11 @@ export default function SuperAdminDashboardPage() {
         );
       case 'settings':
         return (
-          <ComingSoon
-            title="System Settings"
-            description="Configure API keys, integrations, observability, and maintenance windows."
-            actions={[
-              { label: 'Current settings area', href: '/dashboard/settings' },
-            ]}
-          />
+          <SystemSettingsSection onRefresh={() => fetchOverview().catch(() => undefined)} />
         );
       case 'support':
         return (
-          <ComingSoon
-            title="Support & Audit"
-            description="Audit trail of all super-admin actions, support tickets, and diagnostic event streams."
-            actions={[
-              { label: 'Audit logs API', href: '/api/admin/audit-logs', disabled: true },
-            ]}
-          />
+          <SupportAuditSection onRefresh={() => fetchOverview().catch(() => undefined)} />
         );
       case 'extras':
         return (
@@ -1012,9 +1928,9 @@ export default function SuperAdminDashboardPage() {
   }
 
   return (
-    <div className="h-screen bg-slate-950 text-slate-100">
-      <div className="flex h-full overflow-hidden">
-        <aside className="hidden lg:flex lg:w-72 lg:flex-col overflow-y-auto border-r border-slate-800/80 bg-slate-950/70 backdrop-blur lg:sticky lg:top-0 lg:h-full">
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <div className="flex min-h-screen">
+        <aside className="hidden lg:flex lg:w-72 lg:flex-col overflow-y-auto border-r border-slate-800/80 bg-slate-950/70 backdrop-blur lg:sticky lg:top-0 lg:h-screen">
           <div className="flex h-20 items-center gap-3 border-b border-slate-800/60 px-6">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/20 text-blue-300">
               <ShieldCheck className="h-6 w-6" />
@@ -1053,7 +1969,7 @@ export default function SuperAdminDashboardPage() {
           </div>
         </aside>
 
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-y-auto">
           <header className="border-b border-slate-800/60 bg-slate-950/80 px-6 py-6 shadow-lg shadow-black/30">
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
               <div>
@@ -1084,7 +2000,7 @@ export default function SuperAdminDashboardPage() {
             </div>
           </header>
 
-          <section className="relative h-full overflow-y-auto px-6 py-8">
+          <section className="relative px-6 py-8">
             <div className="mx-auto max-w-7xl space-y-8">
               {lastUpdated && (
                 <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -1122,6 +2038,8 @@ export default function SuperAdminDashboardPage() {
 
 interface OverviewSectionProps {
   data: SuperAdminOverviewResponse['data'] | null;
+  metrics: any;
+  metricsLoading: boolean;
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
@@ -1134,6 +2052,8 @@ interface OverviewSectionProps {
 
 function OverviewSection({
   data,
+  metrics,
+  metricsLoading,
   loading,
   error,
   onRefresh,
@@ -1161,19 +2081,22 @@ function OverviewSection({
           value={summary.totals.companies}
           icon={Factory}
           subtitle={`${companies.totalTracked} tracked in analytics`}
+          onClick={() => (window as any).__setActiveTab?.('companies')}
         />
         <MetricCard
           title="Live Worksites"
           value={summary.totals.worksites}
           icon={Building2}
-          subtitle={`${cameraStatus.total} cameras deployed`}
+          subtitle={`${cameraStatus.online}/${cameraStatus.total} cameras online`}
+          onClick={() => (window as any).__setActiveTab?.('worksites')}
         />
         <MetricCard
           title="Global Compliance"
           value={complianceAverage !== null ? `${complianceAverage.toFixed(1)}%` : 'Pending'}
           icon={ShieldCheck}
           subtitle={complianceAverage !== null ? 'Based on latest safety scores' : 'Awaiting safety score data'}
-          accent="emerald"
+          accent={complianceAverage !== null ? (complianceAverage >= 90 ? 'emerald' : complianceAverage >= 70 ? 'amber' : 'red') : 'default'}
+          percentage={complianceAverage ?? undefined}
         />
         <MetricCard
           title="Detections (24h)"
@@ -1181,8 +2104,142 @@ function OverviewSection({
           icon={Cpu}
           subtitle="AI inference volume last 24 hours"
           accent="violet"
+          onClick={() => (window as any).__setActiveTab?.('reports')}
         />
       </div>
+
+      {/* Camera Fleet Status */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-center">
+          <p className="text-3xl font-bold text-emerald-400">{cameraStatus.online}</p>
+          <p className="text-xs text-emerald-300/70">Online</p>
+        </div>
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
+          <p className="text-3xl font-bold text-red-400">{cameraStatus.offline}</p>
+          <p className="text-xs text-red-300/70">Offline</p>
+        </div>
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-center">
+          <p className="text-3xl font-bold text-amber-400">{cameraStatus.error}</p>
+          <p className="text-xs text-amber-300/70">Error</p>
+        </div>
+        <div className="rounded-xl border border-slate-500/30 bg-slate-500/10 p-4 text-center">
+          <p className="text-3xl font-bold text-slate-400">{cameraStatus.total}</p>
+          <p className="text-xs text-slate-300/70">Total Fleet</p>
+        </div>
+      </div>
+
+      {/* Global KPIs */}
+      {metrics && (
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+          <SectionHeader
+            title="Global KPIs"
+            description="Platform operational metrics and performance indicators"
+            icon={BarChart3}
+            accent="violet"
+          />
+          <div className="mt-6 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {/* MTTA/MTTR */}
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+              <p className="text-xs text-slate-400">MTTA</p>
+              <p className="mt-1 text-2xl font-bold text-blue-400">
+                {metrics.alerts?.mttaFormatted || 'N/A'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">Mean Time To Acknowledge</p>
+            </div>
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+              <p className="text-xs text-slate-400">MTTR</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-400">
+                {metrics.alerts?.mttrFormatted || 'N/A'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">Mean Time To Resolve</p>
+            </div>
+            {/* AI Performance */}
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+              <p className="text-xs text-slate-400">AI Precision</p>
+              <p className="mt-1 text-2xl font-bold text-purple-400">
+                {metrics.aiPerformance?.precision ? `${metrics.aiPerformance.precision}%` : 'N/A'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {metrics.aiPerformance?.falsePositives || 0} false positives
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+              <p className="text-xs text-slate-400">AI Recall</p>
+              <p className="mt-1 text-2xl font-bold text-indigo-400">
+                {metrics.aiPerformance?.recall ? `${metrics.aiPerformance.recall}%` : 'N/A'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {metrics.aiPerformance?.truePositives || 0} true positives
+              </p>
+            </div>
+          </div>
+
+          {/* Camera Health Diagnostics */}
+          <div className="mt-6 grid gap-6 md:grid-cols-3">
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+              <p className="text-xs text-slate-400">Avg Frame Rate</p>
+              <p className="mt-1 text-2xl font-bold text-white">
+                {metrics.cameraHealth?.avgFrameRate ? `${metrics.cameraHealth.avgFrameRate} FPS` : 'N/A'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {metrics.cameraHealth?.camerasOnline || 0} cameras online
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+              <p className="text-xs text-slate-400">Stream Quality</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-400">
+                {metrics.cameraHealth?.avgStreamQuality ? `${metrics.cameraHealth.avgStreamQuality}%` : 'N/A'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {metrics.cameraHealth?.streamFailures || 0} failures (24h)
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+              <p className="text-xs text-slate-400">Inference Errors</p>
+              <p className="mt-1 text-2xl font-bold text-red-400">
+                {metrics.cameraHealth?.inferenceErrors || 0}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {metrics.cameraHealth?.camerasWithErrors || 0} cameras with errors
+              </p>
+            </div>
+          </div>
+
+          {/* Security & Billing */}
+          <div className="mt-6 grid gap-6 md:grid-cols-3">
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+              <p className="text-xs text-slate-400">Failed Logins (24h)</p>
+              <p className="mt-1 text-2xl font-bold text-amber-400">
+                {metrics.security?.failedLogins || 0}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">Security incidents</p>
+            </div>
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+              <p className="text-xs text-slate-400">Past Due Accounts</p>
+              <p className="mt-1 text-2xl font-bold text-red-400">
+                {metrics.billing?.pastDueAccounts || 0}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {metrics.billing?.upcomingRenewals || 0} renewals in 30d
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+              <p className="text-xs text-slate-400">API Requests (24h)</p>
+              <p className="mt-1 text-2xl font-bold text-blue-400">
+                {metrics.platformHealth?.apiRequests?.toLocaleString() || '0'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">Platform activity</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {metricsLoading && (
+        <div className="flex items-center justify-center rounded-2xl border border-slate-800/60 bg-slate-900/60 p-12">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+          <p className="ml-4 text-sm text-slate-400">Loading platform metrics...</p>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1360,6 +2417,9 @@ function CompaniesSection({ companies, loading, error, onRefresh }: CompaniesSec
   const [performanceFilter, setPerformanceFilter] = useState<'all' | 'strong' | 'watch'>('all');
   const [page, setPage] = useState(0);
   const pageSize = 3;
+  const [selectedCompany, setSelectedCompany] = useState<AdminCompanySummary | null>(null);
+  const [companyDetails, setCompanyDetails] = useState<any>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   const filteredCompanies = useMemo(() => {
     if (!companies) return [];
@@ -1407,6 +2467,21 @@ function CompaniesSection({ companies, loading, error, onRefresh }: CompaniesSec
       setPage(totalPages - 1);
     }
   }, [page, totalPages]);
+
+  const fetchCompanyDetails = async (companyId: string) => {
+    setDetailsLoading(true);
+    try {
+      const response = await fetch(`/api/admin/companies/${companyId}`);
+      const result = await response.json();
+      if (result.success) {
+        setCompanyDetails(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch company details:', error);
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -1502,7 +2577,14 @@ function CompaniesSection({ companies, loading, error, onRefresh }: CompaniesSec
             <>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
                 {paginatedCompanies.map((company) => (
-                  <CompanyCard key={company.id} company={company} />
+                  <CompanyCard 
+                    key={company.id} 
+                    company={company}
+                    onClick={() => {
+                      setSelectedCompany(company);
+                      fetchCompanyDetails(company.id);
+                    }}
+                  />
                 ))}
               </div>
               <PaginationControls
@@ -1515,11 +2597,239 @@ function CompaniesSection({ companies, loading, error, onRefresh }: CompaniesSec
           )}
         </>
       )}
+
+      {/* Company Detail Drawer */}
+      {selectedCompany && (
+        <CompanyDetailDrawer
+          company={selectedCompany}
+          details={companyDetails}
+          loading={detailsLoading}
+          onClose={() => {
+            setSelectedCompany(null);
+            setCompanyDetails(null);
+          }}
+          onRefresh={onRefresh}
+        />
+      )}
     </div>
   );
 }
 
-function CompanyCard({ company }: { company: AdminCompanySummary }) {
+function CompanyDetailDrawer({
+  company,
+  details,
+  loading,
+  onClose,
+  onRefresh,
+}: {
+  company: AdminCompanySummary;
+  details: any;
+  loading: boolean;
+  onClose: () => void;
+  onRefresh: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    billingTier: details?.billingTier || company.billingTier || 'standard',
+    contractStart: details?.contractStart ? new Date(details.contractStart).toISOString().split('T')[0] : '',
+    contractEnd: details?.contractEnd ? new Date(details.contractEnd).toISOString().split('T')[0] : '',
+    slaLevel: details?.slaLevel || company.slaLevel || 'standard',
+    insuranceCoverageStatus: details?.insuranceCoverageStatus || company.insuranceCoverageStatus || '',
+    modelVersion: details?.modelVersion || company.modelVersion || '',
+    mrr: details?.mrr || company.mrr || '',
+    churnRisk: details?.churnRisk || company.churnRisk || 'low',
+  });
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/admin/companies/${company.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      const result = await response.json();
+      if (result.success) {
+        onRefresh();
+        onClose();
+      }
+    } catch (error) {
+      console.error('Failed to update company:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-white">{company.name}</h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Metadata Form */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 block">
+                  Billing Tier
+                </label>
+                <select
+                  value={formData.billingTier}
+                  onChange={(e) => setFormData({ ...formData, billingTier: e.target.value })}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                >
+                  <option value="free">Free</option>
+                  <option value="pilot">Pilot</option>
+                  <option value="standard">Standard</option>
+                  <option value="premium">Premium</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 block">
+                  SLA Level
+                </label>
+                <select
+                  value={formData.slaLevel}
+                  onChange={(e) => setFormData({ ...formData, slaLevel: e.target.value })}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                >
+                  <option value="standard">Standard</option>
+                  <option value="premium">Premium</option>
+                  <option value="enterprise">Enterprise</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 block">
+                  Contract Start
+                </label>
+                <input
+                  type="date"
+                  value={formData.contractStart}
+                  onChange={(e) => setFormData({ ...formData, contractStart: e.target.value })}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 block">
+                  Contract End
+                </label>
+                <input
+                  type="date"
+                  value={formData.contractEnd}
+                  onChange={(e) => setFormData({ ...formData, contractEnd: e.target.value })}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 block">
+                  Insurance Coverage Status
+                </label>
+                <select
+                  value={formData.insuranceCoverageStatus}
+                  onChange={(e) => setFormData({ ...formData, insuranceCoverageStatus: e.target.value })}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                >
+                  <option value="">None</option>
+                  <option value="active">Active</option>
+                  <option value="pending">Pending</option>
+                  <option value="expired">Expired</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 block">
+                  Model Version
+                </label>
+                <input
+                  type="text"
+                  value={formData.modelVersion}
+                  onChange={(e) => setFormData({ ...formData, modelVersion: e.target.value })}
+                  placeholder="e.g., v1.2.3"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 block">
+                  MRR ($)
+                </label>
+                <input
+                  type="number"
+                  value={formData.mrr}
+                  onChange={(e) => setFormData({ ...formData, mrr: e.target.value })}
+                  placeholder="0.00"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 block">
+                  Churn Risk
+                </label>
+                <select
+                  value={formData.churnRisk}
+                  onChange={(e) => setFormData({ ...formData, churnRisk: e.target.value })}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+            </div>
+
+            {/* User List, Worksite List, Camera List */}
+            {details && (
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Users</p>
+                  <p className="mt-2 text-2xl font-bold text-white">{details.users?.length || 0}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Worksites</p>
+                  <p className="mt-2 text-2xl font-bold text-white">{details.worksites?.length || 0}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cameras</p>
+                  <p className="mt-2 text-2xl font-bold text-white">
+                    {details.worksites?.reduce((sum: number, ws: any) => sum + (ws.cameras?.length || 0), 0) || 0}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={onClose}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CompanyCard({ company, onClick }: { company: AdminCompanySummary; onClick?: () => void }) {
   const complianceDisplay =
     typeof company.avgSafetyScore === 'number'
       ? `${company.avgSafetyScore.toFixed(1)}%`
@@ -1527,11 +2837,25 @@ function CompanyCard({ company }: { company: AdminCompanySummary }) {
   const lastActivityDisplay = formatRelativeActivity(company.lastActivity);
   const createdDisplay = formatDateString(company.createdAt);
 
-  return (
-    <Link
-      href={`/admin/companies/${company.id}`}
-      className="group block rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 transition hover:border-blue-500/60 hover:bg-slate-900/80"
-    >
+  const billingTier = company.billingTier || 'standard';
+  const billingTierColorMap: Record<string, string> = {
+    free: 'bg-slate-500/20 text-slate-300',
+    pilot: 'bg-blue-500/20 text-blue-300',
+    standard: 'bg-emerald-500/20 text-emerald-300',
+    premium: 'bg-purple-500/20 text-purple-300',
+  };
+  const billingTierColor = billingTierColorMap[billingTier] || 'bg-slate-500/20 text-slate-300';
+
+  const churnRisk = company.churnRisk || 'low';
+  const churnRiskColorMap: Record<string, string> = {
+    low: 'bg-emerald-500/20 text-emerald-300',
+    medium: 'bg-amber-500/20 text-amber-300',
+    high: 'bg-red-500/20 text-red-300',
+  };
+  const churnRiskColor = churnRiskColorMap[churnRisk] || 'bg-slate-500/20 text-slate-300';
+
+  const content = (
+    <div className="group block rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 transition hover:border-blue-500/60 hover:bg-slate-900/80">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-500">
@@ -1541,9 +2865,21 @@ function CompanyCard({ company }: { company: AdminCompanySummary }) {
             {company.name}
           </h3>
         </div>
-        <span className="rounded-full bg-slate-800 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
-          {company.worksiteCount ?? 0} sites
-        </span>
+        <div className="flex flex-col items-end gap-2">
+          <span className="rounded-full bg-slate-800 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+            {company.worksiteCount ?? 0} sites
+          </span>
+          {company.billingTier && (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${billingTierColor}`}>
+              {company.billingTier}
+            </span>
+          )}
+          {company.churnRisk && company.churnRisk !== 'low' && (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${churnRiskColor}`}>
+              {company.churnRisk} risk
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="mt-6 grid grid-cols-3 gap-4">
@@ -1581,6 +2917,32 @@ function CompanyCard({ company }: { company: AdminCompanySummary }) {
         <span>Created {createdDisplay}</span>
         <span>Last activity: {lastActivityDisplay}</span>
       </div>
+      {company.insuranceCoverageStatus && (
+        <div className="mt-3 flex items-center gap-2 text-xs">
+          <span className="text-slate-500">Insurance:</span>
+          <span className={`rounded-full px-2 py-0.5 font-semibold ${
+            company.insuranceCoverageStatus === 'active' 
+              ? 'bg-emerald-500/20 text-emerald-300' 
+              : 'bg-amber-500/20 text-amber-300'
+          }`}>
+            {company.insuranceCoverageStatus}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+
+  if (onClick) {
+    return (
+      <div onClick={onClick} className="cursor-pointer">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Link href={`/admin/companies/${company.id}`}>
+      {content}
     </Link>
   );
 }
@@ -1610,6 +2972,46 @@ function CompanyStat({
           {helper}
         </p>
       )}
+    </div>
+  );
+}
+
+function CameraHealthSummaryCard({
+  title,
+  value,
+  icon: Icon,
+  color,
+  percentage,
+}: {
+  title: string;
+  value: number;
+  icon: React.ComponentType<{ className?: string }>;
+  color: 'blue' | 'emerald' | 'red' | 'amber';
+  percentage?: number;
+}) {
+  const colorClasses = {
+    blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    red: 'bg-red-500/10 text-red-400 border-red-500/20',
+    amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  };
+
+  return (
+    <div className={`rounded-xl border p-4 ${colorClasses[color]}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">{title}</p>
+          <p className="mt-1 text-2xl font-bold text-white">{value}</p>
+          {percentage !== undefined && (
+            <p className={`text-xs ${color === 'emerald' ? 'text-emerald-400' : 'text-slate-400'}`}>
+              {percentage.toFixed(0)}% of fleet
+            </p>
+          )}
+        </div>
+        <div className={`rounded-lg p-2 ${colorClasses[color]}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -1825,7 +3227,7 @@ function WorksitesSection({
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 items-start">
                 {paginatedWorksites.map((worksite) => (
                   <WorksiteCard key={worksite.id} worksite={worksite} />
                 ))}
@@ -1878,6 +3280,8 @@ function ReportsSection({
   const [selectedWorksite, setSelectedWorksite] = useState<string>('ALL');
   const [exportingKey, setExportingKey] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [detailedData, setDetailedData] = useState<any>(null);
+  const [detailedLoading, setDetailedLoading] = useState(false);
 
   const companyOptions = useMemo(() => {
     const options =
@@ -1928,6 +3332,31 @@ function ReportsSection({
     }
   }, [selectedWorksite, worksiteOptions]);
 
+  // Fetch detailed report data
+  useEffect(() => {
+    const fetchDetailedData = async () => {
+      setDetailedLoading(true);
+      try {
+        const params = new URLSearchParams({
+          timeRange,
+          ...(selectedCompany !== 'ALL' && { companyId: selectedCompany }),
+          ...(selectedWorksite !== 'ALL' && { worksiteId: selectedWorksite }),
+        });
+        const response = await fetch(`/api/admin/reports/detailed?${params}`);
+        const result = await response.json();
+        if (result.success) {
+          setDetailedData(result.data);
+        }
+      } catch (error) {
+        console.error('[ReportsSection] Failed to fetch detailed data:', error);
+      } finally {
+        setDetailedLoading(false);
+      }
+    };
+
+    fetchDetailedData();
+  }, [selectedCompany, selectedWorksite, timeRange]);
+
   const datasets: ReportDataset[] = [
     {
       key: 'compliance',
@@ -1964,34 +3393,33 @@ function ReportsSection({
             ? filteredWorksites.filter((worksite) => worksite.id === selectedWorksite)
             : filteredWorksites) ?? [];
 
-        if (scopedWorksites.length === 0) {
-          throw new Error('No worksites found for the selected filters.');
-        }
+        const records = scopedWorksites.map((worksite) => ({
+          worksiteId: worksite.id,
+          worksiteName: worksite.name,
+          companyId: worksite.companyId,
+          companyName: worksite.company?.name ?? null,
+          complianceRate: worksite.complianceRate,
+          latestScore: worksite.latestScore,
+          cameraCount: worksite.cameraCount,
+          onlineCameraCount: worksite.onlineCameraCount,
+          lastActivity: worksite.lastActivity,
+          status: worksite.status,
+        }));
 
         return {
           type: 'compliance-snapshot',
           generatedAt: timestamp,
           filters: baseFilters,
-          records: scopedWorksites.map((worksite) => ({
-            worksiteId: worksite.id,
-            worksiteName: worksite.name,
-            companyId: worksite.companyId,
-            companyName: worksite.company?.name ?? null,
-            complianceRate: worksite.complianceRate,
-            latestScore: worksite.latestScore,
-            cameraCount: worksite.cameraCount,
-            onlineCameraCount: worksite.onlineCameraCount,
-            lastActivity: worksite.lastActivity,
-            status: worksite.status,
-          })),
+          records,
+          note:
+            records.length === 0
+              ? 'No worksites matched the selected filters at export time.'
+              : undefined,
         };
       }
 
       if (datasetKey === 'alerts') {
-        const alertSummary = overview?.alerts;
-        if (!alertSummary) {
-          throw new Error('Alert metrics are not available yet.');
-        }
+        const alertSummary = overview?.alerts ?? null;
 
         return {
           type: 'alert-activity',
@@ -1999,6 +3427,9 @@ function ReportsSection({
           filters: baseFilters,
           summary: alertSummary,
           detections: overview?.charts.detectionTrend ?? [],
+          note: alertSummary
+            ? undefined
+            : 'Alert metrics have not been generated for the selected scope.',
         };
       }
 
@@ -2007,10 +3438,6 @@ function ReportsSection({
           (selectedWorksite !== 'ALL'
             ? filteredWorksites.filter((worksite) => worksite.id === selectedWorksite)
             : filteredWorksites) ?? [];
-
-        if (scopedWorksites.length === 0) {
-          throw new Error('No worksites available to generate camera health data.');
-        }
 
         const cameraRecords = scopedWorksites.map((worksite) => ({
           worksiteId: worksite.id,
@@ -2030,6 +3457,10 @@ function ReportsSection({
           filters: baseFilters,
           totals: overview?.summary ?? null,
           records: cameraRecords,
+          note:
+            cameraRecords.length === 0
+              ? 'No worksites available to generate camera health data for the selected filters.'
+              : undefined,
         };
       }
 
@@ -2093,11 +3524,16 @@ function ReportsSection({
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <div className="mt-6 grid gap-4 md:grid-cols-4">
           <MetricCard
             title="Total Companies"
             value={overview?.summary.totals.companies ?? (companies?.length ?? 0)}
             icon={Factory}
+          />
+          <MetricCard
+            title="Total Worksites"
+            value={overview?.summary.totals.worksites ?? (worksites?.length ?? 0)}
+            icon={Building2}
           />
           <MetricCard
             title="Global Compliance"
@@ -2107,6 +3543,7 @@ function ReportsSection({
             subtitle="Average across all monitored worksites"
             icon={ShieldCheck}
             accent="emerald"
+            percentage={complianceRate !== null ? complianceRate * 100 : undefined}
           />
           <MetricCard
             title="Camera Uptime"
@@ -2114,8 +3551,32 @@ function ReportsSection({
             subtitle="Active cameras during selected window"
             icon={Activity}
             accent="violet"
+            percentage={cameraUptime !== null ? cameraUptime * 100 : undefined}
           />
         </div>
+
+        {/* Alert Trend Preview */}
+        {overview?.charts?.detectionTrend && overview.charts.detectionTrend.length > 0 && (
+          <div className="mt-6 rounded-xl border border-slate-800/60 bg-slate-900/40 p-4">
+            <h4 className="text-sm font-medium text-slate-400 mb-3">Detection Trend ({timeRange})</h4>
+            <div className="flex items-end gap-1 h-16">
+              {overview.charts.detectionTrend.slice(-14).map((point, i) => {
+                const pointValue = point.detections ?? point.value ?? 0;
+                const maxValue = Math.max(...overview.charts.detectionTrend.slice(-14).map(p => p.detections ?? p.value ?? 0), 1);
+                const height = (pointValue / maxValue) * 100;
+                return (
+                  <div 
+                    key={i} 
+                    className="flex-1 bg-blue-500/60 hover:bg-blue-500 rounded-t transition-all"
+                    style={{ height: `${Math.max(height, 5)}%` }}
+                    title={`${point.date}: ${pointValue} detections`}
+                  />
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-slate-500 mt-2">Last {Math.min(overview.charts.detectionTrend.length, 14)} data points</p>
+          </div>
+        )}
       </div>
 
       <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
@@ -2173,16 +3634,174 @@ function ReportsSection({
           </div>
         )}
       </div>
+
+      {/* Detailed Analytics Section */}
+      {detailedData && (
+        <div className="space-y-6">
+          {/* Alert Statistics */}
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            <h3 className="mb-4 text-lg font-semibold text-white">Alert Statistics</h3>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+                <p className="text-xs text-slate-400">Total Alerts</p>
+                <p className="mt-1 text-2xl font-bold text-white">{detailedData.alerts.total}</p>
+              </div>
+              <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+                <p className="text-xs text-slate-400">Critical</p>
+                <p className="mt-1 text-2xl font-bold text-red-400">
+                  {detailedData.alerts.bySeverity.CRITICAL}
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+                <p className="text-xs text-slate-400">Resolved</p>
+                <p className="mt-1 text-2xl font-bold text-emerald-400">
+                  {detailedData.alerts.byStatus.RESOLVED}
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+                <p className="text-xs text-slate-400">Avg Response</p>
+                <p className="mt-1 text-2xl font-bold text-blue-400">
+                  {detailedData.alerts.avgResponseTime
+                    ? `${Math.round(detailedData.alerts.avgResponseTime)} min`
+                    : 'N/A'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Camera Health */}
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            <h3 className="mb-4 text-lg font-semibold text-white">Camera Health</h3>
+            <div className="grid gap-4 md:grid-cols-4">
+              <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+                <p className="text-xs text-slate-400">Total Cameras</p>
+                <p className="mt-1 text-2xl font-bold text-white">{detailedData.cameras.total}</p>
+              </div>
+              <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+                <p className="text-xs text-slate-400">Online</p>
+                <p className="mt-1 text-2xl font-bold text-emerald-400">
+                  {detailedData.cameras.online}
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+                <p className="text-xs text-slate-400">Offline</p>
+                <p className="mt-1 text-2xl font-bold text-red-400">
+                  {detailedData.cameras.offline}
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+                <p className="text-xs text-slate-400">With Heartbeat</p>
+                <p className="mt-1 text-2xl font-bold text-blue-400">
+                  {detailedData.cameras.withRecentHeartbeat}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Top Violations */}
+          {detailedData.detections.byType.length > 0 && (
+            <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+              <h3 className="mb-4 text-lg font-semibold text-white">Top Violations</h3>
+              <div className="space-y-2">
+                {detailedData.detections.byType.slice(0, 10).map((violation: any, idx: number) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between rounded-lg border border-slate-800/70 bg-slate-900/40 p-3"
+                  >
+                    <span className="text-sm text-white">{violation.type}</span>
+                    <span className="text-sm font-semibold text-slate-300">{violation.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Worksite Performance */}
+          {detailedData.worksites.length > 0 && (
+            <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+              <h3 className="mb-4 text-lg font-semibold text-white">Worksite Performance</h3>
+              <div className="space-y-3">
+                {detailedData.worksites.slice(0, 10).map((worksite: any) => (
+                  <div
+                    key={worksite.id}
+                    className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-semibold text-white">{worksite.name}</p>
+                        <p className="text-xs text-slate-400">{worksite.companyName}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-white">
+                          {worksite.latestScore !== null
+                            ? `${worksite.latestScore.toFixed(1)}%`
+                            : 'N/A'}
+                        </p>
+                        <p className="text-xs text-slate-400">Compliance</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-4 gap-2 text-xs">
+                      <div>
+                        <p className="text-slate-400">Cameras</p>
+                        <p className="font-semibold text-white">
+                          {worksite.onlineCameras}/{worksite.cameraCount}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400">Alerts</p>
+                        <p className="font-semibold text-white">{worksite.alertCount}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400">Critical</p>
+                        <p className="font-semibold text-red-400">{worksite.criticalAlerts}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400">Status</p>
+                        <p className="font-semibold text-white">{worksite.status}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {detailedLoading && (
+        <div className="flex items-center justify-center rounded-2xl border border-slate-800/60 bg-slate-900/60 p-12">
+          <div className="text-center">
+            <div className="mb-4 inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+            <p className="text-sm text-slate-400">Loading detailed analytics...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function WorksiteCard({ worksite }: { worksite: AdminWorksiteSummary }) {
-  const complianceDisplay =
-    typeof worksite.latestScore === 'number'
-      ? `${worksite.latestScore.toFixed(1)}%`
-      : 'Pending';
+  const [expanded, setExpanded] = useState(false);
+  const complianceScore = typeof worksite.latestScore === 'number' ? worksite.latestScore : null;
+  const complianceDisplay = complianceScore !== null ? `${complianceScore.toFixed(0)}%` : 'Pending';
   const lastActivityDisplay = formatRelativeActivity(worksite.lastActivity);
+  const cameraUptime = worksite.cameraCount > 0 ? (worksite.onlineCameraCount / worksite.cameraCount) * 100 : 0;
+  const alertCount = worksite.alerts?.length || 0;
+
+  // Risk score based on compliance and alerts
+  const riskLevel = (() => {
+    if (complianceScore === null) return 'unknown';
+    if (complianceScore >= 90 && alertCount === 0) return 'low';
+    if (complianceScore >= 70 && alertCount <= 2) return 'medium';
+    return 'high';
+  })();
+
+  const riskColors = {
+    low: 'border-emerald-500/30 bg-emerald-500/5',
+    medium: 'border-amber-500/30 bg-amber-500/5',
+    high: 'border-red-500/30 bg-red-500/5',
+    unknown: 'border-slate-700 bg-slate-900/60',
+  };
 
   const statusClass = (() => {
     const status = (worksite.status || '').toUpperCase();
@@ -2193,54 +3812,119 @@ function WorksiteCard({ worksite }: { worksite: AdminWorksiteSummary }) {
     return 'bg-slate-500/20 text-slate-300';
   })();
 
+  const complianceColor = complianceScore === null ? 'bg-slate-600' : 
+    complianceScore >= 90 ? 'bg-emerald-500' : complianceScore >= 70 ? 'bg-amber-500' : 'bg-red-500';
+
   return (
-    <Link
-      href={`/dashboard?worksite=${worksite.id}`}
-      className="group block rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 transition hover:border-blue-500/60 hover:bg-slate-900/80"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">
-            {worksite.company?.name || 'Unassigned'}
-          </p>
-          <h3 className="mt-1 text-xl font-semibold text-white group-hover:text-blue-300">
-            {worksite.name}
-          </h3>
-          {worksite.location && (
-            <p className="text-xs text-slate-500">{worksite.location}</p>
-          )}
+    <div className={`rounded-2xl border ${riskColors[riskLevel]} transition-all self-start`}>
+      {/* Main Card - Clickable to expand */}
+      <div 
+        className="p-5 cursor-pointer select-none"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs uppercase tracking-wide text-slate-500 truncate">
+              {worksite.company?.name || 'Unassigned'}
+            </p>
+            <h3 className="mt-1 text-lg font-semibold text-white truncate">
+              {worksite.name}
+            </h3>
+            {worksite.location && (
+              <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                <MapPin className="h-3 w-3" />
+                {worksite.location}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusClass}`}>
+              {worksite.status || 'Unknown'}
+            </span>
+            {riskLevel !== 'unknown' && (
+              <span className={`text-[10px] font-medium ${riskLevel === 'low' ? 'text-emerald-400' : riskLevel === 'medium' ? 'text-amber-400' : 'text-red-400'}`}>
+                {riskLevel.toUpperCase()} RISK
+              </span>
+            )}
+          </div>
         </div>
-        <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${statusClass}`}>
-          {worksite.status || 'Unknown'}
-        </span>
+
+        {/* Compact Metrics Row */}
+        <div className="mt-4 grid grid-cols-3 gap-3">
+          {/* Camera Health */}
+          <div className="text-center">
+            <div className="text-xs text-slate-500 mb-1">Cameras</div>
+            <div className="flex items-center justify-center gap-1">
+              <span className="text-lg font-bold text-white">{worksite.onlineCameraCount}</span>
+              <span className="text-xs text-slate-500">/ {worksite.cameraCount}</span>
+            </div>
+            <div className="mt-1 h-1 w-full rounded-full bg-slate-700 overflow-hidden">
+              <div 
+                className={`h-full ${cameraUptime >= 80 ? 'bg-emerald-500' : cameraUptime >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                style={{ width: `${cameraUptime}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Compliance */}
+          <div className="text-center">
+            <div className="text-xs text-slate-500 mb-1">Compliance</div>
+            <div className={`text-lg font-bold ${complianceScore === null ? 'text-slate-400' : complianceScore >= 90 ? 'text-emerald-400' : complianceScore >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
+              {complianceDisplay}
+            </div>
+            <div className="mt-1 h-1 w-full rounded-full bg-slate-700 overflow-hidden">
+              <div className={`h-full ${complianceColor}`} style={{ width: `${complianceScore ?? 0}%` }} />
+            </div>
+          </div>
+
+          {/* Alerts */}
+          <div className="text-center">
+            <div className="text-xs text-slate-500 mb-1">Alerts</div>
+            <div className={`text-lg font-bold ${alertCount === 0 ? 'text-emerald-400' : alertCount <= 2 ? 'text-amber-400' : 'text-red-400'}`}>
+              {alertCount}
+            </div>
+            <div className="text-[10px] text-slate-500 mt-1">{lastActivityDisplay}</div>
+          </div>
+        </div>
+
+        {/* Expand indicator */}
+        <div className="mt-3 flex items-center justify-center">
+          <svg className={`h-4 w-4 text-slate-500 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <CompanyStat
-          label="Cameras"
-          value={worksite.cameraCount}
-          helper={`${worksite.onlineCameraCount} online`}
-        />
-        <CompanyStat
-          label="Compliance"
-          value={complianceDisplay}
-          helper={
-            typeof worksite.latestScore === 'number'
-              ? 'Latest safety score'
-              : 'Awaiting data'
-          }
-        />
-        <CompanyStat label="Activity" value={lastActivityDisplay} />
-      </div>
+      {/* Expanded Mini-Dashboard */}
+      {expanded && (
+        <div className="border-t border-slate-800/60 p-5 space-y-4">
+          {/* Alert Timeline */}
+          {worksite.alerts.length > 0 ? (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Recent Alerts</p>
+              <div className="space-y-2">
+                {worksite.alerts.slice(0, 5).map((alert) => (
+                  <WorksiteAlertRow key={alert.id} alert={alert} />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-3 text-sm text-slate-400">
+              No active alerts
+            </div>
+          )}
 
-      {worksite.alerts.length > 0 && (
-        <div className="mt-6 space-y-2">
-          {worksite.alerts.slice(0, 3).map((alert) => (
-            <WorksiteAlertRow key={alert.id} alert={alert} />
-          ))}
+          {/* Action Button - Using Link with prefetch for fast navigation */}
+          <Link
+            href={`/dashboard?worksite=${worksite.id}`}
+            prefetch={true}
+            className="block w-full text-center rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium py-2.5 transition-colors"
+          >
+            Open Worksite Dashboard →
+          </Link>
         </div>
       )}
-    </Link>
+    </div>
   );
 }
 
@@ -2417,6 +4101,37 @@ function CamerasSection({
         </button>
       </div>
 
+      {/* Camera Health Summary */}
+      {cameras && cameras.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <CameraHealthSummaryCard
+            title="Total Cameras"
+            value={cameras.length}
+            icon={Video}
+            color="blue"
+          />
+          <CameraHealthSummaryCard
+            title="Online"
+            value={cameras.filter(c => (c.status || '').toUpperCase() === 'ONLINE' || c.online).length}
+            icon={Wifi}
+            color="emerald"
+            percentage={cameras.length > 0 ? (cameras.filter(c => (c.status || '').toUpperCase() === 'ONLINE' || c.online).length / cameras.length) * 100 : 0}
+          />
+          <CameraHealthSummaryCard
+            title="Offline"
+            value={cameras.filter(c => (c.status || '').toUpperCase() === 'OFFLINE').length}
+            icon={WifiOff}
+            color="red"
+          />
+          <CameraHealthSummaryCard
+            title="Errors"
+            value={cameras.filter(c => (c.status || '').toUpperCase() === 'ERROR').length}
+            icon={AlertTriangle}
+            color="amber"
+          />
+        </div>
+      )}
+
       {loading && (!cameras || cameras.length === 0) && (
         <div className="flex h-56 items-center justify-center rounded-2xl border border-slate-800/60 bg-slate-900/60">
           <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
@@ -2477,18 +4192,15 @@ function CameraCard({
   const hlsUrl = normalizeStreamUrl(camera.hlsUrl || camera.streamUrl);
   const sourceUrl = normalizeStreamUrl(camera.streamUrl);
 
+  const isOnline = (camera.status || '').toUpperCase() === 'ONLINE' || camera.online;
+  const isError = (camera.status || '').toUpperCase() === 'ERROR';
+  const isOffline = (camera.status || '').toUpperCase() === 'OFFLINE';
+
   const statusBadge = (() => {
-    const status = (camera.status || '').toUpperCase();
-    if (status === 'ONLINE' || camera.online) {
-      return { label: 'Online', className: 'bg-emerald-500/20 text-emerald-300' };
-    }
-    if (status === 'OFFLINE') {
-      return { label: 'Offline', className: 'bg-red-500/20 text-red-300' };
-    }
-    if (status === 'ERROR') {
-      return { label: 'Error', className: 'bg-amber-500/20 text-amber-300' };
-    }
-    return { label: status || 'Unknown', className: 'bg-slate-500/20 text-slate-300' };
+    if (isOnline) return { label: 'Online', className: 'bg-emerald-500/20 text-emerald-300', dot: 'bg-emerald-500' };
+    if (isOffline) return { label: 'Offline', className: 'bg-red-500/20 text-red-300', dot: 'bg-red-500' };
+    if (isError) return { label: 'Error', className: 'bg-amber-500/20 text-amber-300', dot: 'bg-amber-500' };
+    return { label: camera.status || 'Unknown', className: 'bg-slate-500/20 text-slate-300', dot: 'bg-slate-500' };
   })();
 
   const lastHeartbeat = camera.lastHeartbeat
@@ -2497,47 +4209,68 @@ function CameraCard({
   const worksite = camera.worksite;
   const company = worksite?.company;
 
+  // AI readiness indicator
+  const aiReadiness = camera.trainingImageCount >= 100 ? 'trained' : 
+    camera.trainingImageCount >= 50 ? 'learning' : 'needs-data';
+
   return (
-    <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 transition hover:border-blue-500/60 hover:bg-slate-900/80">
+    <div className={`rounded-2xl border ${isOnline ? 'border-emerald-500/30' : isError ? 'border-amber-500/30' : isOffline ? 'border-red-500/30' : 'border-slate-800/70'} bg-slate-900/60 p-5 transition hover:bg-slate-900/80`}>
+      {/* Header with status indicator */}
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">
-            {company?.name || 'Unassigned'}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <div className={`h-2.5 w-2.5 rounded-full ${statusBadge.dot} ${isOnline ? 'animate-pulse' : ''}`} />
+            <h3 className="text-base font-semibold text-white truncate">{camera.name}</h3>
+          </div>
+          <p className="text-[10px] text-slate-500 font-mono mt-1">ID: {camera.id.slice(0, 12)}...</p>
+          <p className="text-xs text-slate-400 mt-1">
+            {company?.name || 'Unassigned'} → {worksite?.name || 'No worksite'}
           </p>
-          <h3 className="mt-1 text-lg font-semibold text-white">{camera.name}</h3>
-          {worksite?.name && (
-            <p className="text-xs text-slate-500">{worksite.name}</p>
-          )}
         </div>
-        <span
-          className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${statusBadge.className}`}
-        >
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusBadge.className}`}>
           {statusBadge.label}
         </span>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-4 text-sm text-slate-300">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">Stream</p>
-          <p className="mt-1 text-xs text-slate-400 break-all">
-            {hlsUrl || 'Not configured'}
+      {/* Health Metrics Grid */}
+      <div className="mt-4 grid grid-cols-3 gap-3">
+        <div className="rounded-lg bg-slate-800/50 p-2.5 text-center">
+          <p className="text-[10px] uppercase tracking-wide text-slate-500">Heartbeat</p>
+          <p className={`mt-1 text-xs font-medium ${lastHeartbeat === 'No heartbeat' ? 'text-red-400' : 'text-white'}`}>
+            {lastHeartbeat}
           </p>
         </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">Last heartbeat</p>
-          <p className="mt-1">{lastHeartbeat}</p>
+        <div className="rounded-lg bg-slate-800/50 p-2.5 text-center">
+          <p className="text-[10px] uppercase tracking-wide text-slate-500">AI Data</p>
+          <p className="mt-1 text-xs font-medium text-white">{camera.trainingImageCount} <span className="text-slate-500">snaps</span></p>
         </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">AI training data</p>
-          <p className="mt-1">
-            {camera.trainingImageCount}{' '}
-            <span className="text-xs text-slate-500">snapshots</span>
+        <div className="rounded-lg bg-slate-800/50 p-2.5 text-center">
+          <p className="text-[10px] uppercase tracking-wide text-slate-500">AI Status</p>
+          <p className={`mt-1 text-xs font-medium ${aiReadiness === 'trained' ? 'text-emerald-400' : aiReadiness === 'learning' ? 'text-amber-400' : 'text-red-400'}`}>
+            {aiReadiness === 'trained' ? 'Ready' : aiReadiness === 'learning' ? 'Learning' : 'Needs Data'}
           </p>
         </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">Last updated</p>
-          <p className="mt-1">{formatRelativeActivity(camera.lastUpdated)}</p>
-        </div>
+      </div>
+
+      {/* Stream URL - Compact */}
+      <div className="mt-3 rounded-lg bg-slate-800/30 px-3 py-2">
+        <p className="text-[10px] uppercase tracking-wide text-slate-500">Stream</p>
+        <p className="mt-0.5 text-[10px] text-slate-400 truncate font-mono">
+          {camera.streamUrl || camera.hlsUrl || 'Not configured'}
+        </p>
+      </div>
+
+      {/* Tags */}
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400">
+        {camera.type && (
+          <span className="rounded border border-slate-700/70 bg-slate-900 px-1.5 py-0.5">{camera.type}</span>
+        )}
+        {camera.metadata?.modelVersion && (
+          <span className="rounded border border-slate-700/70 bg-slate-900 px-1.5 py-0.5">v{camera.metadata.modelVersion}</span>
+        )}
+        {camera.mediamtxPath && (
+          <span className="rounded border border-slate-700/70 bg-slate-900 px-1.5 py-0.5">{camera.mediamtxPath}</span>
+        )}
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-3 text-xs text-slate-400">
@@ -2630,8 +4363,9 @@ function CameraDetailModal({
               {camera.worksite?.company?.name || 'Unassigned company'}
             </p>
             <h3 className="text-2xl font-semibold text-white">{camera.name}</h3>
+            <p className="text-xs text-slate-500 font-mono mt-1">ID: {camera.id}</p>
             {camera.worksite?.name && (
-              <p className="text-xs text-slate-500">{camera.worksite.name}</p>
+              <p className="text-xs text-slate-500 mt-1">{camera.worksite.name}</p>
             )}
           </div>
           <button
@@ -2705,22 +4439,40 @@ function CameraDetailModal({
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
+            <DetailField label="Camera ID" value={<span className="font-mono text-xs">{camera.id}</span>} />
             <DetailField label="IP Address" value={camera.ipAddress || '—'} />
             <DetailField
               label="Port"
               value={camera.port ? camera.port.toString() : '—'}
             />
             <DetailField
-              label="Stream URL"
+              label="Stream URL (RTSP)"
               value={
-                sourceUrl ? (
+                camera.streamUrl ? (
                   <a
-                    href={sourceUrl}
+                    href={camera.streamUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-300 hover:text-blue-200 break-all"
+                    className="text-blue-300 hover:text-blue-200 break-all text-xs"
                   >
-                    {sourceUrl}
+                    {camera.streamUrl}
+                  </a>
+                ) : (
+                  '—'
+                )
+              }
+            />
+            <DetailField
+              label="HLS URL"
+              value={
+                camera.hlsUrl ? (
+                  <a
+                    href={camera.hlsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-300 hover:text-blue-200 break-all text-xs"
+                  >
+                    {camera.hlsUrl}
                   </a>
                 ) : (
                   '—'
@@ -2756,235 +4508,6 @@ function CameraDetailModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function OnboardingSection({
-  companies,
-  worksites,
-  onRefresh,
-}: OnboardingSectionProps) {
-  const [companyForm, setCompanyForm] = useState({
-    companyName: '',
-    contactEmail: '',
-    phone: '',
-    address: '',
-  });
-  const [worksiteForm, setWorksiteForm] = useState({
-    companyId: '',
-    worksiteName: '',
-    location: '',
-  });
-  const [feedback, setFeedback] = useState<string | null>(null);
-
-  const companyOptions =
-    companies?.map((company) => ({ value: company.id, label: company.name })) ?? [];
-
-  const handleCompanySubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setFeedback(
-      'Client record staged. Connect this form to your CRM or provisioning workflow to persist the company.'
-    );
-    setCompanyForm({ companyName: '', contactEmail: '', phone: '', address: '' });
-    onRefresh();
-  };
-
-  const handleWorksiteSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!worksiteForm.companyId) {
-      setFeedback('Select a company before adding a worksite.');
-      return;
-    }
-    setFeedback(
-      `Worksite "${worksiteForm.worksiteName}" queued for provisioning. Wire this form to your onboarding service to finalize creation.`
-    );
-    setWorksiteForm({ companyId: '', worksiteName: '', location: '' });
-    onRefresh();
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <SectionHeader
-            title="Client Onboarding"
-            description="Capture company details, primary contacts, and initial worksites before granting dashboard access."
-            icon={Plug}
-            accent="sky"
-          />
-          <button
-            onClick={onRefresh}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Sync latest records
-          </button>
-        </div>
-        <p className="mt-4 text-sm text-slate-400">
-          These forms are scaffolded for the super-admin workflow. Wire them to Airtable,
-          HubSpot, or a custom API to automate provisioning. Until then, submissions stay local
-          and help standardize data collection.
-        </p>
-      </div>
-
-      {feedback && (
-        <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm text-emerald-200">
-          {feedback}
-        </div>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <form
-          onSubmit={handleCompanySubmit}
-          className="flex h-full flex-col gap-4 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6"
-        >
-          <h3 className="text-lg font-semibold text-white">1. Company intake</h3>
-          <p className="text-sm text-slate-400">
-            Capture the basics so billing, integrations, and access policies can be configured.
-          </p>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Company name
-              </label>
-              <input
-                required
-                value={companyForm.companyName}
-                onChange={(event) =>
-                  setCompanyForm((prev) => ({ ...prev, companyName: event.target.value }))
-                }
-                placeholder="Acme Construction LLC"
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Primary contact email
-              </label>
-              <input
-                type="email"
-                required
-                value={companyForm.contactEmail}
-                onChange={(event) =>
-                  setCompanyForm((prev) => ({ ...prev, contactEmail: event.target.value }))
-                }
-                placeholder="ops@acme.co"
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Phone
-                </label>
-                <input
-                  value={companyForm.phone}
-                  onChange={(event) =>
-                    setCompanyForm((prev) => ({ ...prev, phone: event.target.value }))
-                  }
-                  placeholder="(555) 123-0101"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Headquarters
-                </label>
-                <input
-                  value={companyForm.address}
-                  onChange={(event) =>
-                    setCompanyForm((prev) => ({ ...prev, address: event.target.value }))
-                  }
-                  placeholder="Austin, TX"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-            </div>
-          </div>
-          <div className="mt-auto flex items-center justify-between">
-            <p className="text-xs text-slate-500">
-              {companyOptions.length} companies already onboarded.
-            </p>
-            <button
-              type="submit"
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-500"
-            >
-              Stage company
-            </button>
-          </div>
-        </form>
-
-        <form
-          onSubmit={handleWorksiteSubmit}
-          className="flex h-full flex-col gap-4 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6"
-        >
-          <h3 className="text-lg font-semibold text-white">2. Worksite intake</h3>
-          <p className="text-sm text-slate-400">
-            Assign project sites to a client. Once saved, camera ingestion and alert routing can
-            be configured from the company dashboard.
-          </p>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Company
-              </label>
-              <select
-                value={worksiteForm.companyId}
-                onChange={(event) =>
-                  setWorksiteForm((prev) => ({ ...prev, companyId: event.target.value }))
-                }
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              >
-                <option value="">Select company…</option>
-                {companyOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Worksite name
-              </label>
-              <input
-                required
-                value={worksiteForm.worksiteName}
-                onChange={(event) =>
-                  setWorksiteForm((prev) => ({ ...prev, worksiteName: event.target.value }))
-                }
-                placeholder="Downtown Tower Expansion"
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Location
-              </label>
-              <input
-                value={worksiteForm.location}
-                onChange={(event) =>
-                  setWorksiteForm((prev) => ({ ...prev, location: event.target.value }))
-                }
-                placeholder="Houston, TX"
-                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-          </div>
-          <div className="mt-auto flex items-center justify-between">
-            <p className="text-xs text-slate-500">
-              {worksites?.length ?? 0} worksites managed from this hub.
-            </p>
-            <button
-              type="submit"
-              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500"
-            >
-              Stage worksite
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );
@@ -3413,6 +4936,18 @@ function BillingSection({
 
   const hasCompanies = companies && companies.length > 0;
 
+  // Billing summary stats
+  const paidCompanies = companies?.filter(e => {
+    const pt = e.latestRecord?.paidThrough;
+    return pt && new Date(pt) >= new Date();
+  }).length || 0;
+  const overdueCompanies = companies?.filter(e => {
+    const pt = e.latestRecord?.paidThrough;
+    return pt && new Date(pt) < new Date();
+  }).length || 0;
+  const pendingCompanies = companies?.filter(e => !e.latestRecord?.paidThrough).length || 0;
+  const totalCompanies = companies?.length || 0;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -3420,7 +4955,7 @@ function BillingSection({
           title="Billing & Collections"
           description="Upload invoice proof and control paid-through windows for each client company."
           icon={DollarSign}
-          accent="amber"
+          accent="violet"
         />
         <button
           onClick={onRefresh}
@@ -3430,6 +4965,31 @@ function BillingSection({
           Refresh billing data
         </button>
       </div>
+
+      {/* Billing Summary Dashboard */}
+      {hasCompanies && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="rounded-xl border border-slate-800/60 bg-slate-900/60 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Total Clients</p>
+            <p className="mt-1 text-2xl font-bold text-white">{totalCompanies}</p>
+          </div>
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+            <p className="text-xs uppercase tracking-wide text-emerald-400">Paid</p>
+            <p className="mt-1 text-2xl font-bold text-emerald-300">{paidCompanies}</p>
+            <p className="text-xs text-emerald-400/70">{totalCompanies > 0 ? ((paidCompanies / totalCompanies) * 100).toFixed(0) : 0}% of clients</p>
+          </div>
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+            <p className="text-xs uppercase tracking-wide text-red-400">Overdue</p>
+            <p className="mt-1 text-2xl font-bold text-red-300">{overdueCompanies}</p>
+            {overdueCompanies > 0 && <p className="text-xs text-red-400/70">Requires attention</p>}
+          </div>
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+            <p className="text-xs uppercase tracking-wide text-amber-400">Pending</p>
+            <p className="mt-1 text-2xl font-bold text-amber-300">{pendingCompanies}</p>
+            {pendingCompanies > 0 && <p className="text-xs text-amber-400/70">Awaiting proof</p>}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
@@ -3622,7 +5182,10 @@ function UsersRolesSection({
   companies,
   worksites,
   onRefresh,
+  companiesLoading = false,
 }: UsersRolesSectionProps) {
+  const auth = useAuth();
+  const currentUser = auth.user;
   const totalCompanies = companies?.length ?? 0;
   const totalWorksites = worksites?.length ?? 0;
 
@@ -3661,26 +5224,133 @@ function UsersRolesSection({
     email: '',
     role: 'COMPANY_ADMIN',
     companyId: '',
+    worksiteId: '',
   });
   const [inviteFeedback, setInviteFeedback] = useState<string | null>(null);
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [permissions, setPermissions] = useState<any>(null);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
 
-  const companyOptions =
-    companies?.map((company) => ({
-      value: company.id,
-      label: company.name,
-    })) ?? [];
+  // Filter worksites based on selected company
+  const availableWorksites = useMemo(() => {
+    if (!inviteForm.companyId || !worksites) return [];
+    return worksites.filter((w) => w.companyId === inviteForm.companyId);
+  }, [worksites, inviteForm.companyId]);
 
-  const handleInvite = (event: FormEvent<HTMLFormElement>) => {
+  const companyOptions = useMemo(
+    () =>
+      companies?.map((company) => ({
+        value: company.id,
+        label: company.name,
+      })) ?? [],
+    [companies]
+  );
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[UsersRolesSection] Companies:', {
+      count: companies?.length ?? 0,
+      companies: companies?.map((c) => ({ id: c.id, name: c.name })),
+      loading: companiesLoading,
+      companyOptionsCount: companyOptions.length,
+    });
+  }, [companies, companiesLoading, companyOptions.length]);
+
+  // Ensure companies are loaded when this section is active
+  useEffect(() => {
+    if (!companies && !companiesLoading) {
+      console.log('[UsersRolesSection] No companies loaded, triggering refresh...');
+      onRefresh();
+    }
+  }, [companies, companiesLoading, onRefresh]);
+
+  // Fetch role permissions
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      setPermissionsLoading(true);
+      try {
+        const response = await fetch('/api/admin/roles/permissions');
+        const result = await response.json();
+        if (result.success) {
+          setPermissions(result.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch permissions:', error);
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+    fetchPermissions();
+  }, []);
+
+  const handleInvite = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!inviteForm.email.trim()) {
+    if (inviteSubmitting) return;
+
+    const trimmedEmail = inviteForm.email.trim();
+    if (!trimmedEmail) {
       setInviteFeedback('Provide an email address to send the invite.');
       return;
     }
-    setInviteFeedback(
-      `Invite drafted for ${inviteForm.email} as ${inviteForm.role}. Hook this form to your identity provider or NextAuth invitation flow to send real emails.`
-    );
-    setInviteForm({ email: '', role: inviteForm.role, companyId: '' });
-    onRefresh();
+
+    if (!inviteForm.companyId) {
+      setInviteFeedback('Please select a company for this user.');
+      return;
+    }
+
+    if (!currentUser?.id) {
+      setInviteFeedback('You must be logged in to send invitations.');
+      return;
+    }
+
+    setInviteSubmitting(true);
+    setInviteFeedback(null);
+
+    try {
+      const payload: any = {
+        email: trimmedEmail.toLowerCase(),
+        role: inviteForm.role,
+        companyId: inviteForm.companyId,
+        invitedBy: currentUser.id,
+      };
+
+      // Add worksiteId if selected
+      if (inviteForm.worksiteId) {
+        payload.worksiteId = inviteForm.worksiteId;
+      }
+
+      const response = await fetch('/api/invitations/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.success) {
+        throw new Error(
+          result?.error || result?.details || `Failed to send invitation (${response.status})`
+        );
+      }
+
+      const companyName = companies?.find((c) => c.id === inviteForm.companyId)?.name || 'the company';
+      const worksiteName = inviteForm.worksiteId 
+        ? availableWorksites.find((w) => w.id === inviteForm.worksiteId)?.name 
+        : null;
+
+      setInviteFeedback(
+        `Invitation sent to ${trimmedEmail} for ${companyName}${worksiteName ? ` - ${worksiteName}` : ''}. They will receive an email with instructions to claim their account.`
+      );
+      setInviteForm({ email: '', role: inviteForm.role, companyId: '', worksiteId: '' });
+      onRefresh();
+    } catch (error: any) {
+      console.error('[super-admin][users] invite failed', error);
+      setInviteFeedback(error?.message || 'Failed to send invitation. Please try again.');
+    } finally {
+      setInviteSubmitting(false);
+    }
   };
 
   return (
@@ -3738,8 +5408,7 @@ function UsersRolesSection({
         >
           <h3 className="text-lg font-semibold text-white">Invite a user</h3>
           <p className="text-sm text-slate-400">
-            Emails are not sent automatically yet. Connect this flow to your identity provider
-            or customer success tooling.
+            Send an invitation email to grant access. The user will receive a secure link to create their account.
           </p>
           <div className="space-y-3">
             <div className="space-y-1">
@@ -3757,52 +5426,104 @@ function UsersRolesSection({
                 className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Company <span className="text-red-400">*</span>
+              </label>
+              <select
+                required
+                value={inviteForm.companyId}
+                onChange={(event) =>
+                  setInviteForm((prev) => ({ 
+                    ...prev, 
+                    companyId: event.target.value,
+                    worksiteId: '', // Reset worksite when company changes
+                  }))
+                }
+                disabled={companiesLoading || companyOptions.length === 0}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <option value="">
+                  {companiesLoading 
+                    ? 'Loading companies...' 
+                    : companyOptions.length === 0 
+                    ? 'No companies available' 
+                    : 'Select a company'}
+                </option>
+                {companyOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {companiesLoading && (
+                <p className="mt-1 text-xs text-slate-500">Loading companies...</p>
+              )}
+              {!companiesLoading && companyOptions.length === 0 && (
+                <p className="mt-1 text-xs text-amber-500">
+                  No companies found. Create a company first in the Companies tab.
+                </p>
+              )}
+            </div>
+
+            {inviteForm.companyId && availableWorksites.length > 0 && (
               <div className="space-y-1">
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Role
+                  Worksite <span className="text-slate-400">(Optional)</span>
                 </label>
                 <select
-                  value={inviteForm.role}
+                  value={inviteForm.worksiteId}
                   onChange={(event) =>
-                    setInviteForm((prev) => ({ ...prev, role: event.target.value }))
+                    setInviteForm((prev) => ({ ...prev, worksiteId: event.target.value }))
                   }
                   className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 >
-                  {['COMPANY_ADMIN', 'SITE_ADMIN', 'SUPERVISOR', 'WORKER'].map((role) => (
-                    <option key={role} value={role}>
-                      {role.replace('_', ' ')}
+                  <option value="">All worksites (company-wide access)</option>
+                  {availableWorksites.map((worksite) => (
+                    <option key={worksite.id} value={worksite.id}>
+                      {worksite.name}
                     </option>
                   ))}
                 </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  Leave empty for company-wide access, or select a specific worksite
+                </p>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Company (optional)
-                </label>
-                <select
-                  value={inviteForm.companyId}
-                  onChange={(event) =>
-                    setInviteForm((prev) => ({ ...prev, companyId: event.target.value }))
-                  }
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                >
-                  <option value="">Unassigned</option>
-                  {companyOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            )}
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Role
+              </label>
+              <select
+                value={inviteForm.role}
+                onChange={(event) =>
+                  setInviteForm((prev) => ({ ...prev, role: event.target.value }))
+                }
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                {['COMPANY_ADMIN', 'SITE_ADMIN', 'SUPERVISOR', 'WORKER'].map((role) => (
+                  <option key={role} value={role}>
+                    {role.replace('_', ' ')}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
           <div className="mt-auto flex items-center justify-end">
             <button
               type="submit"
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-500"
+              disabled={inviteSubmitting}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Send invite
+              {inviteSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                'Send invite'
+              )}
             </button>
           </div>
         </form>
@@ -3831,6 +5552,1353 @@ function UsersRolesSection({
           </div>
         </div>
       </div>
+
+      {/* Role Permission Matrix */}
+      {permissions && (
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+          <SectionHeader
+            title="Role Permission Matrix"
+            description="View/edit/execute permissions for each role across all resources"
+            icon={ShieldCheck}
+            accent="violet"
+          />
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-800">
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Resource
+                  </th>
+                  {['SUPER_ADMIN', 'COMPANY_ADMIN', 'SITE_ADMIN', 'SUPERVISOR', 'WORKER', 'VIEWER'].map((role) => (
+                    <th
+                      key={role}
+                      className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400"
+                    >
+                      {role.replace('_', ' ')}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { key: 'companies', label: 'Companies' },
+                  { key: 'worksites', label: 'Worksites' },
+                  { key: 'cameras', label: 'Cameras' },
+                  { key: 'users', label: 'Users' },
+                  { key: 'alerts', label: 'Alerts' },
+                  { key: 'reports', label: 'Reports' },
+                  { key: 'billing', label: 'Billing' },
+                  { key: 'settings', label: 'Settings' },
+                  { key: 'audit', label: 'Audit Logs' },
+                ].map((resource) => (
+                  <tr key={resource.key} className="border-b border-slate-800/50">
+                    <td className="px-4 py-3 font-medium text-white">{resource.label}</td>
+                    {['SUPER_ADMIN', 'COMPANY_ADMIN', 'SITE_ADMIN', 'SUPERVISOR', 'WORKER', 'VIEWER'].map((role) => {
+                      const rolePerms = permissions[role]?.[resource.key] || {};
+                      const perms = [
+                        rolePerms.view ? 'View' : null,
+                        rolePerms.create ? 'Create' : null,
+                        rolePerms.update ? 'Update' : null,
+                        rolePerms.delete ? 'Delete' : null,
+                        rolePerms.invite ? 'Invite' : null,
+                        rolePerms.acknowledge ? 'Ack' : null,
+                        rolePerms.resolve ? 'Resolve' : null,
+                        rolePerms.export ? 'Export' : null,
+                      ]
+                        .filter(Boolean)
+                        .join(', ');
+
+                      return (
+                        <td key={role} className="px-4 py-3 text-center text-xs text-slate-400">
+                          {perms || '—'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {permissionsLoading && (
+        <div className="flex items-center justify-center rounded-2xl border border-slate-800/60 bg-slate-900/60 p-12">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+          <p className="ml-4 text-sm text-slate-400">Loading permission matrix...</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface SystemSettingsSectionProps {
+  onRefresh: () => void;
+}
+
+function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
+  const [settings, setSettings] = useState({
+    apiKeys: {
+      openai: '',
+      cloudinary: '',
+      monday: '',
+    },
+    integrations: {
+      emailEnabled: true,
+      smsEnabled: false,
+      webhookUrl: '',
+    },
+    observability: {
+      logLevel: 'info',
+      enableMetrics: true,
+      enableTracing: false,
+    },
+    maintenance: {
+      maintenanceMode: false,
+      maintenanceMessage: '',
+    },
+    security: {
+      twoFactorEnabled: false,
+      ssoEnabled: false,
+      ssoProvider: 'none',
+      sessionTimeout: 3600,
+      encryptionKeyRotation: '30',
+    },
+  });
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [systemHealth, setSystemHealth] = useState<any>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [toolExecuting, setToolExecuting] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchSecuritySettings();
+    fetchSystemHealth();
+  }, []);
+
+  const fetchSecuritySettings = async () => {
+    try {
+      const response = await fetch('/api/admin/security-settings');
+      const result = await response.json();
+      if (result.success && result.data) {
+        setSettings((prev) => ({
+          ...prev,
+          security: {
+            twoFactorEnabled: result.data.twoFactorEnabled,
+            ssoEnabled: result.data.ssoEnabled,
+            ssoProvider: result.data.ssoProvider,
+            sessionTimeout: result.data.sessionTimeout,
+            encryptionKeyRotation: result.data.encryptionKeyRotation,
+          },
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch security settings:', error);
+    }
+  };
+
+  const fetchSystemHealth = async () => {
+    setHealthLoading(true);
+    try {
+      const response = await fetch('/api/admin/system-status');
+      const data = await response.json();
+      setSystemHealth(data);
+    } catch (error) {
+      console.error('Failed to fetch system health:', error);
+    } finally {
+      setHealthLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setFeedback(null);
+    try {
+      // Save security settings
+      const securityResponse = await fetch('/api/admin/security-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings.security),
+      });
+
+      const securityResult = await securityResponse.json();
+      if (!securityResult.success) {
+        throw new Error(securityResult.error || 'Failed to save security settings');
+      }
+
+      // TODO: Save other settings (API keys, integrations, etc.)
+      setFeedback('Settings saved successfully.');
+      setTimeout(() => setFeedback(null), 3000);
+    } catch (error: any) {
+      setFeedback(error?.message || 'Failed to save settings.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSystemTool = async (action: string, cameraId?: string, worksiteId?: string) => {
+    setToolExecuting(action);
+    setFeedback(null);
+    try {
+      const response = await fetch('/api/admin/system-tools', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, cameraId, worksiteId }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setFeedback(result.message || 'Tool executed successfully.');
+        if (action === 'health_check') {
+          setSystemHealth(result.health);
+        }
+        setTimeout(() => setFeedback(null), 5000);
+      } else {
+        throw new Error(result.error || 'Failed to execute tool');
+      }
+    } catch (error: any) {
+      setFeedback(error?.message || 'Failed to execute tool.');
+    } finally {
+      setToolExecuting(null);
+    }
+  };
+
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <SectionHeader
+          title="System Settings"
+          description="Configure API keys, integrations, observability, and maintenance windows."
+          icon={Settings}
+          accent="violet"
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">API Keys</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                OpenAI API Key
+              </label>
+              <input
+                type="password"
+                value={settings.apiKeys.openai}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    apiKeys: { ...prev.apiKeys, openai: e.target.value },
+                  }))
+                }
+                placeholder="sk-..."
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                Cloudinary API Key
+              </label>
+              <input
+                type="password"
+                value={settings.apiKeys.cloudinary}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    apiKeys: { ...prev.apiKeys, cloudinary: e.target.value },
+                  }))
+                }
+                placeholder="Cloudinary API key"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                Monday.com API Key
+              </label>
+              <input
+                type="password"
+                value={settings.apiKeys.monday}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    apiKeys: { ...prev.apiKeys, monday: e.target.value },
+                  }))
+                }
+                placeholder="Monday.com API token"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Integrations</h3>
+          <div className="space-y-4">
+            <label className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={settings.integrations.emailEnabled}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    integrations: { ...prev.integrations, emailEnabled: e.target.checked },
+                  }))
+                }
+                className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500"
+              />
+              <span className="text-sm text-slate-300">Email notifications enabled</span>
+            </label>
+            <label className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={settings.integrations.smsEnabled}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    integrations: { ...prev.integrations, smsEnabled: e.target.checked },
+                  }))
+                }
+                className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500"
+              />
+              <span className="text-sm text-slate-300">SMS notifications enabled</span>
+            </label>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                Webhook URL
+              </label>
+              <input
+                type="url"
+                value={settings.integrations.webhookUrl}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    integrations: { ...prev.integrations, webhookUrl: e.target.value },
+                  }))
+                }
+                placeholder="https://..."
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Observability</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                Log Level
+              </label>
+              <select
+                value={settings.observability.logLevel}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    observability: { ...prev.observability, logLevel: e.target.value },
+                  }))
+                }
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                <option value="debug">Debug</option>
+                <option value="info">Info</option>
+                <option value="warn">Warn</option>
+                <option value="error">Error</option>
+              </select>
+            </div>
+            <label className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={settings.observability.enableMetrics}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    observability: { ...prev.observability, enableMetrics: e.target.checked },
+                  }))
+                }
+                className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500"
+              />
+              <span className="text-sm text-slate-300">Enable metrics collection</span>
+            </label>
+            <label className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={settings.observability.enableTracing}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    observability: { ...prev.observability, enableTracing: e.target.checked },
+                  }))
+                }
+                className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500"
+              />
+              <span className="text-sm text-slate-300">Enable distributed tracing</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Maintenance</h3>
+          <div className="space-y-4">
+            <label className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={settings.maintenance.maintenanceMode}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    maintenance: { ...prev.maintenance, maintenanceMode: e.target.checked },
+                  }))
+                }
+                className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500"
+              />
+              <span className="text-sm text-slate-300">Maintenance mode</span>
+            </label>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                Maintenance Message
+              </label>
+              <textarea
+                value={settings.maintenance.maintenanceMessage}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    maintenance: { ...prev.maintenance, maintenanceMessage: e.target.value },
+                  }))
+                }
+                placeholder="System is under maintenance..."
+                rows={3}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Security & Access Controls */}
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">Security & Access Controls</h3>
+        <div className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-4">
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={settings.security.twoFactorEnabled}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      security: { ...prev.security, twoFactorEnabled: e.target.checked },
+                    }))
+                  }
+                  className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500"
+                />
+                <span className="text-sm text-slate-300">Require 2FA for all users</span>
+              </label>
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={settings.security.ssoEnabled}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      security: { ...prev.security, ssoEnabled: e.target.checked },
+                    }))
+                  }
+                  className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500"
+                />
+                <span className="text-sm text-slate-300">Enable SSO</span>
+              </label>
+              {settings.security.ssoEnabled && (
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                    SSO Provider
+                  </label>
+                  <select
+                    value={settings.security.ssoProvider}
+                    onChange={(e) =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        security: { ...prev.security, ssoProvider: e.target.value },
+                      }))
+                    }
+                    className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  >
+                    <option value="none">None</option>
+                    <option value="okta">Okta</option>
+                    <option value="google">Google Workspace</option>
+                    <option value="azure">Azure AD</option>
+                  </select>
+                </div>
+              )}
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Session Timeout (seconds)
+                </label>
+                <input
+                  type="number"
+                  value={settings.security.sessionTimeout}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      security: { ...prev.security, sessionTimeout: parseInt(e.target.value, 10) },
+                    }))
+                  }
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Encryption Key Rotation (days)
+                </label>
+                <input
+                  type="text"
+                  value={settings.security.encryptionKeyRotation}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      security: { ...prev.security, encryptionKeyRotation: e.target.value },
+                    }))
+                  }
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* System Tools */}
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">System Tools</h3>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <button
+            onClick={() => handleSystemTool('restart_mediamtx')}
+            disabled={toolExecuting === 'restart_mediamtx'}
+            className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {toolExecuting === 'restart_mediamtx' ? (
+              <>
+                <Loader2 className="inline h-4 w-4 animate-spin mr-2" />
+                Restarting...
+              </>
+            ) : (
+              'Restart Camera Streams'
+            )}
+          </button>
+          <button
+            onClick={() => handleSystemTool('restart_ai_worker')}
+            disabled={toolExecuting === 'restart_ai_worker'}
+            className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {toolExecuting === 'restart_ai_worker' ? (
+              <>
+                <Loader2 className="inline h-4 w-4 animate-spin mr-2" />
+                Restarting...
+              </>
+            ) : (
+              'Restart AI Inference Worker'
+            )}
+          </button>
+          <button
+            onClick={() => handleSystemTool('clear_stuck_alerts')}
+            disabled={toolExecuting === 'clear_stuck_alerts'}
+            className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {toolExecuting === 'clear_stuck_alerts' ? (
+              <>
+                <Loader2 className="inline h-4 w-4 animate-spin mr-2" />
+                Clearing...
+              </>
+            ) : (
+              'Clear Stuck Alerts'
+            )}
+          </button>
+          <button
+            onClick={() => handleSystemTool('health_check')}
+            disabled={toolExecuting === 'health_check' || healthLoading}
+            className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {toolExecuting === 'health_check' || healthLoading ? (
+              <>
+                <Loader2 className="inline h-4 w-4 animate-spin mr-2" />
+                Checking...
+              </>
+            ) : (
+              'Run Health Check'
+            )}
+          </button>
+        </div>
+
+        {systemHealth && (
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+              <p className="text-xs text-slate-400">Database</p>
+              <p
+                className={`mt-1 text-lg font-semibold ${
+                  systemHealth.database === 'healthy'
+                    ? 'text-emerald-400'
+                    : systemHealth.database === 'degraded'
+                    ? 'text-amber-400'
+                    : 'text-red-400'
+                }`}
+              >
+                {systemHealth.database || 'unknown'}
+              </p>
+              {systemHealth.database === 'unhealthy' && (
+                <p className="mt-1 text-xs text-red-300">Check database connection</p>
+              )}
+            </div>
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+              <p className="text-xs text-slate-400">AI Detection</p>
+              <p
+                className={`mt-1 text-lg font-semibold ${
+                  systemHealth.aiDetection === 'healthy'
+                    ? 'text-emerald-400'
+                    : systemHealth.aiDetection === 'degraded'
+                    ? 'text-amber-400'
+                    : 'text-red-400'
+                }`}
+              >
+                {systemHealth.aiDetection || 'unknown'}
+              </p>
+              {systemHealth.aiDetection === 'unhealthy' && (
+                <p className="mt-1 text-xs text-red-300">
+                  Service not running. Check AI_SERVICE_URL env var or start AI service.
+                </p>
+              )}
+            </div>
+            <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+              <p className="text-xs text-slate-400">MediaMTX</p>
+              <p
+                className={`mt-1 text-lg font-semibold ${
+                  systemHealth.mediaMTX === 'healthy'
+                    ? 'text-emerald-400'
+                    : systemHealth.mediaMTX === 'degraded'
+                    ? 'text-amber-400'
+                    : 'text-red-400'
+                }`}
+              >
+                {systemHealth.mediaMTX || 'unknown'}
+              </p>
+              {systemHealth.mediaMTX === 'unhealthy' && (
+                <p className="mt-1 text-xs text-red-300">
+                  Service not running. Use "Restart Camera Streams" button or check Docker.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {feedback && (
+        <div
+          className={`rounded-xl border p-4 text-sm ${
+            feedback.includes('success') || feedback.includes('successfully')
+              ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+              : 'border-red-500/40 bg-red-500/10 text-red-200'
+          }`}
+        >
+          {feedback}
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {saving ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            'Save Settings'
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface SupportAuditSectionProps {
+  onRefresh: () => void;
+}
+
+function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
+  const [activeTab, setActiveTab] = useState<'audit' | 'support' | 'timeline' | 'troubleshooting'>('audit');
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState({
+    action: 'ALL',
+    entity: 'ALL',
+    dateFrom: '',
+    dateTo: '',
+  });
+  const [activityTimeline, setActivityTimeline] = useState<any[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState<string>('');
+  const [selectedWorksite, setSelectedWorksite] = useState<string>('');
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [troubleshootingResult, setTroubleshootingResult] = useState<any>(null);
+  const [troubleshootingLoading, setTroubleshootingLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'audit') {
+      fetchAuditLogs();
+    } else if (activeTab === 'timeline') {
+      fetchActivityTimeline();
+    }
+  }, [filter, activeTab, selectedCompany, selectedWorksite, selectedUserId]);
+
+  const fetchAuditLogs = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (filter.action !== 'ALL') params.append('action', filter.action);
+      if (filter.entity !== 'ALL') params.append('entity', filter.entity);
+      if (filter.dateFrom) params.append('from', filter.dateFrom);
+      if (filter.dateTo) params.append('to', filter.dateTo);
+
+      const response = await fetch(`/api/admin/audit-logs?${params.toString()}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setLogs(data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching audit logs:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchActivityTimeline = async () => {
+    if (!selectedCompany && !selectedWorksite && !selectedUserId) {
+      setActivityTimeline([]);
+      return;
+    }
+
+    setTimelineLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (selectedCompany) params.append('companyId', selectedCompany);
+      if (selectedWorksite) params.append('worksiteId', selectedWorksite);
+      if (selectedUserId) params.append('userId', selectedUserId);
+      params.append('limit', '100');
+
+      const response = await fetch(`/api/admin/support/activity-timeline?${params.toString()}`);
+      const result = await response.json();
+
+      if (result.success) {
+        setActivityTimeline(result.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching activity timeline:', error);
+    } finally {
+      setTimelineLoading(false);
+    }
+  };
+
+  const handleTroubleshooting = async (action: string, cameraId?: string, worksiteId?: string) => {
+    setTroubleshootingLoading(true);
+    setTroubleshootingResult(null);
+    try {
+      const response = await fetch('/api/admin/support/troubleshooting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, cameraId, worksiteId }),
+      });
+
+      const result = await response.json();
+      setTroubleshootingResult(result);
+    } catch (error) {
+      console.error('Error executing troubleshooting action:', error);
+      setTroubleshootingResult({ success: false, error: 'Failed to execute troubleshooting action' });
+    } finally {
+      setTroubleshootingLoading(false);
+    }
+  };
+
+  const handleExport = () => {
+    const csv = [
+      ['Timestamp', 'User', 'Action', 'Entity', 'Entity ID', 'IP Address'].join(','),
+      ...logs.map((log) =>
+        [
+          new Date(log.createdAt).toISOString(),
+          log.user?.email || 'Unknown',
+          log.action,
+          log.entity,
+          log.entityId || '',
+          log.ipAddress || '',
+        ].join(',')
+      ),
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `audit-logs-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const getActionColor = (action: string) => {
+    switch (action) {
+      case 'CREATE':
+        return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200';
+      case 'UPDATE':
+        return 'border-blue-500/40 bg-blue-500/10 text-blue-200';
+      case 'DELETE':
+        return 'border-red-500/40 bg-red-500/10 text-red-200';
+      case 'LOGIN':
+        return 'border-violet-500/40 bg-violet-500/10 text-violet-200';
+      case 'INVITE':
+        return 'border-amber-500/40 bg-amber-500/10 text-amber-200';
+      default:
+        return 'border-slate-700 bg-slate-900 text-slate-300';
+    }
+  };
+
+  const formatRelativeTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <SectionHeader
+            title="Support & Audit Logs"
+            description="Audit trail of all super-admin actions, support tickets, and diagnostic event streams."
+            icon={LifeBuoy}
+            accent="sky"
+          />
+          {activeTab === 'audit' && (
+            <button
+              onClick={handleExport}
+              disabled={logs.length === 0}
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-500/50 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-200 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <FileBarChart2 className="h-4 w-4" />
+              Export CSV
+            </button>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div className="mt-6 flex gap-2 border-b border-slate-800">
+          {[
+            { id: 'audit', label: 'Audit Logs' },
+            { id: 'support', label: 'Support Tickets' },
+            { id: 'timeline', label: 'Activity Timeline' },
+            { id: 'troubleshooting', label: 'Troubleshooting' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`px-4 py-2 text-sm font-semibold transition ${
+                activeTab === tab.id
+                  ? 'border-b-2 border-blue-500 text-blue-400'
+                  : 'text-slate-400 hover:text-slate-300'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Audit Logs Tab */}
+      {activeTab === 'audit' && (
+        <>
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            <div className="grid gap-4 md:grid-cols-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Action
+                </label>
+                <select
+                  value={filter.action}
+                  onChange={(e) => setFilter((prev) => ({ ...prev, action: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="ALL">All Actions</option>
+                  <option value="CREATE">Create</option>
+                  <option value="UPDATE">Update</option>
+                  <option value="DELETE">Delete</option>
+                  <option value="LOGIN">Login</option>
+                  <option value="INVITE">Invite</option>
+                  <option value="ACKNOWLEDGE_ALERT">Acknowledge Alert</option>
+                  <option value="RESOLVE_ALERT">Resolve Alert</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Entity
+                </label>
+                <select
+                  value={filter.entity}
+                  onChange={(e) => setFilter((prev) => ({ ...prev, entity: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="ALL">All Entities</option>
+                  <option value="User">User</option>
+                  <option value="Company">Company</option>
+                  <option value="Worksite">Worksite</option>
+                  <option value="Camera">Camera</option>
+                  <option value="Alert">Alert</option>
+                  <option value="Detection">Detection</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  From Date
+                </label>
+                <input
+                  type="date"
+                  value={filter.dateFrom}
+                  onChange={(e) => setFilter((prev) => ({ ...prev, dateFrom: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  To Date
+                </label>
+                <input
+                  type="date"
+                  value={filter.dateTo}
+                  onChange={(e) => setFilter((prev) => ({ ...prev, dateTo: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+              </div>
+            ) : logs.length === 0 ? (
+              <div className="py-12 text-center text-slate-400">
+                No audit logs found for the selected filters.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {logs.map((log) => {
+                  const metadata = log.metadata as any;
+                  const changes = log.changes as any;
+                  const severity: 'critical' | 'high' | 'medium' | 'low' = metadata?.severity || 'low';
+                  const correlationId = metadata?.correlationId;
+                  const browser = metadata?.browser;
+                  const os = metadata?.os;
+                  const geoIP = metadata?.geoIP;
+
+                  const severityColorMap: Record<'critical' | 'high' | 'medium' | 'low', string> = {
+                    critical: 'border-red-500/40 bg-red-500/10 text-red-200',
+                    high: 'border-orange-500/40 bg-orange-500/10 text-orange-200',
+                    medium: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200',
+                    low: 'border-slate-500/40 bg-slate-500/10 text-slate-300',
+                  };
+                  const severityColor = severityColorMap[severity] || 'border-slate-500/40 bg-slate-500/10 text-slate-300';
+
+                  return (
+                    <div key={log.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span
+                              className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${getActionColor(
+                                log.action
+                              )}`}
+                            >
+                              {log.action}
+                            </span>
+                            <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${severityColor}`}>
+                              {severity}
+                            </span>
+                            <span className="text-xs text-slate-500">{log.entity}</span>
+                            {log.entityId && (
+                              <span className="text-xs text-slate-600">ID: {log.entityId}</span>
+                            )}
+                            {correlationId && (
+                              <span className="text-xs text-slate-600 font-mono">Corr: {correlationId.substring(0, 12)}...</span>
+                            )}
+                          </div>
+                          <div className="mt-2 flex items-center gap-4 text-xs text-slate-400 flex-wrap">
+                            <span>{log.user?.email || 'System'}</span>
+                            <span>•</span>
+                            <span>{formatRelativeTime(log.createdAt)}</span>
+                            {log.ipAddress && (
+                              <>
+                                <span>•</span>
+                                <span>{log.ipAddress}</span>
+                              </>
+                            )}
+                            {geoIP && (
+                              <>
+                                <span>•</span>
+                                <span>📍 {geoIP}</span>
+                              </>
+                            )}
+                            {browser && (
+                              <>
+                                <span>•</span>
+                                <span>{browser}</span>
+                              </>
+                            )}
+                            {os && (
+                              <>
+                                <span>•</span>
+                                <span>{os}</span>
+                              </>
+                            )}
+                          </div>
+                          {/* Before/After Changes */}
+                          {changes && (changes.before || changes.after) && (
+                            <div className="mt-3 rounded-lg border border-slate-800/70 bg-slate-900/40 p-3">
+                              <p className="text-xs font-semibold text-slate-400 mb-2">Changes:</p>
+                              <div className="grid gap-2 md:grid-cols-2 text-xs">
+                                {changes.before && (
+                                  <div>
+                                    <p className="text-red-400 font-semibold mb-1">Before:</p>
+                                    <pre className="text-slate-300 overflow-auto max-h-32">
+                                      {JSON.stringify(changes.before, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                                {changes.after && (
+                                  <div>
+                                    <p className="text-emerald-400 font-semibold mb-1">After:</p>
+                                    <pre className="text-slate-300 overflow-auto max-h-32">
+                                      {JSON.stringify(changes.after, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Support Tickets Tab */}
+      {activeTab === 'support' && (
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+          <p className="text-slate-400 text-center py-12">
+            Support tickets system coming soon. This will integrate with Zendesk/Intercom or provide a full ticketing system.
+          </p>
+        </div>
+      )}
+
+      {/* Activity Timeline Tab */}
+      {activeTab === 'timeline' && (
+        <>
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Filter Timeline</h3>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Company ID
+                </label>
+                <input
+                  type="text"
+                  value={selectedCompany}
+                  onChange={(e) => setSelectedCompany(e.target.value)}
+                  placeholder="Company ID (optional)"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Worksite ID
+                </label>
+                <input
+                  type="text"
+                  value={selectedWorksite}
+                  onChange={(e) => setSelectedWorksite(e.target.value)}
+                  placeholder="Worksite ID (optional)"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  User ID
+                </label>
+                <input
+                  type="text"
+                  value={selectedUserId}
+                  onChange={(e) => setSelectedUserId(e.target.value)}
+                  placeholder="User ID (optional)"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            {timelineLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+              </div>
+            ) : activityTimeline.length === 0 ? (
+              <div className="py-12 text-center text-slate-400">
+                {selectedCompany || selectedWorksite || selectedUserId
+                  ? 'No activity found for the selected filters.'
+                  : 'Select a company, worksite, or user to view activity timeline.'}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activityTimeline.map((event, idx) => (
+                  <div key={idx} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <span className="rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-200">
+                            {event.type}
+                          </span>
+                          <span className="text-sm text-white">{event.details}</span>
+                        </div>
+                        <div className="mt-2 flex items-center gap-4 text-xs text-slate-400">
+                          <span>{event.user}</span>
+                          <span>•</span>
+                          <span>{formatRelativeTime(event.timestamp)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Troubleshooting Tab */}
+      {activeTab === 'troubleshooting' && (
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Troubleshooting Tools</h3>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <button
+                onClick={() => handleTroubleshooting('test_ai_inference')}
+                disabled={troubleshootingLoading}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Test AI Inference
+              </button>
+              <button
+                onClick={() => {
+                  const cameraId = prompt('Enter Camera ID:');
+                  if (cameraId) handleTroubleshooting('snap_test_frame', cameraId);
+                }}
+                disabled={troubleshootingLoading}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Snap Test Frame
+              </button>
+              <button
+                onClick={() => {
+                  const cameraId = prompt('Enter Camera ID:');
+                  if (cameraId) handleTroubleshooting('view_raw_detections', cameraId);
+                }}
+                disabled={troubleshootingLoading}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                View Raw Detections
+              </button>
+              <button
+                onClick={() => handleTroubleshooting('check_network_latency')}
+                disabled={troubleshootingLoading}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Check Network Latency
+              </button>
+              <button
+                onClick={() => {
+                  const worksiteId = prompt('Enter Worksite ID:');
+                  if (worksiteId) handleTroubleshooting('resync_camera_streams', undefined, worksiteId);
+                }}
+                disabled={troubleshootingLoading}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Re-sync Camera Streams
+              </button>
+              <button
+                onClick={() => {
+                  const cameraId = prompt('Enter Camera ID:');
+                  if (cameraId) handleTroubleshooting('export_camera_logs', cameraId);
+                }}
+                disabled={troubleshootingLoading}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Export Camera Logs
+              </button>
+            </div>
+          </div>
+
+          {troubleshootingResult && (
+            <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">Result</h3>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                    troubleshootingResult.success
+                      ? 'bg-emerald-500/20 text-emerald-300'
+                      : 'bg-red-500/20 text-red-300'
+                  }`}
+                >
+                  {troubleshootingResult.success ? 'Success' : 'Failed'}
+                </span>
+              </div>
+
+              {troubleshootingResult.message && (
+                <div className="mb-4 rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                  <p className="text-sm text-slate-300">{troubleshootingResult.message}</p>
+                </div>
+              )}
+
+              {troubleshootingResult.error && (
+                <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3">
+                  <p className="text-sm font-semibold text-red-300">Error: {troubleshootingResult.error}</p>
+                  {troubleshootingResult.details && (
+                    <p className="mt-1 text-xs text-red-200">{JSON.stringify(troubleshootingResult.details, null, 2)}</p>
+                  )}
+                </div>
+              )}
+
+              {troubleshootingResult.recommendation && (
+                <div className="mb-4 rounded-lg border border-blue-500/40 bg-blue-500/10 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-300 mb-1">Recommendation</p>
+                  <p className="text-sm text-blue-200">{troubleshootingResult.recommendation}</p>
+                </div>
+              )}
+
+              {troubleshootingResult.recommendations && troubleshootingResult.recommendations.length > 0 && (
+                <div className="mb-4 rounded-lg border border-blue-500/40 bg-blue-500/10 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-300 mb-2">Recommendations</p>
+                  <ul className="space-y-1 text-sm text-blue-200">
+                    {troubleshootingResult.recommendations.map((rec: string, idx: number) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="text-blue-400 mt-0.5">•</span>
+                        <span>{rec}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {troubleshootingResult.errors && Object.keys(troubleshootingResult.errors).length > 0 && (
+                <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-300 mb-2">Service Errors</p>
+                  <div className="space-y-1 text-xs text-amber-200">
+                    {Object.entries(troubleshootingResult.errors).map(([service, error]: [string, any]) => (
+                      <div key={service} className="flex items-start gap-2">
+                        <span className="font-semibold capitalize">{service}:</span>
+                        <span>{error}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {troubleshootingResult.latencies && (
+                <div className="mb-4 rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">Network Latency</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {Object.entries(troubleshootingResult.latencies).map(([service, latency]: [string, any]) => (
+                      <div key={service} className="flex items-center justify-between">
+                        <span className="text-slate-400 capitalize">{service}:</span>
+                        <span
+                          className={`font-semibold ${
+                            latency === 'Unreachable' ? 'text-red-300' : 'text-emerald-300'
+                          }`}
+                        >
+                          {latency}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {troubleshootingResult.streamAccessible !== undefined && (
+                <div className="mb-4 rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Stream Status</p>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        troubleshootingResult.streamAccessible
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : 'bg-red-500/20 text-red-300'
+                      }`}
+                    >
+                      {troubleshootingResult.streamAccessible ? 'Accessible' : 'Not Accessible'}
+                    </span>
+                  </div>
+                  {troubleshootingResult.streamError && (
+                    <p className="text-xs text-red-300 mt-1">Error: {troubleshootingResult.streamError}</p>
+                  )}
+                  {troubleshootingResult.ffmpegAvailable !== undefined && (
+                    <p className="text-xs text-slate-400 mt-1">
+                      ffmpeg: {troubleshootingResult.ffmpegAvailable ? 'Available' : 'Not installed'}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {troubleshootingResult.note && (
+                <div className="mb-4 rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                  <p className="text-xs text-slate-400">{troubleshootingResult.note}</p>
+                </div>
+              )}
+
+              <details className="mt-4">
+                <summary className="cursor-pointer text-xs text-slate-400 hover:text-slate-300">
+                  View Raw JSON
+                </summary>
+                <pre className="mt-2 rounded-lg border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-300 overflow-auto max-h-96">
+                  {JSON.stringify(troubleshootingResult, null, 2)}
+                </pre>
+              </details>
+            </div>
+          )}
+
+          {troubleshootingLoading && (
+            <div className="flex items-center justify-center rounded-2xl border border-slate-800/60 bg-slate-900/60 p-12">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -4049,29 +7117,82 @@ interface MetricCardProps {
   value: string | number;
   subtitle?: string;
   icon: React.ComponentType<{ className?: string }>;
-  accent?: 'default' | 'emerald' | 'violet';
+  accent?: 'default' | 'emerald' | 'violet' | 'red' | 'amber';
 }
 
-function MetricCard({ title, value, subtitle, icon: Icon, accent = 'default' }: MetricCardProps) {
+function MetricCard({ title, value, subtitle, icon: Icon, accent = 'default', onClick, percentage, trend }: MetricCardProps & { onClick?: () => void; percentage?: number; trend?: 'up' | 'down' | 'neutral' }) {
   const accentClasses =
     accent === 'emerald'
       ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
       : accent === 'violet'
       ? 'bg-violet-500/10 text-violet-300 border-violet-500/20'
+      : accent === 'red'
+      ? 'bg-red-500/10 text-red-300 border-red-500/20'
+      : accent === 'amber'
+      ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
       : 'bg-blue-500/10 text-blue-300 border-blue-500/20';
 
+  // Color-coded compliance
+  const getComplianceColor = (val: number) => {
+    if (val >= 90) return 'text-emerald-400';
+    if (val >= 70) return 'text-amber-400';
+    return 'text-red-400';
+  };
+
+  const isPercentage = typeof value === 'string' && value.includes('%');
+  const numValue = isPercentage ? parseFloat(value) : (typeof value === 'number' ? value : null);
+
   return (
-    <div className="flex items-center gap-4 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
-      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${accentClasses}`}>
-        <Icon className="h-6 w-6" />
-      </div>
-      <div>
+    <div 
+      className={`relative flex items-center gap-4 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6 transition-all ${onClick ? 'cursor-pointer hover:border-blue-500/50 hover:bg-slate-800/60' : ''}`}
+      onClick={onClick}
+    >
+      {/* Progress ring for percentages */}
+      {percentage !== undefined && (
+        <div className="relative h-14 w-14 shrink-0">
+          <svg className="h-14 w-14 -rotate-90 transform">
+            <circle cx="28" cy="28" r="24" stroke="currentColor" strokeWidth="4" fill="none" className="text-slate-700" />
+            <circle 
+              cx="28" cy="28" r="24" 
+              stroke="currentColor" 
+              strokeWidth="4" 
+              fill="none" 
+              strokeLinecap="round"
+              strokeDasharray={`${(percentage / 100) * 150.8} 150.8`}
+              className={percentage >= 90 ? 'text-emerald-400' : percentage >= 70 ? 'text-amber-400' : 'text-red-400'}
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className={`text-xs font-bold ${percentage >= 90 ? 'text-emerald-400' : percentage >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
+              {Math.round(percentage)}%
+            </span>
+          </div>
+        </div>
+      )}
+      {percentage === undefined && (
+        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${accentClasses}`}>
+          <Icon className="h-6 w-6" />
+        </div>
+      )}
+      <div className="flex-1">
         <p className="text-sm text-slate-400">{title}</p>
-        <p className="mt-1 text-2xl font-semibold text-white">
+        <p className={`mt-1 text-2xl font-semibold ${isPercentage && numValue !== null ? getComplianceColor(numValue) : 'text-white'}`}>
           {typeof value === 'number' ? value.toLocaleString() : value}
         </p>
         {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
       </div>
+      {trend && (
+        <div className={`flex items-center gap-1 ${trend === 'up' ? 'text-emerald-400' : trend === 'down' ? 'text-red-400' : 'text-slate-400'}`}>
+          <TrendingUp className={`h-4 w-4 ${trend === 'down' ? 'rotate-180' : ''}`} />
+        </div>
+      )}
+      {onClick && (
+        <div className="absolute right-4 top-4 text-slate-500">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      )}
     </div>
   );
 }
@@ -4223,17 +7344,65 @@ interface AlertSummaryCardProps {
 }
 
 function AlertSummaryCard({ headline, data, total }: AlertSummaryCardProps) {
+  // Calculate percentages for donut chart
+  const segments = data.map((item, idx) => {
+    const percentage = total > 0 ? (item.value / total) * 100 : 0;
+    const colors = ['#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6'];
+    return { ...item, percentage, fillColor: colors[idx % colors.length] };
+  });
+
+  // Calculate stroke-dasharray for each segment
+  const circumference = 2 * Math.PI * 32;
+  let cumulativePercentage = 0;
+
   return (
-    <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-5">
-      <p className="text-xs uppercase tracking-wide text-slate-500">{headline}</p>
-      <p className="mt-2 text-3xl font-semibold text-white">{total.toLocaleString()}</p>
-      <div className="mt-4 space-y-3 text-sm">
-        {data.map((item) => (
-          <div key={item.label} className="flex items-center justify-between">
-            <span className={`text-slate-300 ${item.color ?? ''}`}>{item.label}</span>
-            <span className="font-semibold text-white">{item.value.toLocaleString()}</span>
+    <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4 overflow-hidden">
+      <p className="text-xs uppercase tracking-wide text-slate-500 mb-3">{headline}</p>
+      
+      <div className="flex items-start gap-4">
+        {/* Donut Chart - smaller */}
+        <div className="relative h-20 w-20 shrink-0">
+          <svg className="h-20 w-20 -rotate-90 transform" viewBox="0 0 80 80">
+            <circle cx="40" cy="40" r="32" stroke="#1e293b" strokeWidth="8" fill="none" />
+            {segments.map((segment) => {
+              const dashArray = (segment.percentage / 100) * circumference;
+              const dashOffset = -(cumulativePercentage / 100) * circumference;
+              cumulativePercentage += segment.percentage;
+              return (
+                <circle
+                  key={segment.label}
+                  cx="40"
+                  cy="40"
+                  r="32"
+                  stroke={segment.fillColor}
+                  strokeWidth="8"
+                  fill="none"
+                  strokeDasharray={`${dashArray} ${circumference}`}
+                  strokeDashoffset={dashOffset}
+                />
+              );
+            })}
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-sm font-bold text-white">{total}</span>
           </div>
-        ))}
+        </div>
+
+        {/* Legend - compact */}
+        <div className="flex-1 min-w-0 space-y-1.5">
+          {data.map((item, idx) => {
+            const colors = ['bg-red-500', 'bg-amber-500', 'bg-blue-500', 'bg-emerald-500', 'bg-violet-500'];
+            return (
+              <div key={item.label} className="flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <div className={`h-2 w-2 shrink-0 rounded-full ${colors[idx % colors.length]}`} />
+                  <span className={`truncate ${item.color ?? 'text-slate-300'}`}>{item.label}</span>
+                </div>
+                <span className="shrink-0 font-semibold text-white">{item.value}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -4247,16 +7416,37 @@ interface StatusGaugeProps {
 
 function StatusGauge({ label, value, helper }: StatusGaugeProps) {
   const displayValue = value !== undefined ? value : null;
+  const percentage = displayValue ?? 0;
+  const getColor = (val: number) => {
+    if (val >= 90) return { ring: 'text-emerald-400', text: 'text-emerald-400', bg: 'bg-emerald-500/10' };
+    if (val >= 70) return { ring: 'text-amber-400', text: 'text-amber-400', bg: 'bg-amber-500/10' };
+    return { ring: 'text-red-400', text: 'text-red-400', bg: 'bg-red-500/10' };
+  };
+  const colors = getColor(percentage);
 
   return (
-    <div className="flex h-full flex-col justify-between rounded-xl border border-slate-800/60 bg-slate-900/40 p-5">
-      <div>
-        <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-        <p className="mt-2 text-4xl font-bold text-white">
-          {displayValue !== null ? `${displayValue.toFixed(1)}%` : '--'}
-        </p>
+    <div className={`flex h-full flex-col items-center justify-center rounded-xl border border-slate-800/60 ${colors.bg} p-5`}>
+      <p className="mb-3 text-xs uppercase tracking-wide text-slate-500">{label}</p>
+      <div className="relative h-28 w-28">
+        <svg className="h-28 w-28 -rotate-90 transform">
+          <circle cx="56" cy="56" r="48" stroke="currentColor" strokeWidth="8" fill="none" className="text-slate-700" />
+          <circle 
+            cx="56" cy="56" r="48" 
+            stroke="currentColor" 
+            strokeWidth="8" 
+            fill="none" 
+            strokeLinecap="round"
+            strokeDasharray={`${(percentage / 100) * 301.6} 301.6`}
+            className={colors.ring}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className={`text-2xl font-bold ${colors.text}`}>
+            {displayValue !== null ? `${displayValue.toFixed(0)}%` : '--'}
+          </span>
+        </div>
       </div>
-      {helper && <p className="text-xs text-slate-400">{helper}</p>}
+      {helper && <p className="mt-3 text-center text-xs text-slate-400">{helper}</p>}
     </div>
   );
 }

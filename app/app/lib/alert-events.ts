@@ -1,5 +1,3 @@
-'use server';
-
 import { EventEmitter } from 'events';
 
 interface AlertEventPayload {

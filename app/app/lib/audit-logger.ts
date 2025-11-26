@@ -33,13 +33,47 @@ interface AuditLogParams {
   };
   metadata?: any;
   request?: NextRequest;
+  correlationId?: string;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
 }
 
 /**
  * Log an audit event
  * This should be called for all important actions in the system
  */
-export async function logAudit(params: AuditLogParams): Promise<void> {
+// Generate correlation ID for request tracking
+function generateCorrelationId(): string {
+  return `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
+
+// Extract browser/OS from user agent
+function parseUserAgent(userAgent?: string): { browser?: string; os?: string } {
+  if (!userAgent) return {};
+  
+  const browserMatch = userAgent.match(/(Chrome|Firefox|Safari|Edge|Opera)\/[\d.]+/);
+  const osMatch = userAgent.match(/(Windows|Mac OS|Linux|iOS|Android)/);
+  
+  return {
+    browser: browserMatch ? browserMatch[1] : undefined,
+    os: osMatch ? osMatch[1] : undefined,
+  };
+}
+
+// Determine severity based on action and entity
+function determineSeverity(action: AuditAction, entity: AuditEntity): 'low' | 'medium' | 'high' | 'critical' {
+  if (action === 'DELETE' && ['Company', 'Worksite', 'User'].includes(entity)) {
+    return 'critical';
+  }
+  if (action === 'DELETE' || (action === 'UPDATE' && ['User', 'Company'].includes(entity))) {
+    return 'high';
+  }
+  if (action === 'UPDATE' || action === 'CREATE') {
+    return 'medium';
+  }
+  return 'low';
+}
+
+export async function logAudit(params: AuditLogParams): Promise<string> {
   try {
     const {
       userId,
@@ -48,12 +82,16 @@ export async function logAudit(params: AuditLogParams): Promise<void> {
       entityId,
       changes,
       metadata,
-      request
+      request,
+      correlationId,
+      severity
     } = params;
 
     // Extract IP and user agent from request if provided
     let ipAddress: string | undefined;
     let userAgent: string | undefined;
+    let geoIP: string | undefined;
+    let browserInfo: { browser?: string; os?: string } = {};
 
     if (request) {
       // Try to get real IP from headers (for proxies/load balancers)
@@ -64,7 +102,28 @@ export async function logAudit(params: AuditLogParams): Promise<void> {
         'unknown';
       
       userAgent = request.headers.get('user-agent') || undefined;
+      browserInfo = parseUserAgent(userAgent);
+      
+      // Geo-IP would be determined by IP lookup service (placeholder)
+      // In production, use a service like MaxMind GeoIP2
+      geoIP = ipAddress !== 'unknown' ? 'US' : undefined; // Placeholder
     }
+
+    // Generate correlation ID if not provided
+    const finalCorrelationId = correlationId || generateCorrelationId();
+    
+    // Determine severity if not provided
+    const finalSeverity = severity || determineSeverity(action, entity);
+
+    // Enhanced metadata with correlation ID, severity, and browser info
+    const enhancedMetadata = {
+      ...metadata,
+      correlationId: finalCorrelationId,
+      severity: finalSeverity,
+      browser: browserInfo.browser,
+      os: browserInfo.os,
+      geoIP,
+    };
 
     await prisma.auditLog.create({
       data: {
@@ -75,14 +134,17 @@ export async function logAudit(params: AuditLogParams): Promise<void> {
         changes,
         ipAddress,
         userAgent,
-        metadata
+        metadata: enhancedMetadata
       }
     });
 
-    console.log(`📝 Audit: ${action} ${entity}${entityId ? ` (${entityId})` : ''} by user ${userId}`);
+    console.log(`📝 Audit [${finalSeverity.toUpperCase()}]: ${action} ${entity}${entityId ? ` (${entityId})` : ''} by user ${userId} [${finalCorrelationId}]`);
+    
+    return finalCorrelationId;
   } catch (error) {
     // Don't throw - audit logging should never break the main flow
     console.error('Failed to create audit log:', error);
+    return '';
   }
 }
 

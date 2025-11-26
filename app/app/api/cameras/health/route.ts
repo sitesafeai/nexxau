@@ -137,30 +137,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create or update health record
-    const healthRecord = await prisma.cameraHealth.upsert({
-      where: { cameraId },
-      update: {
-        status,
-        streamQuality,
-        frameRate,
-        resolution,
-        bitrate,
-        latency,
-        errors,
-        lastCheck: new Date(),
-      },
-      create: {
-        cameraId,
-        status,
-        streamQuality,
-        frameRate,
-        resolution,
-        bitrate,
-        latency,
-        errors,
-        lastCheck: new Date(),
-      },
+    // Create or update health record and update camera heartbeat
+    const now = new Date();
+    const currentMetadata = (camera.metadata as Record<string, any>) || {};
+    
+    const healthRecord = await prisma.$transaction(async (tx) => {
+      const health = await tx.cameraHealth.upsert({
+        where: { cameraId },
+        update: {
+          status,
+          streamQuality,
+          frameRate,
+          resolution,
+          bitrate,
+          latency,
+          errors,
+          lastCheck: now,
+        },
+        create: {
+          cameraId,
+          status,
+          streamQuality,
+          frameRate,
+          resolution,
+          bitrate,
+          latency,
+          errors,
+          lastCheck: now,
+        },
+      });
+
+      // Update camera metadata with lastHeartbeat
+      await tx.camera.update({
+        where: { id: cameraId },
+        data: {
+          metadata: {
+            ...currentMetadata,
+            lastHeartbeat: now.toISOString()
+          }
+        }
+      });
+
+      return health;
     });
 
     return NextResponse.json({

@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('[admin][worksites] Failed to list worksites', error);
-    return NextResponse.json(
+      return NextResponse.json(
       {
         success: false,
         error: 'Failed to fetch worksites',

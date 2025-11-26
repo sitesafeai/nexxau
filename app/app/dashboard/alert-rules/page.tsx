@@ -34,11 +34,14 @@ export default function AlertRulesPage() {
         setWorksite(data.data);
       }
       
-      // Load custom rules for this worksite
+      // Load custom rules for this worksite ONLY (filtered by worksiteId)
       const rulesRes = await fetch(`/api/custom-rules?worksiteId=${worksiteParam}`);
       if (rulesRes.ok) {
         const data = await rulesRes.json();
-        setRules(Array.isArray(data) ? data : (data.data || []));
+        const allRules = Array.isArray(data) ? data : (data.data || []);
+        // Double-check: filter to ensure only rules for this worksite are shown
+        const filteredRules = allRules.filter((rule: any) => rule.worksiteId === worksiteParam);
+        setRules(filteredRules);
       }
     } catch (err: any) {
       setError(err.message);
@@ -112,7 +115,7 @@ export default function AlertRulesPage() {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push(`/dashboard?worksite=${worksiteParam}`)}
             className="flex items-center text-gray-400 hover:text-white transition-colors mb-4"
           >
             <ArrowLeft className="w-5 h-5 mr-2" />

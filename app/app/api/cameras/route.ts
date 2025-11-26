@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { createCameraSchema, validateBody } from '@/app/lib/validation/cameras';
 
 // GET /api/cameras - Get cameras (optionally filtered by worksite)
 export async function GET(request: NextRequest) {
@@ -114,9 +115,24 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const validation = validateBody(createCameraSchema, body);
+
+    if (!validation.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Validation failed',
+          details: validation.error.errors,
+        },
+        { status: 400 }
+      );
+    }
+
+    const data = validation.data;
     const { 
       name, 
       streamUrl, 
+      hlsUrl,
       location, 
       worksiteId,
       type = 'IP Camera',
@@ -124,15 +140,17 @@ export async function POST(request: NextRequest) {
       port,
       username,
       password,
-      rtspPath
-    } = body;
+      rtspPath,
+      mediamtxPath,
+      metadata
+    } = data;
 
-    // Validate required fields
-    if (!name || !streamUrl) {
+    // Ensure we have either streamUrl or hlsUrl
+    if (!streamUrl && !hlsUrl) {
       return NextResponse.json(
         { 
           success: false,
-          error: 'Missing required fields: name, streamUrl' 
+          error: 'Either streamUrl or hlsUrl is required' 
         }, 
         { status: 400 }
       );
@@ -165,8 +183,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine stream type and URLs
-    const isHLS = streamUrl.includes('.m3u8') || streamUrl.includes('hls');
-    const isRTSP = streamUrl.startsWith('rtsp://');
+    const finalStreamUrl = streamUrl || hlsUrl;
+    const isHLS = finalStreamUrl?.includes('.m3u8') || finalStreamUrl?.includes('hls') || !!hlsUrl;
+    const isRTSP = finalStreamUrl?.startsWith('rtsp://');
 
     // Create camera with transaction
     const camera = await prisma.$transaction(async (tx) => {
@@ -174,16 +193,18 @@ export async function POST(request: NextRequest) {
       const newCamera = await tx.camera.create({
         data: {
           name,
-          type,
+          type: type || 'IP Camera',
           status: 'active',
-          streamUrl: isRTSP ? streamUrl : undefined,
-          hlsUrl: isHLS ? streamUrl : undefined,
+          streamUrl: isRTSP ? finalStreamUrl : undefined,
+          hlsUrl: isHLS ? (hlsUrl || finalStreamUrl) : undefined,
           location: location || 'Unspecified',
           ipAddress,
           port,
           username,
           password,
           rtspPath,
+          mediamtxPath,
+          metadata: metadata || undefined,
           worksiteId: targetWorksiteId
         },
         include: {

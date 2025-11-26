@@ -39,13 +39,21 @@ export default function LoginPage() {
         email: loginData.email,
         password: loginData.password,
         redirect: false,
-        callbackUrl: '/dashboard'
       });
 
       if (result?.error) {
         setError('Invalid email or password');
       } else {
-        router.push('/dashboard');
+        // Get the session to check the user's role
+        const session = await getSession();
+        const userRole = (session?.user as any)?.role?.toUpperCase();
+        
+        // Redirect based on role
+        if (userRole === 'SUPER_ADMIN') {
+          router.push('/super-admin');
+        } else {
+          router.push('/dashboard');
+        }
       }
     } catch (error) {
       setError('An error occurred during login');

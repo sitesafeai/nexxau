@@ -27,6 +27,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Company is now required
+    if (!companyId) {
+      return NextResponse.json(
+        { success: false, error: 'Company is required for invitations' },
+        { status: 400 }
+      );
+    }
+
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
@@ -74,14 +82,26 @@ export async function POST(request: NextRequest) {
       console.log('📧 RESENDING invitation email to:', email);
       console.log('🔗 Invite URL:', inviteUrl);
 
-      // Send email (non-blocking - don't wait for it)
-      sendInvitationEmail(
-        email,
-        inviter?.name || 'Admin',
-        role,
-        company?.name || 'Your Organization',
-        token
-      ).catch(err => console.error('Failed to send email:', err));
+      // Send email and wait for it to complete
+      try {
+        const emailResult = await sendInvitationEmail(
+          email,
+          inviter?.name || 'Admin',
+          role,
+          company?.name || 'Your Organization',
+          token
+        );
+        
+        if (!emailResult.success) {
+          console.error('Failed to resend invitation email:', emailResult.error);
+          // Don't fail the whole request, but log it
+        } else {
+          console.log('✅ Invitation email resent successfully to:', email);
+        }
+      } catch (emailError: any) {
+        console.error('Error resending invitation email:', emailError);
+        // Don't fail the whole request, but log it
+      }
 
       return NextResponse.json({
         success: true,
@@ -148,14 +168,26 @@ export async function POST(request: NextRequest) {
     console.log('👤 Role:', role);
     console.log('⏰ Expires:', expires);
 
-    // Send email (non-blocking - don't wait for it)
-    sendInvitationEmail(
-      email,
-      inviter?.name || 'Admin',
-      role,
-      company?.name || 'Your Organization',
-      token
-    ).catch(err => console.error('Failed to send email:', err));
+    // Send email and wait for it to complete
+    try {
+      const emailResult = await sendInvitationEmail(
+        email,
+        inviter?.name || 'Admin',
+        role,
+        company?.name || 'Your Organization',
+        token
+      );
+      
+      if (!emailResult.success) {
+        console.error('Failed to send invitation email:', emailResult.error);
+        // Don't fail the whole request, but log it
+      } else {
+        console.log('✅ Invitation email sent successfully to:', email);
+      }
+    } catch (emailError: any) {
+      console.error('Error sending invitation email:', emailError);
+      // Don't fail the whole request, but log it
+    }
 
     return NextResponse.json({
       success: true,

@@ -52,10 +52,18 @@ export async function POST(
         }
       });
 
-      // Update camera's updatedAt timestamp to reflect activity
+      // Update camera's updatedAt timestamp and metadata.lastHeartbeat to reflect activity
+      const now = new Date();
+      const currentMetadata = (camera.metadata as Record<string, any>) || {};
       await tx.camera.update({
         where: { id },
-        data: { updatedAt: new Date() }
+        data: { 
+          updatedAt: now,
+          metadata: {
+            ...currentMetadata,
+            lastHeartbeat: now.toISOString()
+          }
+        }
       });
 
       return newHealth;

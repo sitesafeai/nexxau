@@ -9,11 +9,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get('active') === 'true';
     const cameraId = searchParams.get('cameraId');
+    const worksiteId = searchParams.get('worksiteId');
 
     const rules = await retryDatabaseOperation(async () => {
       return await prisma.customRule.findMany({
         where: {
           ...(activeOnly ? { isActive: true } : {}),
+          ...(worksiteId ? { worksiteId } : {}), // Filter by worksiteId if provided
           ...(cameraId ? { 
             OR: [
               { cameraId },

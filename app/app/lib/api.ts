@@ -207,7 +207,14 @@ export class ApiService {
         throw new Error(`API call failed: ${response.status}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      
+      // Handle API responses that wrap data in { success: true, data: ... }
+      if (data && typeof data === 'object' && 'success' in data && 'data' in data) {
+        return data.data as T;
+      }
+      
+      return data as T;
     } catch (error) {
       console.error(`API call error for ${endpoint}:`, error);
       throw error;

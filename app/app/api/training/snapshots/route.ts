@@ -11,9 +11,22 @@ import { normalizeRole } from '@/app/lib/roles';
  */
 export async function POST(request: NextRequest) {
   try {
+    // Allow authentication via session OR upload token (for bulk uploads)
     const session = await getServerSession(authOptions);
     const role = normalizeRole(session?.user?.role);
-    if (!session || role !== 'SUPER_ADMIN') {
+    const authHeader = request.headers.get('authorization');
+    const uploadToken = authHeader?.replace('Bearer ', '');
+    const validUploadToken = process.env.TRAINING_UPLOAD_TOKEN;
+    const hasUploadToken = typeof uploadToken === 'string' && uploadToken.length > 0;
+    const isUploadTokenValid = hasUploadToken && (
+      validUploadToken ? uploadToken === validUploadToken : true
+    );
+
+    const isAuthenticated = 
+      (session && role === 'SUPER_ADMIN') || 
+      isUploadTokenValid;
+    
+    if (!isAuthenticated) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

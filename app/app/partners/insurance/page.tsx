@@ -2,291 +2,136 @@
 
 import React from 'react';
 import Link from 'next/link';
-import Navbar from '../../components/Navbar';
-import { 
-  ShieldCheckIcon, 
-  ChartBarIcon, 
-  CurrencyDollarIcon, 
-  DocumentCheckIcon,
-  UserGroupIcon,
-  ClockIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  BuildingOfficeIcon,
-  TruckIcon,
-  CogIcon,
-  BoltIcon
-} from '@heroicons/react/24/outline';
-
-const benefits = [
-  {
-    name: 'Reduced Claims',
-    description: 'Help your clients prevent accidents before they happen with proactive safety monitoring.',
-    icon: ShieldCheckIcon,
-    color: 'bg-green-500',
-    stats: '40% reduction in claims'
-  },
-  {
-    name: 'Lower Premiums',
-    description: 'Enable data-driven pricing with comprehensive safety analytics and risk assessment.',
-    icon: CurrencyDollarIcon,
-    color: 'bg-blue-500',
-    stats: '15% average premium reduction'
-  },
-  {
-    name: 'Faster Claims Processing',
-    description: 'Streamline claims with detailed incident documentation and automated reporting.',
-    icon: ClockIcon,
-    color: 'bg-purple-500',
-    stats: '60% faster processing'
-  },
-  {
-    name: 'Better Risk Assessment',
-    description: 'Get real-time insights into client safety performance for more accurate underwriting.',
-    icon: ChartBarIcon,
-    color: 'bg-orange-500',
-    stats: 'Real-time risk scoring'
-  }
-];
-
-const industries = [
-  {
-    name: 'Construction',
-    icon: BuildingOfficeIcon,
-    color: 'bg-orange-500',
-    riskFactors: ['Falls from height', 'Equipment accidents', 'PPE violations'],
-    solutions: ['Fall detection', 'Equipment monitoring', 'PPE compliance tracking']
-  },
-  {
-    name: 'Manufacturing',
-    icon: CogIcon,
-    color: 'bg-blue-500',
-    riskFactors: ['Machine accidents', 'Chemical exposure', 'Ergonomic injuries'],
-    solutions: ['Machine safety monitoring', 'Chemical spill detection', 'Posture analysis']
-  },
-  {
-    name: 'Logistics',
-    icon: TruckIcon,
-    color: 'bg-purple-500',
-    riskFactors: ['Vehicle accidents', 'Loading injuries', 'Warehouse falls'],
-    solutions: ['Driver behavior monitoring', 'Loading safety checks', 'Warehouse monitoring']
-  },
-  {
-    name: 'Energy',
-    icon: BoltIcon,
-    color: 'bg-yellow-500',
-    riskFactors: ['Electrical hazards', 'Fire risks', 'Equipment failures'],
-    solutions: ['Electrical safety monitoring', 'Fire detection', 'Predictive maintenance']
-  }
-];
-
-const features = [
-  {
-    name: 'Real-time Risk Monitoring',
-    description: 'Monitor client safety performance in real-time with AI-powered analytics.',
-    icon: ExclamationTriangleIcon,
-    benefits: [
-      'Instant safety violation detection',
-      'Predictive risk modeling',
-      'Automated alert systems',
-      'Comprehensive safety scoring'
-    ]
-  },
-  {
-    name: 'Claims Documentation',
-    description: 'Automated incident documentation with detailed video evidence and safety analysis.',
-    icon: DocumentCheckIcon,
-    benefits: [
-      'Video evidence capture',
-      'Automated incident reports',
-      'Safety violation tracking',
-      'Compliance documentation'
-    ]
-  },
-  {
-    name: 'Client Safety Programs',
-    description: 'Help your clients implement effective safety programs with data-driven insights.',
-    icon: UserGroupIcon,
-    benefits: [
-      'Safety training recommendations',
-      'Performance benchmarking',
-      'Best practice sharing',
-      'Continuous improvement tracking'
-    ]
-  }
-];
+import Image from 'next/image';
+import { ChartBarIcon, DocumentCheckIcon, ShieldCheckIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 
 export default function InsurancePage() {
   return (
     <div className="min-h-screen bg-gray-900">
-      <Navbar />
-      
-      {/* Hero Section */}
-      <div className="relative py-24 sm:py-32">
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-gray-900/90 backdrop-blur-sm border-b border-white/10">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Link href="/test-homepage" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <Image src="/nexxau-logo-resized.png" alt="Nexxau Logo" width={32} height={32} className="w-8 h-8 object-contain" />
+              <span className="text-xl tracking-tight text-white font-bold">NEXXAU</span>
+            </Link>
+            <nav className="hidden md:flex items-center gap-8">
+              <Link href="/test-homepage" className="text-gray-400 hover:text-white transition-colors text-sm">Home</Link>
+              <Link href="/features" className="text-gray-400 hover:text-white transition-colors text-sm">Features</Link>
+              <Link href="/industries" className="text-gray-400 hover:text-white transition-colors text-sm">Industries</Link>
+              <Link href="/partners/insurance" className="text-white transition-colors text-sm">For Insurance</Link>
+              <Link href="/about" className="text-gray-400 hover:text-white transition-colors text-sm">About</Link>
+              <Link href="/contact" className="text-gray-400 hover:text-white transition-colors text-sm">Contact</Link>
+            </nav>
+            <Link href="/contact/sales" className="px-4 py-1.5 bg-white text-gray-900 hover:bg-white/90 rounded-lg transition-colors font-semibold text-sm">
+              Request Demo
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <div className="relative pt-32 pb-16">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center">
-            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
-              Insurance Solutions
+          <div className="mx-auto max-w-3xl text-center">
+            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+              Safety Data for Smarter Underwriting
             </h1>
-            <p className="mt-6 text-lg leading-8 text-gray-300">
-              Partner with Nexxau to reduce claims, lower premiums, and provide better risk assessment for your clients. Our AI-powered safety monitoring helps you protect your portfolio while improving client safety outcomes.
+            <p className="mt-6 text-lg text-gray-300">
+              Live violation data. Video evidence. Risk scoring. Everything insurers need to price accurately and resolve claims faster.
             </p>
-            <div className="mt-10 flex items-center justify-center gap-x-6">
-              <Link
-                href="/contact"
-                className="rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-              >
-                Partner with Us
-              </Link>
-              <Link href="#benefits" className="text-sm font-semibold leading-6 text-white">
-                Learn More <span aria-hidden="true">→</span>
+            <div className="mt-8">
+              <Link href="/contact/sales" className="inline-block rounded-md bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-500">
+                Request Partnership Info
               </Link>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Benefits Section */}
-      <div id="benefits" className="bg-gray-800 py-24 sm:py-32">
+      {/* Three Pillars - Clean */}
+      <div className="bg-gray-800 py-20">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-blue-400">Insurance Benefits</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Transform Your Insurance Business
-            </p>
-            <p className="mt-6 text-lg leading-8 text-gray-300">
-              Leverage AI-powered safety monitoring to reduce risk, improve client relationships, and increase profitability.
-            </p>
-          </div>
-          <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
-            <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-2">
-              {benefits.map((benefit) => (
-                <div key={benefit.name} className="flex flex-col bg-gray-700 rounded-2xl p-8 border border-gray-600">
-                  <dt className="flex items-center gap-x-3 text-base font-semibold leading-7 text-white">
-                    <div className={`${benefit.color} p-3 rounded-lg`}>
-                      <benefit.icon className="h-6 w-6 text-white" aria-hidden="true" />
-                    </div>
-                    {benefit.name}
-                  </dt>
-                  <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-300">
-                    <p className="flex-auto">{benefit.description}</p>
-                    <p className="mt-4 text-lg font-semibold text-blue-400">{benefit.stats}</p>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </div>
-      </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            {/* Underwriting */}
+            <div className="bg-gray-900 rounded-lg p-8 border border-gray-700">
+              <ChartBarIcon className="h-10 w-10 text-blue-400 mb-6" />
+              <h3 className="text-xl font-bold text-white mb-4">Underwriting</h3>
+              <p className="text-gray-400 mb-6">Objective safety scores based on actual site behavior, not self-reported audits.</p>
+              <ul className="space-y-2 text-sm text-gray-300">
+                <li className="flex items-start gap-2"><CheckCircleIcon className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />Site-level violation frequency</li>
+                <li className="flex items-start gap-2"><CheckCircleIcon className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />Contractor comparison scoring</li>
+                <li className="flex items-start gap-2"><CheckCircleIcon className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />Risk trend modeling</li>
+              </ul>
+            </div>
 
-      {/* Industries Section */}
-      <div className="bg-gray-900 py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-blue-400">High-Risk Industries</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Protect Your High-Risk Clients
-            </p>
-            <p className="mt-6 text-lg leading-8 text-gray-300">
-              Our solutions are specifically designed for industries with the highest safety risks and insurance costs.
-            </p>
-          </div>
-          <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
-              {industries.map((industry) => (
-                <div key={industry.name} className="flex flex-col bg-gray-800 rounded-2xl p-6 border border-gray-700">
-                  <div className={`${industry.color} p-3 rounded-lg w-fit mb-4`}>
-                    <industry.icon className="h-6 w-6 text-white" aria-hidden="true" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-white mb-4">{industry.name}</h3>
-                  
-                  <div className="mb-4">
-                    <h4 className="text-sm font-semibold text-red-400 mb-2">Key Risk Factors</h4>
-                    <ul className="space-y-1">
-                      {industry.riskFactors.map((factor) => (
-                        <li key={factor} className="text-xs text-gray-300">• {factor}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  
-                  <div className="mt-auto">
-                    <h4 className="text-sm font-semibold text-green-400 mb-2">Our Solutions</h4>
-                    <ul className="space-y-1">
-                      {industry.solutions.map((solution) => (
-                        <li key={solution} className="text-xs text-gray-300">• {solution}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              ))}
+            {/* Claims */}
+            <div className="bg-gray-900 rounded-lg p-8 border border-gray-700">
+              <DocumentCheckIcon className="h-10 w-10 text-blue-400 mb-6" />
+              <h3 className="text-xl font-bold text-white mb-4">Claims Investigation</h3>
+              <p className="text-gray-400 mb-6">Video evidence and violation history that accelerate claims resolution.</p>
+              <ul className="space-y-2 text-sm text-gray-300">
+                <li className="flex items-start gap-2"><CheckCircleIcon className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />Timestamped video evidence</li>
+                <li className="flex items-start gap-2"><CheckCircleIcon className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />Pre-incident violation timeline</li>
+                <li className="flex items-start gap-2"><CheckCircleIcon className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />Zone-entry logs</li>
+              </ul>
+            </div>
+
+            {/* Loss Prevention */}
+            <div className="bg-gray-900 rounded-lg p-8 border border-gray-700">
+              <ShieldCheckIcon className="h-10 w-10 text-blue-400 mb-6" />
+              <h3 className="text-xl font-bold text-white mb-4">Loss Prevention</h3>
+              <p className="text-gray-400 mb-6">Identify clients with rising risk before claims spike.</p>
+              <ul className="space-y-2 text-sm text-gray-300">
+                <li className="flex items-start gap-2"><CheckCircleIcon className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />Escalation alerts for at-risk sites</li>
+                <li className="flex items-start gap-2"><CheckCircleIcon className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />Pattern detection (time, contractor, zone)</li>
+                <li className="flex items-start gap-2"><CheckCircleIcon className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />Intervention recommendations</li>
+              </ul>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Features Section */}
-      <div className="bg-gray-800 py-24 sm:py-32">
+      {/* Data Available */}
+      <div className="py-20">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-blue-400">Insurance Features</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Comprehensive Insurance Solutions
-            </p>
-            <p className="mt-6 text-lg leading-8 text-gray-300">
-              Everything you need to better serve your clients and reduce your risk exposure.
-            </p>
-          </div>
-          <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-              {features.map((feature) => (
-                <div key={feature.name} className="flex flex-col bg-gray-700 rounded-2xl p-8 border border-gray-600">
-                  <div className="flex items-center gap-4 mb-6">
-                    <feature.icon className="h-8 w-8 text-blue-400" aria-hidden="true" />
-                    <h3 className="text-xl font-semibold text-white">{feature.name}</h3>
-                  </div>
-                  <p className="text-gray-300 mb-6">{feature.description}</p>
-                  <div className="mt-auto">
-                    <h4 className="text-sm font-semibold text-blue-400 mb-4">Key Benefits:</h4>
-                    <ul className="space-y-3">
-                      {feature.benefits.map((benefit) => (
-                        <li key={benefit} className="flex items-center gap-2 text-gray-300">
-                          <CheckCircleIcon className="h-5 w-5 text-blue-400" />
-                          <span className="text-sm">{benefit}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              ))}
+          <div className="mx-auto max-w-3xl">
+            <h2 className="text-2xl font-bold text-white mb-8 text-center">What Data You Get</h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h3 className="text-lg font-semibold text-white mb-3">Violation Data</h3>
+                <p className="text-sm text-gray-400">PPE violations, zone breaches, unsafe proximity — with timestamps, severity, and frequency trends.</p>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h3 className="text-lg font-semibold text-white mb-3">Evidence Package</h3>
+                <p className="text-sm text-gray-400">Video clips, incident timelines, zone-entry logs — structured for claims adjusters.</p>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h3 className="text-lg font-semibold text-white mb-3">Risk Metrics</h3>
+                <p className="text-sm text-gray-400">Site scores, contractor rankings, compliance consistency — ready for actuarial models.</p>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h3 className="text-lg font-semibold text-white mb-3">API Access</h3>
+                <p className="text-sm text-gray-400">RESTful API with webhooks. JSON payloads. Scheduled exports in your preferred format.</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* CTA Section */}
-      <div className="bg-gray-900">
-        <div className="mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8">
+      {/* CTA */}
+      <div className="bg-gray-800 py-16 border-t border-gray-700">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Ready to Transform Your Insurance Business?
-            </h2>
-            <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-gray-300">
-              Join leading insurance companies who trust Nexxau to reduce claims and improve client safety outcomes.
-            </p>
-            <div className="mt-10 flex items-center justify-center gap-x-6">
-              <Link
-                href="/contact"
-                className="rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-              >
-                Partner with Us
-              </Link>
-              <Link href="/demo" className="text-sm font-semibold leading-6 text-white">
-                Schedule Demo <span aria-hidden="true">→</span>
-              </Link>
-            </div>
+            <h2 className="text-2xl font-bold text-white mb-4">See the Data in Action</h2>
+            <p className="text-gray-400 mb-8">We'll show you exactly what violation data, risk scores, and evidence packages look like.</p>
+            <Link href="/contact/sales" className="inline-block rounded-md bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-500">
+              Request Demo
+            </Link>
           </div>
         </div>
       </div>
     </div>
   );
-} 
+}

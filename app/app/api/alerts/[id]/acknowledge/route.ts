@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
+import { acknowledgeAlertSchema } from '@/app/lib/validation/alerts';
+import { validateBody } from '@/app/lib/validation/common';
 
 /**
  * POST /api/alerts/[id]/acknowledge
@@ -22,6 +24,22 @@ export async function POST(
     }
 
     const body = await request.json();
+    
+    // Validate note if provided (other fields are optional)
+    if (body.note !== undefined) {
+      const noteValidation = acknowledgeAlertSchema.safeParse({ note: body.note });
+      if (!noteValidation.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Validation failed',
+            details: noteValidation.error.errors,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const {
       note,
       actionTaken,

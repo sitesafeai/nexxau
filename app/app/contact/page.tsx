@@ -2,8 +2,38 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import Navbar from '@/components/Navbar';
-import { EnvelopeIcon, PhoneIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import Image from 'next/image';
+import { EnvelopeIcon, PhoneIcon, MapPinIcon, ClockIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+
+const industries = [
+  { value: '', label: 'Select an industry' },
+  { value: 'construction', label: 'Construction' },
+  { value: 'manufacturing', label: 'Manufacturing' },
+  { value: 'logistics', label: 'Logistics & Warehousing' },
+  { value: 'oil-gas', label: 'Oil & Gas' },
+  { value: 'energy', label: 'Energy & Utilities' },
+  { value: 'insurance', label: 'Insurance' },
+  { value: 'other', label: 'Other' },
+];
+
+const faqs = [
+  {
+    question: 'What does deployment look like for a 10-camera site?',
+    answer: 'We connect to your existing IP cameras via RTSP, configure detection zones with your safety team, and run a 48-hour calibration period. Most sites are fully operational within 3-5 business days.'
+  },
+  {
+    question: 'How do you handle false positives?',
+    answer: 'Our detection engine runs confidence thresholds tuned per-site. Safety managers can flag false positives directly in the dashboard, and those corrections feed into site-specific model tuning.'
+  },
+  {
+    question: 'What data do insurers get access to?',
+    answer: 'Violation frequency, compliance scores, incident timelines, and video evidence — structured for underwriting and claims. We provide API access and scheduled reports in formats your actuarial team can use.'
+  },
+  {
+    question: 'Can we run a pilot before committing?',
+    answer: 'Yes. We offer 30-day pilots on a single site with full functionality. You pay only if you proceed after the pilot period.'
+  }
+];
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -27,9 +57,7 @@ export default function ContactPage() {
     try {
       const response = await fetch('/api/contact', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
@@ -41,7 +69,7 @@ export default function ContactPage() {
 
       setSubmitStatus({
         type: 'success',
-        message: 'Thank you for your message! We will get back to you soon.',
+        message: 'Message received. Expect a response within 24 hours.',
       });
       setFormData({ name: '', email: '', company: '', message: '', industry: '' });
     } catch (error) {
@@ -61,234 +89,151 @@ export default function ContactPage() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <Navbar />
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-gray-900/90 backdrop-blur-sm border-b border-white/10">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Link href="/test-homepage" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <Image src="/nexxau-logo-resized.png" alt="Nexxau Logo" width={32} height={32} className="w-8 h-8 object-contain" />
+              <span className="text-xl tracking-tight text-white font-bold">NEXXAU</span>
+            </Link>
+            <nav className="hidden md:flex items-center gap-8">
+              <Link href="/test-homepage" className="text-gray-400 hover:text-white transition-colors text-sm">Home</Link>
+              <Link href="/features" className="text-gray-400 hover:text-white transition-colors text-sm">Features</Link>
+              <Link href="/industries" className="text-gray-400 hover:text-white transition-colors text-sm">Industries</Link>
+              <Link href="/partners/insurance" className="text-gray-400 hover:text-white transition-colors text-sm">For Insurance</Link>
+              <Link href="/about" className="text-gray-400 hover:text-white transition-colors text-sm">About</Link>
+              <Link href="/contact" className="text-white transition-colors text-sm">Contact</Link>
+            </nav>
+            <Link href="/contact/sales" className="px-4 py-1.5 bg-white text-gray-900 hover:bg-white/90 rounded-lg transition-colors font-semibold text-sm">
+              Request Demo
+            </Link>
+          </div>
+        </div>
+      </header>
       
       {/* Hero Section */}
-      <div className="relative py-24 sm:py-32">
+      <div className="relative pt-32 pb-12">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
-              Get in Touch
+            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+              Talk to Someone Who Understands High-Risk Safety
             </h1>
             <p className="mt-6 text-lg leading-8 text-gray-300">
-              Have questions about Nexxau? We're here to help. Reach out to us and we'll get back to you as soon as possible.
+              Not a chatbot. Not a sales script. Direct access to people who've deployed safety AI on construction sites.
             </p>
+            {/* Response Time Badge */}
+            <div className="mt-6 inline-flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-full px-4 py-2">
+              <ClockIcon className="h-5 w-5 text-green-400" />
+              <span className="text-sm text-green-400 font-medium">Response within 24 hours — usually faster</span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Contact Form Section */}
       <div className="mx-auto max-w-7xl px-6 lg:px-8 pb-24">
-        <div className="mx-auto grid max-w-2xl grid-cols-1 gap-x-8 gap-y-16 lg:mx-0 lg:max-w-none lg:grid-cols-2">
+        <div className="mx-auto grid max-w-2xl grid-cols-1 gap-x-12 gap-y-16 lg:mx-0 lg:max-w-none lg:grid-cols-2">
           {/* Contact Information */}
           <div className="lg:pr-8">
-            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Contact Information
-            </h2>
-            <p className="mt-6 text-lg leading-8 text-gray-300">
-              Ready to transform your workplace safety? We'd love to hear from you. Choose the most convenient way to reach us.
-            </p>
-            
-            <dl className="mt-10 space-y-6 text-base leading-7 text-gray-300">
-              <div className="flex gap-x-4">
-                <dt className="flex-none">
-                  <span className="sr-only">Email</span>
-                  <EnvelopeIcon className="h-7 w-6 text-blue-400" aria-hidden="true" />
-                </dt>
-                <dd>
-                  <a className="hover:text-white" href="mailto:sitesafeai@gmail.com">
-                    sitesafeai@gmail.com
-                  </a>
-                </dd>
+            <dl className="space-y-6 text-base leading-7 text-gray-300">
+              <div className="flex gap-x-4 items-center">
+                <EnvelopeIcon className="h-6 w-6 text-blue-400 flex-shrink-0" aria-hidden="true" />
+                <a className="hover:text-white text-white" href="mailto:support@nexxau.com">support@nexxau.com</a>
               </div>
-              <div className="flex gap-x-4">
-                <dt className="flex-none">
-                  <span className="sr-only">Phone</span>
-                  <PhoneIcon className="h-7 w-6 text-blue-400" aria-hidden="true" />
-                </dt>
-                <dd>
-                  <a className="hover:text-white" href="tel:+13053315002">
-                    +1 305-331-5002
-                  </a>
-                </dd>
+              <div className="flex gap-x-4 items-center">
+                <PhoneIcon className="h-6 w-6 text-blue-400 flex-shrink-0" aria-hidden="true" />
+                <a className="hover:text-white text-white" href="tel:+13053315002">+1 (305) 331-5002</a>
               </div>
-              <div className="flex gap-x-4">
-                <dt className="flex-none">
-                  <span className="sr-only">Address</span>
-                  <MapPinIcon className="h-7 w-6 text-blue-400" aria-hidden="true" />
-                </dt>
-                <dd>
-                  <address className="not-italic">
-                    Miami, FL
-                  </address>
-                </dd>
+              <div className="flex gap-x-4 items-start">
+                <MapPinIcon className="h-6 w-6 text-blue-400 flex-shrink-0" aria-hidden="true" />
+                <div>
+                  <span className="text-white">Miami, FL</span>
+                  <span className="text-gray-400 text-sm block">Serving U.S. and LATAM</span>
+                </div>
               </div>
             </dl>
+
+            {/* Trust Elements */}
+            <div className="mt-12 space-y-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">What Happens Next</h3>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <CheckCircleIcon className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-sm text-gray-300">We respond within 24 hours with a real human</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CheckCircleIcon className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-sm text-gray-300">If relevant, we schedule a 30-min discovery call</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CheckCircleIcon className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-sm text-gray-300">No pushy sales — we'll tell you if we're not a fit</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Contact Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <form onSubmit={handleSubmit} className="space-y-5">
             {submitStatus.type && (
-              <div
-                className={`rounded-md p-4 ${
-                  submitStatus.type === 'success'
-                    ? 'bg-green-50 text-green-800'
-                    : 'bg-red-50 text-red-800'
-                }`}
-              >
+                <div className={`rounded-md p-4 ${submitStatus.type === 'success' ? 'bg-green-900/50 text-green-300 border border-green-700' : 'bg-red-900/50 text-red-300 border border-red-700'}`}>
                 {submitStatus.message}
               </div>
             )}
+              <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium leading-6 text-white">
-                Name
-              </label>
-              <div className="mt-2">
-                <input
-                  type="text"
-                  name="name"
-                  id="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  required
-                  className="block w-full rounded-md border-0 bg-white/5 px-3.5 py-2 text-white shadow-sm ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-inset focus:ring-blue-500 sm:text-sm sm:leading-6"
-                />
-              </div>
+                  <label htmlFor="name" className="block text-sm font-medium text-white mb-2">Name *</label>
+                  <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} required
+                    className="block w-full rounded-md border-0 bg-white/5 px-3.5 py-2.5 text-white ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-blue-500 sm:text-sm" />
             </div>
             <div>
-              <label htmlFor="email" className="block text-sm font-medium leading-6 text-white">
-                Email
-              </label>
-              <div className="mt-2">
-                <input
-                  type="email"
-                  name="email"
-                  id="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                  className="block w-full rounded-md border-0 bg-white/5 px-3.5 py-2 text-white shadow-sm ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-inset focus:ring-blue-500 sm:text-sm sm:leading-6"
-                />
+                  <label htmlFor="email" className="block text-sm font-medium text-white mb-2">Email *</label>
+                  <input type="email" name="email" id="email" value={formData.email} onChange={handleChange} required
+                    className="block w-full rounded-md border-0 bg-white/5 px-3.5 py-2.5 text-white ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-blue-500 sm:text-sm" />
+                </div>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+            <div>
+                  <label htmlFor="company" className="block text-sm font-medium text-white mb-2">Company</label>
+                  <input type="text" name="company" id="company" value={formData.company} onChange={handleChange}
+                    className="block w-full rounded-md border-0 bg-white/5 px-3.5 py-2.5 text-white ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-blue-500 sm:text-sm" />
             </div>
             <div>
-              <label htmlFor="company" className="block text-sm font-medium leading-6 text-white">
-                Company
-              </label>
-              <div className="mt-2">
-                <input
-                  type="text"
-                  name="company"
-                  id="company"
-                  value={formData.company}
-                  onChange={handleChange}
-                  className="block w-full rounded-md border-0 bg-white/5 px-3.5 py-2 text-white shadow-sm ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-inset focus:ring-blue-500 sm:text-sm sm:leading-6"
-                />
-              </div>
-            </div>
-            <div>
-              <label htmlFor="industry" className="block text-sm font-medium leading-6 text-white">
-                Industry
-              </label>
-              <div className="mt-2">
-                <select
-                  id="industry"
-                  name="industry"
-                  value={formData.industry}
-                  onChange={handleChange}
-                  className="block w-full rounded-md border-0 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:max-w-xs sm:text-sm sm:leading-6 py-2"
-                  style={{ paddingLeft: '12px' }}
-                >
-                  <option value="">Select an industry</option>
-                  <option value="construction">Construction</option>
-                  <option value="manufacturing">Manufacturing</option>
-                  <option value="logistics">Logistics</option>
-                  <option value="insurance">Insurance</option>
-                  <option value="other">Other</option>
+                  <label htmlFor="industry" className="block text-sm font-medium text-white mb-2">Industry</label>
+                  <select id="industry" name="industry" value={formData.industry} onChange={handleChange}
+                    className="block w-full rounded-md border-0 bg-white/5 px-3.5 py-2.5 text-white ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-blue-500 sm:text-sm">
+                    {industries.map((i) => <option key={i.value} value={i.value} className="bg-gray-800">{i.label}</option>)}
                 </select>
               </div>
             </div>
             <div>
-              <label htmlFor="message" className="block text-sm font-medium leading-6 text-white">
-                Message
-              </label>
-              <div className="mt-2">
-                <textarea
-                  name="message"
-                  id="message"
-                  rows={4}
-                  value={formData.message}
-                  onChange={handleChange}
-                  required
-                  className="block w-full rounded-md border-0 bg-white/5 px-3.5 py-2 text-white shadow-sm ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-inset focus:ring-blue-500 sm:text-sm sm:leading-6"
-                />
+                <label htmlFor="message" className="block text-sm font-medium text-white mb-2">Message *</label>
+                <textarea name="message" id="message" rows={4} value={formData.message} onChange={handleChange} required
+                  placeholder="Tell us about your site, camera setup, or what you're trying to solve."
+                  className="block w-full rounded-md border-0 bg-white/5 px-3.5 py-2.5 text-white ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-blue-500 sm:text-sm placeholder:text-gray-500" />
               </div>
-            </div>
-            <div>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="rounded-md bg-blue-600 px-3.5 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button type="submit" disabled={isSubmitting}
+                className="w-full rounded-md bg-blue-600 px-3.5 py-3 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
                 {isSubmitting ? 'Sending...' : 'Send Message'}
               </button>
+            </form>
             </div>
-          </form>
         </div>
       </div>
 
       {/* FAQ Section */}
-      <div className="bg-gray-800">
-        <div className="mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8">
-          <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-blue-400">FAQ</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Frequently Asked Questions
-            </p>
-          </div>
-          <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
-            <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-2">
-              <div className="flex flex-col">
-                <dt className="text-base font-semibold leading-7 text-white">
-                  How quickly can I get started with Nexxau?
-                </dt>
-                <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-300">
-                  <p className="flex-auto">
-                    We can have you up and running within 3 days to a week. Our team will work closely with your safety and project managers to ensure your success with Nexxau.
-                  </p>
-                </dd>
+      <div className="bg-gray-800 border-t border-gray-700">
+        <div className="mx-auto max-w-7xl px-6 py-20 lg:px-8">
+          <h2 className="text-2xl font-bold text-white mb-10 text-center">Common Questions</h2>
+          <div className="mx-auto max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-6">
+            {faqs.map((faq, index) => (
+              <div key={index} className="bg-gray-900 rounded-lg p-5 border border-gray-700">
+                <dt className="text-sm font-semibold text-white mb-2">{faq.question}</dt>
+                <dd className="text-sm text-gray-400">{faq.answer}</dd>
               </div>
-              <div className="flex flex-col">
-                <dt className="text-base font-semibold leading-7 text-white">
-                  What kind of support do you offer?
-                </dt>
-                <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-300">
-                  <p className="flex-auto">
-                    We provide 24/7 technical support, regular training sessions, and dedicated account managers to ensure your success with Nexxau.
-                  </p>
-                </dd>
-              </div>
-              <div className="flex flex-col">
-                <dt className="text-base font-semibold leading-7 text-white">
-                  Is Nexxau suitable for my industry?
-                </dt>
-                <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-300">
-                  <p className="flex-auto">
-                    Nexxau is designed to work across various industries including construction, manufacturing, logistics, and energy. Our AI technology adapts to your specific safety requirements.
-                  </p>
-                </dd>
-              </div>
-              <div className="flex flex-col">
-                <dt className="text-base font-semibold leading-7 text-white">
-                  How does the pricing work?
-                </dt>
-                <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-300">
-                  <p className="flex-auto">
-                    We offer flexible pricing plans based on your company size and needs. Contact us for a custom quote tailored to your specific requirements.
-                  </p>
-                </dd>
-              </div>
-            </dl>
+            ))}
           </div>
         </div>
       </div>

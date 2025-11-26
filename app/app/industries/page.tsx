@@ -1,252 +1,199 @@
 'use client';
 
 import Link from 'next/link';
-import { BuildingOfficeIcon, WrenchScrewdriverIcon, TruckIcon, BoltIcon, FireIcon, ShieldCheckIcon, ChartBarIcon, ClockIcon } from '@heroicons/react/24/outline';
-import Navbar from '../components/Navbar';
-import { useRouter } from 'next/navigation';
-
-const stats = [
-  { id: 1, name: 'Safety Violations Reduced', value: '83%' },
-  { id: 2, name: 'ROI on Safety Investment', value: '1:6' },
-  { id: 3, name: 'Cost Savings', value: '$2.4M' },
-  { id: 4, name: 'Fall-Related Accidents Reduced', value: '96%' },
-];
+import Image from 'next/image';
+import { 
+  BuildingOfficeIcon, 
+  WrenchScrewdriverIcon, 
+  TruckIcon, 
+  BoltIcon, 
+  FireIcon,
+  XCircleIcon,
+  CheckCircleIcon
+} from '@heroicons/react/24/outline';
 
 const industries = [
   {
     name: 'Construction',
-    description: 'Transform construction site safety with AI-powered monitoring and real-time hazard detection.',
     icon: BuildingOfficeIcon,
     color: 'bg-orange-500',
-    href: '/industries/construction',
-    features: [
-      'Real-time site monitoring',
-      'PPE compliance tracking',
-      'Equipment safety checks',
-      'Worker safety alerts'
-    ],
-    benefits: [
-      '83% reduction in safety violations',
-      '96% fewer fall-related accidents',
-      '30% fewer injuries with AI prediction',
-      '50% lower injury-related costs'
-    ]
+    hazards: 'Falls, struck-by incidents, confined spaces',
+    detects: ['Hardhat compliance', 'Fall-protection zone violations', 'Crane operation zone breaches', 'Subcontractor violation patterns'],
   },
   {
     name: 'Manufacturing',
-    description: 'Enhance manufacturing safety with automated monitoring and predictive analytics.',
     icon: WrenchScrewdriverIcon,
     color: 'bg-blue-500',
-    href: '/industries/manufacturing',
-    features: [
-      'Machine safety monitoring',
-      'Production line safety',
-      'Worker protection systems',
-      'Automated compliance'
-    ],
-    benefits: [
-      '83% reduction in safety violations',
-      '40% boost in EHS productivity',
-      '15% lower insurance premiums',
-      '50% reduction in injury costs'
-    ]
-  },
-  {
-    name: 'Oil & Gas',
-    description: 'Ensure critical safety in oil and gas operations with advanced monitoring systems.',
-    icon: FireIcon,
-    color: 'bg-red-500',
-    href: '/industries/oil-and-gas',
-    features: [
-      'Drilling safety monitoring',
-      'Pipeline integrity checks',
-      'Hazardous material tracking',
-      'Emergency response systems'
-    ],
-    benefits: [
-      '83% reduction in safety violations',
-      '30% fewer injuries with AI prediction',
-      '50% lower injury-related costs',
-      '40% boost in EHS productivity'
-    ]
+    hazards: 'Machine guarding, LOTO failures, forklift incidents',
+    detects: ['Restricted machine zone entry', 'LOTO procedure compliance', 'Forklift proximity hazards', 'High-visibility PPE in traffic areas'],
   },
   {
     name: 'Logistics',
-    description: 'Optimize logistics safety with comprehensive fleet and warehouse monitoring.',
     icon: TruckIcon,
     color: 'bg-purple-500',
-    href: '/industries/logistics',
-    features: [
-      'Fleet safety monitoring',
-      'Warehouse safety systems',
-      'Route optimization',
-      'Driver safety tracking'
-    ],
-    benefits: [
-      '83% reduction in safety violations',
-      '96% fewer fall-related accidents',
-      '15% lower insurance premiums',
-      '40% boost in EHS productivity'
-    ]
+    hazards: 'Forklift collisions, dock accidents, warehouse falls',
+    detects: ['Blind-corner proximity alerts', 'Dock-door safety violations', 'High-visibility vest compliance', 'Loading zone hazards'],
+  },
+  {
+    name: 'Oil & Gas',
+    icon: FireIcon,
+    color: 'bg-red-500',
+    hazards: 'Fire/explosion risks, H2S exposure, FR PPE failures',
+    detects: ['Flame-resistant clothing compliance', 'H2S zone entry detection', 'Gas detection zone violations', 'Heavy equipment proximity'],
   },
   {
     name: 'Energy',
-    description: 'Protect critical energy infrastructure with advanced safety monitoring.',
     icon: BoltIcon,
     color: 'bg-yellow-500',
-    href: '/industries/energy',
-    features: [
-      'Infrastructure monitoring',
-      'Hazard detection',
-      'Emergency response',
-      'Safety compliance'
-    ],
-    benefits: [
-      '83% reduction in safety violations',
-      '30% fewer injuries with AI prediction',
-      '50% lower injury-related costs',
-      '40% boost in EHS productivity'
-    ]
+    hazards: 'Arc-flash incidents, high-voltage exposure, substation access',
+    detects: ['Arc-flash PPE compliance', 'Substation unauthorized entry', 'High-voltage perimeter breaches', 'Lone worker zone tracking'],
   }
 ];
 
 export default function IndustriesPage() {
-  const router = useRouter();
-
   return (
-    <div className="bg-gray-900">
-      <Navbar />
-      
-      {/* Hero Section */}
-      <div className="relative isolate overflow-hidden bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900">
-        {/* Background image with overlay */}
-        <div className="absolute inset-0 -z-10 bg-[url('/images/hero-bg.jpg')] bg-cover bg-center opacity-10" />
-        
-        {/* Radial gradient overlay */}
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(45%_45%_at_50%_50%,rgba(59,130,246,0.1),rgba(255,255,255,0))]" />
-        
-        {/* Grid pattern overlay */}
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]" />
-        
-        {/* Animated gradient orbs */}
-        <div className="absolute inset-0 -z-10">
-          <div className="absolute -top-40 -right-40 transform-gpu blur-3xl" aria-hidden="true">
-            <div className="aspect-[1097/845] w-[68.5625rem] bg-gradient-to-r from-[#80caff] to-[#4f46e5] opacity-20" style={{ clipPath: 'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)' }} />
-          </div>
-          <div className="absolute -bottom-40 -left-40 transform-gpu blur-3xl" aria-hidden="true">
-            <div className="aspect-[1097/845] w-[68.5625rem] bg-gradient-to-r from-[#4f46e5] to-[#80caff] opacity-20" style={{ clipPath: 'polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)' }} />
+    <div className="bg-gray-900 min-h-screen">
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-gray-900/90 backdrop-blur-sm border-b border-white/10">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Link href="/test-homepage" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <Image src="/nexxau-logo-resized.png" alt="Nexxau Logo" width={32} height={32} className="w-8 h-8 object-contain" />
+              <span className="text-xl tracking-tight text-white font-bold">NEXXAU</span>
+            </Link>
+            <nav className="hidden md:flex items-center gap-8">
+              <Link href="/test-homepage" className="text-gray-400 hover:text-white transition-colors text-sm">Home</Link>
+              <Link href="/features" className="text-gray-400 hover:text-white transition-colors text-sm">Features</Link>
+              <Link href="/industries" className="text-white transition-colors text-sm">Industries</Link>
+              <Link href="/partners/insurance" className="text-gray-400 hover:text-white transition-colors text-sm">For Insurance</Link>
+              <Link href="/about" className="text-gray-400 hover:text-white transition-colors text-sm">About</Link>
+              <Link href="/contact" className="text-gray-400 hover:text-white transition-colors text-sm">Contact</Link>
+            </nav>
+            <Link href="/contact/sales" className="px-4 py-1.5 bg-white text-gray-900 hover:bg-white/90 rounded-lg transition-colors font-semibold text-sm">
+              Request Demo
+            </Link>
           </div>
         </div>
+      </header>
 
-        <div className="mx-auto max-w-7xl px-6 pb-24 pt-10 sm:pb-32 lg:flex lg:px-8 lg:py-40">
-          <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-xl lg:flex-shrink-0 lg:pt-8">
-            <h1 className="mt-10 text-4xl font-bold tracking-tight text-white sm:text-6xl">
-              Industries We Serve
+      {/* Hero */}
+      <div className="relative pt-32 pb-16">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl text-center">
+            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+              Safety AI for High-Risk Environments
             </h1>
-            <p className="mt-6 text-lg leading-8 text-gray-300">
-              Nexxau's AI-powered safety solutions are tailored for high-risk industries that demand the highest standards of safety and compliance. Our technology helps you protect your workforce, reduce costs, and maintain regulatory compliance.
+            <p className="mt-6 text-lg text-gray-300">
+              Different industries. Different hazards. Same goal: catch violations before they become injuries.
             </p>
-            <div className="mt-10 flex items-center gap-x-6">
-              <Link
-                href="/contact"
-                className="rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-              >
-                Schedule a Demo
-              </Link>
-              <Link href="#industries" className="text-sm font-semibold leading-6 text-white">
-                Explore Industries <span aria-hidden="true">→</span>
-              </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Who We Don't Serve - MOVED UP */}
+      <div className="bg-gray-800 py-12 border-y border-gray-700">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl">
+            <div className="flex items-start gap-4">
+              <XCircleIcon className="h-6 w-6 text-red-400 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-2">Not a Fit For</h3>
+                <p className="text-gray-400 text-sm">
+                  Office environments, retail, remote work, or any space where the primary risk isn't physical. We focus exclusively on sites where PPE compliance and zone violations are life-or-death concerns.
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Stats Section */}
-      <div className="bg-gray-800 py-24 sm:py-32">
+      {/* Industries Grid - Compact */}
+      <div className="py-20">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <dl className="grid grid-cols-1 gap-x-8 gap-y-16 text-center lg:grid-cols-4">
-            {stats.map((stat) => (
-              <div key={stat.id} className="mx-auto flex max-w-xs flex-col gap-y-4">
-                <dt className="text-base leading-7 text-gray-300">{stat.name}</dt>
-                <dd className="order-first text-3xl font-semibold tracking-tight text-blue-400 sm:text-5xl">
-                  {stat.value}
-                </dd>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {industries.map((industry) => (
+              <div key={industry.name} className="bg-gray-800 rounded-lg p-6 border border-gray-700 hover:border-blue-500/50 transition-colors">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`${industry.color} p-2 rounded-lg`}>
+                    <industry.icon className="h-5 w-5 text-white" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white">{industry.name}</h3>
+                </div>
+                <p className="text-sm text-gray-500 mb-4">Primary hazards: {industry.hazards}</p>
+                <div>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">What We Detect</p>
+                  <ul className="space-y-1.5">
+                    {industry.detects.map((item, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-sm text-gray-300">
+                        <CheckCircleIcon className="h-4 w-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             ))}
-          </dl>
+          </div>
         </div>
       </div>
 
-      {/* Industries Grid */}
-      <div id="industries" className="py-24 sm:py-32 bg-gray-900">
+      {/* Comparison Table - Visual */}
+      <div className="bg-gray-800 py-20 border-t border-gray-700">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-blue-400">Comprehensive Safety Solutions</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Tailored for Your Industry
-            </p>
-            <p className="mt-6 text-lg leading-8 text-gray-300">
-              Each industry faces unique safety challenges. Our solutions are specifically designed to address your sector's specific needs and requirements.
-            </p>
+          <h2 className="text-2xl font-bold text-white mb-10 text-center">How Detection Priorities Differ</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-700">
+                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Industry</th>
+                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Primary Focus</th>
+                  <th className="text-left py-3 px-4 text-gray-400 font-medium">Unique Detection</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-gray-700/50">
+                  <td className="py-3 px-4 text-white">Construction</td>
+                  <td className="py-3 px-4 text-gray-300">Falls, struck-by</td>
+                  <td className="py-3 px-4 text-gray-300">Scaffold zones, crane areas, subcontractor tracking</td>
+                </tr>
+                <tr className="border-b border-gray-700/50">
+                  <td className="py-3 px-4 text-white">Manufacturing</td>
+                  <td className="py-3 px-4 text-gray-300">Machine safety, LOTO</td>
+                  <td className="py-3 px-4 text-gray-300">Machine zones, LOTO verification, forklift proximity</td>
+                </tr>
+                <tr className="border-b border-gray-700/50">
+                  <td className="py-3 px-4 text-white">Logistics</td>
+                  <td className="py-3 px-4 text-gray-300">Vehicle collisions</td>
+                  <td className="py-3 px-4 text-gray-300">Blind corners, dock doors, high-vis compliance</td>
+                </tr>
+                <tr className="border-b border-gray-700/50">
+                  <td className="py-3 px-4 text-white">Oil & Gas</td>
+                  <td className="py-3 px-4 text-gray-300">Fire/explosion, H2S</td>
+                  <td className="py-3 px-4 text-gray-300">FR clothing, gas zone compliance, H2S monitoring</td>
+                </tr>
+                <tr>
+                  <td className="py-3 px-4 text-white">Energy</td>
+                  <td className="py-3 px-4 text-gray-300">Arc-flash, high-voltage</td>
+                  <td className="py-3 px-4 text-gray-300">Arc-flash PPE, substation access, perimeter zones</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {industries.map((industry) => (
-                <div
-                  key={industry.name}
-                  className="relative rounded-2xl bg-gray-800 p-8 shadow-lg ring-1 ring-gray-700 hover:ring-blue-500 transition-all duration-300 border border-gray-700"
-                >
-                  <div className="flex flex-col h-full">
-                    <div className={`${industry.color} p-4 rounded-xl mb-6 w-fit`}>
-                      <industry.icon className="h-8 w-8 text-white" aria-hidden="true" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-white mb-4">{industry.name}</h3>
-                    <p className="text-base text-gray-300 mb-6">{industry.description}</p>
-                    
-                    <div className="space-y-6">
-                      <div>
-                        <h4 className="text-sm font-semibold text-white mb-3">Key Features</h4>
-                        <ul className="space-y-3">
-                          {industry.features.map((feature) => (
-                            <li key={feature} className="flex items-center text-sm text-gray-300">
-                              <svg className="h-5 w-5 text-blue-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                              </svg>
-                              {feature}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-semibold text-white mb-3">Key Benefits</h4>
-                        <ul className="space-y-3">
-                          {industry.benefits.map((benefit) => (
-                            <li key={benefit} className="flex items-center text-sm text-gray-300">
-                              <svg className="h-5 w-5 text-blue-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                              </svg>
-                              {benefit}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-6">
-                      <Link
-                        href={industry.href}
-                        className="inline-flex items-center text-sm font-medium text-blue-400 hover:text-blue-300"
-                      >
-                        Learn more <span aria-hidden="true">→</span>
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+        </div>
+      </div>
+
+      {/* CTA */}
+      <div className="py-16">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-2xl font-bold text-white mb-4">See How It Works for Your Industry</h2>
+            <p className="text-gray-400 mb-8">We'll show you detection examples specific to your hazard profile.</p>
+            <Link href="/contact/sales" className="inline-block rounded-md bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-500">
+              Request Demo
+            </Link>
           </div>
         </div>
       </div>
     </div>
   );
-} 
+}

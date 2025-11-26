@@ -1,8 +1,13 @@
 /** @type {import('next').NextConfig} */
 const path = require('path');
+const { withSentryConfig } = require('@sentry/nextjs');
 
 const nextConfig = {
   reactStrictMode: false, // Temporarily disable for HLS testing
+  // Enable instrumentation hook
+  experimental: {
+    instrumentationHook: true,
+  },
   images: {
     remotePatterns: [
       {
@@ -19,6 +24,7 @@ const nextConfig = {
     return config;
   },
   experimental: {
+    instrumentationHook: true,
     serverActions: {
       allowedOrigins: ['localhost:3000', 'localhost:3001', 'localhost:3002'],
     },
@@ -37,4 +43,26 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig 
+// Wrap with Sentry if DSN is configured
+const sentryWebpackPluginOptions = {
+  // For all available options, see:
+  // https://github.com/getsentry/sentry-webpack-plugin#options
+
+  // Suppresses source map uploading logs during build
+  silent: true,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  
+  // Only upload source maps in production
+  widenClientFileUpload: true,
+  hideSourceMaps: true,
+  disableClientWebpackPlugin: !process.env.SENTRY_DSN && !process.env.NEXT_PUBLIC_SENTRY_DSN,
+  disableServerWebpackPlugin: !process.env.SENTRY_DSN && !process.env.NEXT_PUBLIC_SENTRY_DSN,
+};
+
+// Only wrap with Sentry if DSN is configured
+if (process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN) {
+  module.exports = withSentryConfig(nextConfig, sentryWebpackPluginOptions);
+} else {
+  module.exports = nextConfig;
+} 

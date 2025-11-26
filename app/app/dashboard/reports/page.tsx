@@ -314,7 +314,7 @@ export default function ReportsPage() {
                               <CheckCircle className="w-5 h-5 text-blue-500" />
                             </div>
                           )}
-                        </div>
+                      </div>
                       </button>
                     );
                   })}
@@ -384,7 +384,7 @@ export default function ReportsPage() {
                         <div>
                           <h3 className="text-2xl font-bold text-white mb-1">
                             {reportTypes.find(t => t.id === selectedReportType)?.name}
-                          </h3>
+                  </h3>
                           <p className="text-blue-100">
                             {worksite?.name || 'Worksite'} • {dateRanges.find(r => r.id === dateRange)?.name}
                           </p>
@@ -468,14 +468,14 @@ export default function ReportsPage() {
                                       ></div>
                                     </div>
                                     <span className="text-white font-semibold w-8 text-right">{count}</span>
-                                  </div>
-                                </div>
+                    </div>
+                    </div>
                               ))
                             ) : (
                               <p className="text-gray-400 text-center py-4">No violations recorded</p>
                             )}
-                          </div>
-                        </div>
+                    </div>
+                  </div>
 
                         {/* Recent Violations */}
                         {reportData.violations && reportData.violations.length > 0 && (
@@ -503,8 +503,8 @@ export default function ReportsPage() {
                                     <p className="text-gray-400 text-sm mt-1">{violation.description || 'No description'}</p>
                                     <p className="text-gray-500 text-xs mt-1">
                                       {new Date(violation.createdAt).toLocaleString()}
-                                    </p>
-                                  </div>
+                  </p>
+                </div>
                                 </div>
                               ))}
                             </div>
@@ -600,8 +600,8 @@ export default function ReportsPage() {
                             <div className="text-3xl font-bold text-white">{reportData.safetyScore?.overall || 'N/A'}</div>
                             <div className="text-sm text-gray-400 mt-1">Safety Score</div>
                           </div>
-                        </div>
-                      </div>
+                  </div>
+                </div>
                     )}
 
                     {/* Raw Data Section (Collapsible) */}
