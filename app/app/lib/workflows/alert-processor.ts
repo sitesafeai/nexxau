@@ -28,8 +28,8 @@ export class AlertProcessor {
     try {
       console.log(`[Alert Processor] Processing new alert: ${alertId}`);
 
-      // Fetch alert
-      const alert = await prisma.alert.findUnique({
+      // Fetch alert (use let because we may need to refetch after grace period)
+      let alert = await prisma.alert.findUnique({
         where: { id: alertId },
         include: {
           worksite: {
