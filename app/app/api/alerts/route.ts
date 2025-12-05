@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { prisma } from '@/app/lib/prisma';
-import { createAlertSchema, alertQuerySchema, validateQuery } from '@/app/lib/validation/alerts';
-import { validateBody } from '@/app/lib/validation/common';
+import { createAlertSchema, alertQuerySchema } from '@/app/lib/validation/alerts';
+import { validateBody, validateQuery } from '@/app/lib/validation/common';
 
 export async function GET(request: NextRequest) {
   try {
@@ -122,8 +122,29 @@ export async function POST(request: NextRequest) {
         ruleId: data.ruleId || null,
         worksiteId: data.worksiteId || null,
         cameraId: data.cameraId || null,
+        violationType: data.violationType || null,
+        detectionSnapshot: data.detectionSnapshot || null,
+        detectionVideo: data.detectionVideo || null,
+        detectionData: data.detectionData || null,
       }
     });
+
+    // Trigger workflow automation ONLY for AI-detected alerts (not manual ones)
+    const isAIDetected = alert.source === 'camera' || alert.source === 'ai' || alert.source === 'detection' || alert.detectionData;
+    
+    if (alert.worksiteId && isAIDetected) {
+      console.log('[Alert API] AI-detected alert - triggering workflow automation');
+      // Import dynamically to avoid circular dependencies
+      import('@/app/lib/workflows/alert-processor').then(({ alertProcessor }) => {
+        alertProcessor.processNewAlert(alert.id).catch(error => {
+          console.error('[Alert API] Workflow processing failed:', error);
+        });
+      }).catch(error => {
+        console.error('[Alert API] Failed to load workflow processor:', error);
+      });
+    } else {
+      console.log('[Alert API] Manual alert - skipping workflow automation');
+    }
 
     return NextResponse.json({
       success: true,

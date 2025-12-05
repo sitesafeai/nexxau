@@ -11,9 +11,22 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const worksite = await prisma.worksite.findUnique({
+    // Use explicit select to avoid non-existent columns
+    const worksite = await prisma.worksite.findFirst({
       where: { id: params.id },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        worksiteName: true,
+        location: true,
+        address: true,
+        companyId: true,
+        cameraSystemType: true,
+        status: true,
+        // isActive: true, // NOT IN DATABASE YET
+        // timezone: true, // NOT IN DATABASE YET
+        createdAt: true,
+        updatedAt: true,
         company: {
           select: {
             id: true,
@@ -21,10 +34,28 @@ export async function GET(
             companyUsername: true
           }
         },
-        cameras: true,
-        workers: true,
+        cameras: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            location: true,
+            streamUrl: true,
+            metadata: true
+          }
+        },
+        workers: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true
+          }
+        },
         worksiteUsers: {
-          include: {
+          select: {
+            id: true,
+            role: true,
             user: {
               select: {
                 id: true,
@@ -37,6 +68,13 @@ export async function GET(
         alerts: {
           where: {
             status: { in: ['ACTIVE', 'ACKNOWLEDGED'] }
+          },
+          select: {
+            id: true,
+            description: true,
+            severity: true,
+            status: true,
+            createdAt: true
           }
         },
         _count: {
@@ -62,7 +100,7 @@ export async function GET(
       data: worksite
     });
   } catch (error: any) {
-    console.error('Error fetching worksite:', error);
+    console.error('[GET /api/worksites/:id] Error fetching worksite:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch worksite', details: error.message },
       { status: 500 }
@@ -80,10 +118,32 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json();
+    console.log('[PATCH /api/worksites/:id] Updating worksite:', params.id, 'with data:', body);
+
+    // Sanitize body to only include fields that exist in the database
+    // Remove schema fields that may not be migrated yet
+    const { 
+      slug, 
+      addressDetails, 
+      industry, 
+      businessUnit, 
+      retentionPolicy, 
+      dataResidency, 
+      operatingHours, 
+      sitePlanUrl, 
+      sitePlanTiles, 
+      cameraPins, 
+      contactName, 
+      contactEmail, 
+      contactPhone,
+      settings,
+      ...safeData 
+    } = body;
 
     // Check if the worksite exists
-    const existingWorksite = await prisma.worksite.findUnique({
-      where: { id: params.id }
+    const existingWorksite = await prisma.worksite.findFirst({
+      where: { id: params.id },
+      select: { id: true, name: true }
     });
 
     if (!existingWorksite) {
@@ -93,10 +153,10 @@ export async function PATCH(
       );
     }
 
-    // If updating settings, store them in CameraSystemConfig
-    if (body.settings) {
-      const { settings, ...worksiteData } = body;
+    console.log('[PATCH /api/worksites/:id] Sanitized data:', safeData);
 
+    // If updating settings, store them in CameraSystemConfig
+    if (settings) {
       // Update or create camera system config with settings
       await prisma.cameraSystemConfig.upsert({
         where: { worksiteId: params.id },
@@ -110,37 +170,70 @@ export async function PATCH(
       });
 
       // Update worksite if there's other data
-      if (Object.keys(worksiteData).length > 0) {
+      if (Object.keys(safeData).length > 0) {
         await prisma.worksite.update({
           where: { id: params.id },
-          data: worksiteData
+          data: safeData
         });
       }
-    } else {
-      // Update worksite normally if no settings
+    } else if (Object.keys(safeData).length > 0) {
+      // Update worksite normally with safe data only
       await prisma.worksite.update({
         where: { id: params.id },
-        data: body
+        data: safeData
       });
     }
 
-    // Fetch updated worksite with config
-    const worksite = await prisma.worksite.findUnique({
+    // Fetch updated worksite with explicit field selection (only fields that exist in DB)
+    const worksite = await prisma.worksite.findFirst({
       where: { id: params.id },
-      include: {
-        cameraSystemConfig: true
+      select: {
+        id: true,
+        name: true,
+        worksiteName: true,
+        location: true,
+        address: true,
+        companyId: true,
+        cameraSystemType: true,
+        status: true,
+        // isActive: true, // NOT IN DATABASE YET
+        // timezone: true, // NOT IN DATABASE YET
+        createdAt: true,
+        updatedAt: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+            companyUsername: true
+          }
+        },
+        cameraSystemConfig: {
+          select: {
+            id: true,
+            config: true
+          }
+        },
+        _count: {
+          select: {
+            cameras: true,
+            alerts: true,
+            workers: true
+          }
+        }
       }
     });
 
     // Clear settings cache so updated settings are loaded next time
     clearWorksiteSettingsCache(params.id);
 
+    console.log('[PATCH /api/worksites/:id] Successfully updated worksite');
+
     return NextResponse.json({
       success: true,
       data: worksite
     });
   } catch (error: any) {
-    console.error('Error updating worksite:', error);
+    console.error('[PATCH /api/worksites/:id] Error updating worksite:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to update worksite', details: error.message },
       { status: 500 }

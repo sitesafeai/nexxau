@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     const customRuleViolations = await prisma.customRuleViolation.findMany({
       where: {
         worksiteId,
-        triggeredAt: {
+        detectedAt: {
           gte: startOfDay,
           lte: endOfDay
         }
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
                   : v.severity === 'high' ? 1.5
                   : v.severity === 'medium' ? 1.0
                   : 0.5,
-          timestamp: v.triggeredAt,
+          timestamp: v.detectedAt,
           location: v.location ? parseLocation(v.location) : undefined
         })),
         ...customAlerts.map(a => ({

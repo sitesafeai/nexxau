@@ -1,10 +1,12 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 
 export default function ErrorsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const worksiteParam = searchParams.get('worksite');
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
@@ -12,7 +14,7 @@ export default function ErrorsPage() {
         {/* Header with Back Button */}
         <div className="flex items-center gap-4 mb-6">
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push(`/dashboard${worksiteParam ? `?worksite=${worksiteParam}` : ''}`)}
             className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-gray-300 hover:text-white transition-colors border border-slate-700 hover:border-slate-600"
             title="Back to Dashboard"
           >
@@ -77,13 +79,13 @@ export default function ErrorsPage() {
               </div>
               <div className="flex gap-3">
                 <button
-                  onClick={() => router.push('/dashboard')}
+                  onClick={() => router.push(`/dashboard${worksiteParam ? `?worksite=${worksiteParam}` : ''}`)}
                   className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
                 >
                   ← Back to Dashboard
                 </button>
                 <button
-                  onClick={() => router.push('/site-admin')}
+                  onClick={() => router.push(`/site-admin${worksiteParam ? `?worksite=${worksiteParam}` : ''}`)}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                 >
                   View System Status

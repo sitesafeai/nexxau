@@ -20,6 +20,15 @@ export async function register() {
     } catch (error) {
       console.error('[instrumentation] Failed to initialize alert notifications:', error);
     }
+
+    // Initialize workflow automation system
+    try {
+      const { initializeWorkflowAutomation } = await import('./lib/workflows');
+      initializeWorkflowAutomation();
+      console.log('[instrumentation] Workflow automation initialized');
+    } catch (error) {
+      console.error('[instrumentation] Failed to initialize workflow automation:', error);
+    }
   }
 
   if (process.env.NEXT_RUNTIME === 'edge') {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useReducer, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, ReactNode, useCallback, useState } from 'react';
 import { useCurrentUser, useSites } from '../hooks/useApi';
 import { isAdminRole, normalizeRole } from '../roles';
 
@@ -124,6 +124,25 @@ interface DashboardProviderProps {
 
 export function DashboardProvider({ children }: DashboardProviderProps) {
   const [state, dispatch] = useReducer(dashboardReducer, initialState);
+  const [worksiteParam, setWorksiteParam] = useState<string | null>(null);
+  
+  // Read worksite from URL on mount (client-side only)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const wsParam = urlParams.get('worksite');
+      setWorksiteParam(wsParam);
+      
+      // Listen for URL changes
+      const handlePopState = () => {
+        const newParams = new URLSearchParams(window.location.search);
+        setWorksiteParam(newParams.get('worksite'));
+      };
+      
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    }
+  }, []);
   
   // Fetch current user
   const { data: currentUser, loading: userLoading } = useCurrentUser();
@@ -158,14 +177,57 @@ export function DashboardProvider({ children }: DashboardProviderProps) {
         return true;
       });
       
+      // Cache sites in sessionStorage for persistence across navigation
+      if (typeof window !== 'undefined' && accessibleSites.length > 0) {
+        sessionStorage.setItem('dashboard_accessible_sites', JSON.stringify(accessibleSites));
+      }
+      
       dispatch({ type: 'SET_ACCESSIBLE_SITES', payload: accessibleSites });
       
-      // Auto-select first site if none selected
+      // Auto-select site: prioritize URL parameter, then fallback to first site
       if (!state.selectedSiteId && accessibleSites.length > 0) {
-        dispatch({ type: 'SET_SELECTED_SITE', payload: accessibleSites[0].id });
+        // Check if URL has a worksite parameter
+        if (worksiteParam) {
+          const matchingSite = accessibleSites.find((site: any) => site.id === worksiteParam);
+          if (matchingSite) {
+            dispatch({ type: 'SET_SELECTED_SITE', payload: worksiteParam });
+          } else {
+            // URL parameter doesn't match any accessible site, select first
+            dispatch({ type: 'SET_SELECTED_SITE', payload: accessibleSites[0].id });
+          }
+        } else {
+          // No URL parameter, select first site
+          dispatch({ type: 'SET_SELECTED_SITE', payload: accessibleSites[0].id });
+        }
+      } else if (worksiteParam && state.selectedSiteId !== worksiteParam) {
+        // URL parameter changed, update selection
+        const matchingSite = accessibleSites.find((site: any) => site.id === worksiteParam);
+        if (matchingSite) {
+          dispatch({ type: 'SET_SELECTED_SITE', payload: worksiteParam });
+        }
+      }
+    } else if (!allSites && !sitesLoading && typeof window !== 'undefined') {
+      // If API fails or is slow, try to load from cache
+      const cached = sessionStorage.getItem('dashboard_accessible_sites');
+      if (cached) {
+        try {
+          const cachedSites = JSON.parse(cached);
+          console.log('[DashboardContext] Loading sites from cache:', cachedSites.length);
+          dispatch({ type: 'SET_ACCESSIBLE_SITES', payload: cachedSites });
+          
+          // Auto-select from cache
+          if (worksiteParam && cachedSites.length > 0) {
+            const matchingSite = cachedSites.find((site: any) => site.id === worksiteParam);
+            if (matchingSite) {
+              dispatch({ type: 'SET_SELECTED_SITE', payload: worksiteParam });
+            }
+          }
+        } catch (e) {
+          console.error('[DashboardContext] Failed to parse cached sites:', e);
+        }
       }
     }
-  }, [allSites, sitesLoading, currentUser]); // Removed state.selectedSiteId to prevent infinite loop
+  }, [allSites, sitesLoading, currentUser, worksiteParam]); // Added worksiteParam dependency
 
   // Check mock data mode on mount
   useEffect(() => {

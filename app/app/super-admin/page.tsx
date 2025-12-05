@@ -42,7 +42,9 @@ import {
   Wifi,
   WifiOff,
   ArrowRight,
-  TrendingDown
+  TrendingDown,
+  Search,
+  Filter
 } from 'lucide-react';
 import { useAuth } from '@/app/lib/use-auth';
 type ClassValue = string | false | null | undefined;
@@ -152,27 +154,14 @@ interface CompanyWorksiteSnapshot {
 interface AdminCompanySummary {
   id: string;
   name: string;
-  companyName: string;
   email?: string | null;
   phone?: string | null;
   address?: string | null;
-  billingTier?: string | null;
-  contractStart?: string | null;
-  contractEnd?: string | null;
-  slaLevel?: string | null;
-  insuranceCoverageStatus?: string | null;
-  modelVersion?: string | null;
-  mrr?: number | null;
-  churnRisk?: string | null;
-  worksiteCount?: number;
-  userCount?: number;
-  cameraCount?: number;
-  onlineCameraCount?: number;
-  avgSafetyScore?: number | null;
-  complianceRate?: number | null;
-  lastActivity?: string | null;
+  worksiteCount: number;
+  userCount: number;
+  cameraCount: number;
   createdAt: string;
-  worksiteSnapshots?: CompanyWorksiteSnapshot[];
+  updatedAt: string;
 }
 
 interface AdminCompaniesResponse {
@@ -1336,35 +1325,68 @@ export default function SuperAdminDashboardPage() {
         setCompaniesLoading(true);
         setCompaniesError(null);
 
+        console.log('[super-admin] Fetching companies...');
+
+        // Use AbortController with longer timeout (30 seconds)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          controller.abort();
+        }, 30000);
+
         const response = await fetch('/api/admin/companies', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
           },
-          signal,
+          signal: signal || controller.signal,
           cache: 'no-store',
         });
 
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          // Don't retry on 500 errors - set error and stop
+          if (response.status === 500) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Server error: ${response.status}`);
+          }
+          throw new Error(`API error: ${response.status} ${response.statusText}`);
+        }
+
         let payload: AdminCompaniesResponse | null = null;
         try {
-          payload = (await response.json()) as AdminCompaniesResponse;
-        } catch {
-          payload = null;
+          const json = await response.json();
+          payload = json as AdminCompaniesResponse;
+        } catch (parseErr) {
+          throw new Error('Invalid JSON response from server');
         }
 
-        if (!response.ok || !payload?.success || !payload.data) {
-          const message =
-            payload?.error ||
-            payload?.details ||
-            `Failed to load companies (${response.status})`;
-          throw new Error(message);
+        if (!payload) {
+          throw new Error('Empty response from server');
         }
 
+        if (!payload.success) {
+          throw new Error(payload.error || payload.details || 'Failed to load companies');
+        }
+
+        if (!payload.data) {
+          // If no data but success=true, set empty array
+          setCompaniesData([]);
+          return;
+        }
+
+        console.log('[super-admin] Companies loaded:', payload.data?.length || 0);
         setCompaniesData(payload.data);
       } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+        if (err?.name === 'AbortError') {
+          console.log('[super-admin] Request aborted');
+          return;
+        }
+        console.error('[super-admin] Companies fetch error:', err);
         console.error('[super-admin] companies fetch failed', err);
         setCompaniesError(err?.message || 'Unable to load company summaries');
+        // Set empty array on error to prevent crashes
+        setCompaniesData([]);
       } finally {
         setCompaniesLoading(false);
       }
@@ -1372,23 +1394,47 @@ export default function SuperAdminDashboardPage() {
     []
   );
 
-  useEffect(() => {
-    if (companiesData || companiesLoading) return;
-    const controller = new AbortController();
-    fetchCompanies(controller.signal).catch(() => undefined);
-    return () => controller.abort();
-  }, [companiesData, companiesLoading, fetchCompanies]);
+  // Single useEffect to fetch companies - only when section is active and we need data
+  const companiesFetchRef = useRef(false);
+  const companiesFailedRef = useRef(false);
 
   useEffect(() => {
-    if (activeSection === 'companies') {
-      const controller = new AbortController();
-      if (!companiesData) {
-        fetchCompanies(controller.signal).catch(() => undefined);
-      }
-      return () => controller.abort();
+    // Only fetch if:
+    // 1. We're on the companies section
+    // 2. We don't have data yet
+    // 3. We're not already loading
+    // 4. We haven't already started a fetch
+    // 5. We haven't permanently failed (500 error)
+    if (activeSection !== 'companies') {
+      companiesFailedRef.current = false; // Reset on section change
+      return;
     }
-    return undefined;
-  }, [activeSection, companiesData, fetchCompanies]);
+    if (companiesData || companiesLoading || companiesFetchRef.current || companiesFailedRef.current) return;
+    
+    companiesFetchRef.current = true;
+      const controller = new AbortController();
+    
+    fetchCompanies(controller.signal)
+      .catch((err) => {
+        console.error('[super-admin] Fetch companies error:', err);
+        // Only set error if it's not an abort
+        if (err?.name !== 'AbortError') {
+          setCompaniesError(err?.message || 'Failed to load companies');
+          // Mark as permanently failed if it's a 500 error
+          if (err?.message?.includes('500') || err?.message?.includes('Server error')) {
+            companiesFailedRef.current = true;
+          }
+        }
+      })
+      .finally(() => {
+        companiesFetchRef.current = false;
+      });
+    
+    return () => {
+      controller.abort();
+      companiesFetchRef.current = false;
+    };
+  }, [activeSection]); // Only depend on activeSection
 
   useEffect(() => {
     if (!companiesData || companiesData.length === 0) return;
@@ -1424,8 +1470,11 @@ export default function SuperAdminDashboardPage() {
           query.set('companyId', companyId);
         }
 
+        const url = `/api/admin/worksites${query.toString() ? `?${query.toString()}` : ''}`;
+        console.log('[super-admin] Fetching worksites from:', url, 'companyId:', companyId);
+
         const response = await fetch(
-          `/api/admin/worksites${query.toString() ? `?${query.toString()}` : ''}`,
+          url,
           {
             method: 'GET',
             headers: {
@@ -1448,9 +1497,11 @@ export default function SuperAdminDashboardPage() {
             payload?.error ||
             payload?.details ||
             `Failed to load worksites (${response.status})`;
+          console.error('[super-admin] Worksites fetch failed:', message, payload);
           throw new Error(message);
         }
 
+        console.log('[super-admin] Worksites loaded:', payload.data?.length || 0, 'worksites');
         setWorksitesData(payload.data);
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
@@ -2412,165 +2463,325 @@ interface CompaniesSectionProps {
 }
 
 function CompaniesSection({ companies, loading, error, onRefresh }: CompaniesSectionProps) {
-  const hasCompanies = Array.isArray(companies) && companies.length > 0;
   const [searchTerm, setSearchTerm] = useState('');
-  const [performanceFilter, setPerformanceFilter] = useState<'all' | 'strong' | 'watch'>('all');
-  const [page, setPage] = useState(0);
-  const pageSize = 3;
-  const [selectedCompany, setSelectedCompany] = useState<AdminCompanySummary | null>(null);
-  const [companyDetails, setCompanyDetails] = useState<any>(null);
-  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [sortBy, setSortBy] = useState<'name' | 'created' | 'worksites' | 'users' | 'cameras'>('created');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [filterByWorksites, setFilterByWorksites] = useState<'all' | 'has' | 'none'>('all');
+  const [filterByUsers, setFilterByUsers] = useState<'all' | 'has' | 'none'>('all');
+  const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month' | 'year'>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 3;
 
   const filteredCompanies = useMemo(() => {
     if (!companies) return [];
+    
+    let filtered = [...companies];
+    
+    // Search filter
     const term = searchTerm.trim().toLowerCase();
-    return companies.filter((company) => {
-      const complianceScore =
-        company.complianceRate ??
-        (typeof company.avgSafetyScore === 'number' ? company.avgSafetyScore / 100 : null);
-
-      const matchesFilter =
-        performanceFilter === 'all' ||
-        (performanceFilter === 'strong' && (complianceScore ?? 0) >= 0.9) ||
-        (performanceFilter === 'watch' && (complianceScore ?? 1) < 0.75);
-
-      if (!matchesFilter) return false;
-
-      if (term.length === 0) return true;
-
-      const fields = [
+    if (term) {
+      filtered = filtered.filter((company) => {
+        const searchFields = [
         company.name,
-        company.companyName,
         company.email,
         company.phone,
         company.address,
       ]
         .filter(Boolean)
-        .map((value) => value!.toLowerCase());
-
-      return fields.some((value) => value.includes(term));
-    });
-  }, [companies, performanceFilter, searchTerm]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredCompanies.length / pageSize));
-  const paginatedCompanies = useMemo(() => {
-    const start = page * pageSize;
-    return filteredCompanies.slice(start, start + pageSize);
-  }, [filteredCompanies, page, pageSize]);
-
-  useEffect(() => {
-    setPage(0);
-  }, [searchTerm, performanceFilter, companies?.length]);
-
-  useEffect(() => {
-    if (page > totalPages - 1) {
-      setPage(totalPages - 1);
+          .map((v) => String(v).toLowerCase());
+        
+        return searchFields.some((field) => field.includes(term));
+      });
     }
-  }, [page, totalPages]);
-
-  const fetchCompanyDetails = async (companyId: string) => {
-    setDetailsLoading(true);
-    try {
-      const response = await fetch(`/api/admin/companies/${companyId}`);
-      const result = await response.json();
-      if (result.success) {
-        setCompanyDetails(result.data);
+    
+    // Worksite filter
+    if (filterByWorksites === 'has') {
+      filtered = filtered.filter(c => (c.worksiteCount || 0) > 0);
+    } else if (filterByWorksites === 'none') {
+      filtered = filtered.filter(c => (c.worksiteCount || 0) === 0);
+    }
+    
+    // User filter
+    if (filterByUsers === 'has') {
+      filtered = filtered.filter(c => (c.userCount || 0) > 0);
+    } else if (filterByUsers === 'none') {
+      filtered = filtered.filter(c => (c.userCount || 0) === 0);
+    }
+    
+    // Date range filter
+    if (dateRange !== 'all') {
+      const now = new Date();
+      const cutoff = new Date();
+      
+      switch (dateRange) {
+        case 'today':
+          cutoff.setHours(0, 0, 0, 0);
+          break;
+        case 'week':
+          cutoff.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          cutoff.setMonth(now.getMonth() - 1);
+          break;
+        case 'year':
+          cutoff.setFullYear(now.getFullYear() - 1);
+          break;
       }
-    } catch (error) {
-      console.error('Failed to fetch company details:', error);
-    } finally {
-      setDetailsLoading(false);
+      
+      filtered = filtered.filter(c => {
+        const created = new Date(c.createdAt);
+        return created >= cutoff;
+      });
     }
-  };
+    
+    // Sort
+    filtered.sort((a, b) => {
+      let aVal: any;
+      let bVal: any;
+      
+      switch (sortBy) {
+        case 'name':
+          aVal = a.name.toLowerCase();
+          bVal = b.name.toLowerCase();
+          break;
+        case 'created':
+          aVal = new Date(a.createdAt).getTime();
+          bVal = new Date(b.createdAt).getTime();
+          break;
+        case 'worksites':
+          aVal = a.worksiteCount || 0;
+          bVal = b.worksiteCount || 0;
+          break;
+        case 'users':
+          aVal = a.userCount || 0;
+          bVal = b.userCount || 0;
+          break;
+        case 'cameras':
+          aVal = a.cameraCount || 0;
+          bVal = b.cameraCount || 0;
+          break;
+        default:
+          return 0;
+      }
+      
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+    
+    return filtered;
+  }, [companies, searchTerm, sortBy, sortOrder, filterByWorksites, filterByUsers, dateRange]);
+
+  // Pagination logic
+  const totalPages = Math.max(1, Math.ceil(filteredCompanies.length / itemsPerPage));
+  const paginatedCompanies = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredCompanies.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredCompanies, currentPage, itemsPerPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, sortBy, sortOrder, filterByWorksites, filterByUsers, dateRange]);
+
+  // Ensure current page is valid
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <SectionHeader
-          title="Companies Directory"
-          description="Monitor each tenant’s footprint, compliance, and camera coverage."
-          icon={Factory}
-          accent="sky"
-        />
+        <div>
+          <h2 className="text-2xl font-bold text-white">Companies</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Manage all tenant companies and their resources
+          </p>
+        </div>
         <button
           onClick={onRefresh}
-          className="inline-flex items-center gap-2 self-start rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60"
           disabled={loading}
         >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-blue-300' : 'text-slate-300'}`} />
-          {loading ? 'Refreshing…' : 'Refresh'}
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          {loading ? 'Loading...' : 'Refresh'}
         </button>
       </div>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      {/* Search and Quick Filters */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <div className="relative flex-1">
         <input
+              type="text"
           value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          placeholder="Search by company name, email, address…"
-          className="w-full md:w-72 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-        />
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by name, email, phone, or address..."
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 pl-10 text-sm text-white placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          </div>
+          
         <div className="flex items-center gap-2">
-          <FilterChip
-            active={performanceFilter === 'all'}
-            onClick={() => setPerformanceFilter('all')}
-          >
-            All
-          </FilterChip>
-          <FilterChip
-            active={performanceFilter === 'strong'}
-            onClick={() => setPerformanceFilter('strong')}
-          >
-            High compliance
-          </FilterChip>
-          <FilterChip
-            active={performanceFilter === 'watch'}
-            onClick={() => setPerformanceFilter('watch')}
-          >
-            Needs attention
-          </FilterChip>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'name' | 'created' | 'worksites' | 'users' | 'cameras')}
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            >
+              <option value="created">Newest First</option>
+              <option value="name">Name (A-Z)</option>
+              <option value="worksites">Most Worksites</option>
+              <option value="users">Most Users</option>
+              <option value="cameras">Most Cameras</option>
+            </select>
+            
+            <button
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 transition"
+              title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+            >
+              {sortOrder === 'asc' ? '↑' : '↓'}
+            </button>
+            
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                showFilters || filterByWorksites !== 'all' || filterByUsers !== 'all' || dateRange !== 'all'
+                  ? 'border-blue-500 bg-blue-500/10 text-blue-400'
+                  : 'border-slate-700 bg-slate-900 text-white hover:bg-slate-800'
+              }`}
+            >
+              <Filter className="h-4 w-4" />
+            </button>
         </div>
       </div>
 
-      {loading && !hasCompanies && (
-        <div className="flex h-56 items-center justify-center rounded-2xl border border-slate-800/60 bg-slate-900/60">
+        {/* Advanced Filters Panel */}
+        {showFilters && (
+          <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Worksites
+                </label>
+                <select
+                  value={filterByWorksites}
+                  onChange={(e) => setFilterByWorksites(e.target.value as 'all' | 'has' | 'none')}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="all">All</option>
+                  <option value="has">Has Worksites</option>
+                  <option value="none">No Worksites</option>
+                </select>
+        </div>
+              
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Users
+                </label>
+                <select
+                  value={filterByUsers}
+                  onChange={(e) => setFilterByUsers(e.target.value as 'all' | 'has' | 'none')}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="all">All</option>
+                  <option value="has">Has Users</option>
+                  <option value="none">No Users</option>
+                </select>
+        </div>
+              
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Created Date
+                </label>
+                <select
+                  value={dateRange}
+                  onChange={(e) => setDateRange(e.target.value as 'all' | 'today' | 'week' | 'month' | 'year')}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="all">All Time</option>
+                  <option value="today">Today</option>
+                  <option value="week">Last 7 Days</option>
+                  <option value="month">Last 30 Days</option>
+                  <option value="year">Last Year</option>
+                </select>
+              </div>
+            </div>
+            
+            {(filterByWorksites !== 'all' || filterByUsers !== 'all' || dateRange !== 'all') && (
+              <button
+                onClick={() => {
+                  setFilterByWorksites('all');
+                  setFilterByUsers('all');
+                  setDateRange('all');
+                }}
+                className="mt-4 text-sm text-blue-400 hover:text-blue-300"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {loading && !companies && (
+        <div className="flex h-64 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/50">
           <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
-          <span className="ml-3 text-sm text-slate-300">Loading companies…</span>
+          <span className="ml-3 text-sm text-slate-300">Loading companies...</span>
         </div>
       )}
 
-      {!loading && !hasCompanies && !error && (
-        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-10 text-center text-slate-300">
-          <p className="text-lg font-semibold text-white">No companies yet</p>
-          <p className="mt-2 text-sm text-slate-400">
-            Once tenants are onboarded they’ll appear here with summary metrics.
-          </p>
-          <a
-            href="/admin/companies"
-            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-          >
-            Manage companies
-          </a>
-        </div>
-      )}
-
-      {error && !hasCompanies && (
-        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+      {error && !companies && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
           {error}
         </div>
       )}
 
-      {hasCompanies && (
+      {!loading && !companies && !error && (
+        <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-12 text-center">
+          <p className="text-lg font-semibold text-white">No companies yet</p>
+          <p className="mt-2 text-sm text-slate-400">
+            Companies will appear here once they are created.
+          </p>
+        </div>
+      )}
+
+      {companies && companies.length > 0 && (
         <>
           {error && (
-            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-100">
-              {error} — showing previously loaded company data.
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100">
+              {error} — showing cached data
             </div>
           )}
+          
+          <div className="flex items-center justify-between text-sm text-slate-400">
+            <span>
+              Showing {paginatedCompanies.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}-{Math.min(currentPage * itemsPerPage, filteredCompanies.length)} of {filteredCompanies.length} companies
+              {filteredCompanies.length !== companies.length && ` (${companies.length} total)`}
+            </span>
+            {(searchTerm || filterByWorksites !== 'all' || filterByUsers !== 'all' || dateRange !== 'all') && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setFilterByWorksites('all');
+                  setFilterByUsers('all');
+                  setDateRange('all');
+                }}
+                className="text-blue-400 hover:text-blue-300"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+          
           {filteredCompanies.length === 0 ? (
-            <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-10 text-center text-slate-300">
+            <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-12 text-center">
               <p className="text-lg font-semibold text-white">No companies match your filters</p>
               <p className="mt-2 text-sm text-slate-400">
-                Try adjusting the search terms or performance filters.
+                Try adjusting your search terms or filters.
               </p>
             </div>
           ) : (
@@ -2580,41 +2791,74 @@ function CompaniesSection({ companies, loading, error, onRefresh }: CompaniesSec
                   <CompanyCard 
                     key={company.id} 
                     company={company}
-                    onClick={() => {
-                      setSelectedCompany(company);
-                      fetchCompanyDetails(company.id);
-                    }}
                   />
                 ))}
               </div>
-              <PaginationControls
-                page={page}
-                totalPages={totalPages}
-                onPrev={() => setPage((prev) => Math.max(0, prev - 1))}
-                onNext={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))}
-              />
+              
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3">
+                  <div className="text-sm text-slate-400">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-white transition hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                        // Show first page, last page, current page, and pages around current
+                        const showPage = 
+                          page === 1 || 
+                          page === totalPages || 
+                          (page >= currentPage - 1 && page <= currentPage + 1);
+                        
+                        if (!showPage) {
+                          // Show ellipsis
+                          if (page === currentPage - 2 || page === currentPage + 2) {
+                            return <span key={page} className="px-2 text-slate-500">...</span>;
+                          }
+                          return null;
+                        }
+                        
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                              currentPage === page
+                                ? 'bg-blue-600 text-white'
+                                : 'border border-slate-700 bg-slate-900 text-white hover:bg-slate-800'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-white transition hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </>
-      )}
-
-      {/* Company Detail Drawer */}
-      {selectedCompany && (
-        <CompanyDetailDrawer
-          company={selectedCompany}
-          details={companyDetails}
-          loading={detailsLoading}
-          onClose={() => {
-            setSelectedCompany(null);
-            setCompanyDetails(null);
-          }}
-          onRefresh={onRefresh}
-        />
       )}
     </div>
   );
 }
 
+// Unused component - kept for potential future use
 function CompanyDetailDrawer({
   company,
   details,
@@ -2630,14 +2874,14 @@ function CompanyDetailDrawer({
 }) {
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
-    billingTier: details?.billingTier || company.billingTier || 'standard',
+    billingTier: details?.billingTier || 'standard',
     contractStart: details?.contractStart ? new Date(details.contractStart).toISOString().split('T')[0] : '',
     contractEnd: details?.contractEnd ? new Date(details.contractEnd).toISOString().split('T')[0] : '',
-    slaLevel: details?.slaLevel || company.slaLevel || 'standard',
-    insuranceCoverageStatus: details?.insuranceCoverageStatus || company.insuranceCoverageStatus || '',
-    modelVersion: details?.modelVersion || company.modelVersion || '',
-    mrr: details?.mrr || company.mrr || '',
-    churnRisk: details?.churnRisk || company.churnRisk || 'low',
+    slaLevel: details?.slaLevel || 'standard',
+    insuranceCoverageStatus: details?.insuranceCoverageStatus || '',
+    modelVersion: details?.modelVersion || '',
+    mrr: details?.mrr || '',
+    churnRisk: details?.churnRisk || 'low',
   });
 
   const handleSave = async () => {
@@ -2830,103 +3074,50 @@ function CompanyDetailDrawer({
 }
 
 function CompanyCard({ company, onClick }: { company: AdminCompanySummary; onClick?: () => void }) {
-  const complianceDisplay =
-    typeof company.avgSafetyScore === 'number'
-      ? `${company.avgSafetyScore.toFixed(1)}%`
-      : 'Pending';
-  const lastActivityDisplay = formatRelativeActivity(company.lastActivity);
-  const createdDisplay = formatDateString(company.createdAt);
-
-  const billingTier = company.billingTier || 'standard';
-  const billingTierColorMap: Record<string, string> = {
-    free: 'bg-slate-500/20 text-slate-300',
-    pilot: 'bg-blue-500/20 text-blue-300',
-    standard: 'bg-emerald-500/20 text-emerald-300',
-    premium: 'bg-purple-500/20 text-purple-300',
-  };
-  const billingTierColor = billingTierColorMap[billingTier] || 'bg-slate-500/20 text-slate-300';
-
-  const churnRisk = company.churnRisk || 'low';
-  const churnRiskColorMap: Record<string, string> = {
-    low: 'bg-emerald-500/20 text-emerald-300',
-    medium: 'bg-amber-500/20 text-amber-300',
-    high: 'bg-red-500/20 text-red-300',
-  };
-  const churnRiskColor = churnRiskColorMap[churnRisk] || 'bg-slate-500/20 text-slate-300';
+  const createdDisplay = company.createdAt ? new Date(company.createdAt).toLocaleDateString() : '—';
+  const createdDate = company.createdAt ? new Date(company.createdAt) : null;
+  const daysAgo = createdDate ? Math.floor((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) : null;
+  const createdRelative = daysAgo !== null 
+    ? daysAgo === 0 
+      ? 'Today' 
+      : daysAgo === 1 
+        ? 'Yesterday' 
+        : `${daysAgo} days ago`
+    : '—';
 
   const content = (
     <div className="group block rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 transition hover:border-blue-500/60 hover:bg-slate-900/80">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">
-            @{company.companyName}
-          </p>
-          <h3 className="mt-1 text-xl font-semibold text-white group-hover:text-blue-300">
+        <div className="flex-1 min-w-0">
+          <h3 className="text-xl font-semibold text-white group-hover:text-blue-300 truncate">
             {company.name}
           </h3>
+          {company.email && (
+            <p className="mt-1 text-sm text-slate-400 truncate">{company.email}</p>
+          )}
+          {company.address && (
+            <p className="mt-1 text-xs text-slate-500 truncate">{company.address}</p>
+          )}
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <span className="rounded-full bg-slate-800 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+        <span className="flex-shrink-0 rounded-full bg-slate-800 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
             {company.worksiteCount ?? 0} sites
           </span>
-          {company.billingTier && (
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${billingTierColor}`}>
-              {company.billingTier}
-            </span>
-          )}
-          {company.churnRisk && company.churnRisk !== 'low' && (
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${churnRiskColor}`}>
-              {company.churnRisk} risk
-            </span>
-          )}
-        </div>
       </div>
 
       <div className="mt-6 grid grid-cols-3 gap-4">
         <CompanyStat label="Worksites" value={company.worksiteCount ?? 0} />
-        <CompanyStat
-          label="Cameras"
-          value={company.cameraCount ?? 0}
-          helper={`${company.onlineCameraCount ?? 0} online`}
-        />
-        <CompanyStat
-          label="Compliance"
-          value={complianceDisplay}
-          helper={
-            typeof company.avgSafetyScore === 'number'
-              ? 'Avg safety score'
-              : 'Awaiting data'
-          }
-        />
+        <CompanyStat label="Users" value={company.userCount ?? 0} />
+        <CompanyStat label="Cameras" value={company.cameraCount ?? 0} />
       </div>
-
-      {company.worksiteSnapshots && company.worksiteSnapshots.length > 0 && (
-        <div className="mt-6 space-y-2">
-          {company.worksiteSnapshots.slice(0, 3).map((snapshot) => (
-            <WorksiteSnapshotRow key={snapshot.id} snapshot={snapshot} />
-          ))}
-          {company.worksiteSnapshots.length > 3 && (
-            <p className="text-xs text-slate-500">
-              +{company.worksiteSnapshots.length - 3} more worksites
-            </p>
-          )}
-        </div>
-      )}
 
       <div className="mt-6 flex items-center justify-between text-xs text-slate-500">
         <span>Created {createdDisplay}</span>
-        <span>Last activity: {lastActivityDisplay}</span>
+        <span>{createdRelative}</span>
       </div>
-      {company.insuranceCoverageStatus && (
-        <div className="mt-3 flex items-center gap-2 text-xs">
-          <span className="text-slate-500">Insurance:</span>
-          <span className={`rounded-full px-2 py-0.5 font-semibold ${
-            company.insuranceCoverageStatus === 'active' 
-              ? 'bg-emerald-500/20 text-emerald-300' 
-              : 'bg-amber-500/20 text-amber-300'
-          }`}>
-            {company.insuranceCoverageStatus}
-          </span>
+      
+      {company.phone && (
+        <div className="mt-3 text-xs text-slate-500">
+          {company.phone}
         </div>
       )}
     </div>
@@ -2940,11 +3131,7 @@ function CompanyCard({ company, onClick }: { company: AdminCompanySummary; onCli
     );
   }
 
-  return (
-    <Link href={`/admin/companies/${company.id}`}>
-      {content}
-    </Link>
-  );
+  return content;
 }
 
 function CompanyStat({

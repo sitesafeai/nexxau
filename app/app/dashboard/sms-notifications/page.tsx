@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   MessageSquare, 
   Phone, 
@@ -90,6 +90,9 @@ interface SMSStats {
 
 const SMSNotificationDashboard: React.FC = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const worksiteParam = searchParams.get('worksite');
+  
   const [notifications, setNotifications] = useState<SMSNotification[]>([]);
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
   const [stats, setStats] = useState<SMSStats | null>(null);
@@ -317,7 +320,7 @@ const SMSNotificationDashboard: React.FC = () => {
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-4">
             <button
-              onClick={() => router.back()}
+              onClick={() => router.push(`/dashboard${worksiteParam ? `?worksite=${worksiteParam}` : ''}`)}
               className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Plus, Edit, Trash2, Power, PowerOff, Info, RefreshCw } from 'lucide-react';
 
 interface CustomRule {
@@ -38,6 +38,9 @@ interface CustomRule {
 
 export default function CustomRulesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const worksiteParam = searchParams.get('worksite');
+  
   const [rules, setRules] = useState<CustomRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
@@ -166,7 +169,7 @@ export default function CustomRulesPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push(`/dashboard${worksiteParam ? `?worksite=${worksiteParam}` : ''}`)}
               className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -188,7 +191,7 @@ export default function CustomRulesPage() {
               Refresh
             </button>
             <button
-              onClick={() => router.push('/dashboard/alert-builder?from=custom-rules')}
+              onClick={() => router.push(`/dashboard/alert-builder?from=custom-rules${worksiteParam ? `&worksite=${worksiteParam}` : ''}`)}
               className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl font-semibold transition-all shadow-lg flex items-center gap-2"
             >
               <Plus className="h-5 w-5" />
@@ -247,7 +250,7 @@ export default function CustomRulesPage() {
             <h3 className="text-2xl font-semibold text-gray-300 mb-3">No Custom Rules Yet</h3>
             <p className="text-gray-400 mb-8 text-lg">Create your first intelligent detection rule</p>
             <button
-              onClick={() => router.push('/dashboard/alert-builder?from=custom-rules')}
+              onClick={() => router.push(`/dashboard/alert-builder?from=custom-rules${worksiteParam ? `&worksite=${worksiteParam}` : ''}`)}
               className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors font-semibold shadow-lg"
             >
               Create Your First Rule
@@ -353,7 +356,7 @@ export default function CustomRulesPage() {
                       {rule.isActive ? <Power className="h-5 w-5" /> : <PowerOff className="h-5 w-5" />}
                     </button>
                     <button
-                      onClick={() => router.push(`/dashboard/alert-builder?edit=${rule.id}&from=custom-rules`)}
+                      onClick={() => router.push(`/dashboard/alert-builder?edit=${rule.id}&from=custom-rules${worksiteParam ? `&worksite=${worksiteParam}` : ''}`)}
                       className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                       title="Edit rule"
                     >

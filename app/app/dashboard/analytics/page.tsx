@@ -1,26 +1,33 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, BarChart3, Calendar } from 'lucide-react';
 
 export default function AnalyticsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const worksiteParam = searchParams.get('worksite');
+  
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('7d');
-  const [worksiteId, setWorksiteId] = useState<string>('');
+  const [worksiteId, setWorksiteId] = useState<string>(worksiteParam || '');
   const [error, setError] = useState<string | null>(null);
   
   const [analytics, setAnalytics] = useState<any>(null);
 
-  // Get worksite ID from local storage or default
+  // Get worksite ID from URL params or localStorage as fallback
   useEffect(() => {
-    const storedSite = localStorage.getItem('currentSite');
-    if (storedSite) {
-      const site = JSON.parse(storedSite);
-      setWorksiteId(site.id);
+    if (worksiteParam) {
+      setWorksiteId(worksiteParam);
+    } else {
+      const storedSite = localStorage.getItem('currentSite');
+      if (storedSite) {
+        const site = JSON.parse(storedSite);
+        setWorksiteId(site.id);
+      }
     }
-  }, []);
+  }, [worksiteParam]);
 
   // Fetch real analytics data
   useEffect(() => {
@@ -75,7 +82,7 @@ export default function AnalyticsPage() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push(`/dashboard${worksiteId ? `?worksite=${worksiteId}` : ''}`)}
               className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-gray-300 hover:text-white transition-colors border border-slate-700"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -312,7 +319,7 @@ export default function AnalyticsPage() {
             {/* Export Actions */}
             <div className="flex gap-3 justify-end">
               <button
-                onClick={() => router.push('/dashboard?tab=reports')}
+                onClick={() => router.push(`/dashboard?tab=reports${worksiteId ? `&worksite=${worksiteId}` : ''}`)}
                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
               >
                 Export Report

@@ -109,26 +109,51 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Custom input styles */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="number"],
-textarea,
-select {
+/* Custom input styles - Light theme default (for login, public pages) */
+.light-form input[type="text"],
+.light-form input[type="email"],
+.light-form input[type="password"],
+.light-form input[type="number"],
+.light-form textarea,
+.light-form select {
   @apply text-gray-900 bg-white;
 }
 
-input[type="text"]::placeholder,
-input[type="email"]::placeholder,
-input[type="password"]::placeholder,
-input[type="number"]::placeholder,
-textarea::placeholder {
+.light-form input[type="text"]::placeholder,
+.light-form input[type="email"]::placeholder,
+.light-form input[type="password"]::placeholder,
+.light-form input[type="number"]::placeholder,
+.light-form textarea::placeholder {
   @apply text-gray-600;
 }
 
-/* Select styles */
-select {
+/* Dark theme input styles (for dashboard) */
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark input[type="number"],
+.dark textarea,
+.dark select,
+input[type="text"].text-white,
+input[type="email"].text-white,
+input[type="password"].text-white,
+input[type="number"].text-white,
+textarea.text-white,
+select.text-white {
+  color: white !important;
+  caret-color: white;
+}
+
+input[type="text"].text-white::placeholder,
+input[type="email"].text-white::placeholder,
+input[type="password"].text-white::placeholder,
+input[type="number"].text-white::placeholder,
+textarea.text-white::placeholder {
+  @apply text-slate-400;
+}
+
+/* Select styles - Only for light forms */
+.light-form select {
   @apply text-gray-900 bg-white appearance-none;
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
   background-position: right 0.5rem center;
@@ -137,28 +162,28 @@ select {
   padding-right: 2.5rem;
 }
 
-select option {
+.light-form select option {
   @apply text-gray-900 bg-white py-2;
 }
 
-/* Focus states */
-input[type="text"]:focus,
-input[type="email"]:focus,
-input[type="password"]:focus,
-input[type="number"]:focus,
-textarea:focus,
-select:focus {
+/* Focus states for light forms */
+.light-form input[type="text"]:focus,
+.light-form input[type="email"]:focus,
+.light-form input[type="password"]:focus,
+.light-form input[type="number"]:focus,
+.light-form textarea:focus,
+.light-form select:focus {
   @apply text-gray-900 ring-2 ring-blue-500 border-blue-500;
 }
 
 /* Hover states */
-select:hover {
+.light-form select:hover {
   @apply border-gray-400;
 }
 
 /* Disabled states */
 select:disabled {
-  @apply bg-gray-100 cursor-not-allowed opacity-75;
+  @apply cursor-not-allowed opacity-75;
 }
 
 /* Line clamp utility */

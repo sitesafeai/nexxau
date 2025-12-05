@@ -1,244 +1,261 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
-import { createCompanySchema } from '@/app/lib/validation/companies';
-import { validateBody } from '@/app/lib/validation/common';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
 
 /**
  * GET /api/admin/companies
- * Get all companies with stats
+ * Get all companies with basic stats (super admin only)
  */
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
-    const companies = await prisma.company.findMany({
-      include: {
-        _count: {
-          select: {
-            worksites: true,
-            users: true
-          }
-        },
-        worksites: {
-          include: {
-            cameras: {
-              select: {
-                id: true,
-                status: true
-              }
-            },
-            safetyScores: {
-              orderBy: {
-                date: 'desc'
-              },
-              take: 1,
-              select: {
-                safetyScore: true,
-                date: true
-              }
-            },
-            alerts: {
-              orderBy: {
-                createdAt: 'desc'
-              },
-              take: 1,
-              select: {
-                createdAt: true
-              }
+    console.log('[companies API] Starting request...');
+    
+    // Check authentication
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      console.log('[companies API] No session');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.log('[companies API] Session found, checking role...');
+    
+    // Check if user is super admin
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { email: session.user.email || '' },
+        select: { role: true }
+      });
+    } catch (dbError: any) {
+      console.error('[companies API] Database connection error:', dbError);
+      if (dbError?.message?.includes('Can\'t reach database server') || dbError?.code === 'P1001') {
+        return NextResponse.json({
+          success: false,
+          error: 'Database connection failed. Please check your database server is running.',
+          data: []
+        }, { status: 503 }); // Service Unavailable
+      }
+      throw dbError; // Re-throw if it's a different error
+    }
+
+    if (!user || (user.role?.toUpperCase() !== 'SUPER_ADMIN' && user.role?.toUpperCase() !== 'SUPERADMIN')) {
+      console.log('[companies API] Not super admin');
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    console.log('[companies API] Fetching companies...');
+    
+    // Query with _count for fast counting
+    let companies;
+    try {
+      companies = await prisma.company.findMany({
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          address: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: {
+            select: {
+              worksites: true,
+              users: true,
             }
           }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
-
-    const enriched = companies.map(company => {
-      const worksiteSummaries = company.worksites.map(worksite => {
-        const cameraCount = worksite.cameras.length;
-        const onlineCameras = worksite.cameras.filter(camera => {
-          const status = (camera.status || 'active').toLowerCase();
-          return status === 'online' || status === 'active';
-        }).length;
-        const latestScore = worksite.safetyScores[0]?.safetyScore ?? null;
-        const latestScoreDate = worksite.safetyScores[0]?.date ?? null;
-        const latestAlert = worksite.alerts[0]?.createdAt ?? null;
-        const lastActivityCandidates = [
-          worksite.updatedAt,
-          latestAlert,
-          latestScoreDate
-        ].filter((value): value is Date => Boolean(value));
-        const lastActivity = lastActivityCandidates.length > 0
-          ? new Date(
-              Math.max(
-                ...lastActivityCandidates.map(candidate => candidate.getTime())
-              )
-            )
-          : null;
-
-        return {
-          id: worksite.id,
-          name: worksite.name,
-          location: worksite.location,
-          status: worksite.status,
-          cameraCount,
-          onlineCameraCount: onlineCameras,
-          latestScore,
-          latestScoreDate,
-          lastActivity
-        };
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: 100 // Limit to prevent huge queries
       });
+    } catch (dbError: any) {
+      console.error('[companies API] Database error fetching companies:', dbError);
+      if (dbError?.message?.includes('Can\'t reach database server') || dbError?.code === 'P1001') {
+        return NextResponse.json({
+          success: false,
+          error: 'Database connection failed. Please check your database server is running.',
+          data: []
+        }, { status: 503 }); // Service Unavailable
+      }
+      throw dbError; // Re-throw if it's a different error
+    }
 
-      const totalCameras = worksiteSummaries.reduce(
-        (sum, item) => sum + item.cameraCount,
-        0
-      );
-      const onlineCameras = worksiteSummaries.reduce(
-        (sum, item) => sum + item.onlineCameraCount,
-        0
-      );
-      const scores = worksiteSummaries
-        .map(item => item.latestScore)
-        .filter((score): score is number => typeof score === 'number' && !Number.isNaN(score));
+    console.log(`[companies API] Found ${companies.length} companies in ${Date.now() - startTime}ms`);
 
-      const averageScore =
-        scores.length > 0
-          ? scores.reduce((sum, score) => sum + score, 0) / scores.length
-          : null;
-
-      const lastActivity = worksiteSummaries.reduce<Date | null>((latest, item) => {
-        if (!item.lastActivity) return latest;
-        if (!latest || item.lastActivity > latest) {
-          return item.lastActivity;
+    // Get camera counts efficiently
+    const companyIds = companies.map(c => c.id);
+    const cameraCountsMap = new Map<string, number>();
+    
+    if (companyIds.length > 0) {
+      try {
+        // Get all worksites for these companies
+        const worksites = await prisma.worksite.findMany({
+          where: { companyId: { in: companyIds } },
+          select: { id: true, companyId: true }
+        });
+        
+        const worksiteIds = worksites.map(w => w.id);
+        const worksiteToCompany = new Map(worksites.map(w => [w.id, w.companyId]));
+        
+        if (worksiteIds.length > 0) {
+          // Count cameras per worksite
+          const cameraCounts = await prisma.camera.groupBy({
+            by: ['worksiteId'],
+            where: { worksiteId: { in: worksiteIds } },
+            _count: true
+          });
+          
+          // Aggregate by company
+          cameraCounts.forEach(item => {
+            const companyId = worksiteToCompany.get(item.worksiteId);
+            if (companyId) {
+              cameraCountsMap.set(
+                companyId,
+                (cameraCountsMap.get(companyId) || 0) + item._count
+              );
+            }
+          });
         }
-        return latest;
-      }, null);
+      } catch (err) {
+        console.error('[companies API] Error calculating camera counts:', err);
+      }
+    }
 
-      // Access optional metadata fields safely
-      const companyAny = company as any;
-      
-      return {
-        id: company.id,
-        name: company.name,
-        companyName: company.companyUsername, // Map to companyName for frontend
-        email: company.email,
-        phone: company.phone,
-        address: company.address,
-        // Metadata fields (optional - may not exist in database)
-        billingTier: companyAny.billingTier || 'standard',
-        contractStart: companyAny.contractStart?.toISOString?.() || null,
-        contractEnd: companyAny.contractEnd?.toISOString?.() || null,
-        slaLevel: companyAny.slaLevel || 'standard',
-        insuranceCoverageStatus: companyAny.insuranceCoverageStatus || null,
-        modelVersion: companyAny.modelVersion || null,
-        mrr: companyAny.mrr ? Number(companyAny.mrr) : null,
-        churnRisk: companyAny.churnRisk || null,
-        worksiteCount: company._count.worksites,
-        userCount: company._count.users,
-        cameraCount: totalCameras,
-        onlineCameraCount: onlineCameras,
-        avgSafetyScore: averageScore,
-        complianceRate: averageScore !== null ? averageScore / 100 : null,
-        lastActivity: lastActivity ? lastActivity.toISOString() : null,
-        worksiteSnapshots: worksiteSummaries.slice(0, 4).map(summary => ({
-          id: summary.id,
-          name: summary.name,
-          location: summary.location,
-          status: summary.status,
-          cameraCount: summary.cameraCount,
-          onlineCameraCount: summary.onlineCameraCount,
-          latestScore: summary.latestScore,
-          lastActivity: summary.lastActivity
-            ? summary.lastActivity.toISOString()
-            : null
-        })),
-        createdAt: company.createdAt
-      };
-    });
+    // Enrich with counts
+    const enriched = companies.map(company => ({
+      id: company.id,
+      name: company.name,
+      email: company.email || '',
+      phone: company.phone || null,
+      address: company.address || null,
+      worksiteCount: company._count.worksites,
+      userCount: company._count.users,
+      cameraCount: cameraCountsMap.get(company.id) || 0,
+      createdAt: company.createdAt.toISOString(),
+      updatedAt: company.updatedAt.toISOString(),
+    }));
+
+    console.log(`[companies API] Returning ${enriched.length} companies in ${Date.now() - startTime}ms total`);
 
     return NextResponse.json({
       success: true,
       data: enriched
     });
+
   } catch (error: any) {
-    console.error('Error fetching companies:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch companies', details: error.message },
-      { status: 500 }
-    );
-  } finally {
-    // No need to disconnect with singleton pattern
+    console.error('[companies API] Error:', error);
+    console.error('[companies API] Error stack:', error?.stack);
+    console.error('[companies API] Error name:', error?.name);
+    console.error('[companies API] Error code:', error?.code);
+    
+    // Return error response that won't crash frontend
+    return NextResponse.json({
+      success: false,
+      error: error?.message || 'Failed to fetch companies',
+      data: [],
+      details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+    }, { status: 500 });
   }
 }
 
 /**
  * POST /api/admin/companies
- * Create a new company
+ * Create a new company (super admin only)
  */
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email || '' },
+      select: { role: true, id: true }
+    });
+
+    if (!user || (user.role?.toUpperCase() !== 'SUPER_ADMIN' && user.role?.toUpperCase() !== 'SUPERADMIN')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const body = await request.json();
-    const validation = validateBody(createCompanySchema, body);
+    const { name, email, phone, address } = body;
 
-    if (!validation.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Validation failed',
-          details: validation.error.errors,
-        },
-        { status: 400 }
-      );
+    if (!name) {
+      return NextResponse.json({
+        success: false,
+        error: 'Company name is required'
+      }, { status: 400 });
     }
 
-    const { name, companyUsername, email, contactEmail, phone, address } = validation.data;
-
-    // Check if company username already exists
-    const existingUsername = await prisma.company.findUnique({
-      where: { companyUsername }
+    // Check for duplicate name
+    const existing = await prisma.company.findFirst({
+      where: { name }
     });
 
-    if (existingUsername) {
-      return NextResponse.json(
-        { success: false, error: 'Company username already exists' },
-        { status: 409 }
-      );
+    if (existing) {
+      return NextResponse.json({
+        success: false,
+        error: 'A company with this name already exists'
+      }, { status: 409 });
     }
 
-    const existingEmail = await prisma.company.findUnique({
-      where: { email }
-    });
+    // Generate companyUsername from name (URL-friendly)
+    const companyUsername = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 50);
 
-    if (existingEmail) {
-      return NextResponse.json(
-        { success: false, error: 'Company email already exists' },
-        { status: 409 }
-      );
+    // Check if username already exists, append number if needed
+    let finalUsername = companyUsername;
+    let counter = 1;
+    while (await prisma.company.findUnique({ where: { companyUsername: finalUsername } })) {
+      finalUsername = `${companyUsername}-${counter}`;
+      counter++;
     }
 
     const company = await prisma.company.create({
       data: {
         name,
-        companyUsername,
-        email,
-        contactEmail,
-        phone,
-        address
+        companyUsername: finalUsername,
+        email: email || null,
+        phone: phone || null,
+        address: address || null,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        address: true,
+        createdAt: true,
+        updatedAt: true,
       }
     });
 
     return NextResponse.json({
       success: true,
-      data: company,
-      message: 'Company created successfully'
-    });
+      data: {
+        ...company,
+        worksiteCount: 0,
+        userCount: 0,
+        cameraCount: 0,
+        createdAt: company.createdAt.toISOString(),
+        updatedAt: company.updatedAt.toISOString(),
+      }
+    }, { status: 201 });
 
   } catch (error: any) {
-    console.error('Error creating company:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to create company', details: error.message },
-      { status: 500 }
-    );
-  } finally {
-    // No need to disconnect with singleton pattern
+    console.error('[companies API] Create error:', error);
+    return NextResponse.json({
+      success: false,
+      error: error?.message || 'Failed to create company'
+    }, { status: 500 });
   }
 }
+

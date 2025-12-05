@@ -1,22 +1,38 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import CameraFeed from '@/app/components/CameraFeed';
 import { useCameraStore, Camera } from '@/app/lib/camera-store';
 import { ArrowLeft } from 'lucide-react';
 
 export default function CameraManagementPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const worksiteId = searchParams.get('worksite');
+  
   const { 
-    cameras, 
+    cameras: allCameras, 
     addCamera, 
     updateCamera, 
     deleteCamera,
     getStats 
   } = useCameraStore();
   
-  const stats = getStats();
+  // Filter cameras by worksite if parameter is provided
+  const cameras = useMemo(() => {
+    if (!worksiteId) return allCameras;
+    return allCameras.filter(camera => camera.worksiteId === worksiteId);
+  }, [allCameras, worksiteId]);
+  
+  // Calculate stats for filtered cameras
+  const stats = useMemo(() => {
+    const online = cameras.filter(c => c.status === 'online').length;
+    const offline = cameras.filter(c => c.status === 'offline').length;
+    const error = cameras.filter(c => c.status === 'error').length;
+    const totalAlerts = cameras.reduce((sum, c) => sum + (c.alerts || 0), 0);
+    return { total: cameras.length, online, offline, error, totalAlerts };
+  }, [cameras]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -51,7 +67,8 @@ export default function CameraManagementPage() {
       resolution: formData.resolution,
       fps: formData.fps,
       hasVideo: true,
-      alerts: 0
+      alerts: 0,
+      worksiteId: worksiteId || undefined
     });
 
     setIsAddModalOpen(false);
@@ -135,7 +152,7 @@ export default function CameraManagementPage() {
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push(`/dashboard${worksiteId ? `?worksite=${worksiteId}` : ''}`)}
               className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-gray-300 hover:text-white transition-colors border border-slate-700 hover:border-slate-600"
               title="Back to Dashboard"
             >

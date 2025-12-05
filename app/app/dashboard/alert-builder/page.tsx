@@ -64,14 +64,18 @@ export default function AlertBuilderPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const editId = urlParams.get('edit');
     const from = urlParams.get('from');
+    const worksite = urlParams.get('worksite');
     
-    // Set return URL based on 'from' parameter
+    // Build worksite query string
+    const wsParam = worksite ? `worksite=${worksite}` : '';
+    
+    // Set return URL based on 'from' parameter, preserving worksite
     if (from === 'alerts') {
-      setReturnUrl('/dashboard?tab=alerts'); // Return to alerts tab
+      setReturnUrl(`/dashboard?tab=alerts${wsParam ? `&${wsParam}` : ''}`);
     } else if (from === 'custom-rules') {
-      setReturnUrl('/dashboard/custom-rules'); // Return to custom rules page
+      setReturnUrl(`/dashboard/custom-rules${wsParam ? `?${wsParam}` : ''}`);
     } else {
-      setReturnUrl('/dashboard'); // Default to dashboard
+      setReturnUrl(`/dashboard${wsParam ? `?${wsParam}` : ''}`);
     }
     
     if (editId) {
