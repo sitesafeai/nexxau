@@ -4906,13 +4906,10 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
           <p className="text-sm text-slate-400 mt-1">{currentSite.name} • {workflows.length} workflows configured</p>
         </div>
         <button 
-          onClick={() => {
-            // TODO: Open workflow creation modal
-            alert('Workflow creation UI coming soon. Workflows are auto-provisioned for new worksites.');
-          }}
+          onClick={() => router.push(`/dashboard/workflow-builder?worksite=${currentSite.id}`)}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
         >
-          Create Custom Workflow
+          Create Workflow
         </button>
       </div>
 
@@ -4992,22 +4989,28 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
                       ? new Date(workflow.lastRunAt).toLocaleString()
                       : 'Never'}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-2">
+                <td className="px-6 py-4">
+                  <div className="flex items-center space-x-2">
+                    {workflow.createdBy === 'system' ? (
+                      <span className="px-3 py-1 bg-slate-700/50 text-slate-400 text-xs font-medium rounded cursor-not-allowed">
+                        Read-Only
+                      </span>
+                    ) : (
                       <button 
                         onClick={() => alert('Edit functionality coming soon')}
                         className="px-3 py-1 border border-slate-600 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded"
                       >
-                        Configure
+                        Edit
                       </button>
-                      <button 
-                        onClick={() => alert('Test run functionality coming soon')}
-                        className="px-3 py-1 border border-slate-600 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded"
-                      >
-                        Test
-                      </button>
-                    </div>
-                  </td>
+                    )}
+                    <button 
+                      onClick={() => alert('Test run functionality coming soon')}
+                      className="px-3 py-1 border border-slate-600 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded"
+                    >
+                      Test
+                    </button>
+                  </div>
+                </td>
                 </tr>
               ))}
             </tbody>
