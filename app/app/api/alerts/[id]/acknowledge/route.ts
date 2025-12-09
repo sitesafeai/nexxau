@@ -88,7 +88,7 @@ export async function POST(
                 name: session.user.name,
                 email: session.user.email
               },
-              note: note || null,
+              notes: note || null,
               actionTaken: actionTaken || null,
               severityAssessment: severity || existingAlert.severity,
               requiresFollowUp: requiresFollowUp || false,
@@ -110,13 +110,9 @@ export async function POST(
           alertId: params.id,
           userId: session.user.id,
           response: 'ACKNOWLEDGED',
-          note: note || null,
-          metadata: {
-            actionTaken,
-            severityAssessment: severity,
-            requiresFollowUp,
-            followUpDate
-          },
+          notes: note || null,
+          // Note: metadata field doesn't exist in AlertResponse schema
+          // Store additional info in notes if needed: actionTaken, severityAssessment, requiresFollowUp, followUpDate
           createdAt: new Date()
         }
       });
@@ -137,7 +133,7 @@ export async function POST(
           },
           ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
           userAgent: request.headers.get('user-agent'),
-          timestamp: new Date()
+          createdAt: new Date() // Using createdAt instead of timestamp
         }
       });
 
@@ -172,7 +168,7 @@ export async function POST(
               title: `Alert Acknowledged: ${updatedAlert.title}`,
               message: `${session.user.name} acknowledged an alert at ${updatedAlert.location}. ${note || ''}`,
               type: 'ALERT',
-              priority: 'NORMAL',
+              priority: 'MEDIUM', // Using MEDIUM instead of NORMAL
               metadata: {
                 alertId: params.id,
                 acknowledgedBy: session.user.name,

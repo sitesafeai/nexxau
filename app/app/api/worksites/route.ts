@@ -73,9 +73,9 @@ export async function GET(request: NextRequest) {
       // Fetch worksites WITHOUT company relation to avoid orphaned relation errors
       worksites = await prisma.worksite.findMany({
         where: whereClause,
-        select: {
-          id: true,
-          name: true,
+            select: {
+              id: true,
+              name: true,
           worksiteName: true,
           location: true,
           address: true,

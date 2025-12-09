@@ -353,7 +353,7 @@ model Alert {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   resolvedAt  DateTime?
-
+  
   // Resolution tracking
   resolvedBy        String? // User ID who resolved
   resolvedByUser    User?     @relation("ResolvedAlerts", fields: [resolvedBy], references: [id])
@@ -366,7 +366,7 @@ model Alert {
   detectionSnapshot String? // URL to snapshot image
   detectionVideo    String? // URL to video clip
   detectionData     Json? // Bounding boxes, confidence scores, detected objects
-
+  
   rule           AlertRule?           @relation(fields: [ruleId], references: [id])
   ruleId         String?
   worksite       Worksite?            @relation(fields: [worksiteId], references: [id])

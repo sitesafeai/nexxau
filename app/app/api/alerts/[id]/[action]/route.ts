@@ -71,7 +71,7 @@ export async function POST(
                 alertId: id,
                 userId: body.userId,
                 response: 'ACKNOWLEDGED',
-                note: body.note || null,
+                notes: body.note || body.notes || null,
                 createdAt: new Date()
               }
             });
@@ -123,7 +123,7 @@ export async function POST(
                 alertId: id,
                 userId: body.userId,
                 response: 'RESOLVED',
-                note: body.note || null,
+                notes: body.note || body.notes || null,
                 createdAt: new Date()
               }
             });
@@ -176,7 +176,7 @@ export async function POST(
                 alertId: id,
                 userId: body.userId,
                 response: 'ESCALATED',
-                note: body.note || null,
+                notes: body.note || body.notes || null,
                 createdAt: new Date()
               }
             });
@@ -228,7 +228,7 @@ export async function POST(
                 alertId: id,
                 userId: body.userId,
                 response: 'REOPENED',
-                note: body.note || null,
+                notes: body.note || body.notes || null,
                 createdAt: new Date()
               }
             });

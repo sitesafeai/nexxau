@@ -15,7 +15,7 @@ export async function PUT(
         name,
         description,
         severity,
-        conditions,
+        condition: conditions, // Using condition (singular) as per schema
         actions,
         isActive,
         updatedAt: new Date()

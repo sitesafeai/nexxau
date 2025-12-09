@@ -232,13 +232,23 @@ async function uploadToCloudinary(file: Buffer | string, options: UploadOptions)
       ? file 
       : file.toString('base64');
 
+    // Determine resource type - PDFs and other documents are 'raw', videos are 'video', images are 'image'
+    let resourceType: 'image' | 'video' | 'raw' = 'image';
+    if (options.contentType?.includes('video')) {
+      resourceType = 'video';
+    } else if (options.contentType?.includes('pdf') || options.contentType?.includes('application/')) {
+      resourceType = 'raw';
+    }
+
     const uploadResponse = await cloudinary.v2.uploader.upload(
       `data:${options.contentType || 'image/jpeg'};base64,${base64Data}`,
       {
         folder: options.folder || 'uploads',
         public_id: options.fileName?.replace(/\.[^/.]+$/, ''), // Remove extension
-        resource_type: options.contentType?.includes('video') ? 'video' : 'image',
+        resource_type: resourceType,
         context: options.metadata,
+        // Make billing documents publicly accessible
+        access_mode: options.folder?.includes('billing') ? 'public' : undefined,
         ...(options.expiresIn && {
           // Cloudinary doesn't support auto-delete, would need to set up cron job
         })

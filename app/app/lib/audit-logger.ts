@@ -20,7 +20,8 @@ export type AuditEntity =
   | 'Alert' 
   | 'AlertRule'
   | 'CustomRule'
-  | 'Workflow';
+  | 'Workflow'
+  | 'BillingRecord';
 
 interface AuditLogParams {
   userId: string;

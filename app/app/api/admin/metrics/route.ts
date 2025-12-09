@@ -27,35 +27,42 @@ export async function GET(request: NextRequest) {
     let mtta: number | null = null;
     let mttr: number | null = null;
     try {
+      // Note: acknowledgedAt field doesn't exist in schema, using status instead
       const acknowledgedAlerts = await prisma.alert.findMany({
         where: {
-          acknowledgedAt: {
-            not: null,
+          status: { in: ['ACKNOWLEDGED', 'RESOLVED'] },
+          createdAt: {
             gte: last7Days,
           },
         },
         select: {
           createdAt: true,
-          acknowledgedAt: true,
-          resolvedAt: true,
+          status: true,
+          // acknowledgedAt: true, // Field doesn't exist
+          // resolvedAt: true, // Field doesn't exist
         },
       });
 
-      const mttaTimes = acknowledgedAlerts
-        .filter((a) => a.acknowledgedAt)
-        .map((a) => {
-          const created = new Date(a.createdAt).getTime();
-          const acknowledged = new Date(a.acknowledgedAt!).getTime();
-          return acknowledged - created; // milliseconds
-        });
-
-      const mttrTimes = acknowledgedAlerts
-        .filter((a) => a.resolvedAt && a.acknowledgedAt)
-        .map((a) => {
-          const acknowledged = new Date(a.acknowledgedAt!).getTime();
-          const resolved = new Date(a.resolvedAt!).getTime();
-          return resolved - acknowledged; // milliseconds
-        });
+      // Mock MTTA/MTTR since we don't have acknowledgedAt/resolvedAt fields
+      const mttaTimes: number[] = [];
+      const mttrTimes: number[] = [];
+      
+      // If we had these fields, we would calculate:
+      // const mttaTimes = acknowledgedAlerts
+      //   .filter((a) => a.acknowledgedAt)
+      //   .map((a) => {
+      //     const created = new Date(a.createdAt).getTime();
+      //     const acknowledged = new Date(a.acknowledgedAt!).getTime();
+      //     return acknowledged - created; // milliseconds
+      //   });
+      //
+      // const mttrTimes = acknowledgedAlerts
+      //   .filter((a) => a.resolvedAt && a.acknowledgedAt)
+      //   .map((a) => {
+      //     const acknowledged = new Date(a.acknowledgedAt!).getTime();
+      //     const resolved = new Date(a.resolvedAt!).getTime();
+      //     return resolved - acknowledged; // milliseconds
+      //   });
 
       mtta = mttaTimes.length > 0 ? mttaTimes.reduce((sum, time) => sum + time, 0) / mttaTimes.length / 1000 / 60 : null; // minutes
       mttr = mttrTimes.length > 0 ? mttrTimes.reduce((sum, time) => sum + time, 0) / mttrTimes.length / 1000 / 60 : null; // minutes

@@ -15,12 +15,12 @@ export async function GET(request: NextRequest) {
     const alertResponses = await prisma.alertResponse.findMany({
       where,
       include: {
-        alertRule: {
+        // Note: AlertResponse doesn't have alertRule relation
+        alert: {
           select: {
-            name: true,
-            description: true,
-            severity: true
-          }
+            id: true,
+            severity: true,
+          },
         },
         user: {
           select: {

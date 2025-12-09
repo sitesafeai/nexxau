@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
         email: email,
         name: worker.name,
         password: hashedPassword,
-        role: worker.role,
+        role: worker.role as any, // Cast to UserRole enum - worker.role is string but needs enum
         companyId: company.id,
         worksiteId: worksite.id,
         isActivated: true,

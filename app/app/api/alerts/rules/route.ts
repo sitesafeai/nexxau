@@ -4,15 +4,8 @@ import { prisma } from '@/app/lib/prisma';
 export async function GET(request: NextRequest) {
   try {
     const alertRules = await prisma.alertRule.findMany({
-      include: {
-        alertResponses: {
-          select: {
-            id: true,
-            status: true,
-            createdAt: true
-          }
-        }
-      },
+      // Note: AlertRule doesn't have alertResponses relation
+      // Remove include if not needed, or include alerts relation if it exists
       orderBy: {
         createdAt: 'desc'
       }
@@ -35,10 +28,12 @@ export async function POST(request: NextRequest) {
         name,
         description,
         severity,
-        conditions: conditions || [],
+        condition: conditions || {}, // Using condition (singular) as per schema, default to empty object
         actions: actions || [],
         isActive,
-        createdBy: 'system' // TODO: Get from auth context
+        category: body.category || 'PPE_COMPLIANCE', // Required field - use provided category or default
+        escalationLevels: body.escalationLevels || [], // Required field - default to empty array
+        // Note: createdBy doesn't exist in AlertRule schema
       }
     });
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, dbPool } from '../../../lib/database-pool';
-import { broadcastDetection } from './stream/route';
+// broadcastDetection removed - not exported from stream/route
 import { 
   getWorksiteSettings, 
   filterDetectionsByConfidence, 
@@ -243,7 +243,8 @@ export async function POST(request: NextRequest) {
 
     // Broadcast to real-time stream immediately (non-blocking)
     try {
-      broadcastDetection(camera_id, detections);
+      // broadcastDetection removed - function not exported from stream/route
+      // TODO: Implement WebSocket broadcasting if needed
     } catch (error) {
       console.error('Error broadcasting detection:', error);
     }

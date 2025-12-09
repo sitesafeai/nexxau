@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     if (companyId) {
       where.id = companyId;
     } else {
-      where.insuranceCoverageStatus = { not: null };
+      // where.insuranceCoverageStatus = { not: null }; // Field doesn't exist in schema
     }
 
     const companies = await prisma.company.findMany({
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         name: true,
-        insuranceCoverageStatus: true,
+        // insuranceCoverageStatus: true, // Field doesn't exist in schema
         worksites: {
           select: {
             id: true,
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
       return {
         companyId: company.id,
         companyName: company.name,
-        insuranceStatus: company.insuranceCoverageStatus,
+        insuranceStatus: null, // company.insuranceCoverageStatus, // Field doesn't exist in schema
         lastSync: lastSync.toISOString(),
         syncStatus,
         dataDelivered: {

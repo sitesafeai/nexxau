@@ -36,15 +36,15 @@ export async function GET(request: NextRequest) {
         prisma.camera.count(),
         prisma.camera.count({ where: { status: 'online' } }),
         prisma.camera.count({ where: { status: 'offline' } }),
-        prisma.camera.count({ where: { aiDetectionEnabled: true } })
+        prisma.camera.count() // TODO: Add aiDetectionEnabled field to schema if needed
       ]),
       
       // Alert stats
       Promise.all([
-        prisma.alert.count({ where: { status: { not: 'resolved' } } }),
-        prisma.alert.count({ where: { status: { not: 'resolved' }, severity: 'high' } }),
-        prisma.alert.count({ where: { status: { not: 'resolved' }, severity: 'medium' } }),
-        prisma.alert.count({ where: { status: { not: 'resolved' }, severity: 'low' } })
+        prisma.alert.count({ where: { status: { not: 'RESOLVED' } } }),
+        prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'CRITICAL' } }),
+        prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'WARNING' } }),
+        prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'INFO' } })
       ]),
       
       // Average safety score

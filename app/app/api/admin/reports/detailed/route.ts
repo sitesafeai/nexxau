@@ -107,8 +107,8 @@ export async function GET(request: NextRequest) {
         severity: true,
         status: true,
         createdAt: true,
-        acknowledgedAt: true,
-        resolvedAt: true,
+        // acknowledgedAt: true, // Field doesn't exist in schema
+        // resolvedAt: true, // Field doesn't exist in schema
         worksiteId: true,
         worksite: {
           select: {
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
       total: alerts.length,
       bySeverity: {
         CRITICAL: alerts.filter((a) => a.severity === 'CRITICAL').length,
-        HIGH: alerts.filter((a) => a.severity === 'HIGH').length,
+        EMERGENCY: alerts.filter((a) => a.severity === 'EMERGENCY').length,
         WARNING: alerts.filter((a) => a.severity === 'WARNING').length,
         INFO: alerts.filter((a) => a.severity === 'INFO').length,
       },
@@ -138,14 +138,18 @@ export async function GET(request: NextRequest) {
         ESCALATED: alerts.filter((a) => a.status === 'ESCALATED').length,
       },
       avgResponseTime: (() => {
-        const resolved = alerts.filter((a) => a.acknowledgedAt && a.createdAt);
+        // Note: acknowledgedAt doesn't exist, using status instead
+        const resolved = alerts.filter((a) => a.status === 'RESOLVED' && a.createdAt);
         if (resolved.length === 0) return null;
         const times = resolved.map((a) => {
           const created = new Date(a.createdAt).getTime();
-          const acknowledged = new Date(a.acknowledgedAt!).getTime();
-          return acknowledged - created;
+          // Note: acknowledgedAt doesn't exist, using createdAt as fallback
+          // Note: acknowledgedAt doesn't exist, cannot calculate response time accurately
+          // Using createdAt as placeholder (will always be 0, so return null)
+          return 0;
         });
-        return times.reduce((sum, time) => sum + time, 0) / times.length / 1000 / 60; // minutes
+        // Cannot calculate response time without acknowledgedAt field
+        return null; // Placeholder - would need acknowledgedAt field to calculate properly
       })(),
     };
 

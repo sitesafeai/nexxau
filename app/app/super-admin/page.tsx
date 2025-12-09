@@ -44,7 +44,22 @@ import {
   ArrowRight,
   TrendingDown,
   Search,
-  Filter
+  Filter,
+  Database,
+  Mail,
+  Eye,
+  Key,
+  Ban,
+  XCircle,
+  Crown,
+  CreditCard,
+  FileText,
+  LogOut,
+  AlertCircle,
+  Zap,
+  Trash2,
+  RotateCcw,
+  Activity as ActivityIcon
 } from 'lucide-react';
 import { useAuth } from '@/app/lib/use-auth';
 type ClassValue = string | false | null | undefined;
@@ -1557,7 +1572,7 @@ export default function SuperAdminDashboardPage() {
           payload = null;
         }
 
-        if (!response.ok || !payload?.success || !payload.data) {
+        if (!response.ok || !payload?.success) {
           const message =
             payload?.error ||
             payload?.details ||
@@ -1565,7 +1580,14 @@ export default function SuperAdminDashboardPage() {
           throw new Error(message);
         }
 
-        setCamerasData(payload.data);
+        // Handle case where data might be empty array (valid response)
+        // Empty array means no cameras found, which is valid
+        const cameras = Array.isArray(payload.data) ? payload.data : [];
+        console.log(`[super-admin] Fetched ${cameras.length} cameras for companyId=${companyId}, worksiteId=${worksiteId}`);
+        if (cameras.length === 0 && worksiteId) {
+          console.warn(`[super-admin] No cameras found for worksiteId=${worksiteId}. Check if cameras exist for this worksite.`);
+        }
+        setCamerasData(cameras);
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
         console.error('[super-admin] cameras fetch failed', err);
@@ -1606,9 +1628,13 @@ export default function SuperAdminDashboardPage() {
         selectedCamerasCompany !== 'ALL' ? selectedCamerasCompany : undefined;
       const worksiteId =
         selectedCamerasWorksite !== 'ALL' ? selectedCamerasWorksite : undefined;
+      
+      // Fetch both cameras and worksites for the cameras section
       fetchCameras(companyId, worksiteId, controller.signal).catch(
         () => undefined
       );
+      fetchWorksites(companyId, controller.signal).catch(() => undefined);
+      
       return () => controller.abort();
     }
     return undefined;
@@ -1617,6 +1643,7 @@ export default function SuperAdminDashboardPage() {
     selectedCamerasCompany,
     selectedCamerasWorksite,
     fetchCameras,
+    fetchWorksites,
   ]);
 
   useEffect(() => {
@@ -1847,6 +1874,7 @@ export default function SuperAdminDashboardPage() {
         return (
           <CamerasSection
             companies={companiesData}
+            worksites={worksitesData}
             selectedCompanyId={selectedCamerasCompany}
             onSelectedCompanyChange={setSelectedCamerasCompany}
             selectedWorksiteId={selectedCamerasWorksite}
@@ -1900,7 +1928,13 @@ export default function SuperAdminDashboardPage() {
             loading={billingLoading}
             error={billingError}
             uploadingCompanyId={billingUploadingCompany}
-            onRefresh={() => fetchBilling().catch(() => undefined)}
+            onRefresh={async () => {
+              try {
+                await fetchBilling();
+              } catch (err) {
+                console.error('[super-admin] Failed to refresh billing:', err);
+              }
+            }}
             onUploadReceipt={handleBillingUpload}
             onUpdateRecord={handleBillingSchedule}
           />
@@ -3074,6 +3108,13 @@ function CompanyDetailDrawer({
 }
 
 function CompanyCard({ company, onClick }: { company: AdminCompanySummary; onClick?: () => void }) {
+  const [showDetails, setShowDetails] = useState(false);
+  const [companyDetails, setCompanyDetails] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [companyUsers, setCompanyUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  
   const createdDisplay = company.createdAt ? new Date(company.createdAt).toLocaleDateString() : '—';
   const createdDate = company.createdAt ? new Date(company.createdAt) : null;
   const daysAgo = createdDate ? Math.floor((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) : null;
@@ -3085,42 +3126,155 @@ function CompanyCard({ company, onClick }: { company: AdminCompanySummary; onCli
         : `${daysAgo} days ago`
     : '—';
 
+  const fetchCompanyDetails = async () => {
+    setLoadingDetails(true);
+    try {
+      const response = await fetch(`/api/admin/companies/${company.id}`);
+      const data = await response.json();
+      if (data.success) {
+        setCompanyDetails(data.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch company details:', error);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const fetchCompanyUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const response = await fetch(`/api/admin/companies/${company.id}/users`);
+      const data = await response.json();
+      if (data.success) {
+        setCompanyUsers(data.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch company users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleOpenDetails = () => {
+    setShowDetails(true);
+    fetchCompanyDetails();
+    fetchCompanyUsers();
+  };
+
+  const handleAction = async (action: string, userId?: string) => {
+    setActionLoading(action);
+    try {
+      let response;
+      switch (action) {
+        case 'reset-password':
+          if (!userId) break;
+          response = await fetch(`/api/admin/users/${userId}/reset-password`, {
+            method: 'POST',
+          });
+          break;
+        case 'suspend':
+          response = await fetch(`/api/admin/companies/${company.id}/suspend`, {
+            method: 'POST',
+          });
+          break;
+        case 'unsuspend':
+          response = await fetch(`/api/admin/companies/${company.id}/unsuspend`, {
+            method: 'POST',
+          });
+          break;
+        case 'impersonate':
+          // Create impersonation session
+          response = await fetch(`/api/admin/companies/${company.id}/impersonate`, {
+            method: 'POST',
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.data?.token) {
+              // Store token and redirect
+              window.location.href = `/dashboard?impersonate=${data.data.token}`;
+            }
+          }
+          break;
+        default:
+          break;
+      }
+      if (response && response.ok) {
+        await fetchCompanyDetails();
+        await fetchCompanyUsers();
+      }
+    } catch (error) {
+      console.error(`Failed to ${action}:`, error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const content = (
-    <div className="group block rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 transition hover:border-blue-500/60 hover:bg-slate-900/80">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <h3 className="text-xl font-semibold text-white group-hover:text-blue-300 truncate">
-            {company.name}
-          </h3>
-          {company.email && (
-            <p className="mt-1 text-sm text-slate-400 truncate">{company.email}</p>
-          )}
-          {company.address && (
-            <p className="mt-1 text-xs text-slate-500 truncate">{company.address}</p>
-          )}
-        </div>
-        <span className="flex-shrink-0 rounded-full bg-slate-800 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+    <>
+      <div className="group block rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 transition hover:border-blue-500/60 hover:bg-slate-900/80">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-xl font-semibold text-white group-hover:text-blue-300 truncate">
+              {company.name}
+            </h3>
+            {company.email && (
+              <p className="mt-1 text-sm text-slate-400 truncate">{company.email}</p>
+            )}
+            {company.address && (
+              <p className="mt-1 text-xs text-slate-500 truncate">{company.address}</p>
+            )}
+          </div>
+          <span className="flex-shrink-0 rounded-full bg-slate-800 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
             {company.worksiteCount ?? 0} sites
           </span>
-      </div>
-
-      <div className="mt-6 grid grid-cols-3 gap-4">
-        <CompanyStat label="Worksites" value={company.worksiteCount ?? 0} />
-        <CompanyStat label="Users" value={company.userCount ?? 0} />
-        <CompanyStat label="Cameras" value={company.cameraCount ?? 0} />
-      </div>
-
-      <div className="mt-6 flex items-center justify-between text-xs text-slate-500">
-        <span>Created {createdDisplay}</span>
-        <span>{createdRelative}</span>
-      </div>
-      
-      {company.phone && (
-        <div className="mt-3 text-xs text-slate-500">
-          {company.phone}
         </div>
+
+        <div className="mt-6 grid grid-cols-3 gap-4">
+          <CompanyStat label="Worksites" value={company.worksiteCount ?? 0} />
+          <CompanyStat label="Users" value={company.userCount ?? 0} />
+          <CompanyStat label="Cameras" value={company.cameraCount ?? 0} />
+        </div>
+
+        <div className="mt-6 flex items-center justify-between text-xs text-slate-500">
+          <span>Created {createdDisplay}</span>
+          <span>{createdRelative}</span>
+        </div>
+        
+        {company.phone && (
+          <div className="mt-3 text-xs text-slate-500">
+            {company.phone}
+          </div>
+        )}
+
+        <div className="mt-4 flex gap-2">
+          <button
+            onClick={handleOpenDetails}
+            className="flex-1 rounded-lg border border-blue-500/50 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20"
+          >
+            Manage
+          </button>
+        </div>
+      </div>
+
+      {/* Company Management Modal */}
+      {showDetails && (
+        <CompanyManagementModal
+          company={company}
+          details={companyDetails}
+          users={companyUsers}
+          loading={loadingDetails}
+          loadingUsers={loadingUsers}
+          actionLoading={actionLoading}
+          onClose={() => setShowDetails(false)}
+          onRefresh={() => {
+            fetchCompanyDetails();
+            fetchCompanyUsers();
+          }}
+          onAction={handleAction}
+        />
       )}
-    </div>
+    </>
   );
 
   if (onClick) {
@@ -3132,6 +3286,411 @@ function CompanyCard({ company, onClick }: { company: AdminCompanySummary; onCli
   }
 
   return content;
+}
+
+interface CompanyManagementModalProps {
+  company: AdminCompanySummary;
+  details: any;
+  users: any[];
+  loading: boolean;
+  loadingUsers: boolean;
+  actionLoading: string | null;
+  onClose: () => void;
+  onRefresh: () => void;
+  onAction: (action: string, userId?: string) => Promise<void>;
+}
+
+function CompanyManagementModal({
+  company,
+  details,
+  users,
+  loading,
+  loadingUsers,
+  actionLoading,
+  onClose,
+  onRefresh,
+  onAction,
+}: CompanyManagementModalProps) {
+  const [activeTab, setActiveTab] = useState<'overview' | 'admins' | 'billing' | 'logs' | 'danger'>('overview');
+  const [subscriptionTier, setSubscriptionTier] = useState(details?.subscriptionTier || 'standard');
+  const [subscriptionStatus, setSubscriptionStatus] = useState(details?.subscriptionStatus || 'active');
+  const [billingContact, setBillingContact] = useState({
+    name: details?.billingContactName || '',
+    email: details?.billingContactEmail || '',
+    phone: details?.billingContactPhone || '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/admin/companies/${company.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscriptionTier,
+          subscriptionStatus,
+          billingContactName: billingContact.name,
+          billingContactEmail: billingContact.email,
+          billingContactPhone: billingContact.phone,
+        }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        onRefresh();
+      }
+    } catch (error) {
+      console.error('Failed to update company:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const companyAdmins = users.filter((u: any) => u.role === 'COMPANY_ADMIN' || u.role === 'COMPANYADMIN');
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="relative w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-white">{company.name}</h2>
+            <p className="text-sm text-slate-400 mt-1">Company Management & Configuration</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-slate-800 mb-6">
+          {[
+            { id: 'overview', label: 'Overview', icon: BarChart3 },
+            { id: 'admins', label: 'Admins', icon: Users },
+            { id: 'billing', label: 'Billing', icon: CreditCard },
+            { id: 'logs', label: 'Logs', icon: FileText },
+            { id: 'danger', label: 'Danger Zone', icon: AlertCircle },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold transition ${
+                  activeTab === tab.id
+                    ? 'border-b-2 border-blue-500 text-blue-400'
+                    : 'text-slate-400 hover:text-slate-300'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+          </div>
+        ) : (
+          <>
+            {/* Overview Tab */}
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                      Subscription Tier
+                    </label>
+                    <select
+                      value={subscriptionTier}
+                      onChange={(e) => setSubscriptionTier(e.target.value)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    >
+                      <option value="free">Free</option>
+                      <option value="pilot">Pilot</option>
+                      <option value="standard">Standard</option>
+                      <option value="premium">Premium</option>
+                      <option value="enterprise">Enterprise</option>
+                    </select>
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                      Subscription Status
+                    </label>
+                    <select
+                      value={subscriptionStatus}
+                      onChange={(e) => setSubscriptionStatus(e.target.value)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    >
+                      <option value="active">Active</option>
+                      <option value="suspended">Suspended</option>
+                      <option value="cancelled">Cancelled</option>
+                      <option value="trial">Trial</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Worksites</p>
+                    <p className="mt-2 text-2xl font-bold text-white">{company.worksiteCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Users</p>
+                    <p className="mt-2 text-2xl font-bold text-white">{company.userCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cameras</p>
+                    <p className="mt-2 text-2xl font-bold text-white">{company.cameraCount ?? 0}</p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={onClose}
+                    className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Admins Tab */}
+            {activeTab === 'admins' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-white">Company Administrators</h3>
+                  <button
+                    onClick={() => {
+                      window.open(`/admin/companies/${company.id}`, '_blank');
+                    }}
+                    className="rounded-lg border border-blue-500/50 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20"
+                  >
+                    + Add Admin
+                  </button>
+                </div>
+
+                {loadingUsers ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
+                  </div>
+                ) : companyAdmins.length === 0 ? (
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-8 text-center">
+                    <Users className="h-12 w-12 text-slate-600 mx-auto mb-4" />
+                    <p className="text-slate-400">No company administrators found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {companyAdmins.map((admin: any) => (
+                      <div
+                        key={admin.id}
+                        className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 p-4"
+                      >
+                        <div>
+                          <p className="font-semibold text-white">{admin.name || 'Unknown'}</p>
+                          <p className="text-sm text-slate-400">{admin.email}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => onAction('reset-password', admin.id)}
+                            disabled={actionLoading === `reset-password-${admin.id}`}
+                            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800 disabled:opacity-60"
+                            title="Force password reset"
+                          >
+                            {actionLoading === `reset-password-${admin.id}` ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Key className="h-3 w-3" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => onAction('suspend', admin.id)}
+                            disabled={actionLoading === `suspend-${admin.id}`}
+                            className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:opacity-60"
+                            title="Suspend user"
+                          >
+                            {actionLoading === `suspend-${admin.id}` ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Ban className="h-3 w-3" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Billing Tab */}
+            {activeTab === 'billing' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-white">Billing Information</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                      Billing Contact Name
+                    </label>
+                    <input
+                      type="text"
+                      value={billingContact.name}
+                      onChange={(e) => setBillingContact({ ...billingContact, name: e.target.value })}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                      Billing Contact Email
+                    </label>
+                    <input
+                      type="email"
+                      value={billingContact.email}
+                      onChange={(e) => setBillingContact({ ...billingContact, email: e.target.value })}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                      Billing Contact Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={billingContact.phone}
+                      onChange={(e) => setBillingContact({ ...billingContact, phone: e.target.value })}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                    >
+                      {saving ? 'Saving...' : 'Save Billing Info'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Logs Tab */}
+            {activeTab === 'logs' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-white">Company Activity Logs</h3>
+                <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+                  <p className="text-sm text-slate-400">
+                    View company-wide activity logs, user actions, and system events.
+                  </p>
+                  <button
+                    onClick={() => {
+                      window.open(`/admin/audit-logs?companyId=${company.id}`, '_blank');
+                    }}
+                    className="mt-4 rounded-lg border border-blue-500/50 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-200 transition hover:bg-blue-500/20"
+                  >
+                    View Full Audit Logs
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Danger Zone Tab */}
+            {activeTab === 'danger' && (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-4">
+                  <AlertCircle className="h-5 w-5 text-red-400 mb-2" />
+                  <h3 className="text-lg font-semibold text-red-200 mb-2">Danger Zone</h3>
+                  <p className="text-sm text-red-200/80">
+                    These actions are irreversible. Use with extreme caution.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <button
+                    onClick={() => {
+                      if (confirm(`Are you sure you want to suspend ${company.name}? This will prevent all users from accessing the platform.`)) {
+                        onAction('suspend');
+                      }
+                    }}
+                    disabled={actionLoading === 'suspend'}
+                    className="w-full rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:opacity-60 flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Ban className="h-4 w-4" />
+                      Suspend Company Account
+                    </span>
+                    {actionLoading === 'suspend' && <Loader2 className="h-4 w-4 animate-spin" />}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (confirm(`Are you sure you want to unsuspend ${company.name}?`)) {
+                        onAction('unsuspend');
+                      }
+                    }}
+                    disabled={actionLoading === 'unsuspend'}
+                    className="w-full rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60 flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Unsuspend Company Account
+                    </span>
+                    {actionLoading === 'unsuspend' && <Loader2 className="h-4 w-4 animate-spin" />}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (confirm(`Impersonate ${company.name}? You will be logged in as this company's admin.`)) {
+                        onAction('impersonate');
+                      }
+                    }}
+                    disabled={actionLoading === 'impersonate'}
+                    className="w-full rounded-lg border border-blue-500/40 bg-blue-500/10 px-4 py-3 text-sm font-semibold text-blue-200 transition hover:bg-blue-500/20 disabled:opacity-60 flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Eye className="h-4 w-4" />
+                      Impersonate Company
+                    </span>
+                    {actionLoading === 'impersonate' && <Loader2 className="h-4 w-4 animate-spin" />}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (confirm(`Delete ${company.name} permanently? This will delete all worksites, cameras, users, and data. This action CANNOT be undone.`)) {
+                        if (confirm('This is your LAST WARNING. Type the company name to confirm deletion.')) {
+                          onAction('delete');
+                        }
+                      }
+                    }}
+                    disabled={actionLoading === 'delete'}
+                    className="w-full rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/20 disabled:opacity-60 flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Trash2 className="h-4 w-4" />
+                      Delete Company (Permanent)
+                    </span>
+                    {actionLoading === 'delete' && <Loader2 className="h-4 w-4 animate-spin" />}
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function CompanyStat({
@@ -4144,6 +4703,7 @@ function WorksiteAlertRow({
 
 interface CamerasSectionProps {
   companies: AdminCompanySummary[] | null;
+  worksites: AdminWorksiteSummary[] | null;
   selectedCompanyId: string;
   onSelectedCompanyChange: (value: string) => void;
   selectedWorksiteId: string;
@@ -4157,6 +4717,7 @@ interface CamerasSectionProps {
 
 function CamerasSection({
   companies,
+  worksites,
   selectedCompanyId,
   onSelectedCompanyChange,
   selectedWorksiteId,
@@ -4200,6 +4761,22 @@ function CamerasSection({
   }, [companies, cameras]);
 
   const worksiteOptions = useMemo(() => {
+    // First, try to get worksites from the worksites prop (preferred)
+    if (worksites && worksites.length > 0) {
+      const filtered = worksites.filter((worksite) => {
+        if (selectedCompanyId === 'ALL') return true;
+        return worksite.companyId === selectedCompanyId;
+      });
+      
+      const entries = filtered.map((worksite) => ({
+        label: worksite.name || 'Unnamed worksite',
+        value: worksite.id,
+      }));
+      
+      return [{ label: 'All Worksites', value: 'ALL' }, ...entries];
+    }
+    
+    // Fallback: derive from cameras if worksites data is not available
     if (!cameras || cameras.length === 0) {
       return [{ label: 'All Worksites', value: 'ALL' }];
     }
@@ -4220,7 +4797,7 @@ function CamerasSection({
       value,
     }));
     return [{ label: 'All Worksites', value: 'ALL' }, ...entries];
-  }, [cameras, selectedCompanyId]);
+  }, [worksites, cameras, selectedCompanyId]);
 
   useEffect(() => {
     if (selectedWorksiteId === 'ALL') return;
@@ -4963,6 +5540,12 @@ function BillingSection({
     {}
   );
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  
+  // Search and filter state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<'all' | 'paid' | 'overdue' | 'pending'>('all');
+  const [currentPage, setCurrentPage] = useState(0);
+  const itemsPerPage = 3;
 
   useEffect(() => {
     if (!companies) return;
@@ -5135,6 +5718,59 @@ function BillingSection({
   const pendingCompanies = companies?.filter(e => !e.latestRecord?.paidThrough).length || 0;
   const totalCompanies = companies?.length || 0;
 
+  // Filtered and paginated companies
+  const filteredCompanies = useMemo(() => {
+    if (!companies) return [];
+    
+    let filtered = [...companies];
+    
+    // Search filter
+    const term = searchTerm.trim().toLowerCase();
+    if (term) {
+      filtered = filtered.filter((entry) => {
+        const searchFields = [
+          entry.company.name,
+          entry.company.address,
+          entry.company.email,
+          entry.company.phone,
+        ]
+          .filter(Boolean)
+          .map((v) => String(v).toLowerCase());
+        
+        return searchFields.some((field) => field.includes(term));
+      });
+    }
+    
+    // Payment status filter
+    if (paymentStatusFilter !== 'all') {
+      filtered = filtered.filter((entry) => {
+        const pt = entry.latestRecord?.paidThrough;
+        if (paymentStatusFilter === 'paid') {
+          return pt && new Date(pt) >= new Date();
+        } else if (paymentStatusFilter === 'overdue') {
+          return pt && new Date(pt) < new Date();
+        } else if (paymentStatusFilter === 'pending') {
+          return !pt;
+        }
+        return true;
+      });
+    }
+    
+    return filtered;
+  }, [companies, searchTerm, paymentStatusFilter]);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredCompanies.length / itemsPerPage));
+  const paginatedCompanies = useMemo(() => {
+    const start = currentPage * itemsPerPage;
+    return filteredCompanies.slice(start, start + itemsPerPage);
+  }, [filteredCompanies, currentPage, itemsPerPage]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [searchTerm, paymentStatusFilter]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -5152,6 +5788,49 @@ function BillingSection({
           Refresh billing data
         </button>
       </div>
+
+      {/* Search and Filters */}
+      {hasCompanies && (
+        <div className="space-y-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center">
+            {/* Search */}
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search by company name, address, email..."
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 pl-10 pr-4 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+            </div>
+            
+            {/* Payment Status Filter */}
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-slate-400" />
+              <select
+                value={paymentStatusFilter}
+                onChange={(e) => setPaymentStatusFilter(e.target.value as any)}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              >
+                <option value="all">All Status</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+                <option value="pending">Pending</option>
+              </select>
+            </div>
+          </div>
+          
+          {/* Results count */}
+          <div className="text-xs text-slate-400">
+            Showing {paginatedCompanies.length} of {filteredCompanies.length} companies
+            {searchTerm && ` matching "${searchTerm}"`}
+            {paymentStatusFilter !== 'all' && ` (${paymentStatusFilter})`}
+          </div>
+        </div>
+      )}
 
       {/* Billing Summary Dashboard */}
       {hasCompanies && (
@@ -5201,8 +5880,9 @@ function BillingSection({
       )}
 
       {hasCompanies && (
+        <>
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          {companies!.map((entry) => {
+            {paginatedCompanies.map((entry) => {
             const latest = entry.latestRecord;
             const companyId = entry.company.id;
             const statusBadge =
@@ -5248,16 +5928,45 @@ function BillingSection({
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
-                    {latest?.proofUrl ? (
-                      <a
-                        href={latest.proofUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                     {latest?.id && latest?.proofUrl ? (
+                       <button
+                         onClick={async () => {
+                           try {
+                             // Use secure endpoint to fetch proof
+                             const response = await fetch(`/api/admin/billing/proof?recordId=${latest.id}`);
+                             
+                             if (response.ok) {
+                               // If it's a redirect or JSON response, handle it
+                               const contentType = response.headers.get('content-type');
+                               if (contentType?.includes('application/json')) {
+                                 const data = await response.json();
+                                 if (data.success && data.data?.url) {
+                                   window.open(data.data.url, '_blank', 'noopener,noreferrer');
+                                 } else {
+                                   alert('Failed to load proof document. Please try again.');
+                                 }
+                               } else {
+                                 // It's a file - open in new tab
+                                 const blob = await response.blob();
+                                 const url = URL.createObjectURL(blob);
+                                 window.open(url, '_blank', 'noopener,noreferrer');
+                                 // Clean up after a delay
+                                 setTimeout(() => URL.revokeObjectURL(url), 1000);
+                               }
+                             } else {
+                               const error = await response.json().catch(() => ({ error: 'Failed to load proof' }));
+                               alert(error.error || 'Failed to load proof document. Please try again.');
+                             }
+                           } catch (err) {
+                             console.error('Error loading proof:', err);
+                             alert('Failed to load proof document.');
+                           }
+                         }}
                         className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-blue-200 transition hover:bg-slate-800"
                       >
                         <FileBarChart2 className="h-3.5 w-3.5" />
                         View proof of payment
-                      </a>
+                       </button>
                     ) : (
                       <span className="text-xs text-slate-500">No invoice uploaded yet.</span>
                     )}
@@ -5360,6 +6069,17 @@ function BillingSection({
             );
           })}
         </div>
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <PaginationControls
+              page={currentPage}
+              totalPages={totalPages}
+              onPrev={() => setCurrentPage((prev) => Math.max(0, prev - 1))}
+              onNext={() => setCurrentPage((prev) => Math.min(totalPages - 1, prev + 1))}
+            />
+          )}
+        </>
       )}
     </div>
   );
@@ -5653,7 +6373,7 @@ function UsersRolesSection({
               )}
             </div>
 
-            {inviteForm.companyId && availableWorksites.length > 0 && (
+            {inviteForm.companyId && (
               <div className="space-y-1">
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Worksite <span className="text-slate-400">(Optional)</span>
@@ -5663,17 +6383,24 @@ function UsersRolesSection({
                   onChange={(event) =>
                     setInviteForm((prev) => ({ ...prev, worksiteId: event.target.value }))
                   }
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  disabled={availableWorksites.length === 0}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <option value="">All worksites (company-wide access)</option>
-                  {availableWorksites.map((worksite) => (
+                  {availableWorksites.length === 0 ? (
+                    <option value="" disabled>No worksites available for this company</option>
+                  ) : (
+                    availableWorksites.map((worksite) => (
                     <option key={worksite.id} value={worksite.id}>
                       {worksite.name}
                     </option>
-                  ))}
+                    ))
+                  )}
                 </select>
                 <p className="mt-1 text-xs text-slate-500">
-                  Leave empty for company-wide access, or select a specific worksite
+                  {availableWorksites.length === 0 
+                    ? 'No worksites found for this company. User will have company-wide access.'
+                    : 'Leave empty for company-wide access, or select a specific worksite'}
                 </p>
               </div>
             )}
@@ -5824,6 +6551,7 @@ interface SystemSettingsSectionProps {
 }
 
 function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
+  const [activeTab, setActiveTab] = useState<'general' | 'employees' | 'system' | 'backup' | 'email'>('general');
   const [settings, setSettings] = useState({
     apiKeys: {
       openai: '',
@@ -5857,13 +6585,20 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
   const [systemHealth, setSystemHealth] = useState<any>(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [toolExecuting, setToolExecuting] = useState<string | null>(null);
+  
+  // Employee management state
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [showEmployeeModal, setShowEmployeeModal] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<any | null>(null);
+  const [employeeForm, setEmployeeForm] = useState({
+    name: '',
+    email: '',
+    role: 'SUPER_ADMIN',
+    password: '',
+  });
 
-  useEffect(() => {
-    fetchSecuritySettings();
-    fetchSystemHealth();
-  }, []);
-
-  const fetchSecuritySettings = async () => {
+  const fetchSecuritySettings = useCallback(async () => {
     try {
       const response = await fetch('/api/admin/security-settings');
       const result = await response.json();
@@ -5882,9 +6617,9 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
     } catch (error) {
       console.error('Failed to fetch security settings:', error);
     }
-  };
+  }, []);
 
-  const fetchSystemHealth = async () => {
+  const fetchSystemHealth = useCallback(async () => {
     setHealthLoading(true);
     try {
       const response = await fetch('/api/admin/system-status');
@@ -5895,7 +6630,34 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
     } finally {
       setHealthLoading(false);
     }
-  };
+  }, []);
+
+  const fetchEmployees = useCallback(async () => {
+    setEmployeesLoading(true);
+    try {
+      const response = await fetch('/api/admin/users');
+      const data = await response.json();
+      // Filter to only show SUPER_ADMIN employees (internal staff)
+      const superAdmins = Array.isArray(data) 
+        ? data.filter((u: any) => u.role === 'SUPER_ADMIN' || u.role === 'SUPERADMIN')
+        : [];
+      setEmployees(superAdmins);
+    } catch (error) {
+      console.error('Failed to fetch employees:', error);
+      setFeedback('Failed to load employees.');
+    } finally {
+      setEmployeesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSecuritySettings();
+    fetchSystemHealth();
+    if (activeTab === 'employees') {
+      fetchEmployees();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -5950,18 +6712,142 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
     }
   };
 
+  const handleCreateEmployee = () => {
+    setEditingEmployee(null);
+    setEmployeeForm({ name: '', email: '', role: 'SUPER_ADMIN', password: '' });
+    setShowEmployeeModal(true);
+  };
+
+  const handleEditEmployee = (employee: any) => {
+    setEditingEmployee(employee);
+    setEmployeeForm({
+      name: employee.name || '',
+      email: employee.email || '',
+      role: employee.role || 'SUPER_ADMIN',
+      password: '',
+    });
+    setShowEmployeeModal(true);
+  };
+
+  const handleSaveEmployee = async () => {
+    if (!employeeForm.name || !employeeForm.email) {
+      setFeedback('Name and email are required.');
+      return;
+    }
+
+    if (!editingEmployee && !employeeForm.password) {
+      setFeedback('Password is required for new employees.');
+      return;
+    }
+
+    setSaving(true);
+    setFeedback(null);
+    try {
+      const url = editingEmployee 
+        ? `/api/users/${editingEmployee.id}`
+        : '/api/admin/users';
+      
+      const method = editingEmployee ? 'PATCH' : 'POST';
+      
+      const body: any = {
+        name: employeeForm.name,
+        email: employeeForm.email,
+        role: employeeForm.role,
+      };
+
+      if (employeeForm.password) {
+        body.password = employeeForm.password;
+      }
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to save employee');
+      }
+
+      setFeedback(editingEmployee ? 'Employee updated successfully.' : 'Employee created successfully.');
+      setShowEmployeeModal(false);
+      fetchEmployees();
+      setTimeout(() => setFeedback(null), 3000);
+    } catch (error: any) {
+      setFeedback(error?.message || 'Failed to save employee.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteEmployee = async (employeeId: string) => {
+    if (!confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
+      return;
+    }
+
+    setSaving(true);
+    setFeedback(null);
+    try {
+      const response = await fetch(`/api/users/${employeeId}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete employee');
+      }
+
+      setFeedback('Employee deleted successfully.');
+      fetchEmployees();
+      setTimeout(() => setFeedback(null), 3000);
+    } catch (error: any) {
+      setFeedback(error?.message || 'Failed to delete employee.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
         <SectionHeader
           title="System Settings"
-          description="Configure API keys, integrations, observability, and maintenance windows."
+          description="Configure system-wide settings, manage employees, and control platform behavior."
           icon={Settings}
           accent="violet"
         />
+        
+        {/* Tabs */}
+        <div className="mt-6 flex gap-2 border-b border-slate-800">
+          {[
+            { id: 'general', label: 'General', icon: Settings },
+            { id: 'employees', label: 'Employees', icon: Users },
+            { id: 'system', label: 'System Config', icon: Cpu },
+            { id: 'backup', label: 'Backup & Recovery', icon: Database },
+            { id: 'email', label: 'Email & Notifications', icon: Mail },
+          ].map((tab) => {
+            const IconComponent = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold transition ${
+                  activeTab === tab.id
+                    ? 'border-b-2 border-blue-500 text-blue-400'
+                    : 'text-slate-400 hover:text-slate-300'
+                }`}
+              >
+                <IconComponent className="h-4 w-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
+      {/* General Tab */}
+      {activeTab === 'general' && (
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
           <h3 className="text-lg font-semibold text-white mb-4">API Keys</h3>
@@ -6162,10 +7048,401 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
           </div>
         </div>
       </div>
+      )}
 
-      {/* Security & Access Controls */}
-      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Security & Access Controls</h3>
+      {/* Employees Tab */}
+      {activeTab === 'employees' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-white">Employee Management</h3>
+              <p className="text-sm text-slate-400 mt-1">
+                Manage internal staff members with super admin access
+              </p>
+            </div>
+            <button
+              onClick={handleCreateEmployee}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
+            >
+              <Users className="h-4 w-4" />
+              Add Employee
+            </button>
+          </div>
+
+          {employeesLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+            </div>
+          ) : employees.length === 0 ? (
+            <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-12 text-center">
+              <Users className="h-12 w-12 text-slate-600 mx-auto mb-4" />
+              <p className="text-slate-400">No employees found. Add your first employee to get started.</p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-900/80">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Email</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Role</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Last Login</th>
+                      <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {employees.map((employee) => (
+                      <tr key={employee.id} className="hover:bg-slate-900/50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{employee.name || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{employee.email}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="inline-flex items-center rounded-full border border-blue-500/40 bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-200">
+                            {employee.role}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                            employee.status === 'active' 
+                              ? 'bg-emerald-500/10 text-emerald-200 border border-emerald-500/40'
+                              : 'bg-slate-500/10 text-slate-300 border border-slate-500/40'
+                          }`}>
+                            {employee.status || 'inactive'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                          {employee.lastLogin && employee.lastLogin !== 'Never' 
+                            ? new Date(employee.lastLogin).toLocaleDateString()
+                            : 'Never'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleEditEmployee(employee)}
+                              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEmployee(employee.id)}
+                              className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/20"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Employee Modal */}
+          {showEmployeeModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+              <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">
+                  {editingEmployee ? 'Edit Employee' : 'Add Employee'}
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                      Name <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={employeeForm.name}
+                      onChange={(e) => setEmployeeForm({ ...employeeForm, name: e.target.value })}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      placeholder="John Doe"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                      Email <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={employeeForm.email}
+                      onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      placeholder="john@example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                      Role
+                    </label>
+                    <select
+                      value={employeeForm.role}
+                      onChange={(e) => setEmployeeForm({ ...employeeForm, role: e.target.value })}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    >
+                      <option value="SUPER_ADMIN">Super Admin</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                      Password {!editingEmployee && <span className="text-red-400">*</span>}
+                    </label>
+                    <input
+                      type="password"
+                      value={employeeForm.password}
+                      onChange={(e) => setEmployeeForm({ ...employeeForm, password: e.target.value })}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      placeholder={editingEmployee ? "Leave blank to keep current password" : "Enter password"}
+                    />
+                    {editingEmployee && (
+                      <p className="mt-1 text-xs text-slate-500">Leave blank to keep current password</p>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-6 flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => setShowEmployeeModal(false)}
+                    className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveEmployee}
+                    disabled={saving}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="inline h-4 w-4 animate-spin mr-2" />
+                        Saving...
+                      </>
+                    ) : (
+                      editingEmployee ? 'Update' : 'Create'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* System Config Tab */}
+      {activeTab === 'system' && (
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Environment Variables</h3>
+            <p className="text-sm text-slate-400 mb-4">
+              View and manage critical environment variables. Changes require server restart.
+            </p>
+            <div className="space-y-3">
+              <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Database URL</p>
+                    <p className="text-xs text-slate-400 mt-1">PostgreSQL connection string</p>
+                  </div>
+                  <span className="text-xs text-slate-500 font-mono">***hidden***</span>
+                </div>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">NextAuth Secret</p>
+                    <p className="text-xs text-slate-400 mt-1">Session encryption key</p>
+                  </div>
+                  <span className="text-xs text-slate-500 font-mono">***hidden***</span>
+                </div>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Cloudinary Config</p>
+                    <p className="text-xs text-slate-400 mt-1">Cloud name, API key, API secret</p>
+                  </div>
+                  <span className="text-xs text-slate-500">Configured</span>
+                </div>
+              </div>
+            </div>
+            <p className="mt-4 text-xs text-amber-400">
+              ⚠️ Environment variables are managed via your deployment platform (Vercel, Railway, etc.)
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Feature Flags</h3>
+            <div className="space-y-4">
+              <label className="flex items-center justify-between p-4 rounded-lg border border-slate-800 bg-slate-900/70">
+                <div>
+                  <p className="text-sm font-semibold text-white">Enable Beta Features</p>
+                  <p className="text-xs text-slate-400 mt-1">Allow access to experimental features</p>
+                </div>
+                <input
+                  type="checkbox"
+                  className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500"
+                />
+              </label>
+              <label className="flex items-center justify-between p-4 rounded-lg border border-slate-800 bg-slate-900/70">
+                <div>
+                  <p className="text-sm font-semibold text-white">Advanced Analytics</p>
+                  <p className="text-xs text-slate-400 mt-1">Enable detailed analytics and reporting</p>
+                </div>
+                <input
+                  type="checkbox"
+                  defaultChecked
+                  className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500"
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Backup & Recovery Tab */}
+      {activeTab === 'backup' && (
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Backup Configuration</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Backup Frequency
+                </label>
+                <select className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Retention Period (days)
+                </label>
+                <input
+                  type="number"
+                  defaultValue={30}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <button className="w-full rounded-lg border border-blue-500/50 bg-blue-500/10 px-4 py-3 text-sm font-semibold text-blue-200 transition hover:bg-blue-500/20">
+                Create Manual Backup
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Recent Backups</h3>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-3 rounded-lg border border-slate-800 bg-slate-900/70">
+                <div>
+                  <p className="text-sm font-semibold text-white">Backup - 2025-01-07</p>
+                  <p className="text-xs text-slate-400">Database + Files</p>
+                </div>
+                <button className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800">
+                  Download
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email & Notifications Tab */}
+      {activeTab === 'email' && (
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Email Configuration</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  SMTP Host
+                </label>
+                <input
+                  type="text"
+                  placeholder="smtp.gmail.com"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                    SMTP Port
+                  </label>
+                  <input
+                    type="number"
+                    defaultValue={587}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                    From Email
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="noreply@nexxau.com"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  SMTP Username
+                </label>
+                <input
+                  type="text"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  SMTP Password
+                </label>
+                <input
+                  type="password"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <button className="w-full rounded-lg border border-blue-500/50 bg-blue-500/10 px-4 py-3 text-sm font-semibold text-blue-200 transition hover:bg-blue-500/20">
+                Test Email Connection
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">System Notifications</h3>
+            <div className="space-y-4">
+              <label className="flex items-center justify-between p-4 rounded-lg border border-slate-800 bg-slate-900/70">
+                <div>
+                  <p className="text-sm font-semibold text-white">Critical Alerts</p>
+                  <p className="text-xs text-slate-400 mt-1">Notify on system errors and critical issues</p>
+                </div>
+                <input
+                  type="checkbox"
+                  defaultChecked
+                  className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500"
+                />
+              </label>
+              <label className="flex items-center justify-between p-4 rounded-lg border border-slate-800 bg-slate-900/70">
+                <div>
+                  <p className="text-sm font-semibold text-white">Daily Summary</p>
+                  <p className="text-xs text-slate-400 mt-1">Send daily system health summary</p>
+                </div>
+                <input
+                  type="checkbox"
+                  className="rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500"
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Security & Access Controls - Only show on General tab */}
+      {activeTab === 'general' && (
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Security & Access Controls</h3>
         <div className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-4">
@@ -6256,10 +7533,12 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
             </div>
           </div>
         </div>
-      </div>
+        </div>
+      )}
 
-      {/* System Tools */}
-      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+      {/* System Tools - Only show on General tab */}
+      {activeTab === 'general' && (
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
         <h3 className="text-lg font-semibold text-white mb-4">System Tools</h3>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <button
@@ -6379,7 +7658,8 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {feedback && (
         <div
@@ -6393,22 +7673,24 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
         </div>
       )}
 
-      <div className="flex justify-end">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {saving ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            'Save Settings'
-          )}
-        </button>
-      </div>
+      {activeTab === 'general' && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save Settings'
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -6418,9 +7700,11 @@ interface SupportAuditSectionProps {
 }
 
 function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
-  const [activeTab, setActiveTab] = useState<'audit' | 'support' | 'timeline' | 'troubleshooting'>('audit');
+  const [activeTab, setActiveTab] = useState<'audit' | 'support' | 'timeline' | 'troubleshooting' | 'billing'>('audit');
   const [logs, setLogs] = useState<any[]>([]);
+  const [billingLogs, setBillingLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [billingLoading, setBillingLoading] = useState(true);
   const [filter, setFilter] = useState({
     action: 'ALL',
     entity: 'ALL',
@@ -6440,6 +7724,8 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
       fetchAuditLogs();
     } else if (activeTab === 'timeline') {
       fetchActivityTimeline();
+    } else if (activeTab === 'billing') {
+      fetchBillingLogs();
     }
   }, [filter, activeTab, selectedCompany, selectedWorksite, selectedUserId]);
 
@@ -6492,6 +7778,28 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
     }
   };
 
+  const fetchBillingLogs = async () => {
+    try {
+      setBillingLoading(true);
+      const params = new URLSearchParams();
+      params.append('entity', 'BillingRecord');
+      if (filter.action !== 'ALL') params.append('action', filter.action);
+      if (filter.dateFrom) params.append('from', filter.dateFrom);
+      if (filter.dateTo) params.append('to', filter.dateTo);
+
+      const response = await fetch(`/api/admin/audit-logs?${params.toString()}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setBillingLogs(data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching billing audit logs:', err);
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
   const handleTroubleshooting = async (action: string, cameraId?: string, worksiteId?: string) => {
     setTroubleshootingLoading(true);
     setTroubleshootingResult(null);
@@ -6513,9 +7821,12 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
   };
 
   const handleExport = () => {
+    const exportLogs = activeTab === 'billing' ? billingLogs : logs;
+    const filename = activeTab === 'billing' ? 'billing-audit-logs' : 'audit-logs';
+    
     const csv = [
       ['Timestamp', 'User', 'Action', 'Entity', 'Entity ID', 'IP Address'].join(','),
-      ...logs.map((log) =>
+      ...exportLogs.map((log) =>
         [
           new Date(log.createdAt).toISOString(),
           log.user?.email || 'Unknown',
@@ -6531,7 +7842,7 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `audit-logs-${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `${filename}-${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -6580,10 +7891,10 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
             icon={LifeBuoy}
             accent="sky"
           />
-          {activeTab === 'audit' && (
+          {(activeTab === 'audit' || activeTab === 'billing') && (
             <button
               onClick={handleExport}
-              disabled={logs.length === 0}
+              disabled={(activeTab === 'audit' ? logs : billingLogs).length === 0}
               className="inline-flex items-center gap-2 rounded-lg border border-blue-500/50 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-200 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <FileBarChart2 className="h-4 w-4" />
@@ -6596,6 +7907,7 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
         <div className="mt-6 flex gap-2 border-b border-slate-800">
           {[
             { id: 'audit', label: 'Audit Logs' },
+            { id: 'billing', label: 'Billing' },
             { id: 'support', label: 'Support Tickets' },
             { id: 'timeline', label: 'Activity Timeline' },
             { id: 'troubleshooting', label: 'Troubleshooting' },
@@ -6786,6 +8098,151 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
                               </div>
                             </div>
                           )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Billing Audit Tab */}
+      {activeTab === 'billing' && (
+        <>
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Billing Audit Logs</h3>
+            <p className="text-sm text-slate-400 mb-4">
+              Track all billing-related activities including proof uploads, paid-through date updates, and payment status changes.
+            </p>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Action
+                </label>
+                <select
+                  value={filter.action}
+                  onChange={(e) => setFilter((prev) => ({ ...prev, action: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="ALL">All Actions</option>
+                  <option value="CREATE">Upload Proof</option>
+                  <option value="UPDATE">Update Payment Info</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  From Date
+                </label>
+                <input
+                  type="date"
+                  value={filter.dateFrom}
+                  onChange={(e) => setFilter((prev) => ({ ...prev, dateFrom: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  To Date
+                </label>
+                <input
+                  type="date"
+                  value={filter.dateTo}
+                  onChange={(e) => setFilter((prev) => ({ ...prev, dateTo: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            {billingLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+              </div>
+            ) : billingLogs.length === 0 ? (
+              <div className="py-12 text-center text-slate-400">
+                No billing audit logs found for the selected filters.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {billingLogs.map((log) => {
+                  const changes = log.changes as any;
+                  const before = changes?.before || {};
+                  const after = changes?.after || {};
+
+                  return (
+                    <div key={log.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 flex-wrap mb-2">
+                            <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide ${getActionColor(log.action)}`}>
+                              {log.action === 'CREATE' ? 'Proof Uploaded' : log.action === 'UPDATE' ? 'Payment Updated' : log.action}
+                            </span>
+                            <span className="text-xs text-slate-500">BillingRecord</span>
+                            {log.entityId && (
+                              <span className="text-xs text-slate-600 font-mono">ID: {log.entityId.substring(0, 8)}...</span>
+                            )}
+                          </div>
+                          
+                          {log.action === 'CREATE' && after && (
+                            <div className="mt-2 space-y-1 text-xs text-slate-300">
+                              {after.proofUrl && (
+                                <div>
+                                  <span className="text-slate-500">Proof uploaded:</span>{' '}
+                                  <span className="text-blue-300">Document attached</span>
+                                </div>
+                              )}
+                              {after.paidThrough && (
+                                <div>
+                                  <span className="text-slate-500">Paid through:</span>{' '}
+                                  <span className="text-emerald-300">{new Date(after.paidThrough).toLocaleDateString()}</span>
+                                </div>
+                              )}
+                              {after.notes && (
+                                <div>
+                                  <span className="text-slate-500">Notes:</span>{' '}
+                                  <span className="text-slate-300">{after.notes}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {log.action === 'UPDATE' && (
+                            <div className="mt-2 space-y-1 text-xs">
+                              {before.paidThrough !== after.paidThrough && (
+                                <div className="text-slate-300">
+                                  <span className="text-slate-500">Paid through:</span>{' '}
+                                  <span className="text-red-300 line-through">
+                                    {before.paidThrough ? new Date(before.paidThrough).toLocaleDateString() : 'Not set'}
+                                  </span>
+                                  {' → '}
+                                  <span className="text-emerald-300">
+                                    {after.paidThrough ? new Date(after.paidThrough).toLocaleDateString() : 'Not set'}
+                                  </span>
+                                </div>
+                              )}
+                              {before.notes !== after.notes && (
+                                <div className="text-slate-300">
+                                  <span className="text-slate-500">Notes updated</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="mt-3 flex items-center gap-4 text-xs text-slate-400 flex-wrap">
+                            <span className="font-medium text-slate-300">{log.user?.name || log.user?.email || 'System'}</span>
+                            <span>•</span>
+                            <span>{formatRelativeTime(log.createdAt)}</span>
+                            {log.ipAddress && (
+                              <>
+                                <span>•</span>
+                                <span>{log.ipAddress}</span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

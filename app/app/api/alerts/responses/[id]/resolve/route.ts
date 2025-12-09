@@ -12,8 +12,9 @@ export async function POST(
     const alertResponse = await prisma.alertResponse.update({
       where: { id: params.id },
       data: {
-        status: 'resolved',
-        resolvedAt: new Date(),
+        // Note: AlertResponse doesn't have status or resolvedAt fields
+        // Use response field instead: 'resolved'
+        response: 'resolved',
         notes
       }
     });

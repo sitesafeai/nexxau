@@ -1,6 +1,6 @@
 // AWS SNS SMS Service Implementation
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
-import { logInfo, logError, logWarning } from './logger';
+import { logger } from './logger';
 
 interface SMSConfig {
   region: string;
@@ -38,12 +38,12 @@ export class AWSSNSService {
       };
 
       if (!config.enabled) {
-        logWarning('AWS SNS SMS service is disabled');
+        logger.warn('AWS SNS SMS service is disabled');
         return;
       }
 
       if (!config.accessKeyId || !config.secretAccessKey) {
-        logWarning('AWS SNS credentials not configured');
+        logger.warn('AWS SNS credentials not configured');
         return;
       }
 
@@ -56,9 +56,9 @@ export class AWSSNSService {
       });
 
       this.config = config;
-      logInfo('AWS SNS SMS service initialized successfully');
+      logger.info('AWS SNS SMS service initialized successfully');
     } catch (error) {
-      logError('Failed to initialize AWS SNS SMS service:', error);
+      logger.error('Failed to initialize AWS SNS SMS service:', error);
     }
   }
 
@@ -67,7 +67,7 @@ export class AWSSNSService {
     violation: SafetyViolationSMS
   ): Promise<boolean> {
     if (!this.snsClient || !this.config) {
-      logWarning('AWS SNS SMS service not initialized');
+      logger.warn('AWS SNS SMS service not initialized');
       return false;
     }
 
@@ -75,7 +75,7 @@ export class AWSSNSService {
       const message = this.formatSafetyViolationMessage(violation);
       return await this.sendSMS(phoneNumber, message, violation);
     } catch (error) {
-      logError('Failed to send safety violation SMS:', error);
+      logger.error('Failed to send safety violation SMS:', error);
       return false;
     }
   }
@@ -144,7 +144,7 @@ Reply STOP to unsubscribe from safety alerts.
       const response = await this.snsClient.send(command);
       
       if (response.MessageId) {
-        logInfo(`AWS SNS SMS sent successfully to ${phoneNumber}. MessageId: ${response.MessageId}`);
+        logger.info(`AWS SNS SMS sent successfully to ${phoneNumber}. MessageId: ${response.MessageId}`);
         
         // Track delivery status
         this.deliveryStatus.set(response.MessageId, {
@@ -157,11 +157,11 @@ Reply STOP to unsubscribe from safety alerts.
 
         return true;
       } else {
-        logError('AWS SNS SMS failed - no MessageId returned');
+        logger.error('AWS SNS SMS failed - no MessageId returned');
         return false;
       }
     } catch (error) {
-      logError(`Failed to send AWS SNS SMS to ${phoneNumber}:`, error);
+      logger.error(`Failed to send AWS SNS SMS to ${phoneNumber}:`, error);
       return false;
     }
   }
@@ -188,14 +188,14 @@ Reply STOP to unsubscribe from safety alerts.
       const response = await this.snsClient.send(command);
       
       if (response.MessageId) {
-        logInfo(`AWS SNS test SMS sent successfully to ${phoneNumber}. MessageId: ${response.MessageId}`);
+        logger.info(`AWS SNS test SMS sent successfully to ${phoneNumber}. MessageId: ${response.MessageId}`);
         return true;
       } else {
-        logError('AWS SNS test SMS failed - no MessageId returned');
+        logger.error('AWS SNS test SMS failed - no MessageId returned');
         return false;
       }
     } catch (error) {
-      logError(`Failed to send AWS SNS test SMS to ${phoneNumber}:`, error);
+      logger.error(`Failed to send AWS SNS test SMS to ${phoneNumber}:`, error);
       return false;
     }
   }

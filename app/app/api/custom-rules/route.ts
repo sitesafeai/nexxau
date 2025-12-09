@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
 
     logger.info(`Fetched ${formattedRules.length} custom rules`, { 
       activeOnly, 
-      cameraId 
+      cameraId: cameraId || undefined 
     });
 
     return NextResponse.json({

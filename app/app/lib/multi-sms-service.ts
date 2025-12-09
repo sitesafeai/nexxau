@@ -1,7 +1,7 @@
 // Multi-Provider SMS Service (Twilio + AWS SNS)
 import { smsService } from './sms-service';
 import { awsSnsService } from './aws-sns-service';
-import { logInfo, logError, logWarning } from './logger';
+import { logger } from './logger';
 
 interface SafetyViolationSMS {
   violationType: string;
@@ -45,7 +45,7 @@ export class MultiSMSService {
     // Sort by priority
     this.providers.sort((a, b) => a.priority - b.priority);
 
-    logInfo(`Multi-SMS service initialized with ${this.providers.filter(p => p.enabled).length} enabled providers`);
+    logger.info(`Multi-SMS service initialized with ${this.providers.filter(p => p.enabled).length} enabled providers`);
   }
 
   public async sendSafetyViolationSMS(
@@ -55,14 +55,14 @@ export class MultiSMSService {
     const enabledProviders = this.providers.filter(p => p.enabled);
     
     if (enabledProviders.length === 0) {
-      logError('No SMS providers are enabled');
+      logger.error('No SMS providers are enabled');
       return { success: false, provider: 'none', error: 'No providers enabled' };
     }
 
     // Try each provider in order of priority
     for (const provider of enabledProviders) {
       try {
-        logInfo(`Attempting to send SMS via ${provider.name} to ${phoneNumber}`);
+        logger.info(`Attempting to send SMS via ${provider.name} to ${phoneNumber}`);
         
         let success = false;
         let messageId: string | undefined;
@@ -78,19 +78,19 @@ export class MultiSMSService {
         }
 
         if (success) {
-          logInfo(`SMS sent successfully via ${provider.name} to ${phoneNumber}`);
+          logger.info(`SMS sent successfully via ${provider.name} to ${phoneNumber}`);
           return { success: true, provider: provider.name, messageId };
         } else {
-          logWarning(`SMS failed via ${provider.name} to ${phoneNumber}, trying next provider`);
+          logger.warn(`SMS failed via ${provider.name} to ${phoneNumber}, trying next provider`);
         }
       } catch (error) {
-        logError(`Error sending SMS via ${provider.name} to ${phoneNumber}:`, error);
+        logger.error(`Error sending SMS via ${provider.name} to ${phoneNumber}:`, error);
         // Continue to next provider
       }
     }
 
     // All providers failed
-    logError(`All SMS providers failed to send message to ${phoneNumber}`);
+    logger.error(`All SMS providers failed to send message to ${phoneNumber}`);
     return { 
       success: false, 
       provider: 'all', 
@@ -105,14 +105,14 @@ export class MultiSMSService {
     const enabledProviders = this.providers.filter(p => p.enabled);
     
     if (enabledProviders.length === 0) {
-      logError('No SMS providers are enabled');
+      logger.error('No SMS providers are enabled');
       return { success: false, provider: 'none', error: 'No providers enabled' };
     }
 
     // Try each provider in order of priority
     for (const provider of enabledProviders) {
       try {
-        logInfo(`Attempting to send test SMS via ${provider.name} to ${phoneNumber}`);
+        logger.info(`Attempting to send test SMS via ${provider.name} to ${phoneNumber}`);
         
         let success = false;
         let messageId: string | undefined;
@@ -126,19 +126,19 @@ export class MultiSMSService {
         }
 
         if (success) {
-          logInfo(`Test SMS sent successfully via ${provider.name} to ${phoneNumber}`);
+          logger.info(`Test SMS sent successfully via ${provider.name} to ${phoneNumber}`);
           return { success: true, provider: provider.name, messageId };
         } else {
-          logWarning(`Test SMS failed via ${provider.name} to ${phoneNumber}, trying next provider`);
+          logger.warn(`Test SMS failed via ${provider.name} to ${phoneNumber}, trying next provider`);
         }
       } catch (error) {
-        logError(`Error sending test SMS via ${provider.name} to ${phoneNumber}:`, error);
+        logger.error(`Error sending test SMS via ${provider.name} to ${phoneNumber}:`, error);
         // Continue to next provider
       }
     }
 
     // All providers failed
-    logError(`All SMS providers failed to send test message to ${phoneNumber}`);
+    logger.error(`All SMS providers failed to send test message to ${phoneNumber}`);
     return { 
       success: false, 
       provider: 'all', 

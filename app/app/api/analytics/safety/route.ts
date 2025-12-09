@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
       // Resolved alerts
       prisma.alertResponse.count({
         where: {
-          status: 'resolved'
+          response: 'resolved' // Using response field instead of status
         }
       }),
       
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
       // Active cameras
       prisma.camera.count({
         where: {
-          isActive: true
+          status: 'online' // Using status instead of isActive
         }
       }),
       
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
       // Active users (logged in within last 24 hours)
       prisma.user.count({
         where: {
-          lastActivity: {
+          updatedAt: { // Using updatedAt instead of lastActivity
             gte: new Date(now.getTime() - 24 * 60 * 60 * 1000)
           }
         }
@@ -145,11 +145,19 @@ export async function GET(request: NextRequest) {
         }
       },
       include: {
-        alertRule: {
+        // Note: AlertResponse doesn't have alertRule relation
+        // Include alert.rule if needed
+        alert: {
           select: {
-            name: true,
-            severity: true,
-            description: true
+            id: true,
+            location: true, // Include location field
+            rule: {
+              select: {
+                name: true,
+                severity: true,
+                description: true
+              }
+            }
           }
         },
         user: {
@@ -168,16 +176,15 @@ export async function GET(request: NextRequest) {
     // Format incidents for frontend
     const formattedIncidents = incidents.map(incident => ({
       id: incident.id,
-      type: incident.alertRule?.name || 'Unknown Alert',
-      severity: incident.alertRule?.severity || 'medium',
-      location: incident.location || 'Unknown Location',
+      type: incident.alert?.rule?.name || 'Unknown Alert',
+      severity: incident.alert?.rule?.severity || 'WARNING',
+      location: incident.alert?.location || 'Unknown Location',
       timestamp: incident.createdAt.toISOString(),
-      status: incident.status,
-      description: incident.alertRule?.description || 'No description available',
+      status: incident.response, // Using response instead of status
+      description: incident.alert?.rule?.description || 'No description available',
       assignedTo: incident.user?.name || 'Unassigned',
-      resolutionTime: incident.resolvedAt 
-        ? Math.round((incident.resolvedAt.getTime() - incident.createdAt.getTime()) / (1000 * 60))
-        : null
+      // Note: AlertResponse doesn't have resolvedAt field
+      resolutionTime: null // Cannot calculate without resolvedAt
     }));
 
     return NextResponse.json({

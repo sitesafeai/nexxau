@@ -1,26 +1,26 @@
 // API endpoint for AI Detection Service Integration
-import { NextResponse } from 'next/server';
-import { withErrorHandler, AppError } from '@/app/lib/error-handler';
+import { NextRequest, NextResponse } from 'next/server';
+import { errorHandler } from '@/app/lib/error-handler';
 import { aiDetectionIntegration } from '@/app/lib/ai-detection-integration';
-import { logInfo, logError } from '@/app/lib/logger';
+import logger from '@/app/lib/logger';
 
-export const POST = withErrorHandler(async (req: Request) => {
+export async function POST(req: NextRequest) {
   try {
     const detectionData = await req.json();
 
     // Validate required fields
     if (!detectionData.camera_id && !detectionData.cameraId) {
-      throw new AppError('Missing required field: camera_id', 400, 'low', 'validation');
+      return NextResponse.json({ error: 'Missing required field: camera_id' }, { status: 400 });
     }
 
     if (!detectionData.detections && !detectionData.objects) {
-      throw new AppError('Missing required field: detections or objects', 400, 'low', 'validation');
+      return NextResponse.json({ error: 'Missing required field: detections or objects' }, { status: 400 });
     }
 
     // Process the detection data
     await aiDetectionIntegration.processDetectionFromAI(detectionData);
 
-    logInfo(`AI detection data processed successfully for camera ${detectionData.camera_id || detectionData.cameraId}`);
+    logger.info(`AI detection data processed successfully for camera ${detectionData.camera_id || detectionData.cameraId}`);
 
     return NextResponse.json({
       success: true,
@@ -30,13 +30,13 @@ export const POST = withErrorHandler(async (req: Request) => {
       objectCount: (detectionData.detections || detectionData.objects || []).length
     });
 
-  } catch (error) {
-    logError('Error processing AI detection data:', error);
-    throw error;
+  } catch (error: any) {
+    logger.error('Error processing AI detection data:', error);
+    return await errorHandler.handleError(error, req);
   }
-});
+}
 
-export const GET = withErrorHandler(async (req: Request) => {
+export async function GET(req: NextRequest) {
   try {
     const stats = aiDetectionIntegration.getProcessingStats();
     
@@ -45,8 +45,8 @@ export const GET = withErrorHandler(async (req: Request) => {
       processing: stats,
       timestamp: new Date().toISOString()
     });
-  } catch (error) {
-    logError('Error getting AI detection stats:', error);
-    throw error;
+  } catch (error: any) {
+    logger.error('Error getting AI detection stats:', error);
+    return await errorHandler.handleError(error, req);
   }
-});
+}

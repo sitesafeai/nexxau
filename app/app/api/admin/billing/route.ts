@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
 import { prisma } from '@/app/lib/prisma';
 import { uploadFile } from '@/app/lib/cloud-storage';
+import { logCreate, logUpdate } from '@/app/lib/audit-logger';
 
 type DiagnosticsEntry = {
   scope: string;
@@ -132,6 +135,25 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Log audit event
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logCreate(
+        session.user.id,
+        'BillingRecord',
+        record.id,
+        {
+          companyId,
+          proofUrl: uploadResult.url,
+          paidThrough: paidThrough?.toISOString() ?? null,
+          notes,
+        },
+        request
+      ).catch((err) => {
+        console.error('[admin][billing] Failed to log audit:', err);
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -167,6 +189,18 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Get existing record for audit log
+    const existingRecord = await prisma.companyBillingRecord.findUnique({
+      where: { id: body.recordId },
+    });
+
+    if (!existingRecord) {
+      return NextResponse.json(
+        { success: false, error: 'Billing record not found' },
+        { status: 404 }
+      );
+    }
+
     const paidThrough =
       typeof body?.paidThrough === 'string' && body.paidThrough.length > 0
         ? new Date(body.paidThrough)
@@ -179,6 +213,27 @@ export async function PATCH(request: NextRequest) {
         notes: body?.notes ?? undefined,
       },
     });
+
+    // Log audit event
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) {
+      await logUpdate(
+        session.user.id,
+        'BillingRecord',
+        record.id,
+        {
+          paidThrough: existingRecord.paidThrough?.toISOString() ?? null,
+          notes: existingRecord.notes,
+        },
+        {
+          paidThrough: record.paidThrough?.toISOString() ?? null,
+          notes: record.notes,
+        },
+        request
+      ).catch((err) => {
+        console.error('[admin][billing] Failed to log audit:', err);
+      });
+    }
 
     return NextResponse.json({
       success: true,

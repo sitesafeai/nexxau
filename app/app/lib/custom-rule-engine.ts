@@ -1,6 +1,6 @@
 // Custom Rule Engine for Computer Vision Detection
 import { prisma } from './prisma';
-import { logInfo, logError, logWarning } from './logger';
+import { logger } from './logger';
 import { multiSmsService } from './multi-sms-service';
 import { 
   getWorksiteSettings, 
@@ -118,9 +118,9 @@ export class CustomRuleEngine {
         });
       });
 
-      logInfo(`Loaded ${this.activeRules.size} active custom rules`);
+      logger.info(`Loaded ${this.activeRules.size} active custom rules`);
     } catch (error) {
-      logError('Failed to load custom rules:', error);
+      logger.error('Failed to load custom rules:', error);
     }
   }
 
@@ -134,7 +134,7 @@ export class CustomRuleEngine {
     setInterval(() => {
       this.hourlyAlertCounts.clear();
       this.lastHourReset = new Date();
-      logInfo('Reset hourly alert counts');
+      logger.info('Reset hourly alert counts');
     }, 60 * 60 * 1000);
   }
 
@@ -161,11 +161,11 @@ export class CustomRuleEngine {
             await this.handleRuleTrigger(rule, detectionData, result);
           }
         } catch (error) {
-          logError(`Error evaluating rule ${rule.name}:`, error);
+          logger.error(`Error evaluating rule ${rule.name}:`, error);
         }
       }
     } catch (error) {
-      logError('Error processing detection:', error);
+      logger.error('Error processing detection:', error);
     }
   }
 
@@ -201,7 +201,7 @@ export class CustomRuleEngine {
       case 'time_based':
         return this.evaluateTimeBasedRule(rule, detectionData);
       default:
-        logWarning(`Unknown rule type: ${rule.ruleType}`);
+        logger.warn(`Unknown rule type: ${rule.ruleType}`);
         return { triggered: false, confidence: 0, matchedCriteria: null };
     }
   }
@@ -418,10 +418,10 @@ export class CustomRuleEngine {
       // Send notifications
       await this.sendNotifications(rule, violation, result);
 
-      logInfo(`Rule "${rule.name}" triggered: ${violation.description}`);
+      logger.info(`Rule "${rule.name}" triggered: ${violation.description}`);
 
     } catch (error) {
-      logError(`Error handling rule trigger for ${rule.name}:`, error);
+      logger.error(`Error handling rule trigger for ${rule.name}:`, error);
     }
   }
 
@@ -445,7 +445,7 @@ export class CustomRuleEngine {
         : true;
 
       if (!shouldSend) {
-        logInfo(`Notification frequency limit reached for worksite ${rule.worksiteId}. Skipping notifications.`);
+        logger.info(`Notification frequency limit reached for worksite ${rule.worksiteId}. Skipping notifications.`);
         return;
       }
 
@@ -477,7 +477,7 @@ export class CustomRuleEngine {
               });
             }
           } catch (error) {
-            logError(`Failed to send SMS for rule ${rule.name}:`, error);
+            logger.error(`Failed to send SMS for rule ${rule.name}:`, error);
           }
         }
       }
@@ -488,17 +488,17 @@ export class CustomRuleEngine {
       
       if (emailEnabled && rule.emailRecipients && rule.emailRecipients.length > 0) {
         // Email implementation would go here
-        logInfo(`Email notification sent for rule ${rule.name}`);
+        logger.info(`Email notification sent for rule ${rule.name}`);
       }
 
       // Push/dashboard notification is always enabled (but respect pushEnabled setting)
       const pushEnabled = !worksiteSettings || worksiteSettings.notifications.pushEnabled;
       if (pushEnabled) {
-        logInfo(`Dashboard notification created for rule ${rule.name}`);
+        logger.info(`Dashboard notification created for rule ${rule.name}`);
       }
 
     } catch (error) {
-      logError(`Error sending notifications for rule ${rule.name}:`, error);
+      logger.error(`Error sending notifications for rule ${rule.name}:`, error);
     }
   }
 
@@ -636,7 +636,7 @@ This is an automated alert from Nexxau Safety Monitoring System.
       
       return rule;
     } catch (error) {
-      logError('Failed to create custom rule:', error);
+      logger.error('Failed to create custom rule:', error);
       throw error;
     }
   }
@@ -653,7 +653,7 @@ This is an automated alert from Nexxau Safety Monitoring System.
       
       return rule;
     } catch (error) {
-      logError('Failed to update custom rule:', error);
+      logger.error('Failed to update custom rule:', error);
       throw error;
     }
   }
@@ -667,7 +667,7 @@ This is an automated alert from Nexxau Safety Monitoring System.
       // Reload active rules
       await this.loadActiveRules();
     } catch (error) {
-      logError('Failed to delete custom rule:', error);
+      logger.error('Failed to delete custom rule:', error);
       throw error;
     }
   }

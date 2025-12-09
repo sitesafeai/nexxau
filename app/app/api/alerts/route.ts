@@ -4,6 +4,17 @@ import { authOptions } from '@/app/lib/auth';
 import { prisma } from '@/app/lib/prisma';
 import { createAlertSchema, alertQuerySchema } from '@/app/lib/validation/alerts';
 import { validateBody, validateQuery } from '@/app/lib/validation/common';
+import { AlertSeverity } from '@prisma/client';
+
+// Map severity values to AlertSeverity enum
+function mapSeverityToEnum(severity: string): AlertSeverity {
+  const upper = severity.toUpperCase();
+  if (upper === 'LOW' || upper === 'INFO') return 'INFO';
+  if (upper === 'MEDIUM' || upper === 'WARNING') return 'WARNING';
+  if (upper === 'HIGH' || upper === 'CRITICAL') return 'CRITICAL';
+  if (upper === 'EMERGENCY') return 'EMERGENCY';
+  return 'INFO'; // Default
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -113,19 +124,18 @@ export async function POST(request: NextRequest) {
     const alert = await prisma.alert.create({
       data: {
         title: data.title,
-        description: data.description || null,
-        severity: data.severity,
+        description: data.description || '', // Description is required in schema, use empty string as default
+        severity: mapSeverityToEnum(data.severity), // Map severity values to enum
         status: 'ACTIVE',
         source: data.source || 'MANUAL',
         location: data.location || null,
         metadata: data.metadata || {},
         ruleId: data.ruleId || null,
         worksiteId: data.worksiteId || null,
-        cameraId: data.cameraId || null,
         violationType: data.violationType || null,
         detectionSnapshot: data.detectionSnapshot || null,
         detectionVideo: data.detectionVideo || null,
-        detectionData: data.detectionData || null,
+        detectionData: data.detectionData || undefined, // JSON fields use undefined instead of null
       }
     });
 

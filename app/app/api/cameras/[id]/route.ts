@@ -245,9 +245,9 @@ export async function PUT(
         where: { id: cameraId },
         data: {
           name,
-          externalId: externalId || null,
+          // externalId: externalId || null, // Field doesn't exist in Camera schema
           type: connection?.type || 'RTSP',
-          enabled,
+          // enabled, // Field doesn't exist in Camera schema - use status instead
           
           // Legacy fields
           streamUrl: connection?.rtspUrl || null,
@@ -255,33 +255,28 @@ export async function PUT(
           username: connection?.username || null,
           password: connection?.password || null,
           
-          // New structured fields
-          connection: connection ? {
-            type: connection.type || 'RTSP',
-            rtspUrl: connection.rtspUrl || '',
-            webrtcUrl: connection.webrtcUrl || '',
-            hlsUrl: connection.hlsUrl || '',
-            snapshotUrl: connection.snapshotUrl || '',
-            profile: connection.profile || 'medium',
-          } : existingCamera.connection,
+          // Note: connection field doesn't exist in Camera schema
+          // Store connection info in metadata or use individual fields (rtspUrl, etc.)
           
-          metadata: metadata ? {
-            lat: metadata.lat || null,
-            lon: metadata.lon || null,
-            mountHeight: metadata.mountHeight || null,
-            orientation: metadata.orientation || null,
-            fov: metadata.fov || null,
-            tags: metadata.tags || [],
-            model: metadata.model || '',
-            notes: metadata.notes || '',
-            resolution: metadata.resolution || '',
-            fps: metadata.fps || null,
-            codec: metadata.codec || '',
-          } : existingCamera.metadata,
+          metadata: metadata ? (() => {
+            const meta: any = {};
+            if (metadata.lat !== undefined && metadata.lat !== null) meta.lat = metadata.lat;
+            if (metadata.lon !== undefined && metadata.lon !== null) meta.lon = metadata.lon;
+            if (metadata.mountHeight !== undefined && metadata.mountHeight !== null) meta.mountHeight = metadata.mountHeight;
+            if (metadata.orientation !== undefined && metadata.orientation !== null) meta.orientation = metadata.orientation;
+            if (metadata.fov !== undefined && metadata.fov !== null) meta.fov = metadata.fov;
+            if (metadata.tags) meta.tags = metadata.tags;
+            if (metadata.model) meta.model = metadata.model;
+            if (metadata.notes) meta.notes = metadata.notes;
+            if (metadata.resolution) meta.resolution = metadata.resolution;
+            if (metadata.fps !== undefined && metadata.fps !== null) meta.fps = metadata.fps;
+            if (metadata.codec) meta.codec = metadata.codec;
+            return Object.keys(meta).length > 0 ? meta : undefined;
+          })() : (existingCamera.metadata as any) || undefined,
           
-          retentionDays,
-          aiEnabled,
-          confidenceThreshold,
+          // retentionDays, // Field doesn't exist in Camera schema
+          // aiEnabled, // Field doesn't exist in Camera schema
+          // confidenceThreshold, // Field doesn't exist in Camera schema
           worksiteId,
         },
         include: {
@@ -320,15 +315,15 @@ export async function PUT(
       data: {
         id: camera.id,
         name: camera.name,
-        externalId: camera.externalId,
+        // externalId: camera.externalId, // Field doesn't exist
         type: camera.type,
         status: camera.status,
-        enabled: camera.enabled,
-        connection: camera.connection,
+        // enabled: camera.enabled, // Field doesn't exist
+        // connection: camera.connection, // Field doesn't exist
         metadata: camera.metadata,
-        retentionDays: camera.retentionDays,
-        aiEnabled: camera.aiEnabled,
-        confidenceThreshold: camera.confidenceThreshold,
+        // retentionDays: camera.retentionDays, // Field doesn't exist
+        // aiEnabled: camera.aiEnabled, // Field doesn't exist
+        // confidenceThreshold: camera.confidenceThreshold, // Field doesn't exist
         worksiteId: camera.worksiteId,
         worksite: camera.worksite,
         createdAt: camera.createdAt.toISOString(),

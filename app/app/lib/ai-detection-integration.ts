@@ -1,6 +1,6 @@
 // AI Detection Integration Service
 import { customRuleEngine } from './custom-rule-engine';
-import { logInfo, logError, logWarning } from './logger';
+import { logger } from './logger';
 
 interface AIDetectionData {
   cameraId: string;
@@ -52,9 +52,9 @@ export class AIDetectionIntegration {
         this.processQueue();
       }
 
-      logInfo(`Detection data queued for processing: ${detectionData.objects.length} objects detected`);
+      logger.info(`Detection data queued for processing: ${detectionData.objects.length} objects detected`);
     } catch (error) {
-      logError('Error processing detection data:', error);
+      logger.error('Error processing detection data:', error);
     }
   }
 
@@ -65,13 +65,13 @@ export class AIDetectionIntegration {
     try {
       // Validate detection data
       if (!detectionData.cameraId || !detectionData.timestamp || !detectionData.objects) {
-        logWarning('Invalid detection data received:', detectionData);
+        logger.warn('Invalid detection data received:', detectionData);
         return;
       }
 
       // Check if we have any objects to process
       if (detectionData.objects.length === 0) {
-        logInfo(`No objects detected in camera ${detectionData.cameraId}`);
+        logger.info(`No objects detected in camera ${detectionData.cameraId}`);
         return;
       }
 
@@ -79,9 +79,9 @@ export class AIDetectionIntegration {
       await customRuleEngine.processDetection(detectionData);
 
       this.lastProcessedTimestamp = new Date();
-      logInfo(`Detection processed successfully: ${detectionData.objects.length} objects, camera ${detectionData.cameraId}`);
+      logger.info(`Detection processed successfully: ${detectionData.objects.length} objects, camera ${detectionData.cameraId}`);
     } catch (error) {
-      logError('Error processing detection data directly:', error);
+      logger.error('Error processing detection data directly:', error);
     }
   }
 
@@ -113,7 +113,7 @@ export class AIDetectionIntegration {
 
       await this.processDetectionDirect(transformedData);
     } catch (error) {
-      logError('Error processing detection from AI service:', error);
+      logger.error('Error processing detection from AI service:', error);
     }
   }
 
@@ -143,7 +143,7 @@ export class AIDetectionIntegration {
 
       await this.processDetectionDirect(transformedData);
     } catch (error) {
-      logError('Error processing detection from WebSocket:', error);
+      logger.error('Error processing detection from WebSocket:', error);
     }
   }
 
@@ -173,7 +173,7 @@ export class AIDetectionIntegration {
 
       await this.processDetectionDirect(transformedData);
     } catch (error) {
-      logError('Error processing detection from file:', error);
+      logger.error('Error processing detection from file:', error);
     }
   }
 
@@ -191,7 +191,7 @@ export class AIDetectionIntegration {
         try {
           await this.processDetectionDirect(detectionData);
         } catch (error) {
-          logError('Error processing queued detection:', error);
+          logger.error('Error processing queued detection:', error);
         }
       }
     }
@@ -213,7 +213,7 @@ export class AIDetectionIntegration {
     // Log processing stats every 5 minutes
     setInterval(() => {
       if (this.processingQueue.length > 0) {
-        logInfo(`Processing queue status: ${this.processingQueue.length} items queued`);
+        logger.info(`Processing queue status: ${this.processingQueue.length} items queued`);
       }
     }, 5 * 60 * 1000);
   }
@@ -235,7 +235,7 @@ export class AIDetectionIntegration {
    */
   public clearQueue(): void {
     this.processingQueue = [];
-    logInfo('Processing queue cleared');
+    logger.info('Processing queue cleared');
   }
 
   /**
@@ -268,7 +268,7 @@ export class AIDetectionIntegration {
     };
 
     await this.processDetectionDirect(testData);
-    logInfo('Test detection processing completed');
+    logger.info('Test detection processing completed');
   }
 }
 

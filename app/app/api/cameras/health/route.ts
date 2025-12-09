@@ -142,21 +142,30 @@ export async function POST(request: NextRequest) {
     const currentMetadata = (camera.metadata as Record<string, any>) || {};
     
     const healthRecord = await prisma.$transaction(async (tx) => {
-      const health = await tx.cameraHealth.upsert({
+      // Note: CameraHealth doesn't have unique constraint on cameraId, so use findFirst + create/update
+      const existing = await tx.cameraHealth.findFirst({
         where: { cameraId },
-        update: {
-          status,
-          streamQuality,
-          frameRate,
-          resolution,
-          bitrate,
-          latency,
-          errors,
-          lastCheck: now,
-        },
-        create: {
-          cameraId,
-          status,
+        orderBy: { lastCheck: 'desc' }
+      });
+      
+      const health = existing 
+        ? await tx.cameraHealth.update({
+            where: { id: existing.id },
+            data: {
+              status,
+              streamQuality,
+              frameRate,
+              resolution,
+              bitrate,
+              latency,
+              errors,
+              lastCheck: now,
+            },
+          })
+        : await tx.cameraHealth.create({
+            data: {
+              cameraId,
+              status,
           streamQuality,
           frameRate,
           resolution,

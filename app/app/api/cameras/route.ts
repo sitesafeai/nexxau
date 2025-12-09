@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
-import { createCameraSchema, validateBody } from '@/app/lib/validation/cameras';
+import { createCameraSchema } from '@/app/lib/validation/cameras';
+import { validateBody } from '@/app/lib/validation/common';
 
 // GET /api/cameras - Get cameras (optionally filtered by worksite)
 export async function GET(request: NextRequest) {
@@ -215,19 +216,14 @@ export async function POST(request: NextRequest) {
       });
       
       if (!defaultWorksite) {
-        // Create a default worksite if none exists
-        const newWorksite = await prisma.worksite.create({
-          data: {
-            name: 'Default Site',
-            worksiteName: 'Main Construction Site',
-            location: 'Primary Location',
-            address: 'To be configured',
-            status: 'active',
-            startDate: new Date(),
-            isActive: true
-          }
-        });
-        targetWorksiteId = newWorksite.id;
+        // Cannot create worksite without companyId - return error
+        return NextResponse.json(
+          { 
+            success: false,
+            error: 'worksiteId is required when no default worksite exists. Worksite must be created with a company first.' 
+          }, 
+          { status: 400 }
+        );
       } else {
         targetWorksiteId = defaultWorksite.id;
       }
@@ -371,10 +367,10 @@ async function handleNewFormatCreate(body: any) {
       const newCamera = await tx.camera.create({
         data: {
           name,
-          externalId: externalId || null,
+          // externalId: externalId || null, // Field doesn't exist
           type: connection.type || 'RTSP',
           status: 'pending', // Set to pending until first successful test
-          enabled,
+          // enabled, // Field doesn't exist
           
           // Legacy fields for backward compatibility
           streamUrl: connection.rtspUrl || null,
@@ -382,32 +378,29 @@ async function handleNewFormatCreate(body: any) {
           username: connection.username || null,
           password: connection.password || null, // TODO: Encrypt in production
           
-          // New structured fields
-          connection: {
-            type: connection.type || 'RTSP',
-            rtspUrl: connection.rtspUrl || '',
-            webrtcUrl: connection.webrtcUrl || '',
-            hlsUrl: connection.hlsUrl || '',
-            snapshotUrl: connection.snapshotUrl || '',
-            profile: connection.profile || 'medium',
-          },
-          metadata: {
-            lat: metadata?.lat || null,
-            lon: metadata?.lon || null,
-            mountHeight: metadata?.mountHeight || null,
-            orientation: metadata?.orientation || null,
-            fov: metadata?.fov || null,
-            tags: metadata?.tags || [],
-            model: metadata?.model || '',
-            notes: metadata?.notes || '',
-            resolution: metadata?.resolution || '',
-            fps: metadata?.fps || null,
-            codec: metadata?.codec || '',
-          },
+          // Note: connection field doesn't exist in Camera schema
+          // Store connection info in individual fields (rtspUrl, hlsUrl, etc.) or metadata
+          rtspPath: connection.rtspUrl || undefined,
+          // hlsUrl already set above, don't duplicate
+          metadata: metadata ? (() => {
+            const meta: any = {};
+            if (metadata.lat !== undefined && metadata.lat !== null) meta.lat = metadata.lat;
+            if (metadata.lon !== undefined && metadata.lon !== null) meta.lon = metadata.lon;
+            if (metadata.mountHeight !== undefined && metadata.mountHeight !== null) meta.mountHeight = metadata.mountHeight;
+            if (metadata.orientation !== undefined && metadata.orientation !== null) meta.orientation = metadata.orientation;
+            if (metadata.fov !== undefined && metadata.fov !== null) meta.fov = metadata.fov;
+            if (metadata.tags) meta.tags = metadata.tags;
+            if (metadata.model) meta.model = metadata.model;
+            if (metadata.notes) meta.notes = metadata.notes;
+            if (metadata.resolution) meta.resolution = metadata.resolution;
+            if (metadata.fps !== undefined && metadata.fps !== null) meta.fps = metadata.fps;
+            if (metadata.codec) meta.codec = metadata.codec;
+            return Object.keys(meta).length > 0 ? meta : undefined;
+          })() : undefined,
           
-          retentionDays,
-          aiEnabled,
-          confidenceThreshold,
+          // retentionDays, // Field doesn't exist
+          // aiEnabled, // Field doesn't exist
+          // confidenceThreshold, // Field doesn't exist
           worksiteId,
         },
         include: {
@@ -460,15 +453,15 @@ async function handleNewFormatCreate(body: any) {
       data: {
         id: camera.id,
         name: camera.name,
-        externalId: camera.externalId,
+        // externalId: camera.externalId, // Field doesn't exist
         type: camera.type,
         status: camera.status,
-        enabled: camera.enabled,
-        connection: camera.connection,
+        // enabled: camera.enabled, // Field doesn't exist
+        // connection: camera.connection, // Field doesn't exist
         metadata: camera.metadata,
-        retentionDays: camera.retentionDays,
-        aiEnabled: camera.aiEnabled,
-        confidenceThreshold: camera.confidenceThreshold,
+        // retentionDays: camera.retentionDays, // Field doesn't exist
+        // aiEnabled: camera.aiEnabled, // Field doesn't exist
+        // confidenceThreshold: camera.confidenceThreshold, // Field doesn't exist
         worksiteId: camera.worksiteId,
         worksite: camera.worksite,
         createdAt: camera.createdAt.toISOString(),

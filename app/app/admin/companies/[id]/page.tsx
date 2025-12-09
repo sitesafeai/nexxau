@@ -60,7 +60,8 @@ export default function CompanyDetailPage() {
   });
   const [inviteFormData, setInviteFormData] = useState({
     email: '',
-    role: 'SITE_ADMIN'
+    role: 'SITE_ADMIN',
+    worksiteId: ''
   });
 
   useEffect(() => {
@@ -125,6 +126,7 @@ export default function CompanyDetailPage() {
           email: inviteFormData.email,
           role: inviteFormData.role,
           companyId,
+          worksiteId: inviteFormData.worksiteId || undefined,
           invitedBy: 'dev-user-1' // TODO: Get from session
         })
       });
@@ -134,7 +136,7 @@ export default function CompanyDetailPage() {
       if (data.success) {
         alert(`Invitation sent to ${inviteFormData.email}!\n\nInvite URL (for testing):\n${data.data.inviteUrl}`);
         setShowInviteModal(false);
-        setInviteFormData({ email: '', role: 'SITE_ADMIN' });
+        setInviteFormData({ email: '', role: 'SITE_ADMIN', worksiteId: '' });
         fetchCompany(); // Refresh to show new user
       } else {
         alert(`Failed to send invitation: ${data.error}`);
@@ -441,6 +443,29 @@ export default function CompanyDetailPage() {
                   </select>
                   <p className="mt-1 text-xs text-gray-400">Select the user's role and permissions</p>
                 </div>
+
+                {company.worksites && company.worksites.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Assign to Worksite (Optional)
+                    </label>
+                    <select
+                      value={inviteFormData.worksiteId}
+                      onChange={(e) => setInviteFormData({ ...inviteFormData, worksiteId: e.target.value })}
+                      className="w-full bg-gray-900/50 text-white rounded-lg px-4 py-3 border border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    >
+                      <option value="">No specific worksite (company-wide access)</option>
+                      {company.worksites.map((ws) => (
+                        <option key={ws.id} value={ws.id}>
+                          {ws.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-400">
+                      Leave empty for company-wide access, or select a specific worksite
+                    </p>
+                  </div>
+                )}
 
                 <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
                   <h3 className="text-sm font-semibold text-blue-400 mb-2">📧 What happens next?</h3>

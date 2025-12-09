@@ -52,7 +52,7 @@ export async function PATCH(
 
     // Check if root cause is required
     const requiresRootCause = alert.metadata && (alert.metadata as any).autoClassification?.requiresRootCause;
-    if (!requiresRootCause && alert.severity !== 'MODERATE' && alert.severity !== 'SEVERE') {
+    if (!requiresRootCause && alert.severity !== 'WARNING' && alert.severity !== 'CRITICAL') {
       return NextResponse.json(
         { success: false, error: 'Root cause not required for this alert' },
         { status: 400 }
@@ -80,7 +80,7 @@ export async function PATCH(
       data: {
         userId: session.user.id,
         action: 'ROOT_CAUSE_RECORDED',
-        entityType: 'Alert',
+        entity: 'Alert', // Using entity instead of entityType
         entityId: params.id,
         worksiteId: alert.worksiteId,
         changes: {

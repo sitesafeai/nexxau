@@ -45,10 +45,31 @@ export async function GET(request: NextRequest) {
 
     if (worksiteId) {
       where.worksiteId = worksiteId;
+      console.log(`[admin][cameras] Filtering by worksiteId: ${worksiteId}`);
+      
+      // Debug: Check if cameras exist for this worksiteId
+      const cameraCount = await prisma.camera.count({
+        where: { worksiteId }
+      }).catch(() => 0);
+      console.log(`[admin][cameras] Total cameras in database for worksiteId ${worksiteId}: ${cameraCount}`);
+      
+      // Debug: Get a sample of camera worksiteIds to see what's actually in the DB
+      const sampleCameras = await prisma.camera.findMany({
+        take: 5,
+        select: {
+          id: true,
+          name: true,
+          worksiteId: true
+        }
+      }).catch(() => []);
+      console.log(`[admin][cameras] Sample cameras (first 5) with their worksiteIds:`, sampleCameras);
     } else if (companyId) {
       where.worksite = {
         companyId,
       };
+      console.log(`[admin][cameras] Filtering by companyId: ${companyId}`);
+    } else {
+      console.log(`[admin][cameras] No filters - returning all cameras`);
     }
 
     const diagnostics: DiagnosticsEntry[] = [];
@@ -83,6 +104,11 @@ export async function GET(request: NextRequest) {
       [],
       diagnostics
     );
+
+    console.log(`[admin][cameras] Found ${cameras.length} cameras in database with where clause:`, JSON.stringify(where));
+    if (worksiteId && cameras.length === 0) {
+      console.warn(`[admin][cameras] ⚠️ No cameras found for worksiteId ${worksiteId}, but worksites API shows cameras exist. Possible data mismatch.`);
+    }
 
     const enriched = cameras.map((camera) => {
       const status = (camera.status || 'active').toLowerCase();

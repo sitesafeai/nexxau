@@ -102,7 +102,7 @@ export async function GET(
       } : null,
       responses: alert.responses.map(response => ({
         type: response.response,
-        note: response.note,
+        note: response.notes, // Using notes instead of note
         createdAt: response.createdAt.toISOString(),
         user: response.user
       })),
@@ -116,7 +116,7 @@ export async function GET(
           event: response.response,
           timestamp: response.createdAt.toISOString(),
           user: response.user.name,
-          details: response.note || ''
+          details: response.notes || '' // Using notes instead of note
         }))),
         ...(alert.resolvedAt ? [{
           event: 'Alert Resolved',
@@ -143,7 +143,7 @@ export async function GET(
         },
         ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
         userAgent: request.headers.get('user-agent'),
-        timestamp: new Date()
+        createdAt: new Date() // Using createdAt instead of timestamp
       }
     });
 

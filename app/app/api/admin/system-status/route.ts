@@ -163,14 +163,15 @@ async function getSystemMetrics() {
       prisma.user.count(),
       prisma.user.count({
         where: {
-          lastActivity: {
+          // lastActivity field doesn't exist in schema, using updatedAt instead
+          updatedAt: {
             gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
           }
         }
       }),
       prisma.camera.count(),
       prisma.camera.count({
-        where: { isActive: true }
+        where: { status: 'online' } // Using status instead of isActive
       }),
       prisma.alertRule.count(),
       prisma.alertRule.count({
@@ -178,7 +179,7 @@ async function getSystemMetrics() {
       }),
       prisma.alertResponse.count(),
       prisma.alertResponse.count({
-        where: { status: 'resolved' }
+        where: { response: 'resolved' } // Using 'response' field instead of 'status'
       })
     ]);
 
@@ -251,7 +252,7 @@ async function getDiskUsage(): Promise<number> {
     } else if (os.platform() === 'win32') {
       // Windows
       const output = execSync('wmic logicaldisk get size,freespace,caption').toString();
-      const lines = output.split('\n').filter(line => line.trim() && !line.includes('Caption'));
+      const lines = output.split('\n').filter((line: string) => line.trim() && !line.includes('Caption'));
       if (lines.length > 0) {
         const parts = lines[0].trim().split(/\s+/);
         const freeSpace = parseInt(parts[1] || '0');

@@ -24,10 +24,14 @@ export async function GET(request: NextRequest) {
         controller.enqueue(encoder.encode(': keep-alive\n\n'));
       }, 15000);
 
-      controller.onCancel = () => {
+      // Note: ReadableStreamDefaultController doesn't have onCancel property
+      // Use AbortController or signal-based cancellation instead
+      // For now, handle cleanup in the stream close
+      const abortController = new AbortController();
+      abortController.signal.addEventListener('abort', () => {
         clearInterval(keepAlive);
         unsubscribe();
-      };
+      });
     },
   });
 

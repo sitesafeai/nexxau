@@ -245,9 +245,9 @@ function DashboardContent() {
                         selectedSite.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' :
                         selectedSite.status === 'maintenance' ? 'bg-amber-500/20 text-amber-400' :
                         'bg-red-500/20 text-red-400'
-                      }`}>
-                        {selectedSite.status}
-                      </span>
+                    }`}>
+                      {selectedSite.status}
+                    </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-slate-400">Safety Score</span>
@@ -255,8 +255,8 @@ function DashboardContent() {
                         {selectedSite.safetyScore !== null && selectedSite.safetyScore !== undefined 
                           ? `${selectedSite.safetyScore}%` 
                           : 'N/A'}
-                      </span>
-                    </div>
+                    </span>
+        </div>
                     <div className="pt-2 mt-2 border-t border-slate-700/30">
                       <p className="text-xs text-slate-500">
                         ID: <span className="font-mono text-slate-400">{selectedSite.id?.slice(0, 8)}...</span>
@@ -270,8 +270,8 @@ function DashboardContent() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
                   <p className="text-sm text-slate-400">No worksite selected</p>
-                </div>
-              )}
+        </div>
+      )}
     </div>
 
             <nav className="mt-6 flex-1 space-y-1.5 bg-transparent px-3">
@@ -354,25 +354,25 @@ function DashboardContent() {
                         selectedSite.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' :
                         selectedSite.status === 'maintenance' ? 'bg-amber-500/20 text-amber-400' :
                         'bg-red-500/20 text-red-400'
-                      }`}>
-                        {selectedSite.status}
-                      </span>
+                    }`}>
+                      {selectedSite.status}
+                    </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-slate-400">Safety</span>
                       <span className="text-sm font-bold text-blue-400">
                         {selectedSite.safetyScore !== null && selectedSite.safetyScore !== undefined 
-                          ? `${selectedSite.safetyScore}%` 
+                        ? `${selectedSite.safetyScore}%` 
                           : 'N/A'}
-                      </span>
-                    </div>
+                    </span>
+        </div>
                   </div>
                 </div>
               ) : (
                 <div className="bg-slate-800/30 rounded-lg border border-slate-700/30 p-4 text-center">
                   <p className="text-sm text-slate-400">No worksite selected</p>
-                </div>
-              )}
+        </div>
+      )}
     </div>
 
                 {/* Navigation */}
@@ -421,7 +421,7 @@ function DashboardContent() {
               selectedSite
                 ? <SitesTab currentSite={selectedSite} />
                 : isSuperAdmin 
-                  ? <SiteManagement currentUser={state.currentUser} />
+                ? <SiteManagement currentUser={state.currentUser} />
                   : <div className="flex flex-col items-center justify-center py-12 px-4">
                       <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-8 max-w-md text-center">
                         <div className="w-16 h-16 bg-blue-600/10 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -473,9 +473,14 @@ function DashboardContent() {
                   />
             )}
             {selected === 'workflows' && (
-              isSuperAdmin
+              // Show WorkflowsPage for both super admin and regular users when worksite is selected
+              selectedSite 
+                ? <WorkflowsPage currentSite={selectedSite} />
+                : isSuperAdmin
                 ? <WorkflowDashboard currentUser={state.currentUser} />
-                : <WorkflowsPage currentSite={selectedSite} />
+                : <div className="bg-slate-800/50 border border-slate-700/50 rounded p-8 text-center">
+                    <p className="text-slate-400">Select a worksite to manage workflows</p>
+                  </div>
             )}
             {selected === 'settings' && <SettingsPage currentUser={state.currentUser} />}
             {selected === 'audit' && <AuditPage currentSite={selectedSite} currentUser={state.currentUser} />}
@@ -1571,7 +1576,7 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
       };
     });
   }, [cameras, cameraStatuses]);
-
+  
   const camerasPerPage = 4;
   const totalPages = Math.ceil(camerasWithRealTimeStatus.length / camerasPerPage);
   const startIndex = currentPage * camerasPerPage;
@@ -1974,7 +1979,7 @@ function SitesTab({ currentSite }: { currentSite: any }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 {saving ? 'Saving...' : 'Save'}
-              </button>
+        </button>
               <button
                 onClick={() => {
                   setIsEditing(false);
@@ -2052,9 +2057,9 @@ function SitesTab({ currentSite }: { currentSite: any }) {
                   currentSite.status === 'active' ? 'bg-green-900/30 text-green-400 border border-green-700/30' :
                   currentSite.status === 'maintenance' ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-700/30' :
                   'bg-red-900/30 text-red-400 border border-red-700/30'
-                }`}>
+              }`}>
                   {(currentSite.status || 'active').toUpperCase()}
-                </span>
+              </span>
               )}
             </div>
             <div>
@@ -2097,7 +2102,7 @@ function SitesTab({ currentSite }: { currentSite: any }) {
               <p className="text-gray-400 text-xs mb-1">Last Activity</p>
               <p className="text-white font-semibold text-lg">{currentSite.lastActivity || 'No activity'}</p>
             </div>
-          </div>
+            </div>
           
           {/* Timestamps */}
           <div className="mt-4 pt-4 border-t border-gray-700 space-y-2">
@@ -4835,8 +4840,16 @@ function ReportsPage({ currentSite }: { currentSite: any }) {
 
 function WorkflowsPage({ currentSite }: { currentSite: any }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const worksiteParam = searchParams.get('worksite');
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[WorkflowsPage] currentSite:', currentSite);
+    console.log('[WorkflowsPage] worksiteParam:', worksiteParam);
+  }, [currentSite, worksiteParam]);
 
   useEffect(() => {
     if (currentSite?.id) {
@@ -4901,17 +4914,29 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <div>
+      <div>
           <h1 className="text-2xl font-semibold text-white">Workflow Automation</h1>
           <p className="text-sm text-slate-400 mt-1">{currentSite.name} • {workflows.length} workflows configured</p>
-        </div>
-        <button 
-          onClick={() => router.push(`/dashboard/workflow-builder?worksite=${currentSite.id}`)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
-        >
-          Create Workflow
-        </button>
       </div>
+          <button 
+          onClick={() => {
+            const siteId = currentSite?.id || worksiteParam;
+            console.log('[Create Workflow] currentSite:', currentSite);
+            console.log('[Create Workflow] worksiteParam:', worksiteParam);
+            console.log('[Create Workflow] siteId:', siteId);
+            if (siteId) {
+              const url = `/dashboard/workflow-builder?worksite=${siteId}`;
+              console.log('[Create Workflow] Navigating to:', url);
+              router.push(url);
+            } else {
+              alert('No worksite selected - currentSite: ' + JSON.stringify(currentSite?.id) + ', param: ' + worksiteParam);
+            }
+          }}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
+          >
+          Create Workflow
+          </button>
+        </div>
 
       {/* Info Banner */}
       <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-4">
@@ -4939,32 +4964,32 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
           <p className="text-slate-400 text-sm">Default workflows will be auto-provisioned when the first alert is created.</p>
         </div>
       ) : (
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-slate-900/50">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Workflow</th>
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-slate-900/50">
+            <tr>
+              <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Workflow</th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Type</th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Trigger</th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Last Run</th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700/50">
-              {workflows.map((workflow) => (
-                <tr key={workflow.id} className="hover:bg-slate-700/20 transition-colors">
-                  <td className="px-6 py-4">
-                    <p className="text-sm font-medium text-white">{workflow.name}</p>
+              <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Trigger</th>
+              <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
+              <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Last Run</th>
+              <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-700/50">
+            {workflows.map((workflow) => (
+              <tr key={workflow.id} className="hover:bg-slate-700/20 transition-colors">
+                <td className="px-6 py-4">
+                  <p className="text-sm font-medium text-white">{workflow.name}</p>
                     {workflow.description && (
                       <p className="text-xs text-slate-500 mt-1">{workflow.description}</p>
                     )}
-                  </td>
-                  <td className="px-6 py-4">
+                </td>
+                <td className="px-6 py-4">
                     <span className="inline-flex px-2 py-1 text-xs font-medium rounded bg-purple-500/10 text-purple-400 border border-purple-500/30">
                       {workflow.type.replace(/_/g, ' ')}
-                    </span>
-                  </td>
+                  </span>
+                </td>
                   <td className="px-6 py-4 text-sm text-slate-400">
                     {workflow.triggerType === 'scheduled' && workflow.triggerConfig?.schedule ? (
                       <span className="font-mono text-xs">{workflow.triggerConfig.schedule}</span>
@@ -5000,21 +5025,21 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
                         onClick={() => alert('Edit functionality coming soon')}
                         className="px-3 py-1 border border-slate-600 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded"
                       >
-                        Edit
-                      </button>
+                      Edit
+                    </button>
                     )}
                     <button 
                       onClick={() => alert('Test run functionality coming soon')}
                       className="px-3 py-1 border border-slate-600 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded"
                     >
                       Test
-                    </button>
+          </button>
                   </div>
                 </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </tr>
+            ))}
+          </tbody>
+        </table>
         </div>
       )}
 
@@ -5036,14 +5061,14 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
           <p className="text-amber-400 text-xs font-semibold uppercase mb-1">Auto-Reports</p>
           <p className="text-3xl font-bold text-white">0</p>
         </div>
-      </div>
+        </div>
 
       {/* Quick Links */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <button 
+          <button 
           onClick={() => router.push(`/dashboard/alert-rules${currentSite?.id ? `?worksite=${currentSite.id}` : ''}`)}
           className="p-4 bg-slate-800/50 border border-slate-700/50 rounded hover:border-slate-600 transition-colors text-left group"
-        >
+          >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">Alert Rules</p>
@@ -5053,11 +5078,11 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </div>
-        </button>
-        <button 
-          onClick={() => router.push(`/dashboard/sms-notifications${currentSite?.id ? `?worksite=${currentSite.id}` : ''}`)}
+          </button>
+          <button 
+            onClick={() => router.push(`/dashboard/sms-notifications${currentSite?.id ? `?worksite=${currentSite.id}` : ''}`)}
           className="p-4 bg-slate-800/50 border border-slate-700/50 rounded hover:border-slate-600 transition-colors text-left group"
-        >
+          >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">Notification Settings</p>
@@ -5067,11 +5092,11 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </div>
-        </button>
-        <button 
+          </button>
+          <button 
           onClick={() => router.push(`/dashboard/reports${currentSite?.id ? `?worksite=${currentSite.id}` : ''}`)}
           className="p-4 bg-slate-800/50 border border-slate-700/50 rounded hover:border-slate-600 transition-colors text-left group"
-        >
+          >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">Incident Reports</p>
@@ -5081,9 +5106,9 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </div>
-        </button>
-      </div>
-    </div>
+          </button>
+            </div>
+          </div>
   );
 }
 

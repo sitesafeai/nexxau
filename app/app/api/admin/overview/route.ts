@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
             _count: {
               _all: true,
             },
-          }) as Promise<AlertSeverityCount[]>,
+          }),
         [],
         diagnostics
       ),
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
             _count: {
               _all: true,
             },
-          }) as Promise<AlertStatusCount[]>,
+          }),
         [],
         diagnostics
       ),

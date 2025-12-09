@@ -48,7 +48,6 @@ export async function GET(request: NextRequest) {
           name: 'Development User',
           email: 'dev@nexxau.com',
           role: 'SUPER_ADMIN',
-          role: 'SUPER_ADMIN',
           image: null
         }
       });

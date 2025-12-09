@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, email, phone, address } = body;
+    const { name, email, phone, address, companyUsername } = body;
 
     if (!name) {
       return NextResponse.json({
@@ -193,30 +193,60 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for duplicate name
-    const existing = await prisma.company.findFirst({
+    const existingByName = await prisma.company.findFirst({
       where: { name }
     });
 
-    if (existing) {
+    if (existingByName) {
       return NextResponse.json({
         success: false,
         error: 'A company with this name already exists'
       }, { status: 409 });
     }
 
-    // Generate companyUsername from name (URL-friendly)
-    const companyUsername = name
+    // Check for duplicate email if provided
+    if (email) {
+      const existingByEmail = await prisma.company.findUnique({
+        where: { email }
+      });
+
+      if (existingByEmail) {
+        return NextResponse.json({
+          success: false,
+          error: 'A company with this email already exists. Please use a different email address.'
+        }, { status: 409 });
+      }
+    }
+
+    // Check for duplicate username if provided
+    if (companyUsername) {
+      const existingByUsername = await prisma.company.findUnique({
+        where: { companyUsername }
+      });
+
+      if (existingByUsername) {
+        return NextResponse.json({
+          success: false,
+          error: 'A company with this username already exists. Please choose a different username.'
+        }, { status: 409 });
+      }
+    }
+
+    // Generate companyUsername from name if not provided (URL-friendly)
+    let finalUsername = companyUsername;
+    if (!finalUsername) {
+      finalUsername = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
       .substring(0, 50);
 
     // Check if username already exists, append number if needed
-    let finalUsername = companyUsername;
     let counter = 1;
     while (await prisma.company.findUnique({ where: { companyUsername: finalUsername } })) {
-      finalUsername = `${companyUsername}-${counter}`;
+        finalUsername = `${finalUsername}-${counter}`;
       counter++;
+      }
     }
 
     const company = await prisma.company.create({
