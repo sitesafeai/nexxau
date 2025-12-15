@@ -1,11 +1,27 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { Shield, ArrowLeft, Home } from 'lucide-react';
+import { formatRoleLabel } from '../lib/roles';
 
-export default function ForbiddenPage() {
+function ForbiddenPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requiredRole = searchParams.get('requiredRole');
+  const userRole = searchParams.get('userRole');
+
+  const getErrorMessage = () => {
+    if (requiredRole && userRole) {
+      return `This page is only accessible to ${formatRoleLabel(requiredRole)}. You are currently logged in as ${formatRoleLabel(userRole)}.`;
+    } else if (requiredRole) {
+      return `This page is only accessible to ${formatRoleLabel(requiredRole)}.`;
+    } else if (userRole) {
+      return `You don't have permission to access this resource. Your current role is ${formatRoleLabel(userRole)}.`;
+    }
+    return 'You don't have permission to access this resource. Please contact your administrator if you believe this is an error.';
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-6">
@@ -24,8 +40,26 @@ export default function ForbiddenPage() {
           
           {/* Message */}
           <p className="text-slate-300 mb-8">
-            You don't have permission to access this resource. Please contact your administrator if you believe this is an error.
+            {getErrorMessage()}
           </p>
+          
+          {/* Role Information */}
+          {(requiredRole || userRole) && (
+            <div className="mb-6 p-4 bg-slate-700/50 rounded-lg border border-slate-600 text-left">
+              {requiredRole && (
+                <div className="mb-2">
+                  <span className="text-slate-400 text-sm">Required Role: </span>
+                  <span className="text-blue-400 font-semibold">{formatRoleLabel(requiredRole)}</span>
+                </div>
+              )}
+              {userRole && (
+                <div>
+                  <span className="text-slate-400 text-sm">Your Role: </span>
+                  <span className="text-amber-400 font-semibold">{formatRoleLabel(userRole)}</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3">
@@ -47,6 +81,18 @@ export default function ForbiddenPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ForbiddenPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    }>
+      <ForbiddenPageContent />
+    </Suspense>
   );
 }
 

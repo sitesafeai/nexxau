@@ -31,6 +31,33 @@ export async function GET(
           }
         },
         rule: true,
+        camera: {
+          select: {
+            id: true,
+            name: true,
+            location: true
+          }
+        },
+        overrideByUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        overrideAudits: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                email: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        },
         responses: {
           include: {
             user: {
@@ -127,7 +154,26 @@ export async function GET(
       videoClip: metadata?.videoClipUrl ? {
         url: metadata.videoClipUrl,
         duration: metadata.videoClipDuration || 20
-      } : null
+      } : null,
+      override: alert.overrideStatus ? {
+        status: alert.overrideStatus,
+        reason: alert.overrideReason,
+        overriddenBy: alert.overrideByUser ? {
+          name: alert.overrideByUser.name,
+          email: alert.overrideByUser.email
+        } : null,
+        overriddenAt: alert.overrideAt?.toISOString() || null,
+        isTrainingCandidate: alert.isTrainingCandidate,
+        modelVersion: alert.modelVersion
+      } : null,
+      overrideHistory: alert.overrideAudits.map(audit => ({
+        oldStatus: audit.oldStatus,
+        newStatus: audit.newStatus,
+        reason: audit.reason,
+        notes: audit.notes,
+        user: audit.user,
+        timestamp: audit.createdAt.toISOString()
+      }))
     };
 
     // Log report generation

@@ -32,9 +32,8 @@ export const acknowledgeAlertSchema = z.object({
 
 export const alertQuerySchema = paginationSchema.merge(dateRangeSchema).extend({
   worksiteId: z.string().optional(),
-  cameraId: z.string().optional(),
   severity: severitySchema.optional(),
-  status: alertStatusSchema.optional(),
+  status: z.string().optional(), // Allow any string, we'll handle parsing in the route
   source: z.string().optional(),
 });
 

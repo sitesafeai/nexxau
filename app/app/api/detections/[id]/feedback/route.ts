@@ -14,9 +14,11 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    console.log('[API] POST /api/detections/[id]/feedback - Request received');
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
+      console.log('[API] ❌ Unauthorized - No session');
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -24,7 +26,9 @@ export async function POST(
     }
 
     const { id: detectionId } = params;
+    console.log('[API] Detection ID:', detectionId);
     const body = await request.json();
+    console.log('[API] Request body:', body);
 
     // Validate input
     const validationResult = detectionFeedbackSchema.safeParse({
@@ -45,6 +49,7 @@ export async function POST(
 
     const { feedback, note } = validationResult.data;
 
+    console.log('[API] Looking up detection:', detectionId);
     // Check if detection exists
     const detection = await prisma.detection.findUnique({
       where: { id: detectionId },
@@ -64,11 +69,18 @@ export async function POST(
     });
 
     if (!detection) {
+      console.log('[API] ❌ Detection not found:', detectionId);
       return NextResponse.json(
         { success: false, error: 'Detection not found' },
         { status: 404 }
       );
     }
+
+    console.log('[API] ✅ Detection found:', {
+      id: detection.id,
+      cameraId: detection.cameraId,
+      worksiteId: detection.camera?.worksiteId,
+    });
 
     // Check if user has access to this detection's worksite
     const user = await prisma.user.findUnique({
@@ -123,16 +135,93 @@ export async function POST(
       request,
     });
 
-    // If false positive, we might want to trigger model retraining data collection
-    if (feedback === 'false_positive') {
-      // TODO: Queue this detection for model improvement
-      // This could trigger a background job to:
-      // 1. Add to training dataset with correct label
-      // 2. Update model confidence thresholds
-      // 3. Notify ML team for review
-      console.log(`[feedback] False positive marked for detection ${detectionId} - queuing for model improvement`);
+    // Create training report based on feedback type
+    if (feedback === 'false_positive' || feedback === 'true_positive') {
+      try {
+        console.log(`[feedback] Creating ${feedback} report for detection ${detectionId}`);
+        
+        // Find related alert if exists
+        const relatedAlert = await prisma.alert.findFirst({
+          where: {
+            detectionId: detectionId,
+          },
+          select: {
+            id: true,
+            metadata: true,
+          },
+        });
+
+        console.log(`[feedback] Related alert found:`, relatedAlert?.id || 'none');
+
+        // Get video/image URLs from detection metadata or alert metadata
+        const detectionMetadata = detection.metadata as any;
+        const alertMetadata = relatedAlert?.metadata as any;
+        const videoUrl = alertMetadata?.videoClipUrl || detectionMetadata?.videoUrl || null;
+        const imageUrl = detectionMetadata?.snapshotUrl || detectionMetadata?.imageUrl || null;
+
+        console.log(`[feedback] Media URLs - Video: ${videoUrl ? 'yes' : 'no'}, Image: ${imageUrl ? 'yes' : 'no'}`);
+
+        // Determine incident type from detection
+        const detectedObjects = detectionMetadata?.detectedObjects || [];
+        const objectClasses = detectedObjects.map((obj: any) => obj.class).join(', ');
+        const incidentType = objectClasses || detectionMetadata?.type || 'unknown';
+
+        console.log(`[feedback] Incident type: ${incidentType}`);
+
+        const reportData = {
+          alertId: relatedAlert?.id || null,
+          detectionId: detectionId,
+          worksiteId: detection.camera.worksiteId,
+          cameraId: detection.cameraId,
+          reportedBy: session.user.id,
+          description: note || `${feedback === 'false_positive' ? 'False' : 'True'} positive detection: ${objectClasses || 'unknown objects'}`,
+          incidentType: incidentType,
+          videoUrl: videoUrl,
+          imageUrl: imageUrl,
+          timestamp: detection.detectedAt || detection.createdAt,
+          reviewed: false,
+        };
+
+        console.log('[feedback] Report data to create:', JSON.stringify(reportData, null, 2));
+
+        if (feedback === 'false_positive') {
+          try {
+            const report = await prisma.falsePositiveReport.create({
+              data: reportData,
+            });
+            console.log(`[feedback] ✅ False positive report created successfully:`, report.id);
+            console.log(`[feedback] Report details:`, JSON.stringify(report, null, 2));
+          } catch (createError: any) {
+            console.error('[feedback] ❌ Error creating false positive report:', createError);
+            console.error('[feedback] Error details:', createError.message, createError.code);
+            throw createError; // Re-throw to be caught by outer try-catch
+          }
+        } else if (feedback === 'true_positive') {
+          try {
+            const report = await prisma.truePositiveReport.create({
+              data: reportData,
+            });
+            console.log(`[feedback] ✅ True positive report created successfully:`, report.id);
+            console.log(`[feedback] Report details:`, JSON.stringify(report, null, 2));
+          } catch (createError: any) {
+            console.error('[feedback] ❌ Error creating true positive report:', createError);
+            console.error('[feedback] Error details:', createError.message, createError.code);
+            throw createError; // Re-throw to be caught by outer try-catch
+          }
+        }
+      } catch (error: any) {
+        // Log error but don't fail the feedback submission
+        console.error(`[feedback] ❌ Failed to create ${feedback} report:`, error);
+        if (error instanceof Error) {
+          console.error('[feedback] Error message:', error.message);
+          console.error('[feedback] Error stack:', error.stack);
+        }
+        // Still return success for feedback, but log the error
+        // The feedback was recorded, just the report creation failed
+      }
     }
 
+    console.log('[API] ✅ Feedback submitted successfully');
     return NextResponse.json({
       success: true,
       data: {
@@ -143,7 +232,11 @@ export async function POST(
       },
     });
   } catch (error: any) {
-    console.error('[api][detections][feedback] Error:', error);
+    console.error('[API] ❌ [api][detections][feedback] Error:', error);
+    if (error instanceof Error) {
+      console.error('[API] Error message:', error.message);
+      console.error('[API] Error stack:', error.stack);
+    }
     return NextResponse.json(
       {
         success: false,

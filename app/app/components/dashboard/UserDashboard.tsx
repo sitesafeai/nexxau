@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import CameraFeed from '../CameraFeed';
 import { 
   Camera, 
   AlertTriangle, 
@@ -104,6 +105,10 @@ interface SiteCamera {
   lastDetection: string | null;
   uptime24h: number;
   thumbnailUrl?: string;
+  streamUrl?: string;
+  hlsUrl?: string;
+  mediamtxPath?: string;
+  rtspPath?: string;
 }
 
 interface RecentActivity {
@@ -423,10 +428,12 @@ const AlertRow = ({
 const CameraCard = ({ 
   camera,
   onViewLive,
+  onConfigure,
   userRole
 }: {
   camera: SiteCamera;
   onViewLive: () => void;
+  onConfigure?: () => void;
   userRole?: UserRole;
 }) => {
   return (
@@ -476,12 +483,23 @@ const CameraCard = ({
           )}
         </div>
 
-        <button 
-          onClick={onViewLive}
-          className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
-        >
-          View Live
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={onViewLive}
+            className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
+          >
+            View Live
+          </button>
+          {onConfigure && (
+            <button 
+              onClick={onConfigure}
+              className="px-3 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded transition-colors"
+              title="Configure Camera"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -553,6 +571,82 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
   const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
   const [showLiveFeedModal, setShowLiveFeedModal] = useState(false);
   const [selectedCameraForLive, setSelectedCameraForLive] = useState<SiteCamera | null>(null);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [selectedCameraForConfig, setSelectedCameraForConfig] = useState<SiteCamera | null>(null);
+
+  // Handle camera configuration
+  const handleSaveConfiguration = async (formData: any) => {
+    if (!selectedCameraForConfig) return;
+    
+    try {
+      console.log('[UserDashboard] Saving camera config:', selectedCameraForConfig.id, formData);
+      
+      const response = await fetch(`/api/cameras/${selectedCameraForConfig.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      
+      if (response.ok) {
+        setShowConfigModal(false);
+        setSelectedCameraForConfig(null);
+        // Refresh camera data
+        fetchSiteData(true);
+        alert('Camera configuration saved successfully!');
+      } else {
+        const error = await response.json();
+        alert(`Failed to save: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('[UserDashboard] Error saving configuration:', error);
+      alert('Error saving camera configuration');
+    }
+  };
+
+  const handleToggleAI = async (camera: SiteCamera) => {
+    try {
+      await fetch(`/api/cameras/${camera.id}/ai-detection`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !camera.aiEnabled })
+      });
+      fetchSiteData(true);
+    } catch (error) {
+      console.error('Error toggling AI:', error);
+    }
+  };
+
+  // Helper function to get the best available stream URL from camera object
+  const getCameraStreamUrl = (camera: SiteCamera): string | null => {
+    // Priority: hlsUrl > mediamtxPath (generate HLS) > streamUrl > rtspPath (generate HLS)
+    if (camera.hlsUrl) {
+      return camera.hlsUrl;
+    }
+    
+    // If mediamtxPath exists, generate HLS URL
+    if ((camera as any).mediamtxPath) {
+      return `http://localhost:8888/live/${(camera as any).mediamtxPath}/index.m3u8`;
+    }
+    
+    // Use streamUrl if it's an HLS URL or HTTP URL
+    if (camera.streamUrl) {
+      if (camera.streamUrl.includes('.m3u8') || camera.streamUrl.startsWith('http')) {
+        return camera.streamUrl;
+      }
+      // If it's RTSP, try to generate HLS URL from camera ID
+      if (camera.streamUrl.startsWith('rtsp://')) {
+        return `http://localhost:8888/live/camera-${camera.id}/index.m3u8`;
+      }
+    }
+    
+    // If rtspPath exists, try to generate HLS URL
+    if ((camera as any).rtspPath) {
+      const pathName = (camera as any).rtspPath.replace(/^\//, '').replace(/\/$/, '') || `camera-${camera.id}`;
+      return `http://localhost:8888/live/${pathName}/index.m3u8`;
+    }
+    
+    return null;
+  };
 
   // Data Fetching - isBackground flag prevents showing loading state on auto-refresh
   const fetchSiteData = useCallback(async (isBackground = false) => {
@@ -618,6 +712,10 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
           lastDetection: c.lastDetection,
           uptime24h: c.uptime24h ?? 99,
           thumbnailUrl: c.thumbnailUrl,
+          streamUrl: c.streamUrl || null,
+          hlsUrl: c.hlsUrl || null,
+          mediamtxPath: c.mediamtxPath || null,
+          rtspPath: c.rtspPath || null,
         }));
         setCameras(formattedCameras);
       }
@@ -998,6 +1096,36 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
                     setSelectedCameraForLive(camera);
                     setShowLiveFeedModal(true);
                   }}
+                  onConfigure={async () => {
+                    // Fetch full camera details to ensure we have all fields
+                    try {
+                      const response = await fetch(`/api/cameras/${camera.id}`);
+                      if (response.ok) {
+                        const data = await response.json();
+                        const fullCamera = data.camera || data.data || data;
+                        setSelectedCameraForConfig({
+                          ...camera,
+                          ...fullCamera,
+                          zone: fullCamera.zone || fullCamera.location || camera.zone,
+                          location: fullCamera.location || fullCamera.zone || camera.zone,
+                          hlsUrl: fullCamera.hlsUrl || camera.hlsUrl,
+                          streamUrl: fullCamera.streamUrl || camera.streamUrl,
+                          mediamtxPath: fullCamera.mediamtxPath || camera.mediamtxPath,
+                          rtspPath: fullCamera.rtspPath || camera.rtspPath,
+                          aiEnabled: fullCamera.aiEnabled ?? fullCamera.aiDetection ?? camera.aiEnabled,
+                          status: fullCamera.status || camera.status
+                        });
+                      } else {
+                        // Fallback to existing camera data
+                        setSelectedCameraForConfig(camera);
+                      }
+                    } catch (error) {
+                      console.error('Error fetching camera details:', error);
+                      // Fallback to existing camera data
+                      setSelectedCameraForConfig(camera);
+                    }
+                    setShowConfigModal(true);
+                  }}
                   userRole={currentUser?.role}
                 />
               ))}
@@ -1207,32 +1335,18 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
             
             {/* Video Container */}
             <div className="aspect-video bg-black relative">
-              {selectedCameraForLive.streamUrl ? (
+              {getCameraStreamUrl(selectedCameraForLive) ? (
                 <>
-                  {selectedCameraForLive.streamUrl.includes('.m3u8') || selectedCameraForLive.streamUrl.includes('hls') ? (
-                    <video
-                      autoPlay
-                      muted
-                      playsInline
-                      controls
-                      className="w-full h-full object-contain"
-                      src={selectedCameraForLive.streamUrl}
-                    >
-                      <source src={selectedCameraForLive.streamUrl} type="application/x-mpegURL" />
-                    </video>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                      <Camera className="w-16 h-16 text-slate-600 mb-4" />
-                      <p className="text-white font-medium mb-2">RTSP Stream</p>
-                      <p className="text-slate-400 text-sm mb-4">RTSP streams require transcoding to play in browser</p>
-                      <code className="text-xs text-slate-500 bg-slate-800 px-3 py-1 rounded font-mono break-all max-w-md">
-                        {selectedCameraForLive.streamUrl}
-                      </code>
-                    </div>
-                  )}
+                  <CameraFeed
+                    streamUrl={getCameraStreamUrl(selectedCameraForLive) || ''}
+                    cameraId={selectedCameraForLive.id}
+                    autoPlay={true}
+                    enableDetection={selectedCameraForLive.aiEnabled || false}
+                    className="w-full h-full"
+                  />
                   
                   {/* Live indicator */}
-                  <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1 bg-red-600 rounded text-white text-xs font-bold">
+                  <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1 bg-red-600 rounded text-white text-xs font-bold z-10">
                     <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
                     LIVE
                   </div>
@@ -1264,7 +1378,18 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
                   {selectedCameraForLive.aiEnabled ? 'Enabled' : 'Disabled'}
                 </p>
               </div>
-              <div className="flex items-center justify-end">
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setShowLiveFeedModal(false);
+                    setSelectedCameraForLive(null);
+                    setSelectedCameraForConfig(selectedCameraForLive);
+                    setShowConfigModal(true);
+                  }}
+                  className="px-4 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded transition-colors"
+                >
+                  Configure
+                </button>
                 <button
                   onClick={() => {
                     setShowLiveFeedModal(false);
@@ -1279,6 +1404,225 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
           </div>
         </div>
       )}
+
+      {/* Configure Camera Modal */}
+      {showConfigModal && selectedCameraForConfig && (
+        <ConfigureCameraModal
+          camera={selectedCameraForConfig}
+          onClose={() => {
+            setShowConfigModal(false);
+            setSelectedCameraForConfig(null);
+          }}
+          onSave={handleSaveConfiguration}
+          onToggleAI={() => handleToggleAI(selectedCameraForConfig)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Configure Camera Modal Component
+function ConfigureCameraModal({ 
+  camera, 
+  onClose, 
+  onSave, 
+  onToggleAI 
+}: { 
+  camera: any; 
+  onClose: () => void; 
+  onSave: (data: any) => void;
+  onToggleAI: () => void;
+}) {
+  // Initialize form data from camera object, handling both SiteCamera and full camera API response structures
+  const getInitialFormData = () => {
+    const location = camera.location || camera.zone || '';
+    const hlsUrl = camera.hlsUrl || '';
+    const streamUrl = (camera.streamUrl && camera.streamUrl.startsWith('rtsp://')) ? camera.streamUrl : '';
+    const mediamtxPath = camera.mediamtxPath || '';
+    const status = camera.status || 'online';
+    
+    return {
+      name: camera.name || '',
+      location,
+      hlsUrl,
+      streamUrl,
+      mediamtxPath,
+      status
+    };
+  };
+
+  const [formData, setFormData] = useState(getInitialFormData());
+  
+  // Update form data when camera prop changes
+  useEffect(() => {
+    setFormData(getInitialFormData());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [camera?.id, camera?.name, camera?.location, camera?.zone, camera?.hlsUrl, camera?.streamUrl, camera?.mediamtxPath, camera?.status]);
+
+  const handleSubmit = () => {
+    const updateData: any = {
+      name: formData.name,
+      location: formData.location,
+      status: formData.status
+    };
+
+    // Add URLs if they've changed
+    if (formData.hlsUrl && formData.hlsUrl !== camera.hlsUrl) {
+      updateData.hlsUrl = formData.hlsUrl;
+    }
+    if (formData.streamUrl && formData.streamUrl !== camera.streamUrl) {
+      updateData.streamUrl = formData.streamUrl;
+    }
+    if (formData.mediamtxPath && formData.mediamtxPath !== (camera as any).mediamtxPath) {
+      updateData.mediamtxPath = formData.mediamtxPath;
+    }
+
+    onSave(updateData);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="bg-slate-900 rounded-xl w-full max-w-2xl border border-slate-700 shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+          <h3 className="text-xl font-semibold text-white">Configure Camera: {camera.name}</h3>
+          <button
+            onClick={onClose}
+            className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Camera Name</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Location / Description</label>
+            <input
+              type="text"
+              value={formData.location}
+              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              placeholder="e.g., Main Entrance, Zone A, North Building"
+              className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Stream URL (HLS)</label>
+            <input
+              type="text"
+              value={formData.hlsUrl}
+              onChange={(e) => setFormData({ ...formData, hlsUrl: e.target.value })}
+              placeholder="https://example.com/stream.m3u8"
+              className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-slate-500 mt-1">For HLS streams (.m3u8) - browser compatible</p>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">RTSP URL (Optional)</label>
+            <input
+              type="text"
+              value={formData.streamUrl}
+              onChange={(e) => setFormData({ ...formData, streamUrl: e.target.value })}
+              placeholder="rtsp://username:password@192.168.1.100:554/stream"
+              className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-slate-500 mt-1">Requires transcoding service like MediaMTX</p>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">MediaMTX Path (Optional)</label>
+            <input
+              type="text"
+              value={formData.mediamtxPath}
+              onChange={(e) => setFormData({ ...formData, mediamtxPath: e.target.value })}
+              placeholder="camera-path-name"
+              className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-slate-500 mt-1">MediaMTX path name (auto-generates HLS URL: http://localhost:8888/live/{'{path}'}/index.m3u8)</p>
+          </div>
+          
+          <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg">
+            <div>
+              <p className="text-sm font-medium text-white">AI Detection</p>
+              <p className="text-xs text-slate-400">Enable real-time object detection</p>
+            </div>
+            <button
+              onClick={onToggleAI}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                camera.aiEnabled ?? camera.aiDetection ?? false ? 'bg-blue-600' : 'bg-slate-700'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  camera.aiEnabled ?? camera.aiDetection ?? false ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Status</label>
+            <select
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="online">Online</option>
+              <option value="active">Active</option>
+              <option value="offline">Offline</option>
+              <option value="maintenance">Maintenance</option>
+            </select>
+          </div>
+        </div>
+        
+        <div className="px-6 py-4 border-t border-slate-700 flex items-center justify-between">
+          <button
+            onClick={() => {
+              if (confirm(`Are you sure you want to delete camera "${camera.name}"?`)) {
+                fetch(`/api/cameras/${camera.id}`, { method: 'DELETE' })
+                  .then(res => {
+                    if (res.ok) {
+                      alert('Camera deleted successfully');
+                      onClose();
+                      window.location.reload();
+                    } else {
+                      alert('Failed to delete camera');
+                    }
+                  });
+              }
+            }}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            Delete Camera
+          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              Save Changes
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

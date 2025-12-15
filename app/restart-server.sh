@@ -1,33 +1,20 @@
 #!/bin/bash
+# Restart script for Next.js dev server with Prisma client refresh
 
-echo "🔄 Restarting SiteSafe Development Server..."
-echo ""
+echo "🔄 Restarting server with fresh Prisma client..."
 
-# Find and kill existing Next.js processes
-echo "🛑 Stopping existing server..."
-pkill -f "next dev" 2>/dev/null || echo "  No existing server found"
-pkill -f "node.*next" 2>/dev/null
+# Kill any running Next.js processes
+echo "1. Stopping existing server..."
+pkill -f "next dev" 2>/dev/null || echo "   No server running"
 
-# Wait a moment
-sleep 2
-
-echo ""
-echo "🧹 Clearing Next.js cache..."
+# Clear Next.js cache
+echo "2. Clearing Next.js cache..."
 rm -rf .next
-rm -rf node_modules/.cache
 
-echo ""
-echo "🔧 Regenerating Prisma Client..."
-npx prisma generate
+# Regenerate Prisma client
+echo "3. Regenerating Prisma client..."
+npx prisma generate --schema=prisma/schema.prisma > /dev/null 2>&1
 
+echo "✅ Ready to start server!"
 echo ""
-echo "🚀 Starting server on http://localhost:3001..."
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Server will start below. Press Ctrl+C to stop."
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-
-# Start the dev server
-npm run dev
-
+echo "Now run: npm run dev"

@@ -152,10 +152,10 @@ export async function GET(request: NextRequest) {
             id: true,
             location: true, // Include location field
             rule: {
-              select: {
-                name: true,
-                severity: true,
-                description: true
+          select: {
+            name: true,
+            severity: true,
+            description: true
               }
             }
           }

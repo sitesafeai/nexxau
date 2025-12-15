@@ -27,6 +27,10 @@ interface AlertRule {
   actions: string[];
   isActive: boolean;
   createdAt: string;
+  description?: string;
+  severity?: string;
+  ruleType?: string;
+  category?: string;
 }
 
 interface AlertsAndRulesProps {
@@ -59,27 +63,79 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [siteFilter]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
+      const alertsUrl = siteFilter && siteFilter !== 'all' 
+        ? `/api/alerts?status=ACTIVE,ACKNOWLEDGED&limit=100&worksiteId=${siteFilter}`
+        : '/api/alerts?status=ACTIVE,ACKNOWLEDGED&limit=100';
+      
+      // Use the same endpoint as the working alert-rules page
+      const rulesUrl = siteFilter && siteFilter !== 'all'
+        ? `/api/custom-rules?worksiteId=${siteFilter}`
+        : '/api/custom-rules';
+      
       const [alertsRes, rulesRes] = await Promise.all([
-        fetch('/api/alerts?status=active,acknowledged,snoozed&limit=100'),
-        fetch('/api/alert-rules')
+        fetch(alertsUrl),
+        fetch(rulesUrl)
       ]);
 
       if (alertsRes.ok) {
         const data = await alertsRes.json();
         setAlerts(data.data || []);
+      } else {
+        console.error('[AlertsAndRules] Failed to fetch alerts:', alertsRes.status);
       }
 
       if (rulesRes.ok) {
-        const data = await rulesRes.json();
-        setRules(data.data || []);
+        const result = await rulesRes.json();
+        console.log('[AlertsAndRules] Custom rules API response:', result);
+        
+        // Handle both response formats: { success: true, data: [...] } or just [...]
+        const rawRules = result.success ? (result.data || []) : (Array.isArray(result) ? result : []);
+        
+        // Transform CustomRule data to match AlertRule interface expected by the component
+        const transformedRules: AlertRule[] = rawRules.map((rule: any) => {
+          // Extract actions from alertSettings or use defaults
+          const actions = rule.alertSettings?.actions || 
+                         (rule.smsEnabled ? ['send_sms'] : []) +
+                         (rule.emailEnabled ? ['send_email'] : []) +
+                         ['create_alert'];
+          
+          // Format trigger conditions as a readable string
+          const triggerConditions = rule.triggerConditions 
+            ? JSON.stringify(rule.triggerConditions).substring(0, 100) + '...'
+            : rule.detectionCriteria 
+            ? `${rule.detectionCriteria.detectionType || rule.ruleType || 'Custom'} rule`
+            : 'Custom rule';
+          
+          return {
+            id: rule.id,
+            name: rule.name,
+            siteId: rule.worksiteId || '',
+            siteName: rule.worksite?.name || rule.worksite?.worksiteName || 'Unknown Site',
+            cameraIds: rule.cameraId ? [rule.cameraId] : [],
+            triggerConditions,
+            actions: Array.isArray(actions) ? actions : [actions],
+            isActive: rule.isActive !== undefined ? rule.isActive : true,
+            createdAt: rule.createdAt || new Date().toISOString(),
+            description: rule.description,
+            severity: rule.severity,
+            ruleType: rule.ruleType,
+            category: rule.category
+          };
+        });
+        
+        console.log('[AlertsAndRules] Transformed rules:', transformedRules);
+        setRules(transformedRules);
+      } else {
+        const errorData = await rulesRes.json().catch(() => ({}));
+        console.error('[AlertsAndRules] Failed to fetch rules:', rulesRes.status, errorData);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('[AlertsAndRules] Error fetching data:', error);
     } finally {
       setLoading(false);
     }
@@ -173,41 +229,108 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
 
   const handleToggleRule = async (ruleId: string, currentStatus: boolean) => {
     try {
-      await fetch(`/api/alert-rules/${ruleId}`, {
+      console.log('[AlertsAndRules] Toggling rule:', ruleId, 'from', currentStatus, 'to', !currentStatus);
+      const response = await fetch(`/api/custom-rules/${ruleId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !currentStatus })
       });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        console.error('[AlertsAndRules] Failed to toggle rule:', response.status, error);
+        alert(`Failed to update rule status: ${error.error || response.statusText}`);
+        return;
+      }
+
+      const result = await response.json();
+      console.log('[AlertsAndRules] Rule toggled successfully:', result);
+      
+      // Update local state immediately for better UX
+      setRules(prev => prev.map(rule => 
+        rule.id === ruleId 
+          ? { ...rule, isActive: !currentStatus }
+          : rule
+      ));
+      
+      // Refresh data to ensure consistency
       fetchData();
     } catch (error) {
-      console.error('Error toggling rule:', error);
+      console.error('[AlertsAndRules] Error toggling rule:', error);
+      alert('Failed to update rule status. Please try again.');
     }
   };
 
   const handleCloneRule = async (rule: AlertRule) => {
     try {
-      await fetch('/api/alert-rules', {
+      // First fetch the full rule data to clone it properly
+      const response = await fetch(`/api/custom-rules/${rule.id}`);
+      if (!response.ok) {
+        console.error('[AlertsAndRules] Failed to fetch rule for cloning:', response.status);
+        return;
+      }
+
+      const result = await response.json();
+      if (!result.success || !result.data) {
+        console.error('[AlertsAndRules] Invalid rule data for cloning');
+        return;
+      }
+
+      const fullRule = result.data;
+      
+      // Create a clone with a new name
+      const cloneResponse = await fetch('/api/custom-rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...rule,
-          id: undefined,
-          name: `${rule.name} (Copy)`
+          name: `${fullRule.name} (Copy)`,
+          description: fullRule.description,
+          detectionType: fullRule.detectionCriteria?.detectionType || fullRule.ruleType === 'area_monitoring' ? 'zone_violation' : 'object_present',
+          objectClass: fullRule.detectionCriteria?.objectClass,
+          minConfidence: fullRule.confidenceThreshold,
+          severity: fullRule.severity,
+          conditions: fullRule.triggerConditions || {},
+          actions: fullRule.alertSettings?.actions || ['create_alert'],
+          cameraId: fullRule.cameraId,
+          worksiteId: fullRule.worksiteId,
+          zoneCoordinates: fullRule.detectionCriteria?.zoneCoordinates,
+          smsRecipients: fullRule.smsRecipients || [],
+          emailRecipients: fullRule.emailRecipients || [],
         })
       });
+
+      if (!cloneResponse.ok) {
+        const error = await cloneResponse.json().catch(() => ({}));
+        console.error('[AlertsAndRules] Failed to clone rule:', cloneResponse.status, error);
+        alert(`Failed to clone rule: ${error.error || cloneResponse.statusText}`);
+        return;
+      }
+
+      console.log('[AlertsAndRules] Rule cloned successfully');
       fetchData();
     } catch (error) {
-      console.error('Error cloning rule:', error);
+      console.error('[AlertsAndRules] Error cloning rule:', error);
+      alert('Failed to clone rule. Please try again.');
     }
   };
 
   const handleDeleteRule = async (ruleId: string) => {
     if (!confirm('Are you sure you want to delete this rule?')) return;
     try {
-      await fetch(`/api/alert-rules/${ruleId}`, { method: 'DELETE' });
+      const response = await fetch(`/api/custom-rules/${ruleId}`, { method: 'DELETE' });
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        console.error('[AlertsAndRules] Failed to delete rule:', response.status, error);
+        alert(`Failed to delete rule: ${error.error || response.statusText}`);
+        return;
+      }
+
+      console.log('[AlertsAndRules] Rule deleted successfully');
       fetchData();
     } catch (error) {
-      console.error('Error deleting rule:', error);
+      console.error('[AlertsAndRules] Error deleting rule:', error);
+      alert('Failed to delete rule. Please try again.');
     }
   };
 
@@ -437,7 +560,7 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
                 </select>
               </div>
               <button
-                onClick={() => router.push('/dashboard/alert-builder')}
+                onClick={() => router.push(`/dashboard/alert-builder${siteFilter && siteFilter !== 'all' ? `?worksite=${siteFilter}` : ''}`)}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center space-x-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -498,11 +621,12 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
                         <td className="px-4 py-4">
                           <button
                             onClick={() => handleToggleRule(rule.id, rule.isActive)}
-                            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
+                            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors cursor-pointer ${
                               rule.isActive
-                                ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                                : 'bg-slate-500/20 text-slate-400 hover:bg-slate-500/30'
+                                ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30'
+                                : 'bg-slate-500/20 text-slate-400 hover:bg-slate-500/30 border border-slate-500/30'
                             }`}
+                            title={`Click to ${rule.isActive ? 'deactivate' : 'activate'} this rule`}
                           >
                             {rule.isActive ? 'Active' : 'Inactive'}
                           </button>
@@ -510,7 +634,14 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
                         <td className="px-4 py-4">
                           <div className="flex items-center justify-end space-x-1">
                             <button
-                              onClick={() => router.push(`/dashboard/alert-builder?ruleId=${rule.id}`)}
+                              onClick={() => {
+                                const params = new URLSearchParams();
+                                params.set('rule', rule.id);
+                                if (siteFilter && siteFilter !== 'all') {
+                                  params.set('worksite', siteFilter);
+                                }
+                                router.push(`/dashboard/alert-builder?${params.toString()}`);
+                              }}
                               className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
                               title="Edit Rule"
                             >

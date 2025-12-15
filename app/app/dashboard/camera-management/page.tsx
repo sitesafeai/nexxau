@@ -17,9 +17,9 @@ export default function CameraManagementPage() {
     updateCamera, 
     deleteCamera,
     getStats 
-  } = useCameraStore();
+  } = useCameraStore(worksiteId || undefined);
   
-  // Filter cameras by worksite if parameter is provided
+  // Filter cameras by worksite if parameter is provided (additional safety filter)
   const cameras = useMemo(() => {
     if (!worksiteId) return allCameras;
     return allCameras.filter(camera => camera.worksiteId === worksiteId);

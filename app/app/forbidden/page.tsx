@@ -1,10 +1,28 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
+import { formatRoleLabel } from '../lib/roles';
 
-export default function Forbidden() {
+function ForbiddenContent() {
+  const searchParams = useSearchParams();
+  const requiredRole = searchParams.get('requiredRole');
+  const userRole = searchParams.get('userRole');
+
   const handleGoBack = () => {
     window.history.back();
+  };
+
+  const getErrorMessage = () => {
+    if (requiredRole && userRole) {
+      return `This page is only accessible to ${formatRoleLabel(requiredRole)}. You are currently logged in as ${formatRoleLabel(userRole)}.`;
+    } else if (requiredRole) {
+      return `This page is only accessible to ${formatRoleLabel(requiredRole)}.`;
+    } else if (userRole) {
+      return `You don't have permission to access this page. Your current role is ${formatRoleLabel(userRole)}.`;
+    }
+    return 'You don't have permission to access this page.';
   };
 
   return (
@@ -18,16 +36,36 @@ export default function Forbidden() {
           </div>
           <h1 className="mt-4 text-3xl font-bold text-gray-900">Access Denied</h1>
           <p className="mt-2 text-gray-600">
-            You don't have permission to access this page.
+            {getErrorMessage()}
           </p>
         </div>
         
         <div className="mt-8 bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <div className="space-y-4">
+            {/* Role Information */}
+            {(requiredRole || userRole) && (
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                {requiredRole && (
+                  <div className="mb-2">
+                    <span className="text-gray-600 text-sm font-medium">Required Role: </span>
+                    <span className="text-blue-600 font-semibold">{formatRoleLabel(requiredRole)}</span>
+                  </div>
+                )}
+                {userRole && (
+                  <div>
+                    <span className="text-gray-600 text-sm font-medium">Your Role: </span>
+                    <span className="text-amber-600 font-semibold">{formatRoleLabel(userRole)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+            
             <div>
               <h3 className="mt-4 text-lg font-medium text-gray-900 mb-2">Why did this happen?</h3>
               <p className="text-sm text-gray-600">
-                This page requires specific permissions or a different user role than what you currently have.
+                {requiredRole && userRole 
+                  ? `This page requires the ${formatRoleLabel(requiredRole)} role, but you are logged in as ${formatRoleLabel(userRole)}.`
+                  : 'This page requires specific permissions or a different user role than what you currently have.'}
               </p>
             </div>
             
@@ -59,5 +97,17 @@ export default function Forbidden() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Forbidden() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    }>
+      <ForbiddenContent />
+    </Suspense>
   );
 } 

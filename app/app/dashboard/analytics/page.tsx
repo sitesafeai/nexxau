@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, BarChart3, Calendar } from 'lucide-react';
+import { ArrowLeft, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, BarChart3, Calendar, Download } from 'lucide-react';
 
 export default function AnalyticsPage() {
   const router = useRouter();
@@ -318,12 +318,7 @@ export default function AnalyticsPage() {
 
             {/* Export Actions */}
             <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => router.push(`/dashboard?tab=reports${worksiteId ? `&worksite=${worksiteId}` : ''}`)}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
-              >
-                Export Report
-              </button>
+              <ExportButton analytics={analytics} worksiteId={worksiteId} timeRange={timeRange} />
               <button
                 onClick={() => window.print()}
                 className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-semibold transition-colors"
@@ -334,6 +329,221 @@ export default function AnalyticsPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// Export Button Component
+function ExportButton({ analytics, worksiteId, timeRange }: { analytics: any; worksiteId: string; timeRange: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [format, setFormat] = useState<'csv' | 'json' | 'pdf'>('csv');
+
+  const handleExport = async () => {
+    if (!analytics) return;
+    
+    setIsExporting(true);
+    try {
+      if (format === 'csv') {
+        // Generate CSV
+        const csvRows: string[] = [];
+        
+        // Header
+        csvRows.push('Analytics Report');
+        csvRows.push(`Generated: ${new Date().toISOString()}`);
+        csvRows.push(`Time Range: ${timeRange}`);
+        csvRows.push('');
+        
+        // Safety Score
+        csvRows.push('Safety Score');
+        csvRows.push(`Current,${analytics.safetyScore?.current || 0}`);
+        csvRows.push(`Previous,${analytics.safetyScore?.previous || 0}`);
+        csvRows.push(`Trend,${analytics.safetyScore?.trend || 'N/A'}`);
+        csvRows.push('');
+        
+        // Violations
+        csvRows.push('Violations');
+        csvRows.push(`Total,${analytics.violations?.total || 0}`);
+        csvRows.push(`Major,${analytics.violations?.major || 0}`);
+        csvRows.push(`Minor,${analytics.violations?.minor || 0}`);
+        csvRows.push(`Change,${analytics.violations?.change || 0}%`);
+        csvRows.push('');
+        
+        // Violations by Type
+        if (analytics.violationsByType?.length > 0) {
+          csvRows.push('Violations by Type');
+          csvRows.push('Type,Count,Severity');
+          analytics.violationsByType.forEach((v: any) => {
+            csvRows.push(`${v.type},${v.count},${v.severity}`);
+          });
+          csvRows.push('');
+        }
+        
+        // Compliance
+        csvRows.push('Compliance');
+        csvRows.push(`Rate,${analytics.compliance?.rate || 0}%`);
+        csvRows.push(`Change,${analytics.compliance?.change || 0}%`);
+        csvRows.push('');
+        
+        // Cameras
+        csvRows.push('Cameras');
+        csvRows.push(`Total,${analytics.cameras?.total || 0}`);
+        csvRows.push(`Online,${analytics.cameras?.online || 0}`);
+        csvRows.push(`Offline,${analytics.cameras?.offline || 0}`);
+        csvRows.push(`Uptime,${analytics.cameras?.uptime || 0}%`);
+        csvRows.push('');
+        
+        // Alerts
+        csvRows.push('Alerts');
+        csvRows.push(`Total,${analytics.alerts?.total || 0}`);
+        csvRows.push(`Resolved,${analytics.alerts?.resolved || 0}`);
+        csvRows.push(`Pending,${analytics.alerts?.pending || 0}`);
+        csvRows.push(`Avg Response Time,${analytics.alerts?.avgResponseTime || 'N/A'}`);
+        
+        const csvContent = csvRows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `analytics-${worksiteId || 'all'}-${timeRange}-${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+      } else if (format === 'json') {
+        // Generate JSON
+        const jsonData = {
+          generated: new Date().toISOString(),
+          timeRange,
+          worksiteId,
+          analytics
+        };
+        const jsonContent = JSON.stringify(jsonData, null, 2);
+        const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `analytics-${worksiteId || 'all'}-${timeRange}-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+      } else if (format === 'pdf') {
+        // For PDF, we'll create a simple HTML-based PDF
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>Analytics Report</title>
+                <style>
+                  body { font-family: Arial, sans-serif; padding: 20px; }
+                  h1 { color: #333; }
+                  h2 { color: #666; margin-top: 20px; }
+                  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+                  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                  th { background-color: #f2f2f2; }
+                </style>
+              </head>
+              <body>
+                <h1>Analytics Report</h1>
+                <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+                <p><strong>Time Range:</strong> ${timeRange}</p>
+                <p><strong>Worksite ID:</strong> ${worksiteId || 'All'}</p>
+                
+                <h2>Safety Score</h2>
+                <table>
+                  <tr><th>Current</th><td>${analytics.safetyScore?.current || 0}</td></tr>
+                  <tr><th>Previous</th><td>${analytics.safetyScore?.previous || 0}</td></tr>
+                  <tr><th>Trend</th><td>${analytics.safetyScore?.trend || 'N/A'}</td></tr>
+                </table>
+                
+                <h2>Violations</h2>
+                <table>
+                  <tr><th>Total</th><td>${analytics.violations?.total || 0}</td></tr>
+                  <tr><th>Major</th><td>${analytics.violations?.major || 0}</td></tr>
+                  <tr><th>Minor</th><td>${analytics.violations?.minor || 0}</td></tr>
+                  <tr><th>Change</th><td>${analytics.violations?.change || 0}%</td></tr>
+                </table>
+                
+                <h2>Compliance</h2>
+                <table>
+                  <tr><th>Rate</th><td>${analytics.compliance?.rate || 0}%</td></tr>
+                  <tr><th>Change</th><td>${analytics.compliance?.change || 0}%</td></tr>
+                </table>
+                
+                <h2>Cameras</h2>
+                <table>
+                  <tr><th>Total</th><td>${analytics.cameras?.total || 0}</td></tr>
+                  <tr><th>Online</th><td>${analytics.cameras?.online || 0}</td></tr>
+                  <tr><th>Offline</th><td>${analytics.cameras?.offline || 0}</td></tr>
+                  <tr><th>Uptime</th><td>${analytics.cameras?.uptime || 0}%</td></tr>
+                </table>
+                
+                <h2>Alerts</h2>
+                <table>
+                  <tr><th>Total</th><td>${analytics.alerts?.total || 0}</td></tr>
+                  <tr><th>Resolved</th><td>${analytics.alerts?.resolved || 0}</td></tr>
+                  <tr><th>Pending</th><td>${analytics.alerts?.pending || 0}</td></tr>
+                  <tr><th>Avg Response Time</th><td>${analytics.alerts?.avgResponseTime || 'N/A'}</td></tr>
+                </table>
+              </body>
+            </html>
+          `);
+          printWindow.document.close();
+          setTimeout(() => {
+            printWindow.print();
+          }, 250);
+        }
+      }
+      
+      setIsOpen(false);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export analytics. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={isExporting}
+        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <Download className="h-5 w-5" />
+        {isExporting ? 'Exporting...' : 'Export Report'}
+      </button>
+      
+      {isOpen && (
+        <>
+          <div 
+            className="fixed inset-0 z-40" 
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="absolute right-0 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
+            <div className="py-1">
+              <button
+                onClick={() => { setFormat('csv'); handleExport(); }}
+                className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 flex items-center gap-2"
+              >
+                <span>📊 CSV</span>
+              </button>
+              <button
+                onClick={() => { setFormat('json'); handleExport(); }}
+                className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 flex items-center gap-2"
+              >
+                <span>📄 JSON</span>
+              </button>
+              <button
+                onClick={() => { setFormat('pdf'); handleExport(); }}
+                className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 flex items-center gap-2"
+              >
+                <span>📑 PDF</span>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

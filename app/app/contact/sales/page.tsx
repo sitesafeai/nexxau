@@ -31,7 +31,10 @@ export default function SalesContactPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          sourcePage: 'contact/sales',
+        }),
       });
 
       const data = await response.json();

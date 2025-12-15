@@ -58,22 +58,80 @@ export default function CameraManagement({ currentUser, siteFilter }: CameraMana
         const rawCameras = data.success ? (data.data || []) : (data.data || data || []);
         console.log('[CameraManagement] Raw cameras array:', rawCameras.length, 'cameras');
         
+        // Helper function to get the best available stream URL
+        const getStreamUrl = (cam: any): string | null => {
+          // Priority: hlsUrl > mediamtxPath (generate HLS) > streamUrl > rtspPath (generate HLS)
+          if (cam.hlsUrl) {
+            console.log(`[CameraManagement] Camera ${cam.id} using hlsUrl:`, cam.hlsUrl);
+            return cam.hlsUrl;
+          }
+          
+          // If mediamtxPath exists, generate HLS URL
+          if (cam.mediamtxPath) {
+            const hlsUrl = `http://localhost:8888/live/${cam.mediamtxPath}/index.m3u8`;
+            console.log(`[CameraManagement] Camera ${cam.id} generating HLS from mediamtxPath:`, hlsUrl);
+            return hlsUrl;
+          }
+          
+          // Use streamUrl if it's an HLS URL or HTTP URL
+          if (cam.streamUrl) {
+            if (cam.streamUrl.includes('.m3u8') || cam.streamUrl.startsWith('http')) {
+              console.log(`[CameraManagement] Camera ${cam.id} using streamUrl (HLS/HTTP):`, cam.streamUrl);
+              return cam.streamUrl;
+            }
+            // If it's RTSP, try to generate HLS URL from camera ID
+            if (cam.streamUrl.startsWith('rtsp://')) {
+              const hlsUrl = `http://localhost:8888/live/camera-${cam.id}/index.m3u8`;
+              console.log(`[CameraManagement] Camera ${cam.id} has RTSP, trying generated HLS:`, hlsUrl);
+              return hlsUrl;
+            }
+          }
+          
+          // If rtspPath exists, try to generate HLS URL (assuming MediaMTX naming convention)
+          if (cam.rtspPath) {
+            // Try common MediaMTX path patterns
+            const pathName = cam.rtspPath.replace(/^\//, '').replace(/\/$/, '') || `camera-${cam.id}`;
+            const hlsUrl = `http://localhost:8888/live/${pathName}/index.m3u8`;
+            console.log(`[CameraManagement] Camera ${cam.id} generating HLS from rtspPath:`, hlsUrl);
+            return hlsUrl;
+          }
+          
+          console.log(`[CameraManagement] Camera ${cam.id} has no stream URL available. Available fields:`, {
+            hlsUrl: cam.hlsUrl,
+            streamUrl: cam.streamUrl,
+            mediamtxPath: cam.mediamtxPath,
+            rtspPath: cam.rtspPath
+          });
+          return null;
+        };
+
         // Map API response to expected Camera interface
-        const mappedCameras = rawCameras.map((cam: any) => ({
-          id: cam.id,
-          name: cam.name,
-          siteId: cam.worksiteId || cam.siteId || '',
-          siteName: cam.worksite?.name || cam.siteName || 'Unknown Site',
-          status: (cam.status || 'offline').toLowerCase() === 'active' ? 'online' : (cam.status || 'offline').toLowerCase(),
-          aiDetectionEnabled: cam.aiEnabled ?? cam.aiDetectionEnabled ?? true,
-          violations: cam.violationCount ?? cam.violations ?? 0,
-          detections: cam.detectionCount ?? cam.detections ?? 0,
-          lastActivity: cam.lastActivity || cam.updatedAt || 'N/A',
-          streamUrl: cam.streamUrl || cam.hlsUrl || null,
-          hlsUrl: cam.hlsUrl || null,
-        }));
+        const mappedCameras = rawCameras.map((cam: any) => {
+          const streamUrl = getStreamUrl(cam);
+          return {
+            id: cam.id,
+            name: cam.name,
+            siteId: cam.worksiteId || cam.siteId || '',
+            siteName: cam.worksite?.name || cam.siteName || 'Unknown Site',
+            status: (cam.status || 'offline').toLowerCase() === 'active' ? 'online' : (cam.status || 'offline').toLowerCase(),
+            aiDetectionEnabled: cam.aiEnabled ?? cam.aiDetectionEnabled ?? true,
+            violations: cam.violationCount ?? cam.violations ?? 0,
+            detections: cam.detectionCount ?? cam.detections ?? 0,
+            lastActivity: cam.lastActivity || cam.updatedAt || 'N/A',
+            streamUrl: streamUrl || cam.streamUrl || null,
+            hlsUrl: streamUrl || cam.hlsUrl || null,
+          };
+        });
         
         console.log('[CameraManagement] Mapped cameras:', mappedCameras.length, 'cameras');
+        console.log('[CameraManagement] Sample camera data:', mappedCameras[0] ? {
+          id: mappedCameras[0].id,
+          name: mappedCameras[0].name,
+          hasStreamUrl: !!mappedCameras[0].streamUrl,
+          hasHlsUrl: !!mappedCameras[0].hlsUrl,
+          streamUrl: mappedCameras[0].streamUrl,
+          hlsUrl: mappedCameras[0].hlsUrl
+        } : 'No cameras');
         setCameras(mappedCameras);
       } else {
         const errorText = await camerasRes.text();
@@ -434,7 +492,7 @@ export default function CameraManagement({ currentUser, siteFilter }: CameraMana
             
             {/* Video Container */}
             <div className="aspect-video bg-black relative">
-              {selectedCamera.hlsUrl || selectedCamera.streamUrl ? (
+              {(selectedCamera.hlsUrl || selectedCamera.streamUrl) ? (
                 <div className="relative w-full h-full">
                   <CameraFeed
                     streamUrl={selectedCamera.hlsUrl || selectedCamera.streamUrl || ''}

@@ -90,7 +90,9 @@ model User {
   alertRules     AlertRule[]
   // workflows      Workflow[] // Moved to workflow automation section below
   resolvedAlerts Alert[]              @relation("ResolvedAlerts")
+  overriddenAlerts Alert[]            @relation("OverriddenAlerts")
   resolutionLogs AlertResolutionLog[]
+  overrideAudits AlertOverrideAuditLog[]
   blogPosts      BlogPost[]
   mfaCodes       MFACode[]
   apiKeys        ApiKey[]
@@ -297,6 +299,8 @@ model Worksite {
   safetyScoreConfig        SafetyScoreConfig?
   violationClassifications ViolationClassification[]
   worksiteUsers            WorksiteUser[] // Multi-tenant user access
+  falsePositiveReports     FalsePositiveReport[]
+  truePositiveReports      TruePositiveReport[]
   trainingImages           TrainingImage[]
   auditLogs                AuditLog[] // Audit trail for this worksite
 
@@ -367,6 +371,15 @@ model Alert {
   detectionVideo    String? // URL to video clip
   detectionData     Json? // Bounding boxes, confidence scores, detected objects
   
+  // Override tracking for false positives monitoring
+  overrideStatus      String? // null, false_positive, confirmed_violation
+  overrideBy          String? // User ID who overrode
+  overrideByUser      User?   @relation("OverriddenAlerts", fields: [overrideBy], references: [id])
+  overrideAt          DateTime?
+  overrideReason      String? // poor_visibility, occlusion, incorrect_class, ppe_obscured, etc.
+  modelVersion        String? // AI model version that generated the alert
+  isTrainingCandidate Boolean @default(false) // Flag for training dataset inclusion
+  
   rule           AlertRule?           @relation(fields: [ruleId], references: [id])
   ruleId         String?
   worksite       Worksite?            @relation(fields: [worksiteId], references: [id])
@@ -375,6 +388,7 @@ model Alert {
   camera         Camera?              @relation(fields: [cameraId], references: [id])
   responses      AlertResponse[]
   resolutionLogs AlertResolutionLog[]
+  overrideAudits AlertOverrideAuditLog[]
   incidents      Incident[]
   escalations    Escalation[]
   incidentReport IncidentReport?
@@ -393,6 +407,25 @@ model AlertResolutionLog {
   violationType String? // Violation type selected
   duration      Int? // Time from alert trigger to resolution (seconds)
   createdAt     DateTime @default(now())
+}
+
+model AlertOverrideAuditLog {
+  id                    String   @id @default(cuid())
+  alertId               String
+  alert                 Alert    @relation(fields: [alertId], references: [id])
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id])
+  oldStatus             String? // Previous override_status
+  newStatus             String // New override_status (false_positive, confirmed_violation)
+  oldTrainingCandidate  Boolean?
+  newTrainingCandidate  Boolean?
+  reason                String? // Override reason (poor_visibility, occlusion, etc.)
+  notes                 String? // Additional notes
+  createdAt             DateTime @default(now())
+  
+  @@index([alertId])
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model AlertRule {
@@ -544,7 +577,7 @@ model Camera {
   // lastTestAt    DateTime?
   // lastTestOk    Boolean?
   // lastTestError String?
-  lastSnapshot String? // URL to last test snapshot
+  // lastSnapshot String? // URL to last test snapshot - NOT IN DATABASE YET
 
   // Relations
   worksiteId       String
@@ -558,6 +591,8 @@ model Camera {
   ruleViolations   CustomRuleViolation[]
   trainingImages   TrainingImage[]
   alerts           Alert[]
+  falsePositiveReports FalsePositiveReport[]
+  truePositiveReports  TruePositiveReport[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1454,4 +1489,106 @@ model WorkflowTemplate {
 
   @@index([type])
   @@index([category])
+}
+
+// Contact inquiries from website forms
+model ContactInquiry {
+  id          String   @id @default(cuid())
+  name        String
+  email       String
+  company     String?
+  industry    String?
+  message     String
+  sourcePage  String?  // Which page the inquiry came from (home, features, industries, etc.)
+  status      InquiryStatus @default(UNREAD)
+  isRead      Boolean  @default(false)
+  repliedAt   DateTime?
+  resolvedAt  DateTime?
+  notes       String?  // Admin notes
+  assignedTo  String?  // User ID of admin handling this
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("ContactInquiry")
+  @@index([status])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+enum InquiryStatus {
+  UNREAD
+  READ
+  REPLIED
+  RESOLVED
+  ARCHIVED
+}
+
+// False positive reports for AI training
+model FalsePositiveReport {
+  id            String   @id @default(cuid())
+  alertId       String?  // Reference to the alert that was marked as false positive
+  detectionId   String?  // Reference to the detection
+  worksiteId    String?
+  worksite      Worksite? @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  cameraId      String?
+  camera        Camera?   @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+  
+  // Report details
+  reportedBy    String?  // User ID who reported it
+  description   String?  // Description of why it's a false positive
+  incidentType  String?  // Type of false positive (e.g., "hardhat_detected_but_wearing", "zone_breach_false")
+  
+  // Media
+  videoUrl      String?  // URL to video footage
+  imageUrl      String?  // URL to screenshot
+  timestamp     DateTime? // When the false positive occurred
+  
+  // Training metadata
+  reviewed      Boolean  @default(false)
+  reviewedBy    String?  // User ID who reviewed it
+  reviewedAt    DateTime?
+  trainingNotes String?  // Notes for training team
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([worksiteId])
+  @@index([cameraId])
+  @@index([reviewed])
+  @@index([createdAt])
+}
+
+// True positive reports for AI training (confirmed correct detections)
+model TruePositiveReport {
+  id            String   @id @default(cuid())
+  alertId       String?  // Reference to the alert
+  detectionId   String?  // Reference to the detection
+  worksiteId    String?
+  worksite      Worksite? @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  cameraId      String?
+  camera        Camera?   @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+  
+  // Report details
+  reportedBy    String?  // User ID who confirmed it
+  description   String?  // Description or notes
+  incidentType  String?  // Type of detection (e.g., "hardhat_missing", "zone_breach")
+  
+  // Media
+  videoUrl      String?  // URL to video footage
+  imageUrl      String?  // URL to screenshot
+  timestamp     DateTime? // When the detection occurred
+  
+  // Training metadata
+  reviewed      Boolean  @default(false)
+  reviewedBy    String?  // User ID who reviewed it
+  reviewedAt    DateTime?
+  trainingNotes String?  // Notes for training team
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([worksiteId])
+  @@index([cameraId])
+  @@index([reviewed])
+  @@index([createdAt])
 }

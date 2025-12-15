@@ -1,183 +1,143 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../lib/auth';
-import { prisma } from '../../../lib/prisma';
+import { authOptions } from '@/app/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
-    const range = searchParams.get('range') || '24h';
-    const worksiteId = searchParams.get('worksiteId');
+    const worksiteId = searchParams.get('worksiteId') || undefined;
+    const range = searchParams.get('range') || '30d';
 
-    // Calculate date range
     const now = new Date();
-    let startDate: Date;
-    
+    let fromDate: Date | undefined;
     switch (range) {
       case '1h':
-        startDate = new Date(now.getTime() - 60 * 60 * 1000);
+        fromDate = new Date(now.getTime() - 1 * 60 * 60 * 1000);
         break;
       case '24h':
-        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        fromDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         break;
       case '7d':
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
       case '30d':
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        break;
       default:
-        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        fromDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
     }
 
-    const where = {
-      sentAt: { gte: startDate },
-      ...(worksiteId && { worksiteId })
-    };
+    const baseWhere: any = {};
+    if (worksiteId) baseWhere.worksiteId = worksiteId;
+    if (fromDate) baseWhere.sentAt = { gte: fromDate };
 
-    const [
-      totalSent,
-      delivered,
-      failed,
-      undelivered,
-      todaySent,
-      thisWeekSent,
-      thisMonthSent
-    ] = await Promise.all([
-      // Total sent in range
-      prisma.smsNotification.count({ where }),
-      
-      // Delivered
-      prisma.smsNotification.count({
-        where: { ...where, status: 'delivered' }
-      }),
-      
-      // Failed
-      prisma.smsNotification.count({
-        where: { ...where, status: 'failed' }
-      }),
-      
-      // Undelivered
-      prisma.smsNotification.count({
-        where: { ...where, status: 'undelivered' }
-      }),
-      
-      // Today's SMS
-      prisma.smsNotification.count({
-        where: {
-          sentAt: {
-            gte: new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    // Total counts by status
+    const [totalSent, delivered, failed, undelivered, todaySent, thisWeekSent, thisMonthSent] =
+      await Promise.all([
+        prisma.smsNotification.count({ where: baseWhere }),
+        prisma.smsNotification.count({ where: { ...baseWhere, status: 'delivered' } }),
+        prisma.smsNotification.count({ where: { ...baseWhere, status: 'failed' } }),
+        prisma.smsNotification.count({ where: { ...baseWhere, status: 'undelivered' } }),
+        prisma.smsNotification.count({
+          where: {
+            ...baseWhere,
+            sentAt: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
           },
-          ...(worksiteId && { worksiteId })
-        }
-      }),
-      
-      // This week's SMS
-      prisma.smsNotification.count({
-        where: {
-          sentAt: {
-            gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        }),
+        prisma.smsNotification.count({
+          where: {
+            ...baseWhere,
+            sentAt: { gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
           },
-          ...(worksiteId && { worksiteId })
-        }
-      }),
-      
-      // This month's SMS
-      prisma.smsNotification.count({
-        where: {
-          sentAt: {
-            gte: new Date(now.getFullYear(), now.getMonth(), 1)
+        }),
+        prisma.smsNotification.count({
+          where: {
+            ...baseWhere,
+            sentAt: { gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) },
           },
-          ...(worksiteId && { worksiteId })
-        }
-      })
-    ]);
+        }),
+      ]);
 
-    // Get top violation types
-    const topViolationTypes = await prisma.smsNotification.groupBy({
+    // Average delivery time (minutes) for delivered messages
+    const deliveredMessages = await prisma.smsNotification.findMany({
+      where: { ...baseWhere, status: 'delivered', deliveredAt: { not: null } },
+      select: { sentAt: true, deliveredAt: true },
+      take: 1000,
+    });
+
+    let averageDeliveryTime = 0;
+    if (deliveredMessages.length > 0) {
+      const totalMs = deliveredMessages.reduce((sum, msg) => {
+        const sent = msg.sentAt.getTime();
+        const deliveredAt = msg.deliveredAt!.getTime();
+        return sum + (deliveredAt - sent);
+      }, 0);
+      averageDeliveryTime = Math.round((totalMs / deliveredMessages.length / (1000 * 60)) * 10) / 10;
+    }
+
+    // Top violation types by count
+    const violationGroups = await prisma.smsNotification.groupBy({
       by: ['violationType'],
-      where: { 
-        ...where,
-        violationType: { not: null }
-      },
-      _count: { violationType: true },
-      orderBy: { _count: { violationType: 'desc' } },
-      take: 5
-    });
-
-    // Get delivery trend (last 7 days)
-    const deliveryTrend = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      const nextDate = new Date(date.getTime() + 24 * 60 * 60 * 1000);
-      
-      const count = await prisma.smsNotification.count({
-        where: {
-          sentAt: {
-            gte: date,
-            lt: nextDate
-          },
-          ...(worksiteId && { worksiteId })
-        }
-      });
-      
-      deliveryTrend.push({
-        date: date.toISOString().split('T')[0],
-        count
-      });
-    }
-
-    // Calculate average delivery time
-    const deliveredSMS = await prisma.smsNotification.findMany({
       where: {
-        ...where,
-        status: 'delivered',
-        deliveredAt: { not: null }
+        ...baseWhere,
+        violationType: { not: null },
       },
-      select: {
-        sentAt: true,
-        deliveredAt: true
-      }
+      _count: { _all: true },
+      orderBy: { _count: { _all: 'desc' } },
+      take: 10,
     });
 
-    const averageDeliveryTime = deliveredSMS.length > 0 
-      ? Math.round(
-          deliveredSMS.reduce((sum, sms) => {
-            const deliveryTime = sms.deliveredAt!.getTime() - sms.sentAt.getTime();
-            return sum + (deliveryTime / (1000 * 60)); // Convert to minutes
-          }, 0) / deliveredSMS.length
-        )
-      : 0;
+    const topViolationTypes = violationGroups.map(group => ({
+      violationType: group.violationType || 'unknown',
+      count: group._count._all,
+    }));
 
-    const stats = {
-      totalSent,
-      delivered,
-      failed,
-      undelivered,
-      todaySent,
-      thisWeekSent,
-      thisMonthSent,
-      averageDeliveryTime,
-      topViolationTypes: topViolationTypes.map(item => ({
-        violationType: item.violationType,
-        count: item._count.violationType
-      })),
-      deliveryTrend
-    };
+    // Simple delivery trend: counts per day in range
+    const trendMessages = await prisma.smsNotification.findMany({
+      where: baseWhere,
+      select: { sentAt: true },
+      orderBy: { sentAt: 'asc' },
+    });
+
+    const trendMap = new Map<string, number>();
+    trendMessages.forEach(msg => {
+      const key = msg.sentAt.toISOString().slice(0, 10); // YYYY-MM-DD
+      trendMap.set(key, (trendMap.get(key) || 0) + 1);
+    });
+
+    const deliveryTrend = Array.from(trendMap.entries())
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([date, count]) => ({ date, count }));
 
     return NextResponse.json({
       success: true,
-      data: stats
+      data: {
+        totalSent,
+        delivered,
+        failed,
+        undelivered,
+        todaySent,
+        thisWeekSent,
+        thisMonthSent,
+        averageDeliveryTime,
+        topViolationTypes,
+        deliveryTrend,
+      },
     });
-
-  } catch (error) {
-    console.error('Failed to fetch SMS stats:', error);
-    return NextResponse.json({ error: 'Failed to fetch SMS stats' }, { status: 500 });
+  } catch (error: any) {
+    console.error('[SMS Stats API] Error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to fetch SMS statistics',
+        details: error?.message || 'Unknown error',
+      },
+      { status: 500 }
+    );
   }
 }

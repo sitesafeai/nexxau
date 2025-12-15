@@ -25,6 +25,8 @@ export default function CamerasPage() {
   });
   const [cameraKey, setCameraKey] = useState(0);
   const [enableDetection, setEnableDetection] = useState(true);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Debug logging
   console.log('showAddCamera state:', showAddCamera);
@@ -77,6 +79,41 @@ export default function CamerasPage() {
       return !prev;
     });
   }, []);
+
+  const handleTestConnection = async () => {
+    if (!form.rtspUrl && !form.streamUrl) {
+      setTestResult({ success: false, message: 'Please enter a stream URL' });
+      return;
+    }
+
+    setTestingConnection(true);
+    setTestResult(null);
+
+    try {
+      const testUrl = form.rtspUrl || form.streamUrl || '';
+      const response = await fetch(`/api/cameras/test?streamUrl=${encodeURIComponent(testUrl)}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setTestResult({ 
+          success: data.data.accessible, 
+          message: data.data.message || 'Connection test completed' 
+        });
+      } else {
+        setTestResult({ 
+          success: false, 
+          message: data.error || data.details || 'Connection test failed' 
+        });
+      }
+    } catch (error: any) {
+      setTestResult({ 
+        success: false, 
+        message: error.message || 'Failed to test connection' 
+      });
+    } finally {
+      setTestingConnection(false);
+    }
+  };
 
   const handleAddCamera = async () => {
     try {
@@ -601,14 +638,41 @@ export default function CamerasPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Stream URL</label>
-                  <input
-                    type="text"
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="rtsp://user:pass@ip:554/path or https://.../stream.m3u8"
-                    value={form.rtspUrl}
-                    onChange={(e) => setForm((f) => ({ ...f, rtspUrl: e.target.value }))}
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="rtsp://user:pass@ip:554/path or https://.../stream.m3u8"
+                      value={form.rtspUrl}
+                      onChange={(e) => {
+                        setForm((f) => ({ ...f, rtspUrl: e.target.value }));
+                        setTestResult(null); // Clear test result when URL changes
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleTestConnection}
+                      disabled={testingConnection || !form.rtspUrl}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        testingConnection || !form.rtspUrl
+                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                          : 'bg-green-600 hover:bg-green-700 text-white'
+                      }`}
+                      title="Test camera connection"
+                    >
+                      {testingConnection ? 'Testing...' : 'Test'}
+                    </button>
+                  </div>
                   <p className="text-xs text-gray-400 mt-1">For RTSP feeds include credentials in the URL or provide them below.</p>
+                  {testResult && (
+                    <div className={`mt-2 p-2 rounded text-sm ${
+                      testResult.success 
+                        ? 'bg-green-900/50 text-green-300 border border-green-700' 
+                        : 'bg-red-900/50 text-red-300 border border-red-700'
+                    }`}>
+                      {testResult.message}
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>

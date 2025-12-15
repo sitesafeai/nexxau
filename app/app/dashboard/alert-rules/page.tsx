@@ -38,10 +38,29 @@ export default function AlertRulesPage() {
       const rulesRes = await fetch(`/api/custom-rules?worksiteId=${worksiteParam}`);
       if (rulesRes.ok) {
         const data = await rulesRes.json();
+        console.log('[AlertRulesPage] API response:', data);
         const allRules = Array.isArray(data) ? data : (data.data || []);
+        console.log('[AlertRulesPage] All rules:', allRules);
+        console.log('[AlertRulesPage] Filtering for worksiteId:', worksiteParam);
         // Double-check: filter to ensure only rules for this worksite are shown
-        const filteredRules = allRules.filter((rule: any) => rule.worksiteId === worksiteParam);
+        const filteredRules = allRules.filter((rule: any) => {
+          const matches = rule.worksiteId === worksiteParam;
+          if (!matches) {
+            console.log('[AlertRulesPage] Rule filtered out:', {
+              ruleId: rule.id,
+              ruleName: rule.name,
+              ruleWorksiteId: rule.worksiteId,
+              expectedWorksiteId: worksiteParam
+            });
+          }
+          return matches;
+        });
+        console.log('[AlertRulesPage] Filtered rules:', filteredRules);
         setRules(filteredRules);
+      } else {
+        const errorData = await rulesRes.json().catch(() => ({}));
+        console.error('[AlertRulesPage] Failed to fetch rules:', rulesRes.status, errorData);
+        setError(`Failed to load rules: ${errorData.error || rulesRes.statusText}`);
       }
     } catch (err: any) {
       setError(err.message);

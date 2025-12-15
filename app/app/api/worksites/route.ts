@@ -209,6 +209,7 @@ export async function GET(request: NextRequest) {
             worksiteName: worksite.worksiteName,
             address: worksite.address,
             companyId: worksite.companyId,
+            company: worksite.company || null, // Include company data that was merged earlier
             status,
             cameras: worksite._count.cameras,
             alerts: activeAlertsCount,
@@ -229,6 +230,7 @@ export async function GET(request: NextRequest) {
             worksiteName: worksite.worksiteName,
             address: worksite.address,
             companyId: worksite.companyId,
+            company: worksite.company || null, // Include company data that was merged earlier
             status: 'unknown',
             cameras: worksite._count?.cameras ?? 0,
             alerts: 0,

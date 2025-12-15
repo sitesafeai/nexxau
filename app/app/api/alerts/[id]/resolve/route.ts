@@ -3,6 +3,7 @@ import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit';
+import { falsePositiveHandler } from '@/app/lib/workflows/false-positive-handler';
 
 // POST /api/alerts/[id]/resolve - Resolve an alert with full workflow
 export async function POST(
@@ -94,19 +95,67 @@ export async function POST(
 
     // Try to add extended fields if they exist
     try {
+      const updatePayload: any = {
+        ...updateData,
+        resolvedBy: user.id,
+        resolutionType,
+        resolutionNotes: notes || null,
+        fpReason: resolutionType === 'FALSE_POSITIVE' ? fpReason : null,
+        snoozeUntil,
+        workerId: workerId || null,
+        violationType: resolutionType === 'CONFIRMED' ? violationType : null,
+      };
+
+      // Set override_status for false positives and confirmed violations
+      if (resolutionType === 'FALSE_POSITIVE') {
+        updatePayload.overrideStatus = 'false_positive';
+        updatePayload.overrideBy = user.id;
+        updatePayload.overrideAt = new Date();
+        updatePayload.overrideReason = fpReason || null;
+        
+        // Create false positive report for training team
+        try {
+          await falsePositiveHandler.handleFalsePositive(alertId, user.id, {
+            isFalsePositive: true,
+            reason: fpReason || 'Marked as false positive',
+            violationType: alert.violationType || alert.title || undefined,
+          });
+        } catch (fpError) {
+          console.error('Failed to create false positive report:', fpError);
+          // Continue anyway - report creation is important but shouldn't fail the resolution
+        }
+      } else if (resolutionType === 'CONFIRMED') {
+        updatePayload.overrideStatus = 'confirmed_violation';
+        updatePayload.overrideBy = user.id;
+        updatePayload.overrideAt = new Date();
+      }
+
       const updatedAlert = await prisma.alert.update({
         where: { id: alertId },
-        data: {
-          ...updateData,
-          resolvedBy: user.id,
-          resolutionType,
-          resolutionNotes: notes || null,
-          fpReason: resolutionType === 'FALSE_POSITIVE' ? fpReason : null,
-          snoozeUntil,
-          workerId: workerId || null,
-          violationType: resolutionType === 'CONFIRMED' ? violationType : null,
-        }
+        data: updatePayload
       });
+
+      // Create override audit log if override was set
+      if (updatePayload.overrideStatus) {
+        try {
+          const oldAlert = alert as any;
+          await prisma.alertOverrideAuditLog.create({
+            data: {
+              alertId,
+              userId: user.id,
+              oldStatus: oldAlert.overrideStatus || null,
+              newStatus: updatePayload.overrideStatus,
+              oldTrainingCandidate: oldAlert.isTrainingCandidate || false,
+              newTrainingCandidate: body.isTrainingCandidate || false,
+              reason: updatePayload.overrideReason || null,
+              notes: notes || null,
+            }
+          });
+        } catch (auditError) {
+          console.error('Failed to create override audit log:', auditError);
+          // Continue anyway - audit log is optional
+        }
+      }
 
       // Create resolution log entry
       try {

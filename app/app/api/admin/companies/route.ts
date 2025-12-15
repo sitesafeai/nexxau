@@ -14,10 +14,25 @@ export async function GET(request: NextRequest) {
     console.log('[companies API] Starting request...');
     
     // Check authentication
-    const session = await getServerSession(authOptions);
+    let session;
+    try {
+      session = await getServerSession(authOptions);
+    } catch (authError: any) {
+      console.error('[companies API] Auth error:', authError);
+      return NextResponse.json({ 
+        success: false,
+        error: 'Authentication failed', 
+        data: [] 
+      }, { status: 401 });
+    }
+    
     if (!session?.user) {
       console.log('[companies API] No session');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ 
+        success: false,
+        error: 'Unauthorized',
+        data: [] 
+      }, { status: 401 });
     }
 
     console.log('[companies API] Session found, checking role...');
@@ -31,7 +46,12 @@ export async function GET(request: NextRequest) {
       });
     } catch (dbError: any) {
       console.error('[companies API] Database connection error:', dbError);
-      if (dbError?.message?.includes('Can\'t reach database server') || dbError?.code === 'P1001') {
+      console.error('[companies API] Error code:', dbError?.code);
+      console.error('[companies API] Error message:', dbError?.message);
+      if (dbError?.message?.includes('Can\'t reach database server') || 
+          dbError?.code === 'P1001' ||
+          dbError?.code === 'P1000' ||
+          dbError?.name === 'PrismaClientInitializationError') {
         return NextResponse.json({
           success: false,
           error: 'Database connection failed. Please check your database server is running.',
@@ -42,8 +62,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (!user || (user.role?.toUpperCase() !== 'SUPER_ADMIN' && user.role?.toUpperCase() !== 'SUPERADMIN')) {
-      console.log('[companies API] Not super admin');
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      console.log('[companies API] Not super admin, role:', user?.role);
+      return NextResponse.json({ 
+        success: false,
+        error: 'Forbidden',
+        data: [] 
+      }, { status: 403 });
     }
 
     console.log('[companies API] Fetching companies...');
@@ -74,7 +98,12 @@ export async function GET(request: NextRequest) {
       });
     } catch (dbError: any) {
       console.error('[companies API] Database error fetching companies:', dbError);
-      if (dbError?.message?.includes('Can\'t reach database server') || dbError?.code === 'P1001') {
+      console.error('[companies API] Error code:', dbError?.code);
+      console.error('[companies API] Error message:', dbError?.message);
+      if (dbError?.message?.includes('Can\'t reach database server') || 
+          dbError?.code === 'P1001' ||
+          dbError?.code === 'P1000' ||
+          dbError?.name === 'PrismaClientInitializationError') {
         return NextResponse.json({
           success: false,
           error: 'Database connection failed. Please check your database server is running.',
@@ -94,34 +123,55 @@ export async function GET(request: NextRequest) {
       try {
         // Get all worksites for these companies
         const worksites = await prisma.worksite.findMany({
-          where: { companyId: { in: companyIds } },
+          where: { 
+            companyId: { in: companyIds }
+          },
           select: { id: true, companyId: true }
         });
         
         const worksiteIds = worksites.map(w => w.id);
-        const worksiteToCompany = new Map(worksites.map(w => [w.id, w.companyId]));
+        const worksiteToCompany = new Map<string, string | null>();
+        worksites.forEach(w => {
+          if (w.companyId) {
+            worksiteToCompany.set(w.id, w.companyId);
+          }
+        });
         
         if (worksiteIds.length > 0) {
-          // Count cameras per worksite
-          const cameraCounts = await prisma.camera.groupBy({
-            by: ['worksiteId'],
-            where: { worksiteId: { in: worksiteIds } },
-            _count: true
-          });
-          
-          // Aggregate by company
-          cameraCounts.forEach(item => {
-            const companyId = worksiteToCompany.get(item.worksiteId);
-            if (companyId) {
-              cameraCountsMap.set(
-                companyId,
-                (cameraCountsMap.get(companyId) || 0) + item._count
-              );
-            }
-          });
+          try {
+            // Count cameras per worksite using groupBy
+            const cameraCounts = await prisma.camera.groupBy({
+              by: ['worksiteId'],
+              where: { 
+                worksiteId: { in: worksiteIds }
+              },
+              _count: {
+                worksiteId: true
+              }
+            });
+            
+            // Aggregate by company
+            cameraCounts.forEach(item => {
+              if (item.worksiteId) {
+                const companyId = worksiteToCompany.get(item.worksiteId);
+                if (companyId) {
+                  // Access count from _count object
+                  const count = (item._count as any)?.worksiteId || 0;
+                  cameraCountsMap.set(
+                    companyId,
+                    (cameraCountsMap.get(companyId) || 0) + count
+                  );
+                }
+              }
+            });
+          } catch (cameraCountError: any) {
+            console.error('[companies API] Error calculating camera counts:', cameraCountError);
+            // Continue without camera counts rather than failing
+          }
         }
-      } catch (err) {
-        console.error('[companies API] Error calculating camera counts:', err);
+      } catch (err: any) {
+        console.error('[companies API] Error fetching worksites for camera counts:', err);
+        // Continue without camera counts rather than failing
       }
     }
 

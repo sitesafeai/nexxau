@@ -152,20 +152,20 @@ export async function POST(request: NextRequest) {
         ? await tx.cameraHealth.update({
             where: { id: existing.id },
             data: {
-              status,
-              streamQuality,
-              frameRate,
-              resolution,
-              bitrate,
-              latency,
-              errors,
-              lastCheck: now,
-            },
+          status,
+          streamQuality,
+          frameRate,
+          resolution,
+          bitrate,
+          latency,
+          errors,
+          lastCheck: now,
+        },
           })
         : await tx.cameraHealth.create({
             data: {
-              cameraId,
-              status,
+          cameraId,
+          status,
           streamQuality,
           frameRate,
           resolution,

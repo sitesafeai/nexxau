@@ -82,21 +82,56 @@ export async function PATCH(
     const { id } = params;
     const body = await request.json();
 
+    console.log(`[Custom Rules API] PATCH request for rule ${id}:`, body);
+
+    // Build update data - only include fields that are provided
+    const updateData: any = {
+      updatedAt: new Date()
+    };
+
+    // Only update fields that are explicitly provided
+    if (body.isActive !== undefined) {
+      updateData.isActive = body.isActive;
+      console.log(`[Custom Rules API] Updating isActive to: ${body.isActive}`);
+    }
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.description !== undefined) updateData.description = body.description;
+    if (body.severity !== undefined) updateData.severity = body.severity;
+    if (body.confidenceThreshold !== undefined) updateData.confidenceThreshold = body.confidenceThreshold;
+    if (body.smsEnabled !== undefined) updateData.smsEnabled = body.smsEnabled;
+    if (body.emailEnabled !== undefined) updateData.emailEnabled = body.emailEnabled;
+    if (body.dashboardEnabled !== undefined) updateData.dashboardEnabled = body.dashboardEnabled;
+    if (body.smsRecipients !== undefined) updateData.smsRecipients = body.smsRecipients;
+    if (body.emailRecipients !== undefined) updateData.emailRecipients = body.emailRecipients;
+    if (body.triggerConditions !== undefined) updateData.triggerConditions = body.triggerConditions;
+    if (body.alertSettings !== undefined) updateData.alertSettings = body.alertSettings;
+    if (body.detectionCriteria !== undefined) updateData.detectionCriteria = body.detectionCriteria;
+
     const rule = await retryDatabaseOperation(async () => {
       return await prisma.customRule.update({
         where: { id },
-        data: {
-          ...body,
-          updatedAt: new Date()
-        },
+        data: updateData,
         include: {
-          camera: true,
-          worksite: true
+          camera: {
+            select: {
+              id: true,
+              name: true,
+              location: true
+            }
+          },
+          worksite: {
+            select: {
+              id: true,
+              name: true,
+              worksiteName: true
+            }
+          }
         }
       });
     }, 'update-custom-rule');
 
-    logger.info(`Custom rule updated: ${rule.name}`, { ruleId: id });
+    console.log(`[Custom Rules API] Rule ${id} updated successfully. New isActive: ${rule.isActive}`);
+    logger.info(`Custom rule updated: ${rule.name}`, { ruleId: id, isActive: rule.isActive });
 
     // Notify AI service
     notifyAIService(rule, 'update');
@@ -108,9 +143,14 @@ export async function PATCH(
     });
 
   } catch (error) {
+    console.error(`[Custom Rules API] Failed to update rule ${params.id}:`, error);
     logger.error('Failed to update custom rule', { ruleId: params.id }, error as Error);
     return NextResponse.json(
-      { success: false, error: 'Failed to update rule' },
+      { 
+        success: false, 
+        error: 'Failed to update rule',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }

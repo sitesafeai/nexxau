@@ -258,7 +258,17 @@ export function requirePermission(permission: Permission) {
 
       const rbac = RBACManager.getInstance();
       if (!rbac.hasPermission(payload.role, permission)) {
-        return new NextResponse('Forbidden', { status: 403 });
+        const errorMessage = `Forbidden. You don't have permission to access this resource. Your role is ${payload.role}.`;
+        
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Forbidden',
+            message: errorMessage,
+            userRole: payload.role,
+          },
+          { status: 403 }
+        );
       }
 
       return null; // Allow request to proceed

@@ -88,12 +88,24 @@ export class FalsePositiveHandler {
     violationType?: string;
   }): Promise<void> {
     const alert = await prisma.alert.findUnique({
-      where: { id: alertId }
+      where: { id: alertId },
+      include: {
+        camera: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     });
 
     if (!alert) return;
 
-    // Update alert
+    // Update alert (only if not already updated by resolve route)
+    // Check if alert already has overrideStatus set (means it was updated by resolve route)
+    const needsUpdate = !(alert as any).overrideStatus;
+    
+    if (needsUpdate) {
     await prisma.alert.update({
       where: { id: alertId },
       data: {
@@ -111,6 +123,26 @@ export class FalsePositiveHandler {
         } as any
       }
     });
+    } else {
+      // Just update metadata to add false positive info
+      try {
+        await prisma.alert.update({
+          where: { id: alertId },
+          data: {
+            metadata: {
+              ...(alert.metadata as any),
+              falsePositive: true,
+              falsePositiveReason: feedback.reason,
+              falsePositiveBy: userId,
+              falsePositiveAt: new Date().toISOString()
+            } as any
+          }
+        });
+      } catch (metaError) {
+        // Metadata update is optional, continue
+        console.log('[False-Positive] Could not update metadata (may not be supported)');
+      }
+    }
 
     // Log for model improvement
     await prisma.auditLog.create({
@@ -132,6 +164,40 @@ export class FalsePositiveHandler {
         } as any
       }
     });
+
+    // Create FalsePositiveReport for training team
+    try {
+      console.log(`[False-Positive] Creating false positive report for alert ${alertId}`);
+      const alertMetadata = alert.metadata as any;
+      const videoUrl = alertMetadata?.videoClipUrl || null;
+      const imageUrl = alertMetadata?.snapshotUrl || null;
+      const incidentType = feedback.violationType || alert.violationType || 'unknown';
+
+      console.log(`[False-Positive] Alert data - worksiteId: ${alert.worksiteId}, cameraId: ${alert.cameraId}, incidentType: ${incidentType}`);
+      console.log(`[False-Positive] Media URLs - Video: ${videoUrl ? 'yes' : 'no'}, Image: ${imageUrl ? 'yes' : 'no'}`);
+
+      const report = await prisma.falsePositiveReport.create({
+        data: {
+          alertId: alertId,
+          detectionId: alert.detectionId || null,
+          worksiteId: alert.worksiteId,
+          cameraId: alert.cameraId || null,
+          reportedBy: userId,
+          description: feedback.reason || `False positive alert: ${incidentType}`,
+          incidentType: incidentType,
+          videoUrl: videoUrl,
+          imageUrl: imageUrl,
+          timestamp: alert.createdAt,
+          reviewed: false,
+        },
+      });
+
+      console.log(`[False-Positive] ✅ False positive report created successfully:`, report.id);
+    } catch (error: any) {
+      // Log error but don't fail the false positive marking
+      console.error('[False-Positive] ❌ Failed to create false positive report:', error);
+      console.error('[False-Positive] Error details:', error.message, error.stack);
+    }
 
     console.log(`[False-Positive] Alert ${alertId} marked as false positive by ${userId}`);
   }

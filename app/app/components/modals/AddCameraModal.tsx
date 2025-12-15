@@ -212,13 +212,29 @@ export default function AddCameraModal({
       newErrors.worksiteId = 'Worksite is required';
     }
 
-    // Stream URL validation
-    const streamUrl = connection.rtspUrl || connection.hlsUrl;
-    if (!streamUrl && connection.type !== 'S3') {
+    // Stream URL validation - check appropriate URL field based on connection type
+    let streamUrl = '';
+    if (connection.type === 'RTSP' || connection.type === 'RTMP') {
+      streamUrl = connection.rtspUrl;
+    } else if (connection.type === 'HLS' || connection.type === 'PreSignedURL') {
+      streamUrl = connection.hlsUrl;
+    } else if (connection.type === 'WebRTC') {
+      streamUrl = connection.webrtcUrl;
+    } else if (connection.type === 'MJPEG') {
+      streamUrl = connection.rtspUrl; // MJPEG can use rtspUrl field
+    }
+    
+    if (!streamUrl && connection.type !== 'S3' && connection.type !== 'ONVIF') {
       newErrors.streamUrl = 'Stream URL is required';
     } else if (streamUrl) {
       try {
-        new URL(streamUrl.replace('rtsp://', 'http://').replace('rtmp://', 'http://'));
+        // Normalize URL for validation
+        const normalizedUrl = streamUrl
+          .replace('rtsp://', 'http://')
+          .replace('rtmp://', 'http://')
+          .replace('wss://', 'https://')
+          .replace('ws://', 'http://');
+        new URL(normalizedUrl);
       } catch {
         newErrors.streamUrl = 'Invalid URL format';
       }
@@ -247,13 +263,24 @@ export default function AddCameraModal({
   };
 
   const handleTestConnection = async () => {
-    if (!connection.rtspUrl && !connection.hlsUrl) {
+    // Get the appropriate URL based on connection type
+    let streamUrl = '';
+    if (connection.type === 'RTSP' || connection.type === 'RTMP' || connection.type === 'MJPEG') {
+      streamUrl = connection.rtspUrl;
+    } else if (connection.type === 'HLS' || connection.type === 'PreSignedURL') {
+      streamUrl = connection.hlsUrl;
+    } else if (connection.type === 'WebRTC') {
+      streamUrl = connection.webrtcUrl;
+    }
+
+    if (!streamUrl) {
       setErrors({ streamUrl: 'Enter a stream URL to test' });
       return;
     }
 
     setIsTesting(true);
     setTestResult(null);
+    setErrors({});
 
     try {
       const response = await fetch('/api/cameras/test-connection', {
@@ -261,7 +288,7 @@ export default function AddCameraModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: connection.type,
-          url: connection.rtspUrl || connection.hlsUrl,
+          url: streamUrl,
           username: connection.username,
           password: connection.password,
         }),
@@ -290,15 +317,33 @@ export default function AddCameraModal({
   };
 
   const handleSave = async (addAnother: boolean = false) => {
-    if (!validateForm()) return;
+    console.log('[AddCameraModal] handleSave called, addAnother:', addAnother);
+    
+    // Validate form first
+    if (!validateForm()) {
+      console.log('[AddCameraModal] Validation failed');
+      return;
+    }
 
     // Check if test passed or admin override
-    if (!testResult?.ok && !acceptWithoutTest) {
+    // Only require test for RTSP/RTMP connections, allow others without test
+    const requiresTest = ['RTSP', 'RTMP'].includes(connection.type);
+    if (requiresTest && !testResult?.ok && !acceptWithoutTest) {
+      console.log('[AddCameraModal] Test required but not passed');
       setErrors({ test: 'Test connection first, or check "Add without test"' });
+      // Scroll to error
+      setTimeout(() => {
+        const errorElement = document.querySelector('[data-test-error]');
+        if (errorElement) {
+          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
       return;
     }
 
     setIsSaving(true);
+    setErrors({}); // Clear previous errors
+    
     try {
       const camera: Camera = {
         id: editCamera?.id,
@@ -313,15 +358,37 @@ export default function AddCameraModal({
         confidenceThreshold,
       };
 
+      console.log('[AddCameraModal] Saving camera:', camera);
       await onSave(camera);
+      console.log('[AddCameraModal] Camera saved successfully');
+
+      // Reset form state
+      setIsDirty(false);
+      setTestResult(null);
+      setAcceptWithoutTest(false);
 
       if (addAnother) {
+        console.log('[AddCameraModal] Resetting form for another camera');
         resetForm();
+        // Scroll to top of modal
+        const modalContent = document.querySelector('[data-modal-content]');
+        if (modalContent) {
+          modalContent.scrollTo({ top: 0, behavior: 'smooth' });
+        }
       } else {
+        console.log('[AddCameraModal] Closing modal');
         onClose();
       }
     } catch (error: any) {
+      console.error('[AddCameraModal] Save error:', error);
       setErrors({ save: error.message || 'Failed to save camera' });
+      // Scroll to error
+      setTimeout(() => {
+        const errorElement = document.querySelector('[data-save-error]');
+        if (errorElement) {
+          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
     } finally {
       setIsSaving(false);
     }
@@ -429,9 +496,26 @@ export default function AddCameraModal({
                 </label>
                 <input
                   type="text"
-                  value={connection.rtspUrl}
+                  value={
+                    connection.type === 'RTSP' || connection.type === 'RTMP' || connection.type === 'MJPEG'
+                      ? connection.rtspUrl
+                      : connection.type === 'HLS' || connection.type === 'PreSignedURL'
+                      ? connection.hlsUrl
+                      : connection.type === 'WebRTC'
+                      ? connection.webrtcUrl
+                      : connection.rtspUrl
+                  }
                   onChange={e => {
-                    updateConnection('rtspUrl', e.target.value);
+                    const value = e.target.value;
+                    if (connection.type === 'RTSP' || connection.type === 'RTMP' || connection.type === 'MJPEG') {
+                      updateConnection('rtspUrl', value);
+                    } else if (connection.type === 'HLS' || connection.type === 'PreSignedURL') {
+                      updateConnection('hlsUrl', value);
+                    } else if (connection.type === 'WebRTC') {
+                      updateConnection('webrtcUrl', value);
+                    } else {
+                      updateConnection('rtspUrl', value);
+                    }
                     setIsDirty(true);
                   }}
                   placeholder={CONNECTION_TYPES.find(t => t.value === connection.type)?.placeholder}
@@ -898,9 +982,14 @@ export default function AddCameraModal({
           </div>
 
           {/* Errors */}
-          {(errors.test || errors.save) && (
-            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-              <p className="text-sm text-red-400">{errors.test || errors.save}</p>
+          {errors.test && (
+            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" data-test-error>
+              <p className="text-sm text-red-400">{errors.test}</p>
+            </div>
+          )}
+          {errors.save && (
+            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg" data-save-error>
+              <p className="text-sm text-red-400">{errors.save}</p>
             </div>
           )}
         </div>

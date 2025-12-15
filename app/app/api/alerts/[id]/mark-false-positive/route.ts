@@ -23,6 +23,30 @@ export async function POST(
     const body = await request.json();
     const { reason, zone, violationType } = body;
 
+    // Get the alert first
+    const alert = await prisma.alert.findUnique({
+      where: { id: params.id }
+    });
+
+    if (!alert) {
+      return NextResponse.json(
+        { success: false, error: 'Alert not found' },
+        { status: 404 }
+      );
+    }
+
+    // Set overrideStatus on the alert
+    await prisma.alert.update({
+      where: { id: params.id },
+      data: {
+        overrideStatus: 'false_positive',
+        overrideBy: session.user.id,
+        overrideAt: new Date(),
+        overrideReason: reason || null,
+      }
+    });
+
+    // Create false positive report via handler
     await falsePositiveHandler.handleFalsePositive(params.id, session.user.id, {
       isFalsePositive: true,
       reason,

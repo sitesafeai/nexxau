@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { prisma } from '@/app/lib/prisma';
 import { normalizeRole } from '@/app/lib/roles';
+import { checkRole } from '@/app/lib/api-helpers';
 
 type AlertStatusCount = {
   status: string;
@@ -64,10 +65,22 @@ async function safeQuery<T>(
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  const role = normalizeRole(session?.user?.role);
 
-  if (!session || role !== 'SUPER_ADMIN') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!session?.user) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Unauthorized',
+        message: 'You must be logged in to access this resource.',
+      },
+      { status: 401 }
+    );
+  }
+
+  // Check if user has required role
+  const roleCheck = checkRole(session.user.role, 'SUPER_ADMIN', 'access this page');
+  if (roleCheck) {
+    return roleCheck;
   }
 
   try {

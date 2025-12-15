@@ -26,12 +26,15 @@ export default function DetectionFeedback({
   const handleFeedback = async (feedbackType: 'true_positive' | 'false_positive' | 'needs_review') => {
     if (submitting) return;
     
+    console.log('[DetectionFeedback] Starting feedback submission:', { detectionId, feedbackType, note });
     setSubmitting(true);
     setError(null);
     setSuccess(false);
 
     try {
-      const response = await fetch(`/api/detections/${detectionId}/feedback`, {
+      const url = `/api/detections/${detectionId}/feedback`;
+      console.log('[DetectionFeedback] Fetching:', url);
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -42,12 +45,16 @@ export default function DetectionFeedback({
         }),
       });
 
+      console.log('[DetectionFeedback] Response status:', response.status);
       const data = await response.json();
+      console.log('[DetectionFeedback] Response data:', data);
 
       if (!response.ok || !data.success) {
+        console.error('[DetectionFeedback] ❌ API error:', data);
         throw new Error(data.error || 'Failed to submit feedback');
       }
 
+      console.log('[DetectionFeedback] ✅ Feedback submitted successfully');
       setFeedback(feedbackType);
       setSuccess(true);
       setShowNoteInput(false);
@@ -60,7 +67,8 @@ export default function DetectionFeedback({
       // Clear success message after 2 seconds
       setTimeout(() => setSuccess(false), 2000);
     } catch (err: any) {
-      console.error('[DetectionFeedback] Error:', err);
+      console.error('[DetectionFeedback] ❌ Error:', err);
+      console.error('[DetectionFeedback] Error details:', err.message, err.stack);
       setError(err?.message || 'Failed to submit feedback');
     } finally {
       setSubmitting(false);

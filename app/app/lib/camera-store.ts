@@ -55,49 +55,126 @@ class CameraStore {
     if (this.initialized) return;
     this.initialized = true;
     
-    try {
-      // Try to fetch from API (will be filtered by worksite when called with ID)
-      await this.fetchCamerasForWorksite();
-    } catch (error) {
-      console.error('Failed to fetch cameras from API:', error);
-      // No fallback - show empty state
-      this.cameras = [];
-      this.notifyListeners();
-    }
+    // Don't load cameras on initialization - wait for explicit worksiteId
+    // This prevents loading all cameras when no worksite is selected
+    console.log('[CameraStore] Initialized - cameras will be loaded when worksiteId is provided');
+    this.cameras = [];
+    this.loading = false;
+    this.notifyListeners();
   }
 
   async fetchCamerasForWorksite(worksiteId?: string) {
+    // Don't fetch if worksiteId is explicitly undefined/null
+    // This prevents loading all cameras when we don't have a worksite selected
+    if (worksiteId === undefined || worksiteId === null) {
+      console.log('[CameraStore] Skipping fetch - worksiteId is undefined/null');
+      this.loading = false;
+      this.cameras = [];
+      this.notifyListeners();
+      return;
+    }
+    
     this.loading = true;
     try {
-      const url = worksiteId 
-        ? `/api/cameras?worksiteId=${worksiteId}`
-        : '/api/cameras';
+      const url = `/api/cameras?worksiteId=${worksiteId}`;
       
+      console.log('[CameraStore] Fetching cameras from:', url);
       const response = await fetch(url, {
-        credentials: 'include'
+        credentials: 'include',
+        cache: 'no-store' // Ensure we get fresh data
       });
       
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        let errorMessage = `API error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          console.error('[CameraStore] API error response:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData.error,
+            details: errorData.details,
+            debug: errorData.debug
+          });
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch (e) {
+          // If we can't parse the error response, just use the status
+          console.error('[CameraStore] API error (could not parse response):', response.status, response.statusText);
+        }
+        
+        // Don't throw - just set empty array and log the error
+        // This prevents the app from crashing when API has issues
+        console.warn('[CameraStore] ⚠️ Failed to fetch cameras, using empty array');
+        this.cameras = [];
+        this.loading = false;
+        this.notifyListeners();
+        return;
       }
 
       const result = await response.json();
+      console.log('[CameraStore] API response:', { 
+        success: result.success, 
+        dataLength: result.data?.length || result.length || 0,
+        worksiteId 
+      });
       
-      if (result.success && Array.isArray(result.data)) {
-        this.cameras = result.data.map((cam: any) => ({
+      // Handle both response formats: { success: true, data: [...] } or { data: [...] }
+      const camerasData = result.success && Array.isArray(result.data) 
+        ? result.data 
+        : Array.isArray(result.data) 
+        ? result.data 
+        : Array.isArray(result) 
+        ? result 
+        : [];
+      
+      console.log('[CameraStore] Parsed cameras data:', camerasData.length, 'cameras');
+      
+      // Remove duplicates by ID
+      const uniqueCameras = camerasData.filter((cam: any, index: number, self: any[]) => 
+        index === self.findIndex((c: any) => c.id === cam.id)
+      );
+      
+      console.log('[CameraStore] After deduplication:', uniqueCameras.length, 'unique cameras');
+      
+      if (uniqueCameras.length > 0) {
+        // If worksiteId is provided, filter cameras to only those for that worksite
+        let filteredCameras = uniqueCameras;
+        if (worksiteId) {
+          const beforeFilter = uniqueCameras.length;
+          filteredCameras = uniqueCameras.filter((cam: any) => {
+            const matches = cam.worksiteId === worksiteId;
+            if (!matches && beforeFilter <= 5) {
+              // Only log if we have few cameras (to avoid spam)
+              console.log('[CameraStore] Camera', cam.id.substring(0, 10) + '...', cam.name, 'worksiteId:', cam.worksiteId, '≠ requested:', worksiteId);
+            }
+            return matches;
+          });
+          console.log('[CameraStore] Filtered from', beforeFilter, 'to', filteredCameras.length, 'cameras for worksite', worksiteId);
+          
+          if (filteredCameras.length === 0 && beforeFilter > 0) {
+            const availableWorksiteIds = [...new Set(uniqueCameras.map((c: any) => c.worksiteId))];
+            console.warn('[CameraStore] ⚠️ No cameras match worksiteId', worksiteId);
+            console.warn('[CameraStore] Available worksiteIds in fetched cameras:', availableWorksiteIds);
+            console.warn('[CameraStore] This means either:');
+            console.warn('[CameraStore]   1. No cameras exist for this worksite');
+            console.warn('[CameraStore]   2. The API filter is not working correctly');
+            console.warn('[CameraStore]   3. Cameras were created with a different worksiteId');
+          }
+        }
+        
+        this.cameras = filteredCameras.map((cam: any) => ({
           id: cam.id,
           name: cam.name,
-          location: cam.location,
-          streamUrl: cam.streamUrl,
-          streamType: cam.streamType,
-          status: cam.status,
-          resolution: cam.resolution,
-          fps: cam.fps,
-          lastActivity: cam.lastActivity,
-          minutesSinceActivity: cam.minutesSinceActivity,
-          detectionCount: cam.detectionCount,
-          violationCount: cam.violationCount,
-          features: cam.features,
+          location: cam.location || cam.metadata?.notes || 'Unspecified',
+          streamUrl: cam.streamUrl || cam.hlsUrl,
+          streamType: cam.streamType || (cam.hlsUrl ? 'hls' : 'rtsp'),
+          status: cam.status || 'pending',
+          resolution: cam.resolution || '1920x1080',
+          fps: cam.fps || 30,
+          lastActivity: cam.lastActivity || cam.createdAt,
+          minutesSinceActivity: cam.minutesSinceActivity || 0,
+          detectionCount: cam.detectionCount || 0,
+          violationCount: cam.violationCount || 0,
+          features: cam.features || { aiDetection: true, nightVision: false, ptz: false, audio: false },
           worksiteId: cam.worksiteId,
           worksite: cam.worksite,
           createdAt: cam.createdAt,
@@ -105,17 +182,29 @@ class CameraStore {
           hasVideo: true,
           alerts: cam.violationCount || 0
         }));
-        console.log('📹 Loaded', this.cameras.length, 'cameras from API');
+        console.log('📹 Loaded', this.cameras.length, 'cameras from API (worksite:', worksiteId || 'all', ')');
+        console.log('📹 Camera IDs:', this.cameras.map(c => c.id));
+        console.log('📹 Camera names:', this.cameras.map(c => c.name));
+        console.log('📹 Camera worksiteIds:', this.cameras.map(c => c.worksiteId));
       } else {
-        // If no cameras in DB, use demo cameras
-        this.cameras = DEFAULT_CAMERAS;
-        console.log('📹 Using demo cameras (no cameras in database)');
+        // If no cameras in DB, use empty array (don't use demo cameras)
+        this.cameras = [];
+        console.log('📹 No cameras found in database for worksite:', worksiteId || 'all');
       }
       
       this.notifyListeners();
-    } catch (error) {
-      console.error('Error fetching cameras from API:', error);
-      throw error;
+      console.log('📹 Notified', this.listeners.size, 'listeners');
+    } catch (error: any) {
+      console.error('[CameraStore] Error fetching cameras from API:', error);
+      console.error('[CameraStore] Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name
+      });
+      // Don't throw - just set empty array to prevent app crash
+      this.cameras = [];
+      this.loading = false;
+      this.notifyListeners();
     } finally {
       this.loading = false;
     }
@@ -163,33 +252,82 @@ class CameraStore {
       const result = await response.json();
       
       if (result.success && result.data) {
-        const newCamera: Camera = {
-          id: result.data.id,
-          name: result.data.name,
-          location: result.data.location,
-          streamUrl: result.data.streamUrl,
-          streamType: result.data.streamType,
-          status: result.data.status,
-          resolution: result.data.resolution,
-          fps: result.data.fps,
-          lastActivity: result.data.lastActivity,
-          minutesSinceActivity: result.data.minutesSinceActivity,
-          detectionCount: result.data.detectionCount,
-          violationCount: result.data.violationCount,
-          features: result.data.features,
-          worksiteId: result.data.worksiteId,
-          worksite: result.data.worksite,
-          createdAt: result.data.createdAt,
-          updatedAt: result.data.updatedAt,
-          hasVideo: true,
-          alerts: 0
-        };
-
-        this.cameras.push(newCamera);
-        this.notifyListeners();
+        // Instead of pushing, refresh the entire list to avoid duplicates
+        // This ensures we have the latest data from the server
+        // Use retry logic with increasing delays to handle transaction isolation
+        const createdCameraId = result.data.id;
+        const createdCameraName = result.data.name;
+        const targetWorksiteId = camera.worksiteId;
         
-        console.log('✅ Added camera to database:', newCamera.name);
-        return newCamera;
+        console.log('[CameraStore] Camera created successfully:', {
+          id: createdCameraId,
+          name: createdCameraName,
+          worksiteId: targetWorksiteId
+        });
+        
+        // Retry with increasing delays: 500ms, 1000ms, 2000ms
+        const retryDelays = [500, 1000, 2000];
+        let newCamera: any = null;
+        
+        for (let attempt = 0; attempt < retryDelays.length; attempt++) {
+          if (attempt > 0) {
+            console.log(`[CameraStore] Retry attempt ${attempt + 1}/${retryDelays.length}, waiting ${retryDelays[attempt]}ms...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]));
+          } else {
+            // First attempt with minimal delay
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          
+          console.log(`[CameraStore] Refreshing cameras for worksite (attempt ${attempt + 1}):`, targetWorksiteId);
+          await this.fetchCamerasForWorksite(targetWorksiteId);
+          console.log('[CameraStore] After refresh, found', this.cameras.length, 'cameras');
+          
+          // Find the newly created camera
+          newCamera = this.cameras.find((cam: any) => 
+            cam.id === createdCameraId || 
+            (cam.name === createdCameraName && cam.worksiteId === targetWorksiteId)
+          );
+          
+          if (newCamera) {
+            console.log(`[CameraStore] ✅ Found newly created camera on attempt ${attempt + 1}:`, newCamera.name);
+            break;
+          } else {
+            console.warn(`[CameraStore] ⚠️ Camera not found in store after attempt ${attempt + 1}`);
+            if (this.cameras.length > 0) {
+              console.warn('[CameraStore] Available cameras in store:', this.cameras.map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                worksiteId: c.worksiteId
+              })));
+            }
+          }
+        }
+        
+        if (!newCamera) {
+          console.error('[CameraStore] ❌ Camera not found after all retry attempts');
+          console.error('[CameraStore] Created camera ID:', createdCameraId);
+          console.error('[CameraStore] Created camera name:', createdCameraName);
+          console.error('[CameraStore] Target worksiteId:', targetWorksiteId);
+          console.error('[CameraStore] Cameras in store:', this.cameras.length);
+          
+          // Last resort: try fetching all cameras and filtering client-side
+          console.log('[CameraStore] Attempting fallback: fetching all cameras and filtering client-side...');
+          await this.fetchCamerasForWorksite(); // Fetch all cameras
+          newCamera = this.cameras.find((cam: any) => 
+            cam.id === createdCameraId || 
+            (cam.name === createdCameraName && cam.worksiteId === targetWorksiteId)
+          );
+          
+          if (newCamera) {
+            console.log('[CameraStore] ✅ Found camera using fallback method');
+            // Filter to target worksite for consistency
+            await this.fetchCamerasForWorksite(targetWorksiteId);
+          } else {
+            console.error('[CameraStore] ❌ Camera still not found even with fallback method');
+          }
+        }
+        
+        return newCamera || null;
       }
       
       return null;
@@ -373,18 +511,44 @@ export function useCameraStore(worksiteId?: string) {
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
+    // Don't load cameras if worksiteId is undefined/null
+    // This prevents loading all cameras when currentSite is not yet available
+    if (!worksiteId) {
+      console.log('[useCameraStore] Skipping camera load - worksiteId is undefined/null');
+      // Clear cameras immediately to prevent showing cameras from other worksites
+      setCameras([]);
+      setLoading(false);
+      // Clear the store to prevent stale data
+      cameraStore.cameras = [];
+      cameraStore.notifyListeners();
+      return;
+    }
+    
+    // Clear cameras first to prevent showing stale data from previous worksite
+    setCameras([]);
+    setLoading(true);
+    
     // Load cameras for specific worksite
     const loadCameras = async () => {
+      console.log('[useCameraStore] Loading cameras for worksite:', worksiteId);
       await cameraStore.fetchCamerasForWorksite(worksiteId);
-      setCameras(cameraStore.getCameras());
+      const loadedCameras = cameraStore.getCameras();
+      // Filter to ensure we only show cameras for this worksite (safety check)
+      const filteredCameras = loadedCameras.filter((c: any) => c.worksiteId === worksiteId);
+      console.log('[useCameraStore] Loaded', filteredCameras.length, 'cameras for worksite', worksiteId);
+      setCameras(filteredCameras);
       setLoading(cameraStore.isLoading());
     };
     
     loadCameras();
 
-    // Subscribe to changes
+    // Subscribe to changes - but filter to only show cameras for this worksite
     const unsubscribe = cameraStore.subscribe(() => {
-      setCameras(cameraStore.getCameras());
+      const updatedCameras = cameraStore.getCameras();
+      // Always filter by worksiteId to prevent showing cameras from other worksites
+      const filteredCameras = updatedCameras.filter((c: any) => c.worksiteId === worksiteId);
+      console.log('[useCameraStore] Store updated, cameras count:', filteredCameras.length, 'for worksite', worksiteId);
+      setCameras(filteredCameras);
       setLoading(cameraStore.isLoading());
     });
 
@@ -422,7 +586,7 @@ export function useCameraStore(worksiteId?: string) {
     updateStatus: (id: string, status: Camera['status']) => cameraStore.updateCameraStatus(id, status),
     updateHealth: (id: string, healthData: any) => cameraStore.updateCameraHealth(id, healthData),
     refreshCamera: (id: string) => cameraStore.refreshCamera(id),
-    refreshCameras: () => cameraStore.refreshCameras(),
+    refreshCameras: (worksiteId?: string) => cameraStore.refreshCameras(worksiteId),
     getStats: () => cameraStore.getStats()
   };
 }

@@ -62,7 +62,8 @@ export default function AlertBuilderPage() {
   // Load existing rule if in edit mode & detect return URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const editId = urlParams.get('edit');
+    // Support both 'edit' and 'rule' URL parameters
+    const editId = urlParams.get('edit') || urlParams.get('rule');
     const from = urlParams.get('from');
     const worksite = urlParams.get('worksite');
     
@@ -74,11 +75,14 @@ export default function AlertBuilderPage() {
       setReturnUrl(`/dashboard?tab=alerts${wsParam ? `&${wsParam}` : ''}`);
     } else if (from === 'custom-rules') {
       setReturnUrl(`/dashboard/custom-rules${wsParam ? `?${wsParam}` : ''}`);
+    } else if (from === 'alert-rules') {
+      setReturnUrl(`/dashboard/alert-rules${wsParam ? `?${wsParam}` : ''}`);
     } else {
       setReturnUrl(`/dashboard${wsParam ? `?${wsParam}` : ''}`);
     }
     
     if (editId) {
+      console.log('[AlertBuilder] Loading rule for editing:', editId);
       setIsEditMode(true);
       setEditingRuleId(editId);
       loadRuleData(editId);
@@ -88,44 +92,139 @@ export default function AlertBuilderPage() {
   const loadRuleData = async (ruleId: string) => {
     setLoading(true);
     try {
+      console.log('[AlertBuilder] Fetching rule data for:', ruleId);
       const response = await fetch(`/api/custom-rules/${ruleId}`, {
         credentials: 'include'
       });
 
       if (response.ok) {
         const result = await response.json();
+        console.log('[AlertBuilder] API response:', result);
+        
         if (result.success && result.data) {
           const rule = result.data;
+          console.log('[AlertBuilder] Rule data received:', rule);
           
+          // Parse JSON fields if they're strings
+          const parseJsonField = (field: any, defaultValue: any = null) => {
+            if (!field) return defaultValue;
+            if (typeof field === 'string') {
+              try {
+                return JSON.parse(field);
+              } catch {
+                return defaultValue;
+              }
+            }
+            return field;
+          };
+
+          // Extract actions from alertSettings
+          let actions = rule.alertSettings?.actions || 
+                         (rule.alertSettings && typeof rule.alertSettings === 'object' 
+                           ? (Array.isArray(rule.alertSettings.actions) 
+                               ? rule.alertSettings.actions 
+                               : ['create_alert'])
+                           : ['create_alert']);
+          
+          // Ensure actions array includes send_sms/send_email if those are enabled
+          if (rule.smsEnabled && !actions.includes('send_sms')) {
+            actions.push('send_sms');
+          }
+          if (rule.emailEnabled && !actions.includes('send_email')) {
+            actions.push('send_email');
+          }
+          
+          // Always include create_alert if not present
+          if (!actions.includes('create_alert')) {
+            actions = ['create_alert', ...actions];
+          }
+
+          // Parse recipients - handle both array and JSON string
+          const smsRecipients = parseJsonField(rule.smsRecipients, []);
+          const emailRecipients = parseJsonField(rule.emailRecipients, []);
+          
+          // Parse schedule/timeConstraints
+          let schedule = {
+            enabled: false,
+            workHoursOnly: true,
+            startTime: '08:00',
+            endTime: '18:00',
+            days: [1, 2, 3, 4, 5]
+          };
+          
+          if (rule.timeConstraints) {
+            const timeConstraints = parseJsonField(rule.timeConstraints, {});
+            schedule = {
+              enabled: timeConstraints.enabled || false,
+              workHoursOnly: timeConstraints.workHoursOnly !== false,
+              startTime: timeConstraints.startTime || '08:00',
+              endTime: timeConstraints.endTime || '18:00',
+              days: timeConstraints.days || [1, 2, 3, 4, 5]
+            };
+          }
+
+          // Parse zone coordinates
+          const zoneCoordinates = parseJsonField(
+            rule.detectionCriteria?.zoneCoordinates, 
+            null
+          );
+
+          // Parse zone object triggers
+          const zoneObjectTriggers = parseJsonField(
+            rule.triggerConditions?.zoneObjectTriggers || 
+            rule.detectionCriteria?.zoneObjectTriggers,
+            ['person_standing']
+          );
+
           // Pre-fill form with existing rule data
-          setFormData({
+          const newFormData = {
             name: rule.name || '',
             description: rule.description || '',
-            detectionType: rule.detectionCriteria?.detectionType || 'object_present',
+            detectionType: rule.detectionCriteria?.detectionType || 
+                          (rule.ruleType === 'area_monitoring' ? 'zone_violation' : 'object_present'),
             objectClass: rule.detectionCriteria?.objectClass || 'person_without_hardhat',
             minConfidence: rule.confidenceThreshold || 0.7,
-            severity: rule.severity || 'high',
-            actions: rule.alertSettings?.actions || ['create_alert'],
+            severity: (rule.severity || 'high').toLowerCase(),
+            actions: Array.isArray(actions) ? actions : ['create_alert'],
             cameraId: rule.cameraId || '',
-            zoneCoordinates: rule.detectionCriteria?.zoneCoordinates || null,
-            zoneName: rule.triggerConditions?.zoneName || '',
-            zoneType: rule.triggerConditions?.zoneType || 'restricted',
-            zoneObjectTriggers: rule.triggerConditions?.zoneObjectTriggers || ['person_standing'],
-            smsRecipients: rule.smsRecipients || [],
-            emailRecipients: rule.emailRecipients || [],
-            schedule: rule.timeConstraints || {
-              enabled: false,
-              workHoursOnly: true,
-              startTime: '08:00',
-              endTime: '18:00',
-              days: [1, 2, 3, 4, 5]
-            }
-          });
+            zoneCoordinates: zoneCoordinates,
+            zoneName: rule.triggerConditions?.zoneName || 
+                     rule.detectionCriteria?.zoneName || 
+                     '',
+            zoneType: (rule.triggerConditions?.zoneType || 
+                      rule.detectionCriteria?.zoneType || 
+                      'restricted') as 'restricted' | 'safe' | 'monitored',
+            zoneObjectTriggers: Array.isArray(zoneObjectTriggers) ? zoneObjectTriggers : ['person_standing'],
+            smsRecipients: Array.isArray(smsRecipients) ? smsRecipients : [],
+            emailRecipients: Array.isArray(emailRecipients) ? emailRecipients : [],
+            schedule: schedule
+          };
+
+          console.log('[AlertBuilder] Setting form data:', newFormData);
+          setFormData(newFormData);
+          
+          // Set appropriate step based on rule data
+          // If it's a zone violation with coordinates, show zone step
+          // Otherwise start from step 1 so user can review/edit all fields
+          if (newFormData.detectionType === 'zone_violation' && zoneCoordinates) {
+            // Zone already exists, show zone step
+            setStep(2.5);
+          } else {
+            // Start from step 1 so all fields are visible and editable
+            setStep(1);
+          }
+        } else {
+          console.error('[AlertBuilder] Invalid API response:', result);
+          setErrorMessage('Failed to load rule: Invalid response format');
         }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[AlertBuilder] API error:', response.status, errorData);
+        setErrorMessage(`Failed to load rule: ${errorData.error || response.statusText}`);
       }
     } catch (error) {
-      console.error('Failed to load rule:', error);
-      setErrorMessage('Failed to load rule data');
+      console.error('[AlertBuilder] Failed to load rule:', error);
+      setErrorMessage('Failed to load rule data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -153,6 +252,7 @@ export default function AlertBuilderPage() {
         actions: formData.actions,
         severity: formData.severity,
         cameraId: formData.cameraId || null,
+        worksiteId: worksiteParam || null, // Include worksiteId from URL parameter
         zoneCoordinates: formData.zoneCoordinates,
         smsRecipients: formData.smsRecipients,
         emailRecipients: formData.emailRecipients
@@ -483,6 +583,14 @@ export default function AlertBuilderPage() {
                             zoneType: zone.type
                           });
                         }}
+                        existingZones={formData.zoneCoordinates && formData.zoneName ? [{
+                          name: formData.zoneName,
+                          points: formData.zoneCoordinates,
+                          color: formData.zoneType === 'restricted' ? 'rgba(239, 68, 68, 0.3)' : 
+                                 formData.zoneType === 'safe' ? 'rgba(16, 185, 129, 0.3)' : 
+                                 'rgba(59, 130, 246, 0.3)',
+                          type: formData.zoneType
+                        }] : []}
                         className="absolute inset-0"
                       />
                     </div>

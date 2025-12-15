@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import Hls from 'hls.js';
+import CameraFeed from '@/app/components/CameraFeed';
 
 interface Camera {
   id: string;
@@ -97,7 +97,6 @@ export default function CameraMonitoringPage() {
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
 
   // Fetch camera data
   useEffect(() => {
@@ -142,66 +141,52 @@ export default function CameraMonitoringPage() {
     }
   }, [cameraId]);
 
-  // Initialize HLS player
+  // Get stream URL helper
+  const getStreamUrl = useCallback(() => {
+    if (!camera) return null;
+    
+    // Helper function to get the best available stream URL
+    if (camera.hlsUrl) return camera.hlsUrl;
+    if (camera.connection?.hlsUrl) return camera.connection.hlsUrl;
+    if (camera.mediamtxPath) return `http://localhost:8888/live/${camera.mediamtxPath}/index.m3u8`;
+    if (camera.streamUrl) {
+      if (camera.streamUrl.includes('.m3u8') || camera.streamUrl.startsWith('http')) return camera.streamUrl;
+      if (camera.streamUrl.startsWith('rtsp://')) return `http://localhost:8888/live/camera-${camera.id}/index.m3u8`;
+    }
+    if (camera.rtspPath) {
+      const pathName = camera.rtspPath.replace(/^\//, '').replace(/\/$/, '') || `camera-${camera.id}`;
+      return `http://localhost:8888/live/${pathName}/index.m3u8`;
+    }
+    return null;
+  }, [camera]);
+
+  // Handle video play/pause state from CameraFeed
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !camera) return;
+    if (!video) return;
 
-    const streamUrl = camera.connection?.hlsUrl || camera.hlsUrl || camera.streamUrl;
-    
-    if (!streamUrl) {
-      console.log('No stream URL available');
-      return;
-    }
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
 
-    // Check if HLS is supported
-    if (streamUrl.includes('.m3u8')) {
-      if (Hls.isSupported()) {
-        const hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-        });
-        hls.loadSource(streamUrl);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          if (isPlaying) video.play().catch(() => {});
-        });
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          console.error('HLS error:', data);
-          if (data.fatal) {
-            setError('Stream error: ' + data.type);
-          }
-        });
-        hlsRef.current = hls;
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = streamUrl;
-        if (isPlaying) video.play().catch(() => {});
-      }
-    } else {
-      // Direct video URL
-      video.src = streamUrl;
-      if (isPlaying) video.play().catch(() => {});
-    }
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('pause', handlePause);
 
     return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
+      video.removeEventListener('play', handlePlay);
+      video.removeEventListener('pause', handlePause);
     };
-  }, [camera, isPlaying]);
+  }, []);
 
-  // Handle video controls
+  // Toggle play/pause
   const togglePlay = () => {
     const video = videoRef.current;
     if (!video) return;
     
-    if (isPlaying) {
-      video.pause();
+    if (video.paused) {
+      video.play().catch(err => console.log('Play failed:', err));
     } else {
-      video.play().catch(() => {});
+      video.pause();
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleSnapshot = async () => {
@@ -375,12 +360,24 @@ export default function CameraMonitoringPage() {
             {/* Video Container */}
             <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
               <div className="relative aspect-video bg-black">
-                <video
-                  ref={videoRef}
-                  className="w-full h-full object-contain"
-                  muted={volume === 0}
-                  playsInline
-                />
+                {getStreamUrl() ? (
+                  <CameraFeed
+                    ref={videoRef}
+                    streamUrl={getStreamUrl() || ''}
+                    cameraId={camera.id}
+                    autoPlay={true}
+                    enableDetection={camera.aiEnabled && showOverlays}
+                    className="w-full h-full"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                    <svg className="w-20 h-20 text-slate-700 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    <p className="text-white font-medium mb-2">No Stream Available</p>
+                    <p className="text-slate-400 text-sm mb-4">This camera does not have a configured stream URL.</p>
+                  </div>
+                )}
                 
                 {/* Live Badge */}
                 {isLive && (

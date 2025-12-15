@@ -11,18 +11,31 @@ export async function GET(request: NextRequest) {
     const cameraId = searchParams.get('cameraId');
     const worksiteId = searchParams.get('worksiteId');
 
+    console.log('[Custom Rules API] Query params:', { activeOnly, worksiteId, cameraId });
+    
     const rules = await retryDatabaseOperation(async () => {
+      const whereClause: any = {};
+      
+      if (activeOnly) {
+        whereClause.isActive = true;
+      }
+      
+      if (worksiteId) {
+        whereClause.worksiteId = worksiteId;
+        console.log('[Custom Rules API] Filtering by worksiteId:', worksiteId);
+      }
+      
+      if (cameraId) {
+        whereClause.OR = [
+          { cameraId },
+          { cameraId: null } // Global rules
+        ];
+      }
+      
+      console.log('[Custom Rules API] Where clause:', JSON.stringify(whereClause, null, 2));
+      
       return await prisma.customRule.findMany({
-        where: {
-          ...(activeOnly ? { isActive: true } : {}),
-          ...(worksiteId ? { worksiteId } : {}), // Filter by worksiteId if provided
-          ...(cameraId ? { 
-            OR: [
-              { cameraId },
-              { cameraId: null } // Global rules
-            ]
-          } : {})
-        },
+        where: whereClause,
         include: {
           camera: {
             select: {
@@ -82,8 +95,17 @@ export async function GET(request: NextRequest) {
       updatedAt: rule.updatedAt.toISOString()
     }));
 
+    console.log('[Custom Rules API] Found rules:', formattedRules.length);
+    console.log('[Custom Rules API] Rules details:', formattedRules.map(r => ({
+      id: r.id,
+      name: r.name,
+      worksiteId: r.worksiteId,
+      isActive: r.isActive
+    })));
+    
     logger.info(`Fetched ${formattedRules.length} custom rules`, { 
       activeOnly, 
+      worksiteId: worksiteId || undefined,
       cameraId: cameraId || undefined 
     });
 

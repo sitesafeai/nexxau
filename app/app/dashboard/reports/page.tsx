@@ -114,16 +114,24 @@ export default function ReportsPage() {
         case 'safety':
           // Fetch safety violations
           const violationsRes = await fetch(`/api/safety-violations?worksiteId=${worksiteParam}&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`);
-          const violations = violationsRes.ok ? await violationsRes.json() : [];
+          let violations = [];
+          if (violationsRes.ok) {
+            const violationsData = await violationsRes.json();
+            violations = violationsData.success ? (violationsData.data || []) : (violationsData.data || violationsData || []);
+          }
           
           // Fetch safety score
-          const scoreRes = await fetch(`/api/safety-score/${worksiteParam}`);
-          const scoreData = scoreRes.ok ? await scoreRes.json() : null;
+          const scoreRes = await fetch(`/api/safety-score?worksiteId=${worksiteParam}&date=${new Date().toISOString().split('T')[0]}`);
+          let scoreData = null;
+          if (scoreRes.ok) {
+            const scoreResData = await scoreRes.json();
+            scoreData = scoreResData.success ? scoreResData.data : scoreResData;
+          }
           
           reportContent = {
             type: 'safety',
-            violations: violations.data || violations || [],
-            safetyScore: scoreData?.score || null,
+            violations: violations,
+            safetyScore: scoreData?.safetyScore || scoreData?.overall || scoreData?.score || null,
             dateRange: { start: startDate, end: endDate }
           };
           break;
@@ -131,11 +139,15 @@ export default function ReportsPage() {
         case 'alerts':
           // Fetch alerts
           const alertsRes = await fetch(`/api/alerts?worksiteId=${worksiteParam}&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`);
-          const alertsData = alertsRes.ok ? await alertsRes.json() : [];
+          let alerts = [];
+          if (alertsRes.ok) {
+            const alertsData = await alertsRes.json();
+            alerts = alertsData.success ? (alertsData.data || []) : (Array.isArray(alertsData) ? alertsData : (alertsData.data || []));
+          }
           
           reportContent = {
             type: 'alerts',
-            alerts: Array.isArray(alertsData) ? alertsData : (alertsData.data || []),
+            alerts: alerts,
             dateRange: { start: startDate, end: endDate }
           };
           break;
@@ -143,11 +155,15 @@ export default function ReportsPage() {
         case 'cameras':
           // Fetch camera health data
           const camerasRes = await fetch(`/api/cameras?worksiteId=${worksiteParam}`);
-          const camerasData = camerasRes.ok ? await camerasRes.json() : [];
+          let cameras = [];
+          if (camerasRes.ok) {
+            const camerasData = await camerasRes.json();
+            cameras = Array.isArray(camerasData) ? camerasData : (camerasData.data || camerasData.success ? camerasData.data : []);
+          }
           
           reportContent = {
             type: 'cameras',
-            cameras: Array.isArray(camerasData) ? camerasData : (camerasData.data || []),
+            cameras: cameras,
             dateRange: { start: startDate, end: endDate }
           };
           break;
@@ -157,18 +173,34 @@ export default function ReportsPage() {
           const complianceRes = await Promise.all([
             fetch(`/api/safety-violations?worksiteId=${worksiteParam}&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`),
             fetch(`/api/alerts?worksiteId=${worksiteParam}&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`),
-            fetch(`/api/safety-score/${worksiteParam}`)
+            fetch(`/api/safety-score?worksiteId=${worksiteParam}&date=${new Date().toISOString().split('T')[0]}`)
           ]);
           
-          const [violationsData, alertsData2, scoreData2] = await Promise.all(
-            complianceRes.map(r => r.ok ? r.json() : null)
-          );
+          const [violationsRes2, alertsRes2, scoreRes2] = complianceRes;
+          let violations2 = [];
+          let alerts2 = [];
+          let scoreData2 = null;
+          
+          if (violationsRes2.ok) {
+            const violationsData = await violationsRes2.json();
+            violations2 = violationsData.success ? (violationsData.data || []) : (violationsData.data || violationsData || []);
+          }
+          
+          if (alertsRes2.ok) {
+            const alertsData = await alertsRes2.json();
+            alerts2 = alertsData.success ? (alertsData.data || []) : (Array.isArray(alertsData) ? alertsData : (alertsData.data || []));
+          }
+          
+          if (scoreRes2.ok) {
+            const scoreResData = await scoreRes2.json();
+            scoreData2 = scoreResData.success ? scoreResData.data : scoreResData;
+          }
           
           reportContent = {
             type: 'compliance',
-            violations: violationsData?.data || violationsData || [],
-            alerts: Array.isArray(alertsData2) ? alertsData2 : (alertsData2?.data || []),
-            safetyScore: scoreData2?.score || null,
+            violations: violations2,
+            alerts: alerts2,
+            safetyScore: scoreData2?.safetyScore || scoreData2?.overall || scoreData2?.score || null,
             dateRange: { start: startDate, end: endDate }
           };
           break;

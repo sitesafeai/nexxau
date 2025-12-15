@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { checkRole } from '@/app/lib/api-helpers';
 
 type DiagnosticsEntry = {
   scope: string;
@@ -37,6 +40,21 @@ async function safeQuery<T>(
  */
 export async function GET(request: NextRequest) {
   try {
+    // Check authentication
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Check if user has required role (SUPER_ADMIN)
+    const roleCheck = checkRole(session.user.role, 'SUPER_ADMIN', 'access admin cameras');
+    if (roleCheck) {
+      return roleCheck;
+    }
+
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get('companyId') || undefined;
     const worksiteId = searchParams.get('worksiteId') || undefined;
@@ -70,6 +88,13 @@ export async function GET(request: NextRequest) {
       console.log(`[admin][cameras] Filtering by companyId: ${companyId}`);
     } else {
       console.log(`[admin][cameras] No filters - returning all cameras`);
+      // When no filters, show all cameras - don't add any where clause
+    }
+    
+    // Debug: Log total camera count in database (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      const totalCameraCount = await prisma.camera.count().catch(() => 0);
+      console.log(`[admin][cameras] Total cameras in database: ${totalCameraCount}`);
     }
 
     const diagnostics: DiagnosticsEntry[] = [];

@@ -94,7 +94,7 @@ export default function GlobalDashboard({ currentUser }: GlobalDashboardProps) {
         systemStatusRes
       ] = await Promise.all([
         fetch('/api/admin/global-stats'),
-        fetch('/api/alerts?limit=10&severity=high&status=active'),
+        fetch('/api/alerts?limit=10&severity=HIGH&status=ACTIVE'),
         fetch('/api/cameras?includeHealth=true'),
         fetch('/api/admin/system-status')
       ]);

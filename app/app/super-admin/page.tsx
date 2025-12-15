@@ -62,6 +62,8 @@ import {
   Activity as ActivityIcon
 } from 'lucide-react';
 import { useAuth } from '@/app/lib/use-auth';
+import ContactInquiriesTab from '@/app/components/admin/ContactInquiriesTab';
+import FalsePositivesTab from '@/app/components/FalsePositivesTab';
 type ClassValue = string | false | null | undefined;
 const classNames = (...classes: ClassValue[]) => classes.filter(Boolean).join(' ');
 
@@ -1203,6 +1205,8 @@ const NAVIGATION = [
   { key: 'users', label: 'Users & Roles', icon: Users },
   { key: 'reports', label: 'Reports & Analytics', icon: FileBarChart2 },
   { key: 'ai', label: 'AI & Detection', icon: Cpu },
+  { key: 'false-positives', label: 'False Positives', icon: AlertTriangle },
+  { key: 'inquiries', label: 'Contact Inquiries', icon: Mail },
   { key: 'settings', label: 'System Settings', icon: Settings },
   { key: 'support', label: 'Support & Audit Logs', icon: LifeBuoy },
   { key: 'extras', label: 'Labs & Feature Flags', icon: Layers3 },
@@ -1238,6 +1242,7 @@ export default function SuperAdminDashboardPage() {
   const [camerasError, setCamerasError] = useState<string | null>(null);
   const [selectedCamerasCompany, setSelectedCamerasCompany] = useState<string>('ALL');
   const [selectedCamerasWorksite, setSelectedCamerasWorksite] = useState<string>('ALL');
+  
   const [selectedCamera, setSelectedCamera] = useState<AdminCameraSummary | null>(null);
   const [billingData, setBillingData] = useState<BillingCompanySummary[] | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
@@ -1630,10 +1635,15 @@ export default function SuperAdminDashboardPage() {
         selectedCamerasWorksite !== 'ALL' ? selectedCamerasWorksite : undefined;
       
       // Fetch both cameras and worksites for the cameras section
+      // When no filters are selected, show all cameras (pass undefined)
       fetchCameras(companyId, worksiteId, controller.signal).catch(
-        () => undefined
+        (err) => {
+          console.error('[super-admin] Error fetching cameras:', err);
+        }
       );
-      fetchWorksites(companyId, controller.signal).catch(() => undefined);
+      fetchWorksites(companyId, controller.signal).catch((err) => {
+        console.error('[super-admin] Error fetching worksites:', err);
+      });
       
       return () => controller.abort();
     }
@@ -1961,6 +1971,10 @@ export default function SuperAdminDashboardPage() {
             ]}
           />
         );
+      case 'false-positives':
+        return <FalsePositivesTab />;
+      case 'inquiries':
+        return <ContactInquiriesTab />;
       case 'reports':
         return (
           <ReportsSection
@@ -3212,40 +3226,40 @@ function CompanyCard({ company, onClick }: { company: AdminCompanySummary; onCli
 
   const content = (
     <>
-      <div className="group block rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 transition hover:border-blue-500/60 hover:bg-slate-900/80">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <h3 className="text-xl font-semibold text-white group-hover:text-blue-300 truncate">
-              {company.name}
-            </h3>
-            {company.email && (
-              <p className="mt-1 text-sm text-slate-400 truncate">{company.email}</p>
-            )}
-            {company.address && (
-              <p className="mt-1 text-xs text-slate-500 truncate">{company.address}</p>
-            )}
-          </div>
-          <span className="flex-shrink-0 rounded-full bg-slate-800 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+    <div className="group block rounded-2xl border border-slate-800/70 bg-slate-900/60 p-6 transition hover:border-blue-500/60 hover:bg-slate-900/80">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <h3 className="text-xl font-semibold text-white group-hover:text-blue-300 truncate">
+            {company.name}
+          </h3>
+          {company.email && (
+            <p className="mt-1 text-sm text-slate-400 truncate">{company.email}</p>
+          )}
+          {company.address && (
+            <p className="mt-1 text-xs text-slate-500 truncate">{company.address}</p>
+          )}
+        </div>
+        <span className="flex-shrink-0 rounded-full bg-slate-800 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
             {company.worksiteCount ?? 0} sites
           </span>
-        </div>
+      </div>
 
-        <div className="mt-6 grid grid-cols-3 gap-4">
-          <CompanyStat label="Worksites" value={company.worksiteCount ?? 0} />
-          <CompanyStat label="Users" value={company.userCount ?? 0} />
-          <CompanyStat label="Cameras" value={company.cameraCount ?? 0} />
-        </div>
+      <div className="mt-6 grid grid-cols-3 gap-4">
+        <CompanyStat label="Worksites" value={company.worksiteCount ?? 0} />
+        <CompanyStat label="Users" value={company.userCount ?? 0} />
+        <CompanyStat label="Cameras" value={company.cameraCount ?? 0} />
+      </div>
 
-        <div className="mt-6 flex items-center justify-between text-xs text-slate-500">
-          <span>Created {createdDisplay}</span>
-          <span>{createdRelative}</span>
+      <div className="mt-6 flex items-center justify-between text-xs text-slate-500">
+        <span>Created {createdDisplay}</span>
+        <span>{createdRelative}</span>
+      </div>
+      
+      {company.phone && (
+        <div className="mt-3 text-xs text-slate-500">
+          {company.phone}
         </div>
-        
-        {company.phone && (
-          <div className="mt-3 text-xs text-slate-500">
-            {company.phone}
-          </div>
-        )}
+      )}
 
         <div className="mt-4 flex gap-2">
           <button
@@ -3254,7 +3268,7 @@ function CompanyCard({ company, onClick }: { company: AdminCompanySummary; onCli
           >
             Manage
           </button>
-        </div>
+    </div>
       </div>
 
       {/* Company Management Modal */}
@@ -4905,16 +4919,32 @@ function CamerasSection({
 
       {!loading && (!cameras || cameras.length === 0) && !error && (
         <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-10 text-center text-slate-300">
+          <Video className="mx-auto h-12 w-12 text-slate-600 mb-4" />
           <p className="text-lg font-semibold text-white">No cameras found</p>
           <p className="mt-2 text-sm text-slate-400">
-            Assign cameras to the selected company/worksite to see them here.
+            {selectedCamerasCompany !== 'ALL' || selectedCamerasWorksite !== 'ALL'
+              ? 'No cameras found for the selected company/worksite. Try selecting "All Companies" or "All Worksites" to see all cameras.'
+              : 'No cameras have been created yet. Create cameras from the dashboard or add them via the API.'}
           </p>
-          <a
-            href="/dashboard/cameras"
-            className="mt-6 inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-          >
-            Manage cameras (current portal)
-          </a>
+          <div className="mt-6 flex gap-3 justify-center">
+            <a
+              href="/dashboard/cameras"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+            >
+              Manage cameras (current portal)
+            </a>
+            {(selectedCamerasCompany !== 'ALL' || selectedCamerasWorksite !== 'ALL') && (
+              <button
+                onClick={() => {
+                  onSelectedCompanyChange('ALL');
+                  onSelectedWorksiteChange('ALL');
+                }}
+                className="inline-flex items-center gap-2 rounded-lg border border-blue-700 bg-blue-900/20 px-4 py-2 text-sm font-medium text-blue-300 transition hover:bg-blue-900/40"
+              >
+                Show All Cameras
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -6585,7 +6615,7 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
   const [systemHealth, setSystemHealth] = useState<any>(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [toolExecuting, setToolExecuting] = useState<string | null>(null);
-  
+
   // Employee management state
   const [employees, setEmployees] = useState<any[]>([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
@@ -7441,8 +7471,8 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
 
       {/* Security & Access Controls - Only show on General tab */}
       {activeTab === 'general' && (
-        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Security & Access Controls</h3>
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">Security & Access Controls</h3>
         <div className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-4">
@@ -7533,12 +7563,12 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
             </div>
           </div>
         </div>
-        </div>
+      </div>
       )}
 
       {/* System Tools - Only show on General tab */}
       {activeTab === 'general' && (
-        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
         <h3 className="text-lg font-semibold text-white mb-4">System Tools</h3>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <button
@@ -7658,7 +7688,7 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
             </div>
           </div>
         )}
-        </div>
+      </div>
       )}
 
       {feedback && (
@@ -7674,22 +7704,22 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
       )}
 
       {activeTab === 'general' && (
-        <div className="flex justify-end">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              'Save Settings'
-            )}
-          </button>
-        </div>
+      <div className="flex justify-end">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {saving ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            'Save Settings'
+          )}
+        </button>
+      </div>
       )}
     </div>
   );

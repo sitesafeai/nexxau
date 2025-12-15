@@ -114,134 +114,97 @@ const SMSNotificationDashboard: React.FC = () => {
     priority: 1
   });
 
-  // Mock data for demo
+  // Load real data from backend
   useEffect(() => {
-    const mockNotifications: SMSNotification[] = [
-      {
-        id: '1',
-        messageId: 'msg_123456',
-        phoneNumber: '+1 (555) 123-4567',
-        message: 'SAFETY ALERT: Hard hat violation detected at Construction Zone. Worker without proper PPE identified. Please address immediately.',
-        violationType: 'hard_hat_violation',
-        severity: 'high',
-        location: 'Construction Zone',
-        worksite: { name: 'Downtown Construction', worksiteName: 'Main Site' },
-        camera: { name: 'Construction Zone Camera', location: 'Zone A' },
-        status: 'delivered',
-        retryCount: 0,
-        sentAt: new Date(Date.now() - 1000 * 60 * 15), // 15 minutes ago
-        deliveredAt: new Date(Date.now() - 1000 * 60 * 14), // 14 minutes ago
-        updatedAt: new Date()
-      },
-      {
-        id: '2',
-        messageId: 'msg_123457',
-        phoneNumber: '+1 (555) 987-6543',
-        message: 'SAFETY ALERT: Safety equipment missing detected at Warehouse. Worker without safety vest identified.',
-        violationType: 'safety_equipment_missing',
-        severity: 'medium',
-        location: 'Warehouse',
-        worksite: { name: 'Warehouse Operations', worksiteName: 'Storage Facility' },
-        camera: { name: 'Warehouse Monitoring', location: 'Loading Bay' },
-        status: 'sent',
-        retryCount: 0,
-        sentAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-        updatedAt: new Date()
-      },
-      {
-        id: '3',
-        messageId: 'msg_123458',
-        phoneNumber: '+1 (555) 456-7890',
-        message: 'SAFETY ALERT: Restricted area access detected at Parking Lot. Unauthorized personnel in restricted zone.',
-        violationType: 'restricted_area_access',
-        severity: 'critical',
-        location: 'Parking Lot',
-        worksite: { name: 'Main Facility', worksiteName: 'Headquarters' },
-        camera: { name: 'Parking Lot Camera', location: 'Main Entrance' },
-        status: 'failed',
-        errorMessage: 'Invalid phone number format',
-        retryCount: 2,
-        lastRetryAt: new Date(Date.now() - 1000 * 60 * 5),
-        sentAt: new Date(Date.now() - 1000 * 60 * 45), // 45 minutes ago
-        updatedAt: new Date()
-      }
-    ];
+    const loadData = async () => {
+      try {
+        setLoading(true);
 
-    const mockContacts: EmergencyContact[] = [
-      {
-        id: '1',
-        name: 'John Smith',
-        phoneNumber: '+1 (555) 123-4567',
-        email: 'john.smith@company.com',
-        role: 'Site Manager',
-        worksite: { name: 'Downtown Construction', worksiteName: 'Main Site' },
-        isActive: true,
-        priority: 1,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      {
-        id: '2',
-        name: 'Sarah Johnson',
-        phoneNumber: '+1 (555) 987-6543',
-        email: 'sarah.johnson@company.com',
-        role: 'Safety Supervisor',
-        worksite: { name: 'Warehouse Operations', worksiteName: 'Storage Facility' },
-        isActive: true,
-        priority: 2,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      {
-        id: '3',
-        name: 'Mike Wilson',
-        phoneNumber: '+1 (555) 456-7890',
-        email: 'mike.wilson@company.com',
-        role: 'Emergency Contact',
-        worksite: { name: 'Main Facility', worksiteName: 'Headquarters' },
-        isActive: false,
-        priority: 3,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    ];
+        const params = new URLSearchParams();
+        if (worksiteParam) params.set('worksiteId', worksiteParam);
+        if (timeRange) params.set('range', timeRange);
 
-    const mockStats: SMSStats = {
-      totalSent: 1247,
-      delivered: 1189,
-      failed: 45,
-      undelivered: 13,
-      todaySent: 23,
-      thisWeekSent: 156,
-      thisMonthSent: 1247,
-      averageDeliveryTime: 2.3,
-      topViolationTypes: [
-        { violationType: 'hard_hat_violation', count: 456 },
-        { violationType: 'safety_equipment_missing', count: 234 },
-        { violationType: 'unsafe_behavior', count: 189 },
-        { violationType: 'restricted_area_access', count: 123 }
-      ],
-      deliveryTrend: []
+        const [notificationsRes, statsRes, contactsRes] = await Promise.all([
+          fetch(`/api/sms/notifications?${params.toString()}`),
+          fetch(`/api/sms/stats?${params.toString()}`),
+          fetch(`/api/sms/contacts${worksiteParam ? `?worksiteId=${worksiteParam}` : ''}`),
+        ]);
+
+        if (notificationsRes.ok) {
+          const result = await notificationsRes.json();
+          const raw = result.data || [];
+          const mapped: SMSNotification[] = raw.map((n: any) => ({
+            ...n,
+            worksite: n.worksite || undefined,
+            camera: n.camera || undefined,
+            sentAt: n.sentAt ? new Date(n.sentAt) : new Date(),
+            deliveredAt: n.deliveredAt ? new Date(n.deliveredAt) : undefined,
+            lastRetryAt: n.lastRetryAt ? new Date(n.lastRetryAt) : undefined,
+            updatedAt: n.updatedAt ? new Date(n.updatedAt) : new Date(),
+          }));
+          setNotifications(mapped);
+        } else {
+          console.error('[SMS Dashboard] Failed to fetch notifications', notificationsRes.status);
+        }
+
+        if (statsRes.ok) {
+          const result = await statsRes.json();
+          if (result.success) {
+            setStats(result.data as SMSStats);
+          }
+        } else {
+          console.error('[SMS Dashboard] Failed to fetch stats', statsRes.status);
+        }
+
+        if (contactsRes.ok) {
+          const result = await contactsRes.json();
+          const raw = result.data || [];
+          const mapped: EmergencyContact[] = raw.map((c: any) => ({
+            ...c,
+            createdAt: c.createdAt ? new Date(c.createdAt) : new Date(),
+            updatedAt: c.updatedAt ? new Date(c.updatedAt) : new Date(),
+          }));
+          setContacts(mapped);
+        } else {
+          console.error('[SMS Dashboard] Failed to fetch contacts', contactsRes.status);
+        }
+      } catch (error) {
+        console.error('[SMS Dashboard] Error loading data', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    setNotifications(mockNotifications);
-    setContacts(mockContacts);
-    setStats(mockStats);
-    setLoading(false);
-  }, [timeRange]);
+    loadData();
+  }, [worksiteParam, timeRange]);
 
   const handleCreateContact = async () => {
     try {
-      // Mock API call
-      const newContactData = {
+      const body = {
         ...newContact,
-        id: Date.now().toString(),
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        worksiteId: newContact.worksiteId || worksiteParam || null,
       };
-      
-      setContacts(prev => [newContactData, ...prev]);
+
+      const res = await fetch('/api/sms/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        console.error('Failed to create contact:', res.status, error);
+        return;
+      }
+
+      const result = await res.json();
+      const created: EmergencyContact = {
+        ...result.data,
+        createdAt: result.data.createdAt ? new Date(result.data.createdAt) : new Date(),
+        updatedAt: result.data.updatedAt ? new Date(result.data.updatedAt) : new Date(),
+      };
+
+      setContacts(prev => [created, ...prev]);
       setIsContactDialogOpen(false);
       setNewContact({
         name: '',
@@ -249,7 +212,7 @@ const SMSNotificationDashboard: React.FC = () => {
         email: '',
         role: 'manager',
         worksiteId: '',
-        priority: 1
+        priority: 1,
       });
     } catch (error) {
       console.error('Failed to create contact:', error);
@@ -258,6 +221,12 @@ const SMSNotificationDashboard: React.FC = () => {
 
   const handleDeleteContact = async (contactId: string) => {
     try {
+      const res = await fetch(`/api/sms/contacts/${contactId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        console.error('Failed to delete contact:', res.status, error);
+        return;
+      }
       setContacts(prev => prev.filter(contact => contact.id !== contactId));
     } catch (error) {
       console.error('Failed to delete contact:', error);
@@ -665,7 +634,19 @@ const SMSNotificationDashboard: React.FC = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Retry Attempts</label>
+                      <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                        Retry Attempts
+                        <div className="group relative">
+                          <Info className="h-4 w-4 text-gray-400 hover:text-blue-400 cursor-help" />
+                          <div className="absolute left-0 bottom-full mb-2 w-72 p-3 bg-gray-800 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-xs text-gray-300">
+                            <div className="space-y-2">
+                              <div>Number of times the system will retry sending an SMS if the initial attempt fails.</div>
+                              <div>Recommended: 3 attempts. The system will wait between retries before trying again. Set to 0 to disable automatic retries.</div>
+                            </div>
+                            <div className="absolute left-4 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
+                          </div>
+                        </div>
+                      </label>
                       <input
                         type="number"
                         placeholder="3"
@@ -675,7 +656,20 @@ const SMSNotificationDashboard: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Cooldown Period (minutes)</label>
+                      <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                        Cooldown Period (minutes)
+                        <div className="group relative">
+                          <Info className="h-4 w-4 text-gray-400 hover:text-blue-400 cursor-help" />
+                          <div className="absolute left-0 bottom-full mb-2 w-72 p-3 bg-gray-800 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-xs text-gray-300">
+                            <div className="space-y-2">
+                              <div>Time period (in minutes) during which the same contact will not receive duplicate notifications for similar violations.</div>
+                              <div>This prevents notification spam. For example, if set to 15 minutes, a contact won't receive another SMS about the same type of violation within 15 minutes of the first one.</div>
+                              <div>Recommended: 15-30 minutes for most use cases.</div>
+                            </div>
+                            <div className="absolute left-4 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
+                          </div>
+                        </div>
+                      </label>
                       <input
                         type="number"
                         placeholder="15"
@@ -816,7 +810,20 @@ const SMSNotificationDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Role</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                    Role
+                    <div className="group relative">
+                      <Info className="h-4 w-4 text-gray-400 hover:text-blue-400 cursor-help" />
+                      <div className="absolute left-0 bottom-full mb-2 w-64 p-3 bg-gray-800 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-xs text-gray-300">
+                        <div className="space-y-2">
+                          <div><strong className="text-white">Manager:</strong> Receives all critical and high-severity violations, plus daily summaries</div>
+                          <div><strong className="text-white">Supervisor:</strong> Receives high and medium-severity violations for their assigned areas</div>
+                          <div><strong className="text-white">Emergency Contact:</strong> Receives only critical violations requiring immediate response</div>
+                        </div>
+                        <div className="absolute left-4 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
+                      </div>
+                    </div>
+                  </label>
                   <select
                     value={newContact.role}
                     onChange={(e) => setNewContact({ ...newContact, role: e.target.value })}
@@ -828,7 +835,19 @@ const SMSNotificationDashboard: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Priority</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                    Priority
+                    <div className="group relative">
+                      <Info className="h-4 w-4 text-gray-400 hover:text-blue-400 cursor-help" />
+                      <div className="absolute left-0 bottom-full mb-2 w-64 p-3 bg-gray-800 border border-gray-600 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-xs text-gray-300">
+                        <div className="space-y-2">
+                          <div>Priority determines the order in which contacts are notified (1 = highest priority, 10 = lowest).</div>
+                          <div>Contacts with lower priority numbers receive notifications first. Use this to ensure critical personnel are alerted immediately.</div>
+                        </div>
+                        <div className="absolute left-4 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-600"></div>
+                      </div>
+                    </div>
+                  </label>
                   <input
                     type="number"
                     value={newContact.priority}

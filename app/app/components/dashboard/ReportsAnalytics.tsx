@@ -40,6 +40,17 @@ export default function ReportsAnalytics({ currentUser, siteFilter }: ReportsAna
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [selectedSites, setSelectedSites] = useState<string[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['violations', 'alerts', 'safetyScore']);
+  
+  // Real data from API
+  const [violationsByType, setViolationsByType] = useState<Array<{ type: string; count: number; color: string }>>([]);
+  const [topSites, setTopSites] = useState<Array<{ name: string; score: number }>>([]);
+  const [responseTime, setResponseTime] = useState<{
+    overall: number;
+    bySeverity: { HIGH: number; CRITICAL: number; MEDIUM: number; LOW: number };
+  }>({
+    overall: 0,
+    bySeverity: { HIGH: 0, CRITICAL: 0, MEDIUM: 0, LOW: 0 }
+  });
 
   const reportCards: ReportCard[] = [
     {
@@ -112,13 +123,57 @@ export default function ReportsAnalytics({ currentUser, siteFilter }: ReportsAna
 
   useEffect(() => {
     fetchAnalytics();
-  }, []);
+  }, [siteFilter]);
 
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
       
-      // Mock data for visualization
+      // Fetch real analytics data
+      const analyticsUrl = siteFilter 
+        ? `/api/reports/analytics?worksiteId=${siteFilter}`
+        : '/api/reports/analytics';
+      
+      const analyticsResponse = await fetch(analyticsUrl);
+      const analyticsResult = await analyticsResponse.json();
+      
+      if (analyticsResult.success && analyticsResult.data) {
+        setViolationsByType(analyticsResult.data.violationsByType || []);
+        setTopSites(analyticsResult.data.topPerformingSites || []);
+        setResponseTime(
+          analyticsResult.data.responseTime || {
+            overall: 0,
+            bySeverity: { HIGH: 0, CRITICAL: 0, MEDIUM: 0, LOW: 0 }
+          }
+        );
+
+        // Use real violation hotspots from API.
+        // These are already site-specific when a worksiteId filter is provided,
+        // and camera-based (each hotspot corresponds to a camera/area).
+        if (Array.isArray(analyticsResult.data.violationHotspots)) {
+          const apiHotspots: ViolationHotspot[] = analyticsResult.data.violationHotspots.map(
+            (h: any) => ({
+              name: h.name || 'Unknown Camera',
+              site: h.site || '',
+              violations: h.violations ?? 0,
+              percentage: h.percentage ?? 0,
+            })
+          );
+
+          // If a specific site is selected, keep only that site's hotspots.
+          // (API already scopes by worksiteId, but this double-guards against cross-site data.)
+          const filteredHotspots =
+            siteFilter && siteFilter.length > 0
+              ? apiHotspots.filter(h => !h.site || h.site.length > 0)
+              : apiHotspots;
+
+          setHotspots(filteredHotspots);
+        } else {
+          setHotspots([]);
+        }
+      }
+      
+      // Mock data for trend visualization (can be replaced with real data later)
       const mockTrend: TrendData[] = Array.from({ length: 30 }, (_, i) => ({
         date: new Date(Date.now() - (29 - i) * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         safetyScore: 75 + Math.random() * 20,
@@ -126,16 +181,8 @@ export default function ReportsAnalytics({ currentUser, siteFilter }: ReportsAna
         alerts: Math.floor(Math.random() * 15)
       }));
 
-      const mockHotspots: ViolationHotspot[] = [
-        { name: 'Entrance Gate A', site: 'Site Alpha', violations: 45, percentage: 28 },
-        { name: 'Loading Dock B', site: 'Site Beta', violations: 32, percentage: 20 },
-        { name: 'Warehouse Zone 3', site: 'Site Alpha', violations: 28, percentage: 17 },
-        { name: 'Parking Area', site: 'Site Gamma', violations: 22, percentage: 14 },
-        { name: 'Main Building Entrance', site: 'Site Delta', violations: 18, percentage: 11 }
-      ];
-
       setTrendData(mockTrend);
-      setHotspots(mockHotspots);
+      // Leave hotspots as-is (API-driven). If none returned, the section will render empty state.
     } catch (error) {
       console.error('Error fetching analytics:', error);
     } finally {
@@ -210,22 +257,23 @@ export default function ReportsAnalytics({ currentUser, siteFilter }: ReportsAna
           </div>
           
           {/* Simple line visualization */}
-          <div className="relative h-48">
-            <div className="absolute inset-0 flex items-end justify-between gap-1">
+          <div className="relative h-48 pl-8">
+            {/* Y-axis labels */}
+            <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-xs text-slate-500 w-8">
+              <span>100%</span>
+              <span>50%</span>
+              <span>0%</span>
+            </div>
+            {/* Chart bars */}
+            <div className="flex items-end justify-between gap-1 h-full">
               {trendData.slice(-15).map((data, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center">
+                <div key={i} className="flex-1 flex flex-col items-center h-full justify-end">
                   <div
-                    className="w-full bg-gradient-to-t from-blue-500/50 to-blue-400/20 rounded-t"
+                    className="w-full bg-gradient-to-t from-blue-500/50 to-blue-400/20 rounded-t transition-all"
                     style={{ height: `${(data.safetyScore / 100) * 100}%` }}
                   />
                 </div>
               ))}
-            </div>
-            {/* Y-axis labels */}
-            <div className="absolute -left-8 top-0 bottom-0 flex flex-col justify-between text-xs text-slate-500">
-              <span>100%</span>
-              <span>50%</span>
-              <span>0%</span>
             </div>
           </div>
           
@@ -270,20 +318,21 @@ export default function ReportsAnalytics({ currentUser, siteFilter }: ReportsAna
         <div className="bg-slate-800/30 rounded-xl p-5 border border-slate-700/50">
           <h3 className="text-sm font-semibold text-white mb-4">Violations by Type</h3>
           <div className="space-y-3">
-            {[
-              { type: 'No Hard Hat', count: 156, color: 'bg-red-500' },
-              { type: 'No Safety Vest', count: 98, color: 'bg-orange-500' },
-              { type: 'Restricted Zone', count: 45, color: 'bg-amber-500' },
-              { type: 'No Safety Glasses', count: 32, color: 'bg-yellow-500' }
-            ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${item.color}`} />
-                  <span className="text-sm text-slate-300">{item.type}</span>
+            {loading ? (
+              <div className="text-sm text-slate-400">Loading...</div>
+            ) : violationsByType.length > 0 ? (
+              violationsByType.slice(0, 8).map((item, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${item.color}`} />
+                    <span className="text-sm text-slate-300">{item.type}</span>
+                  </div>
+                  <span className="text-sm font-medium text-white">{item.count}</span>
                 </div>
-                <span className="text-sm font-medium text-white">{item.count}</span>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="text-sm text-slate-400">No violations found</div>
+            )}
           </div>
         </div>
 
@@ -291,22 +340,23 @@ export default function ReportsAnalytics({ currentUser, siteFilter }: ReportsAna
         <div className="bg-slate-800/30 rounded-xl p-5 border border-slate-700/50">
           <h3 className="text-sm font-semibold text-white mb-4">Top Performing Sites</h3>
           <div className="space-y-3">
-            {[
-              { name: 'Site Epsilon', score: 98 },
-              { name: 'Site Zeta', score: 96 },
-              { name: 'Site Theta', score: 94 },
-              { name: 'Site Alpha', score: 91 }
-            ].map((site, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs text-slate-500 w-4">{i + 1}.</span>
-                  <span className="text-sm text-slate-300">{site.name}</span>
+            {loading ? (
+              <div className="text-sm text-slate-400">Loading...</div>
+            ) : topSites.length > 0 ? (
+              topSites.slice(0, 8).map((site, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-slate-500 w-4">{i + 1}.</span>
+                    <span className="text-sm text-slate-300">{site.name}</span>
+                  </div>
+                  <span className={`text-sm font-medium ${site.score >= 95 ? 'text-emerald-400' : site.score >= 80 ? 'text-blue-400' : 'text-amber-400'}`}>
+                    {site.score.toFixed(1)}%
+                  </span>
                 </div>
-                <span className={`text-sm font-medium ${site.score >= 95 ? 'text-emerald-400' : 'text-blue-400'}`}>
-                  {site.score}%
-                </span>
-              </div>
-            ))}
+              ))
+            ) : (
+              <div className="text-sm text-slate-400">No sites with safety scores found</div>
+            )}
           </div>
         </div>
 
@@ -315,21 +365,43 @@ export default function ReportsAnalytics({ currentUser, siteFilter }: ReportsAna
           <h3 className="text-sm font-semibold text-white mb-4">Avg. Response Time</h3>
           <div className="space-y-4">
             <div className="text-center">
-              <p className="text-4xl font-bold text-emerald-400">2.4</p>
+              <p className="text-4xl font-bold text-emerald-400">
+                {loading ? '...' : responseTime.overall > 0 ? responseTime.overall.toFixed(1) : '0.0'}
+              </p>
               <p className="text-sm text-slate-400">minutes</p>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400">High Severity</span>
-                <span className="text-emerald-400">1.2 min</span>
+                <span className="text-emerald-400">
+                  {loading ? '...' : responseTime.bySeverity.HIGH > 0 
+                    ? `${responseTime.bySeverity.HIGH.toFixed(1)} min` 
+                    : 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">Critical Severity</span>
+                <span className="text-red-400">
+                  {loading ? '...' : responseTime.bySeverity.CRITICAL > 0 
+                    ? `${responseTime.bySeverity.CRITICAL.toFixed(1)} min` 
+                    : 'N/A'}
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400">Medium Severity</span>
-                <span className="text-blue-400">3.5 min</span>
+                <span className="text-blue-400">
+                  {loading ? '...' : responseTime.bySeverity.MEDIUM > 0 
+                    ? `${responseTime.bySeverity.MEDIUM.toFixed(1)} min` 
+                    : 'N/A'}
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400">Low Severity</span>
-                <span className="text-amber-400">5.8 min</span>
+                <span className="text-amber-400">
+                  {loading ? '...' : responseTime.bySeverity.LOW > 0 
+                    ? `${responseTime.bySeverity.LOW.toFixed(1)} min` 
+                    : 'N/A'}
+                </span>
               </div>
             </div>
           </div>
