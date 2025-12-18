@@ -1579,31 +1579,52 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
   const [currentPage, setCurrentPage] = useState(0);
   const [selectedCameraForLive, setSelectedCameraForLive] = useState<any>(null);
   const [savingSnapshot, setSavingSnapshot] = useState<string | null>(null);
+  const [showConfigurePopup, setShowConfigurePopup] = useState(false);
+  const [selectedCameraForConfig, setSelectedCameraForConfig] = useState<any>(null);
 
   // Helper function to get the best available stream URL from camera object
   const getCameraStreamUrl = (camera: any): string | null => {
-    // Priority: hlsUrl > mediamtxPath (generate HLS) > streamUrl > rtspPath (generate HLS)
+    // Priority: hlsUrl > mediamtxPath (generate HLS) > streamUrl (if HLS/HTTP) > rtspPath (generate HLS) > streamUrl (if RTSP, needs conversion)
+    
+    // 1. Direct HLS URL (highest priority)
     if (camera.hlsUrl) {
       return camera.hlsUrl;
     }
     
-    // If mediamtxPath exists, generate HLS URL
+    // 2. MediaMTX path - generate HLS URL
     if (camera.mediamtxPath) {
-      return `http://localhost:8888/live/${camera.mediamtxPath}/index.m3u8`;
+      const pathName = camera.mediamtxPath.replace(/^\//, '').replace(/\/$/, '');
+      return `http://localhost:8888/live/${pathName}/index.m3u8`;
     }
     
-    // Use streamUrl if it's an HLS URL or HTTP URL
+    // 3. Check streamUrl - if it's already HLS or HTTP, use it directly
     if (camera.streamUrl) {
-      if (camera.streamUrl.includes('.m3u8') || camera.streamUrl.startsWith('http')) {
+      // If it's an HLS URL (.m3u8) or HTTP/HTTPS URL, use it directly
+      if (camera.streamUrl.includes('.m3u8') || camera.streamUrl.startsWith('http://') || camera.streamUrl.startsWith('https://')) {
         return camera.streamUrl;
       }
-      // If it's RTSP, try to generate HLS URL from camera ID
+      
+      // If it's RTSP, we need to convert it via MediaMTX
+      // Try to use rtspPath first, then fall back to extracting stream name from RTSP URL
       if (camera.streamUrl.startsWith('rtsp://')) {
+        // If rtspPath is set, use that (this is the configured MediaMTX path)
+        if (camera.rtspPath) {
+          const pathName = camera.rtspPath.replace(/^\//, '').replace(/\/$/, '') || `camera-${camera.id}`;
+          return `http://localhost:8888/live/${pathName}/index.m3u8`;
+        }
+        // Otherwise, try to extract a meaningful path from RTSP URL
+        // Extract stream name from RTSP URL (e.g., rtsp://.../stream1 -> stream1)
+        const rtspMatch = camera.streamUrl.match(/rtsp:\/\/[^\/]+\/(.+)$/);
+        if (rtspMatch && rtspMatch[1]) {
+          const streamName = rtspMatch[1].split('/').pop() || `camera-${camera.id}`;
+          return `http://localhost:8888/live/${streamName}/index.m3u8`;
+        }
+        // Last resort: use camera ID
         return `http://localhost:8888/live/camera-${camera.id}/index.m3u8`;
       }
     }
     
-    // If rtspPath exists, try to generate HLS URL
+    // 4. If rtspPath exists independently, use it
     if (camera.rtspPath) {
       const pathName = camera.rtspPath.replace(/^\//, '').replace(/\/$/, '') || `camera-${camera.id}`;
       return `http://localhost:8888/live/${pathName}/index.m3u8`;
@@ -1792,68 +1813,119 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
           </button>
         </div>
       ) : (
-      <div className="grid grid-cols-2 gap-4">
-          {currentCameras.map((camera) => (
-          <div key={camera.id} className="bg-gray-800 rounded-lg p-4">
-            <div className="flex justify-between items-center mb-3">
-              <div className="flex items-center space-x-2">
-                <h3 className="text-sm font-medium text-white">{camera.name}</h3>
-                <div className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(camera.status)}`}>
-                  {camera.status}
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                  <button 
-                    onClick={() => handleSaveForTraining(camera.id, camera.name)}
-                    disabled={savingSnapshot === camera.id}
-                    className="text-gray-400 hover:text-green-400 transition-colors disabled:opacity-50"
-                    title="Save snapshot for AI training"
-                  >
-                  {savingSnapshot === camera.id ? (
-                    <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  )}
-                </button>
-                  <button 
-                    onClick={() => router.push(`/dashboard/camera-settings/${camera.id}?worksite=${currentSite.id}`)}
-                    className="text-gray-400 hover:text-white transition-colors"
-                    title="Camera settings"
-                  >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </button>
-                  <button 
-                    onClick={() => setSelectedCameraForLive(camera)}
-                    className="text-gray-400 hover:text-white transition-colors"
-                    title="View fullscreen"
-                  >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-              <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden relative">
-              <CameraFeed
-                streamUrl={camera.streamUrl}
-                  cameraId={camera.id}
-                  autoPlay={camera.status === 'online'}
-                  className="absolute inset-0 w-full h-full"
-                  enableDetection={enableDetection}
-              />
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg backdrop-blur-sm">
+          <div className="px-5 py-4 border-b border-slate-700/50 flex items-center justify-between">
+            <h3 className="font-semibold text-white">Camera Monitoring</h3>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-slate-400">
+                {camerasWithRealTimeStatus.filter(c => c.status === 'online' || c.status === 'active').length} / {camerasWithRealTimeStatus.length} online
+              </span>
             </div>
           </div>
-        ))}
-      </div>
+          
+          <div className="p-5">
+            {currentCameras.length === 0 ? (
+              <div className="text-center py-8">
+                <svg className="w-12 h-12 mx-auto mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <p className="text-slate-400">No cameras configured for this site</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {currentCameras.map((camera) => (
+                  <div key={camera.id} className="bg-slate-800/50 border border-slate-700/50 rounded-lg overflow-hidden hover:border-slate-600 transition-colors">
+                    {/* Thumbnail Area */}
+                    <div 
+                      className="relative h-28 bg-slate-900 flex items-center justify-center cursor-pointer"
+                      onClick={() => setSelectedCameraForLive(camera)}
+                    >
+                      {camera.thumbnailUrl ? (
+                        <img src={camera.thumbnailUrl} alt={camera.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <svg className="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      )}
+                      
+                      {/* Status Badge */}
+                      <div className="absolute top-2 left-2 flex items-center space-x-1">
+                        <span className={`w-2 h-2 rounded-full ${camera.status === 'online' || camera.status === 'active' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                        <span className="text-xs text-white bg-black/60 px-1.5 py-0.5 rounded font-medium">
+                          {camera.status === 'online' || camera.status === 'active' ? 'LIVE' : 'OFFLINE'}
+                        </span>
+                      </div>
+
+                      {/* AI Badge */}
+                      {camera.aiEnabled && (
+                        <div className="absolute top-2 right-2">
+                          <span className="text-xs text-white bg-blue-600 px-1.5 py-0.5 rounded font-medium">
+                            AI
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="p-3">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-medium text-white text-sm truncate">{camera.name}</h4>
+                          {camera.location && (
+                            <p className="text-xs text-slate-400 truncate">{camera.location}</p>
+                          )}
+                        </div>
+                        {camera.recentViolations > 0 && (
+                          <span className="text-xs font-medium text-red-400 bg-red-500/10 px-2 py-0.5 rounded flex-shrink-0 ml-2">
+                            {camera.recentViolations}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => setSelectedCameraForLive(camera)}
+                          className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
+                        >
+                          View Live
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            // Fetch full camera details
+                            try {
+                              const response = await fetch(`/api/cameras/${camera.id}`);
+                              if (response.ok) {
+                                const data = await response.json();
+                                const fullCamera = data.camera || data.data || data;
+                                setSelectedCameraForConfig({
+                                  ...camera,
+                                  ...fullCamera
+                                });
+                              } else {
+                                setSelectedCameraForConfig(camera);
+                              }
+                            } catch (error) {
+                              console.error('Error fetching camera details:', error);
+                              setSelectedCameraForConfig(camera);
+                            }
+                            setShowConfigurePopup(true);
+                          }}
+                          className="px-3 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded transition-colors"
+                          title="Configure Camera"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Fullscreen Modal */}
@@ -1889,6 +1961,147 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
                   <p className="text-slate-400 text-sm mb-4">This camera does not have a configured stream URL.</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Configure Camera Popup */}
+      {showConfigurePopup && selectedCameraForConfig && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => {
+          setShowConfigurePopup(false);
+          setSelectedCameraForConfig(null);
+        }}>
+          <div className="bg-slate-900 rounded-xl w-full max-w-3xl border border-slate-700 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 sticky top-0 bg-slate-900">
+              <h3 className="text-xl font-semibold text-white">Configure Camera: {selectedCameraForConfig.name}</h3>
+              <button
+                onClick={() => {
+                  setShowConfigurePopup(false);
+                  setSelectedCameraForConfig(null);
+                }}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Basic Information */}
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <h4 className="text-lg font-semibold text-white mb-4">Basic Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-slate-400 text-sm">Camera ID:</span>
+                    <p className="text-white font-mono text-sm mt-1">{selectedCameraForConfig.id}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Name:</span>
+                    <p className="text-white mt-1">{selectedCameraForConfig.name || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Location:</span>
+                    <p className="text-white mt-1">{selectedCameraForConfig.location || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Status:</span>
+                    <p className={`mt-1 inline-block px-2 py-1 rounded text-xs font-medium ${
+                      selectedCameraForConfig.status === 'online' || selectedCameraForConfig.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                      selectedCameraForConfig.status === 'offline' ? 'bg-red-500/20 text-red-400' :
+                      'bg-yellow-500/20 text-yellow-400'
+                    }`}>
+                      {selectedCameraForConfig.status || 'unknown'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">AI Detection:</span>
+                    <p className={`mt-1 inline-block px-2 py-1 rounded text-xs font-medium ${
+                      selectedCameraForConfig.aiEnabled ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
+                    }`}>
+                      {selectedCameraForConfig.aiEnabled ? 'Enabled' : 'Disabled'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Type:</span>
+                    <p className="text-white mt-1">{selectedCameraForConfig.type || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stream Configuration */}
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <h4 className="text-lg font-semibold text-white mb-4">Stream Configuration</h4>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-slate-400 text-sm">HLS URL:</span>
+                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
+                      {selectedCameraForConfig.hlsUrl || 'Not configured'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Stream URL:</span>
+                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
+                      {selectedCameraForConfig.streamUrl || 'Not configured'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">MediaMTX Path:</span>
+                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
+                      {selectedCameraForConfig.mediamtxPath || 'Not configured'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">RTSP Path:</span>
+                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
+                      {selectedCameraForConfig.rtspPath || 'Not configured'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Network Information */}
+              {(selectedCameraForConfig.ipAddress || selectedCameraForConfig.port) && (
+                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                  <h4 className="text-lg font-semibold text-white mb-4">Network Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedCameraForConfig.ipAddress && (
+                      <div>
+                        <span className="text-slate-400 text-sm">IP Address:</span>
+                        <p className="text-white font-mono text-sm mt-1">{selectedCameraForConfig.ipAddress}</p>
+                      </div>
+                    )}
+                    {selectedCameraForConfig.port && (
+                      <div>
+                        <span className="text-slate-400 text-sm">Port:</span>
+                        <p className="text-white mt-1">{selectedCameraForConfig.port}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4 border-t border-slate-700">
+                <button
+                  onClick={() => {
+                    router.push(`/dashboard/camera-settings/${selectedCameraForConfig.id}?worksite=${currentSite.id}`);
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Open Full Settings
+                </button>
+                <button
+                  onClick={() => {
+                    setShowConfigurePopup(false);
+                    setSelectedCameraForConfig(null);
+                  }}
+                  className="px-4 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2520,6 +2733,8 @@ function CamerasPage({ currentSite, worksites }: { currentSite: any; worksites?:
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filterStatus, setFilterStatus] = useState<'all' | 'online' | 'offline'>('all');
   const [showAddCameraModal, setShowAddCameraModal] = useState(false);
+  const [showConfigurePopup, setShowConfigurePopup] = useState(false);
+  const [selectedCameraForConfig, setSelectedCameraForConfig] = useState<any>(null);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(0);
@@ -2527,28 +2742,47 @@ function CamerasPage({ currentSite, worksites }: { currentSite: any; worksites?:
 
   // Helper function to get the best available stream URL from camera object
   const getCameraStreamUrl = (camera: any): string | null => {
-    // Priority: hlsUrl > mediamtxPath (generate HLS) > streamUrl > rtspPath (generate HLS)
+    // Priority: hlsUrl > mediamtxPath (generate HLS) > streamUrl (if HLS/HTTP) > rtspPath (generate HLS) > streamUrl (if RTSP, needs conversion)
+    
+    // 1. Direct HLS URL (highest priority)
     if (camera.hlsUrl) {
       return camera.hlsUrl;
     }
     
-    // If mediamtxPath exists, generate HLS URL
+    // 2. MediaMTX path - generate HLS URL
     if (camera.mediamtxPath) {
-      return `http://localhost:8888/live/${camera.mediamtxPath}/index.m3u8`;
+      const pathName = camera.mediamtxPath.replace(/^\//, '').replace(/\/$/, '');
+      return `http://localhost:8888/live/${pathName}/index.m3u8`;
     }
     
-    // Use streamUrl if it's an HLS URL or HTTP URL
+    // 3. Check streamUrl - if it's already HLS or HTTP, use it directly
     if (camera.streamUrl) {
-      if (camera.streamUrl.includes('.m3u8') || camera.streamUrl.startsWith('http')) {
+      // If it's an HLS URL (.m3u8) or HTTP/HTTPS URL, use it directly
+      if (camera.streamUrl.includes('.m3u8') || camera.streamUrl.startsWith('http://') || camera.streamUrl.startsWith('https://')) {
         return camera.streamUrl;
       }
-      // If it's RTSP, try to generate HLS URL from camera ID
+      
+      // If it's RTSP, we need to convert it via MediaMTX
+      // Try to use rtspPath first, then fall back to extracting stream name from RTSP URL
       if (camera.streamUrl.startsWith('rtsp://')) {
+        // If rtspPath is set, use that (this is the configured MediaMTX path)
+        if (camera.rtspPath) {
+          const pathName = camera.rtspPath.replace(/^\//, '').replace(/\/$/, '') || `camera-${camera.id}`;
+          return `http://localhost:8888/live/${pathName}/index.m3u8`;
+        }
+        // Otherwise, try to extract a meaningful path from RTSP URL
+        // Extract stream name from RTSP URL (e.g., rtsp://.../stream1 -> stream1)
+        const rtspMatch = camera.streamUrl.match(/rtsp:\/\/[^\/]+\/(.+)$/);
+        if (rtspMatch && rtspMatch[1]) {
+          const streamName = rtspMatch[1].split('/').pop() || `camera-${camera.id}`;
+          return `http://localhost:8888/live/${streamName}/index.m3u8`;
+        }
+        // Last resort: use camera ID
         return `http://localhost:8888/live/camera-${camera.id}/index.m3u8`;
       }
     }
     
-    // If rtspPath exists, try to generate HLS URL
+    // 4. If rtspPath exists independently, use it
     if (camera.rtspPath) {
       const pathName = camera.rtspPath.replace(/^\//, '').replace(/\/$/, '') || `camera-${camera.id}`;
       return `http://localhost:8888/live/${pathName}/index.m3u8`;
@@ -2765,75 +2999,71 @@ function CamerasPage({ currentSite, worksites }: { currentSite: any; worksites?:
         </div>
       ) : viewMode === 'grid' ? (
         <>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {currentCameras.map((camera: any) => (
-            <div key={camera.id} className="bg-slate-800/50 border border-slate-700/50 rounded overflow-hidden hover:border-slate-600 transition-colors">
-              {/* Thumbnail */}
-              <div className="relative h-36 bg-slate-900 flex items-center justify-center">
-                {(() => {
-                  // Helper function to get stream URL
-                  const getStreamUrl = (cam: any): string | null => {
-                    if (cam.hlsUrl) return cam.hlsUrl;
-                    if (cam.mediamtxPath) return `http://localhost:8888/live/${cam.mediamtxPath}/index.m3u8`;
-                    if (cam.streamUrl) {
-                      if (cam.streamUrl.includes('.m3u8') || cam.streamUrl.startsWith('http')) return cam.streamUrl;
-                      if (cam.streamUrl.startsWith('rtsp://')) return `http://localhost:8888/live/camera-${cam.id}/index.m3u8`;
-                    }
-                    if (cam.rtspPath) {
-                      const pathName = cam.rtspPath.replace(/^\//, '').replace(/\/$/, '') || `camera-${cam.id}`;
-                      return `http://localhost:8888/live/${pathName}/index.m3u8`;
-                    }
-                    return null;
-                  };
-                  const streamUrl = getStreamUrl(camera);
-                  return streamUrl ? (
-                    <CameraFeed
-                      streamUrl={streamUrl}
-                      cameraId={camera.id}
-                      autoPlay={camera.status === 'online'}
-                      className="absolute inset-0 w-full h-full object-cover"
-                      enableDetection={false}
-                    />
-                  ) : (
-                    <svg className="w-10 h-10 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  );
-                })()}
-                <div className="absolute top-2 left-2">
-                  <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded border ${getStatusBadge(camera.status)}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${camera.status === 'online' || camera.status === 'active' ? 'bg-emerald-400' : 'bg-red-400'}`} />
-                    {camera.status === 'online' || camera.status === 'active' ? 'Online' : 'Offline'}
-                  </span>
-          </div>
-                {camera.aiEnabled && (
-                  <div className="absolute top-2 right-2">
-                    <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-medium rounded">AI</span>
-        </div>
-      )}
-              </div>
-              {/* Info */}
-              <div className="p-4">
-                <h3 className="text-sm font-medium text-white truncate">{camera.name}</h3>
-                <p className="text-xs text-slate-400 truncate">{camera.location || 'No location'}</p>
-                <div className="mt-3 flex items-center space-x-2">
-          <button 
-                    onClick={() => setSelectedCamera(camera)}
-                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
-          >
-                    View Live
-          </button>
-          <button 
-                    onClick={() => router.push(`/dashboard/camera-settings/${camera.id}?worksite=${currentSite.id}`)}
-                    className="py-2 px-3 border border-slate-600 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded transition-colors"
-          >
-                Configure
-          </button>
+        <div className="p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {currentCameras.map((camera: any) => (
+              <div key={camera.id} className="bg-slate-800/50 border border-slate-700/50 rounded-lg overflow-hidden hover:border-slate-600 transition-colors">
+                {/* Icon Placeholder */}
+                <div className="relative h-28 bg-slate-900 flex items-center justify-center cursor-pointer">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-camera w-8 h-8 text-slate-600">
+                    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+                    <circle cx="12" cy="13" r="3"></circle>
+                  </svg>
+                  <div className="absolute top-2 left-2 flex items-center space-x-1">
+                    <span className={`w-2 h-2 rounded-full ${camera.status === 'online' || camera.status === 'active' ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                    <span className="text-xs text-white bg-black/60 px-1.5 py-0.5 rounded font-medium">LIVE</span>
+                  </div>
                 </div>
-            </div>
+                {/* Info */}
+                <div className="p-3">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-medium text-white text-sm truncate">{camera.name}</h4>
+                      <p className="text-xs text-slate-400 truncate">{camera.location || 'No location'}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setSelectedCamera(camera)}
+                      className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
+                    >
+                      View Live
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        // Fetch full camera details
+                        try {
+                          const response = await fetch(`/api/cameras/${camera.id}`);
+                          if (response.ok) {
+                            const data = await response.json();
+                            const fullCamera = data.camera || data.data || data;
+                            setSelectedCameraForConfig({
+                              ...camera,
+                              ...fullCamera
+                            });
+                          } else {
+                            setSelectedCameraForConfig(camera);
+                          }
+                        } catch (error) {
+                          console.error('Error fetching camera details:', error);
+                          setSelectedCameraForConfig(camera);
+                        }
+                        setShowConfigurePopup(true);
+                      }}
+                      className="px-3 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded transition-colors"
+                      title="Configure Camera"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-settings w-4 h-4" aria-hidden="true">
+                        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
       {/* Pagination Controls for Grid */}
       {filteredCameras.length > camerasPerPage && (
         <div className="flex items-center justify-between pt-4">
@@ -2947,6 +3177,147 @@ function CamerasPage({ currentSite, worksites }: { currentSite: any; worksites?:
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Configure Camera Popup */}
+      {showConfigurePopup && selectedCameraForConfig && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => {
+          setShowConfigurePopup(false);
+          setSelectedCameraForConfig(null);
+        }}>
+          <div className="bg-slate-900 rounded-xl w-full max-w-3xl border border-slate-700 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 sticky top-0 bg-slate-900">
+              <h3 className="text-xl font-semibold text-white">Configure Camera: {selectedCameraForConfig.name}</h3>
+              <button
+                onClick={() => {
+                  setShowConfigurePopup(false);
+                  setSelectedCameraForConfig(null);
+                }}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Basic Information */}
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <h4 className="text-lg font-semibold text-white mb-4">Basic Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-slate-400 text-sm">Camera ID:</span>
+                    <p className="text-white font-mono text-sm mt-1">{selectedCameraForConfig.id}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Name:</span>
+                    <p className="text-white mt-1">{selectedCameraForConfig.name || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Location:</span>
+                    <p className="text-white mt-1">{selectedCameraForConfig.location || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Status:</span>
+                    <p className={`mt-1 inline-block px-2 py-1 rounded text-xs font-medium ${
+                      selectedCameraForConfig.status === 'online' || selectedCameraForConfig.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                      selectedCameraForConfig.status === 'offline' ? 'bg-red-500/20 text-red-400' :
+                      'bg-yellow-500/20 text-yellow-400'
+                    }`}>
+                      {selectedCameraForConfig.status || 'unknown'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">AI Detection:</span>
+                    <p className={`mt-1 inline-block px-2 py-1 rounded text-xs font-medium ${
+                      selectedCameraForConfig.aiEnabled ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
+                    }`}>
+                      {selectedCameraForConfig.aiEnabled ? 'Enabled' : 'Disabled'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Type:</span>
+                    <p className="text-white mt-1">{selectedCameraForConfig.type || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stream Configuration */}
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <h4 className="text-lg font-semibold text-white mb-4">Stream Configuration</h4>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-slate-400 text-sm">HLS URL:</span>
+                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
+                      {selectedCameraForConfig.hlsUrl || 'Not configured'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Stream URL:</span>
+                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
+                      {selectedCameraForConfig.streamUrl || 'Not configured'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">MediaMTX Path:</span>
+                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
+                      {selectedCameraForConfig.mediamtxPath || 'Not configured'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">RTSP Path:</span>
+                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
+                      {selectedCameraForConfig.rtspPath || 'Not configured'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Network Information */}
+              {(selectedCameraForConfig.ipAddress || selectedCameraForConfig.port) && (
+                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                  <h4 className="text-lg font-semibold text-white mb-4">Network Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedCameraForConfig.ipAddress && (
+                      <div>
+                        <span className="text-slate-400 text-sm">IP Address:</span>
+                        <p className="text-white font-mono text-sm mt-1">{selectedCameraForConfig.ipAddress}</p>
+                      </div>
+                    )}
+                    {selectedCameraForConfig.port && (
+                      <div>
+                        <span className="text-slate-400 text-sm">Port:</span>
+                        <p className="text-white mt-1">{selectedCameraForConfig.port}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4 border-t border-slate-700">
+                <button
+                  onClick={() => {
+                    router.push(`/dashboard/camera-settings/${selectedCameraForConfig.id}?worksite=${currentSite.id}`);
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Open Full Settings
+                </button>
+                <button
+                  onClick={() => {
+                    setShowConfigurePopup(false);
+                    setSelectedCameraForConfig(null);
+                  }}
+                  className="px-4 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

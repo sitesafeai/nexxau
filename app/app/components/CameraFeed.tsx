@@ -26,6 +26,10 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const retryCountRef = useRef<number>(0);
+  const maxRetries = 3; // Maximum retry attempts (increased for better reliability)
+  const [isRetrying, setIsRetrying] = useState(false); // Track if we're silently retrying
 
   // Keep tab active using Web Audio API (prevents browser throttling)
   useEffect(() => {
@@ -41,10 +45,9 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
           oscillator.connect(gainNode);
           gainNode.connect(audioContextRef.current.destination);
           oscillator.start();
-          console.log('🔊 Audio context created to prevent tab throttling');
         }
       } catch (err) {
-        console.log('Could not create audio context:', err);
+        // Audio context creation failed - silently continue
       }
     }
 
@@ -59,27 +62,29 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
   // Cleanup function
   const cleanup = useCallback(() => {
     if (hlsRef.current) {
-      console.log('Cleaning up HLS instance');
       hlsRef.current.destroy();
       hlsRef.current = null;
+    }
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
     }
   }, []);
 
   // Initialize HLS
   const initializeHLS = useCallback(() => {
     if (!videoRef.current || !streamUrl) {
-      console.log('Video ref or stream URL not available');
       return;
     }
 
-    console.log('Initializing HLS for:', streamUrl);
+    // Initialize HLS silently
     
-    // Check if it's an RTSP stream - use WebRTC conversion
+    // Check if it's an RTSP stream - RTSP cannot be played directly in browsers
     if (streamUrl.startsWith('rtsp://')) {
-      console.log('RTSP stream detected - using direct embedding');
-      // For RTSP, we'll show it in an iframe using a converter service
+      // RTSP streams must be converted to HLS via MediaMTX or similar service
+      // If we receive an RTSP URL here, it means the conversion failed
       setIsLoading(false);
-      setError(null);
+      setError('RTSP streams must be converted to HLS. Please configure MediaMTX path or provide an HLS URL.');
       return;
     }
     
@@ -121,59 +126,88 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
 
       // Event listeners
       hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-        console.log('HLS media attached');
+        // Media attached successfully
       });
 
       hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
-        console.log('HLS manifest parsed', data);
+        // Reset retry state on successful manifest parse
+        setIsRetrying(false);
+        retryCountRef.current = 0;
         setIsLoading(false);
         
         if (autoPlay && videoRef.current) {
           videoRef.current.play()
             .then(() => {
-              console.log('Video playback started');
               setIsPlaying(true);
             })
-            .catch(err => {
-              console.log('Autoplay prevented, user interaction required:', err);
-              setError('Click to play video (autoplay blocked)');
+            .catch(() => {
+              // Autoplay prevented - user will need to click
             });
         }
       });
 
-      hls.on(Hls.Events.LEVEL_LOADED, (event, data) => {
-        console.log('Level loaded:', data.level);
-      });
-
-      hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
-        console.log('Fragment loaded:', data.frag.url);
-      });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
-        console.error('HLS Error:', data);
+        // Only log non-fatal errors in development
+        if (!data.fatal) {
+          return; // Silently ignore non-fatal errors
+        }
         
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              console.log('Fatal network error encountered, trying to recover...');
-              setError('Network error occurred');
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              console.log('Fatal media error encountered, trying to recover...');
-              setError('Media error occurred');
-              hls.recoverMediaError();
-              break;
-            default:
-              console.log('Fatal error, cannot recover');
-              setError('Fatal error occurred');
+        // For fatal errors, handle silently with retries
+        retryCountRef.current += 1;
+        
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            if (retryCountRef.current <= maxRetries) {
+              // Silent retry - keep loading state, don't show error
+              setIsRetrying(true);
+              setIsLoading(true); // Keep loading state during retries
+              setTimeout(() => {
+                if (hlsRef.current) {
+                  hlsRef.current.startLoad();
+                }
+              }, 2000 * retryCountRef.current); // Exponential backoff
+            } else {
+              // Only show error after all retries are exhausted
+              setIsRetrying(false);
+              setError('Stream unavailable. The media server may not be running or the stream URL is incorrect.');
+              setIsLoading(false);
               cleanup();
-              break;
-          }
-        } else {
-          console.warn('Non-fatal HLS error:', data);
+            }
+            break;
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            if (retryCountRef.current <= maxRetries) {
+              // Silent recovery attempt
+              setIsRetrying(true);
+              setIsLoading(true);
+              hls.recoverMediaError();
+            } else {
+              setIsRetrying(false);
+              setError('Stream format error. The video stream may be corrupted or incompatible.');
+              setIsLoading(false);
+              cleanup();
+            }
+            break;
+          default:
+            setIsRetrying(false);
+            setError('Unable to load stream.');
+            setIsLoading(false);
+            cleanup();
+            break;
         }
       });
+
+      // Set loading timeout (8 seconds - reduced for faster feedback)
+      loadingTimeoutRef.current = setTimeout(() => {
+        if (retryCountRef.current < maxRetries) {
+          // Don't show timeout error if we're still retrying
+          return;
+        }
+        setIsRetrying(false);
+        setError('Stream unavailable. The media server may not be running.');
+        setIsLoading(false);
+        cleanup();
+      }, 8000);
 
       // Load the stream
       hls.loadSource(streamUrl);
@@ -181,18 +215,70 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
 
     } else if (videoRef.current?.canPlayType('application/vnd.apple.mpegurl')) {
       // Native HLS support (Safari)
-      console.log('Using native HLS support');
       videoRef.current.src = streamUrl;
-      setIsLoading(false);
+      
+      // Set loading timeout for native HLS (8 seconds)
+      loadingTimeoutRef.current = setTimeout(() => {
+        if (retryCountRef.current < maxRetries) {
+          return;
+        }
+        setIsRetrying(false);
+        setError('Stream unavailable. The media server may not be running.');
+        setIsLoading(false);
+      }, 8000);
+
+      // Handle when video can play
+      const handleCanPlay = () => {
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current);
+          loadingTimeoutRef.current = null;
+        }
+        setIsRetrying(false);
+        retryCountRef.current = 0;
+        setIsLoading(false);
+      };
+
+      // Handle errors
+      const handleError = () => {
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current);
+          loadingTimeoutRef.current = null;
+        }
+        if (retryCountRef.current < maxRetries) {
+          retryCountRef.current += 1;
+          // Retry silently - keep loading state
+          setIsRetrying(true);
+          setIsLoading(true);
+          setTimeout(() => {
+            if (videoRef.current) {
+              videoRef.current.load();
+            }
+          }, 2000 * retryCountRef.current); // Exponential backoff
+        } else {
+          setIsRetrying(false);
+          setError('Stream unavailable. The media server may not be running.');
+          setIsLoading(false);
+        }
+      };
+
+      videoRef.current.addEventListener('canplay', handleCanPlay);
+      videoRef.current.addEventListener('error', handleError);
       
       if (autoPlay) {
         videoRef.current.play()
           .then(() => setIsPlaying(true))
-          .catch(err => {
-            console.log('Native autoplay prevented:', err);
-            setError('Click to play video (autoplay blocked)');
+          .catch(() => {
+            // Autoplay prevented - user will need to click
           });
       }
+
+      // Cleanup listeners
+      return () => {
+        if (videoRef.current) {
+          videoRef.current.removeEventListener('canplay', handleCanPlay);
+          videoRef.current.removeEventListener('error', handleError);
+        }
+      };
     } else {
       console.error('HLS is not supported in this browser');
       setError('HLS streaming not supported in this browser');
@@ -202,13 +288,24 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
 
   // Effect to initialize HLS when component mounts or streamUrl changes
   useEffect(() => {
+    // Reset retry count and retry state when stream URL changes
+    retryCountRef.current = 0;
+    setIsRetrying(false);
+    setIsLoading(true);
+    setError(null);
+    
     if (streamUrl) {
       // Small delay to ensure video element is ready
       const timer = setTimeout(initializeHLS, 100);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        cleanup();
+      };
     }
-    return () => {}; // Return empty cleanup if no streamUrl
-  }, [streamUrl, initializeHLS]);
+    return () => {
+      cleanup();
+    };
+  }, [streamUrl, initializeHLS, cleanup]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -224,30 +321,30 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
     // Handle visibility change - resume if needed when page becomes visible
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('Page became visible - checking video state');
         // Only resume if it was paused and should be playing
         if (video.paused && autoPlay && !video.ended) {
-          console.log('Resuming video playback');
-          video.play().catch(err => console.log('Resume play failed:', err));
+          video.play().catch(() => {
+            // Resume failed - user may need to interact
+          });
         }
       }
     };
 
     // Handle playback stalls
     const handleStalled = () => {
-      console.log('Playback stalled, attempting recovery...');
       if (hlsRef.current) {
         hlsRef.current.startLoad();
       }
     };
 
-    // Handle network errors - auto-retry
+    // Handle network errors - auto-retry silently
     const handleError = () => {
-      console.log('Video error detected, will retry...');
       if (hlsRef.current && autoPlay) {
         setTimeout(() => {
           hlsRef.current?.startLoad();
-          video.play().catch(err => console.log('Error recovery failed:', err));
+          video.play().catch(() => {
+            // Error recovery failed
+          });
         }, 2000);
       }
     };
@@ -259,10 +356,11 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
 
     // Periodic health check - ensure video is playing
     const healthCheckInterval = setInterval(() => {
-      // Only check when page is visible to avoid unnecessary logging
+      // Only check when page is visible
       if (document.visibilityState === 'visible' && autoPlay && video.paused && !video.ended) {
-        console.log('Health check: Video paused unexpectedly, restarting...');
-        video.play().catch(err => console.log('Health check play failed:', err));
+        video.play().catch(() => {
+          // Health check play failed
+        });
       }
     }, 10000); // Check every 10 seconds
 
@@ -276,43 +374,52 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
 
   // Video event handlers
   const handleVideoPlay = () => {
-    console.log('Video play event');
     setIsPlaying(true);
     setError(null);
   };
 
   const handleVideoPause = () => {
-    console.log('Video pause event');
     setIsPlaying(false);
   };
 
   const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-    console.error('Video element error:', e);
-    setError('Video playback error');
-    setIsLoading(false);
+    if (retryCountRef.current < maxRetries) {
+      retryCountRef.current += 1;
+      // Retry silently - keep loading state
+      setIsRetrying(true);
+      setIsLoading(true);
+      setTimeout(() => {
+        if (videoRef.current && hlsRef.current) {
+          hlsRef.current.startLoad();
+        }
+      }, 2000 * retryCountRef.current); // Exponential backoff
+    } else {
+      setIsRetrying(false);
+      setError('Stream unavailable. The media server may not be running.');
+      setIsLoading(false);
+    }
   };
 
   const handleVideoLoadStart = () => {
-    console.log('Video load start');
     setIsLoading(true);
   };
 
   const handleVideoLoadedData = () => {
-    console.log('Video data loaded');
     setIsLoading(false);
   };
 
   const handleVideoCanPlay = () => {
-    console.log('Video can play');
     setIsLoading(false);
   };
 
   const handlePlayClick = () => {
     if (videoRef.current) {
       if (videoRef.current.paused) {
-        videoRef.current.play()
+          videoRef.current.play()
           .then(() => setIsPlaying(true))
-          .catch(err => console.error('Play failed:', err));
+          .catch(() => {
+            // Play failed
+          });
       } else {
         videoRef.current.pause();
         setIsPlaying(false);
@@ -343,25 +450,48 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
           }}
         />
         
-        {/* Loading overlay */}
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="text-white">Loading video stream...</div>
+        {/* Loading overlay - show immediately but with smooth transition */}
+        {isLoading && !error && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-3"></div>
+              <div className="text-white text-sm">Connecting to stream...</div>
+            </div>
           </div>
         )}
 
         {/* Error overlay */}
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-red-500 bg-opacity-75">
-            <div className="text-white text-center p-4">
-              <div className="mb-2">{error}</div>
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/95 backdrop-blur-sm">
+            <div className="text-white text-center p-6 max-w-md">
+              <svg className="w-12 h-12 mx-auto mb-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <div className="mb-2 text-lg font-medium text-white">{error}</div>
+              <p className="text-sm text-slate-400 mb-4">Please check if the media server is running.</p>
               {error.includes('autoplay') && (
-              <button
+                <button
                   onClick={handlePlayClick}
-                  className="bg-white text-black px-4 py-2 rounded"
+                  className="bg-white text-black px-6 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors"
                 >
                   Play Video
-              </button>
+                </button>
+              )}
+              {!error.includes('autoplay') && (
+                <button
+                  onClick={() => {
+                    setError(null);
+                    setIsLoading(true);
+                    setIsRetrying(false);
+                    retryCountRef.current = 0;
+                    if (streamUrl) {
+                      setTimeout(initializeHLS, 100);
+                    }
+                  }}
+                  className="bg-white text-black px-6 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors mt-2"
+                >
+                  Retry
+                </button>
               )}
             </div>
           </div>
