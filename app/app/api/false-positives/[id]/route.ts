@@ -6,9 +6,10 @@ import { prisma } from '@/app/lib/prisma';
 // PATCH /api/false-positives/[id] - Update false positive report
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     console.log('[API] PATCH /api/false-positives/[id] - Request received');
     const session = await getServerSession(authOptions);
     
@@ -25,7 +26,7 @@ export async function PATCH(
     const { reviewed, trainingNotes, overrideToConfirmed, overrideExplanation } = body;
 
     const report = await prisma.falsePositiveReport.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         alert: true,
       },
@@ -76,7 +77,7 @@ export async function PATCH(
     }
 
     const updatedReport = await prisma.falsePositiveReport.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
       include: {
         worksite: {

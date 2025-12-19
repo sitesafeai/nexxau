@@ -7,11 +7,12 @@ import { prisma } from '@/app/lib/prisma';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const camera = await prisma.camera.findFirst({
-      where: { id: params.id },
+      where: { id },
       select: {
         id: true,
         name: true,
@@ -78,11 +79,11 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: cameraId } = await params;
     const body = await request.json();
-    const cameraId = params.id;
 
     // Check if camera exists
     const existingCamera = await prisma.camera.findUnique({
@@ -195,11 +196,11 @@ export async function PATCH(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: cameraId } = await params;
     const body = await request.json();
-    const cameraId = params.id;
 
     // Check if camera exists
     const existingCamera = await prisma.camera.findUnique({
@@ -347,11 +348,12 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     await prisma.camera.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     return NextResponse.json({

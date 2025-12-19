@@ -7,9 +7,10 @@ import { prisma } from '../../../../lib/prisma';
 // POST /api/api-keys/[id]/regenerate - Regenerate API key
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
@@ -19,7 +20,7 @@ export async function POST(
       );
     }
 
-    const result = await ApiKeyManager.regenerateApiKey(params.id, session.user.id);
+    const result = await ApiKeyManager.regenerateApiKey(id, session.user.id);
 
     if (result.count === 0) {
       return NextResponse.json(
@@ -30,7 +31,7 @@ export async function POST(
 
     // Get the updated API key with the new key
     const updatedApiKey = await prisma.apiKey.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: {
         id: true,
         name: true,

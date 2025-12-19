@@ -8,9 +8,10 @@ import { getSession } from '@/app/lib/auth';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: worksiteId } = await params;
     const session = await getSession();
     if (!session?.user) {
       return NextResponse.json(
@@ -18,8 +19,6 @@ export async function GET(
         { status: 401 }
       );
     }
-
-    const worksiteId = params.id;
 
     // Fetch users through worksiteUsers relationship
     const worksiteUsers = await prisma.worksiteUser.findMany({
@@ -63,9 +62,10 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: worksiteId } = await params;
     const session = await getSession();
     if (!session?.user) {
       return NextResponse.json(
@@ -73,8 +73,6 @@ export async function POST(
         { status: 401 }
       );
     }
-
-    const worksiteId = params.id;
     const body = await request.json();
     const { userId } = body;
 

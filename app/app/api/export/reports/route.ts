@@ -14,7 +14,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { 
       format, 
-      siteId, 
+      siteId,
+      siteName,
       dateRange, 
       sections = ['summary', 'violations', 'cameras', 'analytics'],
       includeCharts = false,
@@ -60,13 +61,46 @@ export async function POST(request: NextRequest) {
         exportData = ExportService.getMockData(siteId);
     }
 
+    // Helper function to generate timestamp with minutes and seconds
+    const getTimestamp = () => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      return `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
+    };
+
+    // Helper function to sanitize filename
+    const sanitizeFilename = (name: string) => {
+      return name.replace(/[^a-z0-9]/gi, '-').toLowerCase().replace(/-+/g, '-').replace(/^-|-$/g, '');
+    };
+
+    // Helper function to get time range label
+    const getTimeRangeLabel = () => {
+      if (reportType && reportType !== 'custom') {
+        return reportType;
+      }
+      // Calculate days from date range
+      const start = new Date(dateRange.start);
+      const end = new Date(dateRange.end);
+      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      return `${days}d`;
+    };
+
+    const sanitizedName = sanitizeFilename(siteName || 'Worksite');
+    const timeRangeLabel = getTimeRangeLabel();
+    const timestamp = getTimestamp();
+
     if (format === 'csv') {
       const csvContent = await ExportService.generateCSV(exportData, exportOptions as any);
       
       return new NextResponse(csvContent, {
         headers: {
           'Content-Type': 'text/csv',
-          'Content-Disposition': `attachment; filename="sitesafe-report-${siteId || 'all-sites'}-${new Date().toISOString().split('T')[0]}.csv"`
+          'Content-Disposition': `attachment; filename="${sanitizedName}-${timeRangeLabel}-${timestamp}.csv"`
         }
       });
     }
@@ -89,7 +123,7 @@ export async function POST(request: NextRequest) {
       return new NextResponse(csvContent, {
         headers: {
           'Content-Type': 'application/vnd.ms-excel',
-          'Content-Disposition': `attachment; filename="sitesafe-report-${siteId || 'all-sites'}-${new Date().toISOString().split('T')[0]}.xls"`
+          'Content-Disposition': `attachment; filename="${sanitizedName}-${timeRangeLabel}-${timestamp}.xls"`
         }
       });
     }

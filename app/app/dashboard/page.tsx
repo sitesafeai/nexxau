@@ -1820,18 +1820,18 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
               <span className="text-sm text-slate-400">
                 {camerasWithRealTimeStatus.filter(c => c.status === 'online' || c.status === 'active').length} / {camerasWithRealTimeStatus.length} online
               </span>
-            </div>
-          </div>
+                </div>
+              </div>
           
           <div className="p-5">
             {currentCameras.length === 0 ? (
               <div className="text-center py-8">
                 <svg className="w-12 h-12 mx-auto mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
+                    </svg>
                 <p className="text-slate-400">No cameras configured for this site</p>
               </div>
-            ) : (
+                  ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {currentCameras.map((camera) => (
                   <div key={camera.id} className="bg-slate-800/50 border border-slate-700/50 rounded-lg overflow-hidden hover:border-slate-600 transition-colors">
@@ -1845,8 +1845,8 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
                       ) : (
                         <svg className="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                      )}
+                    </svg>
+                  )}
                       
                       {/* Status Badge */}
                       <div className="absolute top-2 left-2 flex items-center space-x-1">
@@ -1888,8 +1888,8 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
                           className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
                         >
                           View Live
-                        </button>
-                        <button 
+                </button>
+                  <button 
                           onClick={async () => {
                             // Fetch full camera details
                             try {
@@ -1912,20 +1912,20 @@ function MonitoringTab({ currentSite }: { currentSite: any }) {
                           }}
                           className="px-3 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded transition-colors"
                           title="Configure Camera"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
               </div>
             )}
           </div>
-        </div>
+      </div>
       )}
 
       {/* Fullscreen Modal */}
@@ -3001,35 +3001,35 @@ function CamerasPage({ currentSite, worksites }: { currentSite: any; worksites?:
         <>
         <div className="p-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {currentCameras.map((camera: any) => (
+          {currentCameras.map((camera: any) => (
               <div key={camera.id} className="bg-slate-800/50 border border-slate-700/50 rounded-lg overflow-hidden hover:border-slate-600 transition-colors">
                 {/* Icon Placeholder */}
                 <div className="relative h-28 bg-slate-900 flex items-center justify-center cursor-pointer">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-camera w-8 h-8 text-slate-600">
                     <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
                     <circle cx="12" cy="13" r="3"></circle>
-                  </svg>
+                    </svg>
                   <div className="absolute top-2 left-2 flex items-center space-x-1">
                     <span className={`w-2 h-2 rounded-full ${camera.status === 'online' || camera.status === 'active' ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
                     <span className="text-xs text-white bg-black/60 px-1.5 py-0.5 rounded font-medium">LIVE</span>
-                  </div>
-                </div>
-                {/* Info */}
+          </div>
+              </div>
+              {/* Info */}
                 <div className="p-3">
                   <div className="flex items-start justify-between mb-2">
                     <div className="min-w-0 flex-1">
                       <h4 className="font-medium text-white text-sm truncate">{camera.name}</h4>
-                      <p className="text-xs text-slate-400 truncate">{camera.location || 'No location'}</p>
+                <p className="text-xs text-slate-400 truncate">{camera.location || 'No location'}</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button 
-                      onClick={() => setSelectedCamera(camera)}
-                      className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
-                    >
-                      View Live
-                    </button>
-                    <button 
+          <button 
+                    onClick={() => setSelectedCamera(camera)}
+                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
+          >
+                    View Live
+          </button>
+          <button 
                       onClick={async () => {
                         // Fetch full camera details
                         try {
@@ -3057,13 +3057,13 @@ function CamerasPage({ currentSite, worksites }: { currentSite: any; worksites?:
                         <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
                         <circle cx="12" cy="12" r="3"></circle>
                       </svg>
-                    </button>
-                  </div>
+          </button>
                 </div>
-              </div>
-            ))}
+            </div>
           </div>
-        </div>
+        ))}
+          </div>
+      </div>
       {/* Pagination Controls for Grid */}
       {filteredCameras.length > camerasPerPage && (
         <div className="flex items-center justify-between pt-4">

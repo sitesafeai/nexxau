@@ -12,15 +12,19 @@ function ForbiddenPageContent() {
   const requiredRole = searchParams.get('requiredRole');
   const userRole = searchParams.get('userRole');
 
-  const getErrorMessage = () => {
+  const getErrorMessage = (): string => {
     if (requiredRole && userRole) {
-      return `This page is only accessible to ${formatRoleLabel(requiredRole)}. You are currently logged in as ${formatRoleLabel(userRole)}.`;
+      const requiredLabel = formatRoleLabel(requiredRole);
+      const userLabel = formatRoleLabel(userRole);
+      return 'This page is only accessible to ' + requiredLabel + '. You are currently logged in as ' + userLabel + '.';
     } else if (requiredRole) {
-      return `This page is only accessible to ${formatRoleLabel(requiredRole)}.`;
+      const requiredLabel = formatRoleLabel(requiredRole);
+      return 'This page is only accessible to ' + requiredLabel + '.';
     } else if (userRole) {
-      return `You don't have permission to access this resource. Your current role is ${formatRoleLabel(userRole)}.`;
+      const userLabel = formatRoleLabel(userRole);
+      return 'You don\'t have permission to access this resource. Your current role is ' + userLabel + '.';
     }
-    return 'You don't have permission to access this resource. Please contact your administrator if you believe this is an error.';
+    return 'You don\'t have permission to access this resource. Please contact your administrator if you believe this is an error.';
   };
 
   return (

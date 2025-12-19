@@ -6,9 +6,10 @@ import { prisma } from '@/app/lib/prisma';
 // PATCH /api/true-positives/[id] - Update true positive report
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user) {
@@ -34,7 +35,7 @@ export async function PATCH(
     }
 
     const report = await prisma.truePositiveReport.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
       include: {
         worksite: {

@@ -8,9 +8,10 @@ import { getSession } from '@/app/lib/auth';
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getSession();
     if (!session?.user) {
       return NextResponse.json(
@@ -40,7 +41,7 @@ export async function PATCH(
     }
 
     const alert = await prisma.alert.findUnique({
-      where: { id: params.id }
+      where: { id }
     });
 
     if (!alert) {
@@ -61,7 +62,7 @@ export async function PATCH(
 
     // Update alert with root cause
     await prisma.alert.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         metadata: {
           ...(alert.metadata as any),
@@ -81,7 +82,7 @@ export async function PATCH(
         userId: session.user.id,
         action: 'ROOT_CAUSE_RECORDED',
         entity: 'Alert', // Using entity instead of entityType
-        entityId: params.id,
+        entityId: id,
         worksiteId: alert.worksiteId,
         changes: {
           rootCause,

@@ -5,9 +5,10 @@ import { prisma } from '@/app/lib/prisma';
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return new NextResponse('Unauthorized', { status: 401 });
@@ -16,7 +17,7 @@ export async function DELETE(
     // Delete the post
     await prisma.blogPost.delete({
       where: {
-        id: params.id,
+        id,
       },
     });
 
@@ -29,9 +30,10 @@ export async function DELETE(
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return new NextResponse('Unauthorized', { status: 401 });
@@ -39,7 +41,7 @@ export async function GET(
 
     const post = await prisma.blogPost.findUnique({
       where: {
-        id: params.id,
+        id,
       },
     });
 

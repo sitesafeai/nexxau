@@ -10,9 +10,10 @@ import { normalizeRole } from '@/app/lib/roles';
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     const role = normalizeRole(session?.user?.role);
     if (!session || role !== 'SUPER_ADMIN') {
@@ -37,7 +38,7 @@ export async function PATCH(
     }
 
     const updated = await prisma.trainingImage.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
     });
 

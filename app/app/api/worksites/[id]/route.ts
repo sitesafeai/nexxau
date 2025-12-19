@@ -8,12 +8,13 @@ import { clearWorksiteSettingsCache } from '@/app/lib/worksite-settings';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // Use explicit select to avoid non-existent columns
     const worksite = await prisma.worksite.findFirst({
-      where: { id: params.id },
+      where: { id },
       select: {
         id: true,
         name: true,
@@ -114,11 +115,12 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
-    console.log('[PATCH /api/worksites/:id] Updating worksite:', params.id, 'with data:', body);
+    console.log('[PATCH /api/worksites/:id] Updating worksite:', id, 'with data:', body);
 
     // Sanitize body to only include fields that exist in the database
     // Remove schema fields that may not be migrated yet
@@ -142,7 +144,7 @@ export async function PATCH(
 
     // Check if the worksite exists
     const existingWorksite = await prisma.worksite.findFirst({
-      where: { id: params.id },
+      where: { id },
       select: { id: true, name: true }
     });
 
@@ -159,12 +161,12 @@ export async function PATCH(
     if (settings) {
       // Update or create camera system config with settings
       await prisma.cameraSystemConfig.upsert({
-        where: { worksiteId: params.id },
+        where: { worksiteId: id },
         update: { 
           config: settings
         },
         create: {
-          worksiteId: params.id,
+          worksiteId: id,
           config: settings
         }
       });
@@ -172,21 +174,21 @@ export async function PATCH(
       // Update worksite if there's other data
       if (Object.keys(safeData).length > 0) {
         await prisma.worksite.update({
-          where: { id: params.id },
+          where: { id },
           data: safeData
         });
       }
     } else if (Object.keys(safeData).length > 0) {
       // Update worksite normally with safe data only
       await prisma.worksite.update({
-        where: { id: params.id },
+        where: { id },
         data: safeData
       });
     }
 
     // Fetch updated worksite with explicit field selection (only fields that exist in DB)
     const worksite = await prisma.worksite.findFirst({
-      where: { id: params.id },
+      where: { id },
       select: {
         id: true,
         name: true,
@@ -224,7 +226,7 @@ export async function PATCH(
     });
 
     // Clear settings cache so updated settings are loaded next time
-    clearWorksiteSettingsCache(params.id);
+    clearWorksiteSettingsCache(id);
 
     console.log('[PATCH /api/worksites/:id] Successfully updated worksite');
 
@@ -247,11 +249,12 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     await prisma.worksite.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     return NextResponse.json({

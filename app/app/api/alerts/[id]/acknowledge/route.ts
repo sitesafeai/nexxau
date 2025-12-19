@@ -11,9 +11,10 @@ import { validateBody } from '@/app/lib/validation/common';
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user) {
@@ -52,7 +53,7 @@ export async function POST(
 
     // Get existing alert
     const existingAlert = await prisma.alert.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         worksite: true
       }
@@ -76,7 +77,7 @@ export async function POST(
     const result = await prisma.$transaction(async (tx) => {
       // Step 1: Update alert status
       const updatedAlert = await tx.alert.update({
-        where: { id: params.id },
+        where: { id },
         data: {
           status: 'ACKNOWLEDGED',
           metadata: {
@@ -107,7 +108,7 @@ export async function POST(
       // Step 2: Create acknowledgment log in AlertResponse table
       await tx.alertResponse.create({
         data: {
-          alertId: params.id,
+          alertId: id,
           userId: session.user.id,
           response: 'ACKNOWLEDGED',
           notes: note || null,
@@ -123,7 +124,7 @@ export async function POST(
           userId: session.user.id,
           action: 'ACKNOWLEDGE_ALERT',
           entity: 'Alert',
-          entityId: params.id,
+          entityId: id,
           changes: {
             from: { status: existingAlert.status },
             to: { status: 'ACKNOWLEDGED' },
@@ -147,7 +148,7 @@ export async function POST(
             type: 'ALERT',
             priority: 'HIGH',
             metadata: {
-              alertId: params.id,
+              alertId: id,
               followUpDate,
               originalAlert: {
                 title: updatedAlert.title,
@@ -170,7 +171,7 @@ export async function POST(
               type: 'ALERT',
               priority: 'MEDIUM', // Using MEDIUM instead of NORMAL
               metadata: {
-                alertId: params.id,
+                alertId: id,
                 acknowledgedBy: session.user.name,
                 actionTaken
               }

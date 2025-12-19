@@ -8,9 +8,10 @@ import { getSession } from '@/app/lib/auth';
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; userId: string } }
+  { params }: { params: Promise<{ id: string; userId: string }> }
 ) {
   try {
+    const { id: worksiteId, userId } = await params;
     const session = await getSession();
     if (!session?.user) {
       return NextResponse.json(
@@ -18,9 +19,6 @@ export async function DELETE(
         { status: 401 }
       );
     }
-
-    const worksiteId = params.id;
-    const userId = params.userId;
 
     // Check if assignment exists
     const existing = await prisma.worksiteUser.findUnique({

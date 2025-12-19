@@ -3,14 +3,15 @@ import WorksiteForm from '@/components/onboarding/WorksiteForm';
 import { prisma } from '@/app/lib/prisma';
 
 interface PageProps {
-  params: {
+  params: Promise<{
     clientId: string;
-  };
+  }>;
 }
 
 export default async function WorksitePage({ params }: PageProps) {
+  const { clientId } = await params;
   const company = await prisma.company.findUnique({
-    where: { id: params.clientId },
+    where: { id: clientId },
   });
 
   if (!company) {

@@ -1,0 +1,87 @@
+# Dependencies (Vercel installs these)
+node_modules/
+
+# Build outputs (Vercel builds these)
+.next/
+out/
+dist/
+build/
+
+# Test files
+__tests__/
+e2e/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+jest.config.js
+jest.setup.js
+playwright.config.ts
+
+# Documentation
+*.md
+!README.md
+
+# Scripts (not needed in production)
+*.sh
+scripts/
+fix-*.sh
+restart-*.sh
+update-*.sh
+add-*.sh
+COMPLETE_FIX.sh
+RESTART_NOW.sh
+
+# Logs
+*.log
+logs/
+detector.log
+nextjs.log
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+
+# Monitoring configs (not needed in Vercel)
+grafana/
+prometheus/
+alertmanager/
+
+# Environment files (use Vercel env vars instead)
+.env*
+!env.example
+!env.local.example
+
+# IDE files
+*.code-workspace
+.vscode/
+.idea/
+
+# Test files
+test-*.js
+test-*.ts
+
+# Backup files
+*.backup
+
+# Python virtual environments
+venv/
+ENV/
+yolov8-env/
+
+# Large media files (if not needed)
+*.mov
+*.mp4
+
+# Prisma migrations (Vercel runs migrations automatically)
+# Keep schema but migrations are handled by Vercel
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+

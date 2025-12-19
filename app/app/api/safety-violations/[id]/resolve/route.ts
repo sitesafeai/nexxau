@@ -5,9 +5,10 @@ import { prisma } from '../../../../lib/prisma';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
@@ -18,7 +19,7 @@ export async function POST(
     const { resolutionNotes } = body;
 
     const updatedViolation = await prisma.safetyViolation.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         resolved: true,
         resolvedAt: new Date(),

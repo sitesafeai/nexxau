@@ -8,9 +8,10 @@ import { getSession } from '@/app/lib/auth';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getSession();
     if (!session?.user) {
       return NextResponse.json(
@@ -20,7 +21,7 @@ export async function GET(
     }
 
     const workflow = await prisma.workflow.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         worksite: {
           select: {
@@ -63,9 +64,10 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getSession();
     if (!session?.user) {
       return NextResponse.json(
@@ -88,7 +90,7 @@ export async function PATCH(
     if (body.priority !== undefined) updateData.priority = body.priority;
 
     const workflow = await prisma.workflow.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData
     });
 
@@ -111,9 +113,10 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getSession();
     if (!session?.user) {
       return NextResponse.json(
@@ -123,7 +126,7 @@ export async function DELETE(
     }
 
     await prisma.workflow.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     return NextResponse.json({

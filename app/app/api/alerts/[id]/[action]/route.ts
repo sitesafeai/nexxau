@@ -4,10 +4,10 @@ import { prisma } from '@/app/lib/prisma';
 // POST /api/alerts/[id]/[action] - Perform state transition on alert
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string; action: string } }
+  { params }: { params: Promise<{ id: string; action: string }> }
 ) {
   try {
-    const { id, action } = params;
+    const { id, action } = await params;
     const body = await request.json();
 
     // Validate alert exists
@@ -282,11 +282,12 @@ export async function POST(
     });
 
   } catch (error) {
-    console.error(`Failed to ${params.action} alert:`, error);
+    const { action } = await params;
+    console.error(`Failed to ${action} alert:`, error);
     return NextResponse.json(
       { 
         success: false,
-        error: `Failed to ${params.action} alert`,
+        error: `Failed to ${action} alert`,
         details: error instanceof Error ? error.message : 'Unknown error'
       }, 
       { status: 500 }

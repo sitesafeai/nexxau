@@ -6,10 +6,10 @@ import { retryDatabaseOperation } from '@/app/lib/retry';
 // GET /api/custom-rules/[id] - Get a specific rule
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const rule = await prisma.customRule.findUnique({
       where: { id },
@@ -65,7 +65,8 @@ export async function GET(
     });
 
   } catch (error) {
-    logger.error('Failed to fetch custom rule', { ruleId: params.id }, error as Error);
+    const { id: ruleId } = await params;
+    logger.error('Failed to fetch custom rule', { ruleId }, error as Error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch rule' },
       { status: 500 }
@@ -76,10 +77,10 @@ export async function GET(
 // PATCH /api/custom-rules/[id] - Update a rule
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
 
     console.log(`[Custom Rules API] PATCH request for rule ${id}:`, body);
@@ -143,8 +144,8 @@ export async function PATCH(
     });
 
   } catch (error) {
-    console.error(`[Custom Rules API] Failed to update rule ${params.id}:`, error);
-    logger.error('Failed to update custom rule', { ruleId: params.id }, error as Error);
+    console.error(`[Custom Rules API] Failed to update rule ${id}:`, error);
+    logger.error('Failed to update custom rule', { ruleId: id }, error as Error);
     return NextResponse.json(
       { 
         success: false, 
@@ -159,10 +160,10 @@ export async function PATCH(
 // DELETE /api/custom-rules/[id] - Delete a rule
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     await retryDatabaseOperation(async () => {
       return await prisma.customRule.delete({
@@ -181,7 +182,7 @@ export async function DELETE(
     });
 
   } catch (error) {
-    logger.error('Failed to delete custom rule', { ruleId: params.id }, error as Error);
+    logger.error('Failed to delete custom rule', { ruleId: id }, error as Error);
     return NextResponse.json(
       { success: false, error: 'Failed to delete rule' },
       { status: 500 }

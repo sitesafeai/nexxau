@@ -49,24 +49,57 @@ export async function GET(request: NextRequest) {
         console.log('[cameras API GET] SUPER_ADMIN - filtering by worksiteId:', normalizedWorksiteId);
       } else if (isCompanyAdmin && user.companyId) {
         // Company admin can only see cameras from their company's worksites
-        // Filter by worksiteId and verify the worksite belongs to their company
+        // Verify the worksite belongs to their company first, then filter by worksiteId
+        try {
+          const worksite = await prisma.worksite.findUnique({
+            where: { id: normalizedWorksiteId },
+            select: { id: true, companyId: true }
+          });
+          
+          if (worksite && worksite.companyId === user.companyId) {
         where.worksiteId = normalizedWorksiteId;
-        where.worksite = {
-          companyId: user.companyId
-        };
-        console.log('[cameras API GET] COMPANY_ADMIN - filtering by worksiteId:', normalizedWorksiteId, 'and companyId:', user.companyId);
+            console.log('[cameras API GET] COMPANY_ADMIN - worksite verified, filtering by worksiteId:', normalizedWorksiteId);
+      } else {
+            console.log('[cameras API GET] COMPANY_ADMIN - worksite does not belong to company, returning empty');
+            return NextResponse.json({
+              success: true,
+              data: [],
+              count: 0,
+              total: 0,
+            });
+          }
+        } catch (worksiteCheckError) {
+          console.error('[cameras API GET] Error checking worksite, using simple filter:', worksiteCheckError);
+        where.worksiteId = normalizedWorksiteId;
+        }
       } else {
         // Regular users can only see cameras from worksites they have access to
-        // Filter by worksiteId and verify the user has access to the worksite
-        where.worksiteId = normalizedWorksiteId;
-        where.worksite = {
-          worksiteUsers: {
-            some: {
+        // Verify the user has access to the worksite first, then filter by worksiteId
+        try {
+          const worksiteUser = await prisma.worksiteUser.findFirst({
+            where: {
+              worksiteId: normalizedWorksiteId,
               userId: user.id
-            }
+            },
+            select: { id: true }
+          });
+          
+          if (worksiteUser) {
+            where.worksiteId = normalizedWorksiteId;
+            console.log('[cameras API GET] Regular user - access verified, filtering by worksiteId:', normalizedWorksiteId);
+          } else {
+            console.log('[cameras API GET] Regular user - no access to worksite, returning empty');
+            return NextResponse.json({
+              success: true,
+              data: [],
+              count: 0,
+              total: 0,
+            });
           }
-        };
-        console.log('[cameras API GET] Regular user - filtering by worksiteId:', normalizedWorksiteId, 'for user:', user.id);
+        } catch (accessCheckError) {
+          console.error('[cameras API GET] Error checking access, using simple filter:', accessCheckError);
+          where.worksiteId = normalizedWorksiteId;
+        }
       }
     } else {
       // No worksiteId specified - filter by user access
@@ -344,11 +377,21 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    return NextResponse.json({
+    // Ensure we return cameras array even if empty
+    const responseData = {
       success: true,
-      data: formattedCameras,
-      count: formattedCameras.length
+      data: Array.isArray(formattedCameras) ? formattedCameras : [],
+      count: formattedCameras.length,
+      total: formattedCameras.length,
+    };
+    
+    console.log('[cameras API GET] Returning response:', {
+      success: responseData.success,
+      dataLength: responseData.data.length,
+      count: responseData.count
     });
+    
+    return NextResponse.json(responseData);
 
   } catch (error: any) {
     console.error('[cameras API GET] Failed to fetch cameras:', error);
@@ -761,17 +804,16 @@ async function handleNewFormatCreate(body: any) {
         await tx.auditLog.create({
           data: {
             action: 'CAMERA_CREATED',
-            entity: 'CAMERA',
+            entityType: 'CAMERA',
             entityId: newCamera.id,
-            // entityName: newCamera.name, // Column doesn't exist in database yet
-            worksiteId: newCamera.worksiteId,
+            // worksiteId doesn't exist in AuditLog schema - store in details instead
             details: {
               name: newCamera.name,
               type: connection.type,
+              worksiteId: newCamera.worksiteId,
               worksiteName: newCamera.worksite?.name,
             },
-            result: 'SUCCESS',
-            severity: 'INFO',
+            // result and severity don't exist in AuditLog schema - store in details if needed
           }
         });
         console.log('[cameras API] Audit log created successfully');

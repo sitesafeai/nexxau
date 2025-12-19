@@ -5,9 +5,10 @@ import { authOptions } from '@/app/lib/auth';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: worksiteId } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json(
@@ -15,8 +16,6 @@ export async function GET(
         { status: 401 }
       );
     }
-
-    const worksiteId = params.id;
     
     if (!worksiteId) {
       return NextResponse.json(

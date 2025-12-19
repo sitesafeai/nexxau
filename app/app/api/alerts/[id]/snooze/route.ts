@@ -6,15 +6,14 @@ import { authOptions } from '@/app/lib/auth';
 // POST /api/alerts/[id]/snooze - Snooze an alert
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: alertId } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const alertId = params.id;
     const body = await request.json();
     const { duration, notes } = body; // duration in minutes
 

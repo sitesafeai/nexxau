@@ -75,11 +75,13 @@ export default function RealtimeDetectionOverlay({
   const frameCountRef = useRef<number>(0);
   const errorCountRef = useRef<number>(0);
   const lastErrorTimeRef = useRef<number>(0);
+  const lastDetectionSendRef = useRef<number>(0);
+  const detectionSendInterval = 2000; // Send detections to backend every 2 seconds
 
-  // Get color for a specific class
-  const getClassColor = (className: string) => {
+  // Get color for a specific class - use useCallback to stabilize reference
+  const getClassColor = useCallback((className: string) => {
     return CLASS_COLORS[className] || CLASS_COLORS['default'];
-  };
+  }, []);
 
   // Load TensorFlow.js and COCO-SSD model with enhanced error handling
   useEffect(() => {
@@ -133,6 +135,46 @@ export default function RealtimeDetectionOverlay({
       }
     };
   }, []);
+
+  // Send detections to backend API for alert checking
+  const sendDetectionsToBackend = useCallback(async (detections: Detection[]) => {
+    if (!cameraId || detections.length === 0) return;
+    
+    try {
+      const detectionData = {
+        camera_id: cameraId,
+        timestamp: new Date().toISOString(),
+        detections: detections.map(d => ({
+          class_name: d.class,
+          class: d.class,
+          confidence: d.score,
+          score: d.score,
+          bbox: d.bbox,
+          x: d.bbox[0],
+          y: d.bbox[1],
+          width: d.bbox[2],
+          height: d.bbox[3]
+        })),
+        frame_width: videoElement?.videoWidth || 1920,
+        frame_height: videoElement?.videoHeight || 1080
+      };
+
+      const response = await fetch('/api/yolo/detections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(detectionData),
+      });
+
+      if (!response.ok) {
+        console.warn('Failed to send detections to backend:', response.status);
+      }
+    } catch (error) {
+      // Silently fail - don't spam console with network errors
+      console.debug('Error sending detections to backend:', error);
+    }
+  }, [cameraId, videoElement]);
 
   // Map COCO-SSD classes to safety-relevant names
   const mapToSafetyClass = (className: string): string => {
@@ -189,8 +231,8 @@ export default function RealtimeDetectionOverlay({
       const scaledWidth = width * scaleX;
       const scaledHeight = height * scaleY;
 
-      // Get unique color for this class
-      const colors = getClassColor(prediction.class);
+      // Get unique color for this class (use direct lookup to avoid dependency)
+      const colors = CLASS_COLORS[prediction.class] || CLASS_COLORS['default'];
 
       // Draw glowing effect (outer glow)
       ctx.shadowBlur = 15;
@@ -289,7 +331,7 @@ export default function RealtimeDetectionOverlay({
 
     // Reset shadow for future draws
     ctx.shadowBlur = 0;
-  }, [videoElement, getClassColor]);
+  }, [videoElement]);
 
   // Perform detection on video frame with enhanced error handling
   const detectFrame = useCallback(async () => {
@@ -312,11 +354,23 @@ export default function RealtimeDetectionOverlay({
       
       setDetections(filteredPredictions);
       
-      // Clear error on successful detection
-      if (error) {
-        setError(null);
-        errorCountRef.current = 0;
+      // Send detections to backend for alert checking (throttled to every 2 seconds)
+      const now = Date.now();
+      if (now - lastDetectionSendRef.current >= detectionSendInterval && filteredPredictions.length > 0) {
+        lastDetectionSendRef.current = now;
+        sendDetectionsToBackend(filteredPredictions).catch(err => {
+          console.error('Failed to send detections to backend:', err);
+        });
       }
+      
+      // Clear error on successful detection (use functional update to avoid dependency)
+      setError((prevError) => {
+        if (prevError) {
+        errorCountRef.current = 0;
+          return null;
+      }
+        return prevError;
+      });
       
       // Only draw if page is visible (optimization)
       if (document.visibilityState === 'visible') {
@@ -336,7 +390,8 @@ export default function RealtimeDetectionOverlay({
       }
       lastFrameTimeRef.current = currentTime;
 
-      // Continue detection loop - runs continuously for 24/7 monitoring
+      // Continue detection loop (only while video feed is active in browser)
+      // Note: For true 24/7 monitoring, use the backend Python detection service
       animationFrameRef.current = requestAnimationFrame(detectFrame);
     } catch (err: any) {
       const currentTime = Date.now();
@@ -362,7 +417,7 @@ export default function RealtimeDetectionOverlay({
         animationFrameRef.current = requestAnimationFrame(detectFrame);
       }, backoffDelay);
     }
-  }, [videoElement, isActive, drawDetections, error]);
+  }, [videoElement, isActive, drawDetections]);
 
   // Start/stop detection when active state changes
   useEffect(() => {
@@ -391,21 +446,25 @@ export default function RealtimeDetectionOverlay({
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
       }
     };
-  }, [isActive, isModelLoaded, videoElement, detectFrame]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, isModelLoaded, videoElement]);
 
   // Redraw when video size changes
   useEffect(() => {
     if (!videoElement) return;
 
     const handleResize = () => {
+      // Use current detections from state via ref or direct state access
       drawDetections(detections);
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [videoElement, detections, drawDetections]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoElement, drawDetections]);
 
   if (!isActive || !videoElement) {
     return null;
@@ -427,7 +486,7 @@ export default function RealtimeDetectionOverlay({
           </div>
           <div className="space-y-1.5 max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
             {detections.slice(0, 8).map((det, idx) => {
-              const colors = getClassColor(det.class);
+              const colors = CLASS_COLORS[det.class] || CLASS_COLORS['default'];
               return (
                 <div key={idx} className="flex items-center gap-2 group hover:bg-white/5 p-1 rounded transition-colors">
                   <div 

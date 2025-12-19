@@ -3,10 +3,10 @@ import { prisma } from '@/app/lib/prisma';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string; action: string } }
+  { params }: { params: Promise<{ id: string; action: string }> }
 ) {
   try {
-    const { id, action } = params;
+    const { id, action } = await params;
     const body = await request.json();
 
     let updatedUser;
@@ -76,9 +76,10 @@ export async function POST(
     return NextResponse.json(updatedUser);
 
   } catch (error) {
-    console.error(`Failed to ${params.action} user:`, error);
+    const { action } = await params;
+    console.error(`Failed to ${action} user:`, error);
     return NextResponse.json({ 
-      error: `Failed to ${params.action} user` 
+      error: `Failed to ${action} user` 
     }, { status: 500 });
   }
 }

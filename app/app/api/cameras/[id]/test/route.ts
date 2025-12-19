@@ -9,9 +9,10 @@ import { authOptions } from '@/app/lib/auth';
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: cameraId } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
@@ -20,8 +21,6 @@ export async function POST(
         { status: 401 }
       );
     }
-
-    const cameraId = params.id;
     
     // Fetch camera from database
     const camera = await prisma.camera.findUnique({

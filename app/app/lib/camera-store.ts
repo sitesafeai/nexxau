@@ -349,8 +349,15 @@ class CameraStore {
       });
 
       if (!response.ok) {
+        let errorMessage = 'Failed to update camera';
+        try {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to update camera');
+          errorMessage = error.error || error.message || errorMessage;
+        } catch (e) {
+          // If response is not JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();

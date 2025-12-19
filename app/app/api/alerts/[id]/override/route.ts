@@ -26,9 +26,10 @@ const overrideSchema = z.object({
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
@@ -56,7 +57,7 @@ export async function POST(
 
     // Get existing alert
     const existingAlert = await prisma.alert.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         worksite: true,
         camera: true,
@@ -77,7 +78,7 @@ export async function POST(
 
       // Update alert with override
       const updatedAlert = await tx.alert.update({
-        where: { id: params.id },
+        where: { id },
         data: {
           overrideStatus,
           overrideBy: session.user.id,
@@ -104,7 +105,7 @@ export async function POST(
       // Create audit log entry
       await tx.alertOverrideAuditLog.create({
         data: {
-          alertId: params.id,
+          alertId: id,
           userId: session.user.id,
           oldStatus,
           newStatus: overrideStatus,

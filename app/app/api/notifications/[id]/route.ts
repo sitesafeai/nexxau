@@ -6,9 +6,10 @@ import { prisma } from '../../../lib/prisma';
 // PUT /api/notifications/[id] - Mark notification as read
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
@@ -20,7 +21,7 @@ export async function PUT(
 
     const notification = await prisma.notification.updateMany({
       where: {
-        id: params.id,
+        id,
         userId: session.user.id,
       },
       data: {
@@ -53,9 +54,10 @@ export async function PUT(
 // DELETE /api/notifications/[id] - Delete notification
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
@@ -67,7 +69,7 @@ export async function DELETE(
 
     const notification = await prisma.notification.deleteMany({
       where: {
-        id: params.id,
+        id,
         userId: session.user.id,
       },
     });

@@ -8,7 +8,7 @@ import { falsePositiveHandler } from '@/app/lib/workflows/false-positive-handler
 // POST /api/alerts/[id]/resolve - Resolve an alert with full workflow
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -16,7 +16,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const alertId = params.id;
+    const { id: alertId } = await params;
     const body = await request.json();
     const {
       resolutionType, // CONFIRMED, FALSE_POSITIVE, SNOOZED

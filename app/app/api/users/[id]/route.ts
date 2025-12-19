@@ -9,9 +9,10 @@ import { logUpdate, logDelete } from '@/app/lib/audit-logger';
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getSession();
     const currentUser = session?.user;
 
@@ -35,7 +36,7 @@ export async function PATCH(
 
     // Get user before update for audit log
     const beforeUser = await prisma.user.findUnique({
-      where: { id: params.id }
+      where: { id }
     });
 
     if (!beforeUser) {
@@ -47,7 +48,7 @@ export async function PATCH(
 
     // Update user
     const updatedUser = await prisma.user.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(name && { name }),
         ...(email && { email }),
@@ -59,7 +60,7 @@ export async function PATCH(
     await logUpdate(
       currentUser.id,
       'User',
-      params.id,
+      id,
       { name: beforeUser.name, email: beforeUser.email, role: beforeUser.role },
       { name: updatedUser.name, email: updatedUser.email, role: updatedUser.role },
       request
@@ -84,9 +85,10 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getSession();
     const currentUser = session?.user;
 
@@ -107,7 +109,7 @@ export async function DELETE(
 
     // Get user before deletion for audit log
     const user = await prisma.user.findUnique({
-      where: { id: params.id }
+      where: { id }
     });
 
     if (!user) {
@@ -119,14 +121,14 @@ export async function DELETE(
 
     // Delete user
     await prisma.user.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     // Log audit trail
     await logDelete(
       currentUser.id,
       'User',
-      params.id,
+      id,
       { name: user.name, email: user.email, role: user.role },
       request
     );

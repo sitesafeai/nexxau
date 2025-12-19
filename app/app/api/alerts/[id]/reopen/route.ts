@@ -7,15 +7,14 @@ import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit';
 // POST /api/alerts/[id]/reopen - Reopen a resolved/acknowledged alert
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: alertId } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const alertId = params.id;
     const body = await request.json().catch(() => ({}));
     const { reason } = body;
 

@@ -260,7 +260,7 @@ const ExportButton: React.FC<ExportButtonProps> = ({
           />
           
           {/* Modal */}
-          <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-20 max-h-[80vh] overflow-y-auto">
+          <div className="absolute right-0 bottom-full mb-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-20 max-h-[80vh] overflow-y-auto">
             <div className="p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-semibold text-gray-900">

@@ -4,7 +4,7 @@ import { prisma } from '@/app/lib/prisma';
 // POST /api/cameras/[id]/health - Update camera health status
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = params;
@@ -103,7 +103,7 @@ export async function POST(
 // GET /api/cameras/[id]/health - Get camera health history
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = params;

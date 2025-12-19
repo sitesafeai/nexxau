@@ -226,10 +226,26 @@ export async function GET(request: NextRequest) {
       // Try with includes first, but fallback to basic query if relations fail
       try {
         console.log(`[Alerts API] [${requestId}] Step 7.1: Attempting query with relations (rule, worksite)...`);
-        const queryOptions = {
+        // Use select instead of include to avoid selecting overrideStatus which doesn't exist in DB
+        const queryOptions: any = {
           where,
           orderBy: { createdAt: 'desc' as const },
-          include: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            severity: true,
+            status: true,
+            source: true,
+            location: true,
+            metadata: true,
+            createdAt: true,
+            updatedAt: true,
+            resolvedAt: true,
+            ruleId: true,
+            worksiteId: true,
+            cameraId: true,
+            // Explicitly exclude overrideStatus and related fields that don't exist in DB
             rule: {
               select: { name: true, description: true, severity: true }
             },
@@ -238,12 +254,13 @@ export async function GET(request: NextRequest) {
             }
           }
         };
+        
         console.log(`[Alerts API] [${requestId}] Query options:`, JSON.stringify(queryOptions, null, 2));
         
         allAlerts = await prisma.alert.findMany(queryOptions);
         
         const queryDuration = Date.now() - queryStartTime;
-        console.log(`[Alerts API] [${requestId}] ✅ Query with relations succeeded in ${queryDuration}ms`);
+        console.log(`[Alerts API] [${requestId}] ✅ Query succeeded in ${queryDuration}ms`);
         console.log(`[Alerts API] [${requestId}] Found ${allAlerts.length} alerts`);
         if (allAlerts.length > 0) {
           console.log(`[Alerts API] [${requestId}] First alert sample:`, {
@@ -251,8 +268,8 @@ export async function GET(request: NextRequest) {
             title: allAlerts[0].title,
             status: allAlerts[0].status,
             severity: allAlerts[0].severity,
-            hasRule: !!allAlerts[0].rule,
-            hasWorksite: !!allAlerts[0].worksite
+            hasRule: !!(allAlerts[0] as any).rule,
+            hasWorksite: !!(allAlerts[0] as any).worksite
           });
         }
       } catch (includeError: any) {
@@ -267,17 +284,40 @@ export async function GET(request: NextRequest) {
         
         // Fallback to basic query without relations
         console.log(`[Alerts API] [${requestId}] Step 7.2: Attempting query without relations...`);
-        const basicQueryOptions = {
+        const basicQueryOptions: any = {
           where,
-          orderBy: { createdAt: 'desc' as const }
+          orderBy: { createdAt: 'desc' as const },
+          // Explicitly select fields to avoid overrideStatus which doesn't exist
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            severity: true,
+            status: true,
+            source: true,
+            location: true,
+            metadata: true,
+            createdAt: true,
+            updatedAt: true,
+            resolvedAt: true,
+            ruleId: true,
+            worksiteId: true,
+            // Don't select overrideStatus - it doesn't exist in the schema
+          }
         };
         console.log(`[Alerts API] [${requestId}] Basic query options:`, JSON.stringify(basicQueryOptions, null, 2));
         
+        try {
         allAlerts = await prisma.alert.findMany(basicQueryOptions);
         
         const queryDuration = Date.now() - queryStartTime;
         console.log(`[Alerts API] [${requestId}] ✅ Basic query succeeded in ${queryDuration}ms`);
         console.log(`[Alerts API] [${requestId}] Found ${allAlerts.length} alerts (without relations)`);
+        } catch (basicQueryError: any) {
+          console.error(`[Alerts API] [${requestId}] ❌ Basic query also failed:`, basicQueryError?.message);
+          // Return empty array instead of error to prevent 500
+          allAlerts = [];
+        }
       }
     } catch (prismaError: any) {
       const queryDuration = Date.now() - queryStartTime;

@@ -7,9 +7,10 @@ import { prisma } from '../../../lib/prisma';
 // PUT /api/api-keys/[id] - Update API key
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
@@ -25,7 +26,7 @@ export async function PUT(
     // Update API key
     const updatedApiKey = await prisma.apiKey.updateMany({
       where: {
-        id: params.id,
+        id,
         userId: session.user.id,
       },
       data: {
@@ -61,9 +62,10 @@ export async function PUT(
 // DELETE /api/api-keys/[id] - Revoke API key
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
@@ -73,7 +75,7 @@ export async function DELETE(
       );
     }
 
-    const result = await ApiKeyManager.revokeApiKey(params.id, session.user.id);
+    const result = await ApiKeyManager.revokeApiKey(id, session.user.id);
 
     if (result.count === 0) {
       return NextResponse.json(

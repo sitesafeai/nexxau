@@ -4,10 +4,6 @@ const { withSentryConfig } = require('@sentry/nextjs');
 
 const nextConfig = {
   reactStrictMode: false, // Temporarily disable for HLS testing
-  // Enable instrumentation hook
-  experimental: {
-    instrumentationHook: true,
-  },
   images: {
     remotePatterns: [
       {
@@ -30,7 +26,6 @@ const nextConfig = {
     return config;
   },
   experimental: {
-    instrumentationHook: true,
     serverActions: {
       allowedOrigins: ['localhost:3000', 'localhost:3001', 'localhost:3002'],
     },

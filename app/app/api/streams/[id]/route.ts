@@ -28,11 +28,12 @@ async function regenerateMediaMTXConfig() {
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // Remove camera from DB
-    await prisma.camera.delete({ where: { id: params.id } });
+    await prisma.camera.delete({ where: { id } });
 
     // Regenerate MediaMTX config
     await regenerateMediaMTXConfig();

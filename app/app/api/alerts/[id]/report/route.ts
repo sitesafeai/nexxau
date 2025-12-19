@@ -9,9 +9,10 @@ import { authOptions } from '@/app/lib/auth';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user) {
@@ -23,7 +24,7 @@ export async function GET(
 
     // Get alert with all related data
     const alert = await prisma.alert.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         worksite: {
           include: {
@@ -182,7 +183,7 @@ export async function GET(
         userId: session.user.id,
         action: 'DOWNLOAD_ALERT_REPORT',
         entity: 'Alert',
-        entityId: params.id,
+        entityId: id,
         changes: {
           reportType: 'pdf',
           alertTitle: alert.title

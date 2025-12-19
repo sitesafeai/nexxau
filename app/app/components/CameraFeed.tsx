@@ -156,8 +156,8 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
         // For fatal errors, handle silently with retries
         retryCountRef.current += 1;
         
-        switch (data.type) {
-          case Hls.ErrorTypes.NETWORK_ERROR:
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
             if (retryCountRef.current <= maxRetries) {
               // Silent retry - keep loading state, don't show error
               setIsRetrying(true);
@@ -174,8 +174,8 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
               setIsLoading(false);
               cleanup();
             }
-            break;
-          case Hls.ErrorTypes.MEDIA_ERROR:
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
             if (retryCountRef.current <= maxRetries) {
               // Silent recovery attempt
               setIsRetrying(true);
@@ -187,14 +187,14 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
               setIsLoading(false);
               cleanup();
             }
-            break;
-          default:
+              break;
+            default:
             setIsRetrying(false);
             setError('Unable to load stream.');
             setIsLoading(false);
-            cleanup();
-            break;
-        }
+              cleanup();
+              break;
+          }
       });
 
       // Set loading timeout (8 seconds - reduced for faster feedback)
@@ -257,7 +257,7 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
         } else {
           setIsRetrying(false);
           setError('Stream unavailable. The media server may not be running.');
-          setIsLoading(false);
+      setIsLoading(false);
         }
       };
 
@@ -277,7 +277,7 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
         if (videoRef.current) {
           videoRef.current.removeEventListener('canplay', handleCanPlay);
           videoRef.current.removeEventListener('error', handleError);
-        }
+      }
       };
     } else {
       console.error('HLS is not supported in this browser');
@@ -396,7 +396,7 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
     } else {
       setIsRetrying(false);
       setError('Stream unavailable. The media server may not be running.');
-      setIsLoading(false);
+    setIsLoading(false);
     }
   };
 
@@ -415,7 +415,7 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
   const handlePlayClick = () => {
     if (videoRef.current) {
       if (videoRef.current.paused) {
-          videoRef.current.play()
+        videoRef.current.play()
           .then(() => setIsPlaying(true))
           .catch(() => {
             // Play failed
@@ -470,12 +470,12 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(({
               <div className="mb-2 text-lg font-medium text-white">{error}</div>
               <p className="text-sm text-slate-400 mb-4">Please check if the media server is running.</p>
               {error.includes('autoplay') && (
-                <button
+              <button
                   onClick={handlePlayClick}
                   className="bg-white text-black px-6 py-2 rounded-lg font-medium hover:bg-gray-100 transition-colors"
                 >
                   Play Video
-                </button>
+              </button>
               )}
               {!error.includes('autoplay') && (
                 <button

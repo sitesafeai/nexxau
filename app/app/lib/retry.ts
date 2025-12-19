@@ -14,17 +14,58 @@ export interface RetryOptions {
   initialDelay?: number; // milliseconds
   maxDelay?: number; // milliseconds
   backoffMultiplier?: number;
+  jitter?: boolean; // Add random jitter to prevent thundering herd
+  jitterMax?: number; // Maximum jitter percentage (default: 0.3 = 30%)
   retryableErrors?: string[]; // Error messages that should trigger retry
   onRetry?: (attempt: number, error: Error) => void;
   shouldRetry?: (error: Error) => boolean;
+  rateLimitPerSecond?: number; // Max retries per second (prevents reconnect storms)
 }
 
 const DEFAULT_OPTIONS: Required<Omit<RetryOptions, 'retryableErrors' | 'onRetry' | 'shouldRetry'>> = {
   maxAttempts: 3,
   initialDelay: 1000,
   maxDelay: 10000,
-  backoffMultiplier: 2
+  backoffMultiplier: 2,
+  jitter: true,
+  jitterMax: 0.3, // 30% jitter
+  rateLimitPerSecond: 10, // Max 10 retries per second
 };
+
+// Rate limiter for retries (prevents reconnect storms)
+class RetryRateLimiter {
+  private attempts: Map<string, number[]> = new Map();
+  
+  public canRetry(key: string, maxPerSecond: number): boolean {
+    const now = Date.now();
+    const windowStart = now - 1000; // Last second
+    
+    if (!this.attempts.has(key)) {
+      this.attempts.set(key, []);
+    }
+    
+    const attempts = this.attempts.get(key)!;
+    
+    // Remove old attempts outside the window
+    const recentAttempts = attempts.filter(timestamp => timestamp > windowStart);
+    this.attempts.set(key, recentAttempts);
+    
+    // Check if we're under the limit
+    if (recentAttempts.length >= maxPerSecond) {
+      return false;
+    }
+    
+    // Record this attempt
+    recentAttempts.push(now);
+    return true;
+  }
+  
+  public clear(key: string): void {
+    this.attempts.delete(key);
+  }
+}
+
+const rateLimiter = new RetryRateLimiter();
 
 /**
  * Retry a function with exponential backoff
@@ -87,17 +128,38 @@ export async function retry<T>(
         throw lastError;
       }
       
+      // Check rate limit (prevent reconnect storms)
+      const rateLimitKey = context || 'default';
+      if (opts.rateLimitPerSecond) {
+        if (!rateLimiter.canRetry(rateLimitKey, opts.rateLimitPerSecond)) {
+          logger.error(`Rate limit exceeded for ${rateLimitKey}, aborting retry`, {
+            context,
+            attempt,
+            maxPerSecond: opts.rateLimitPerSecond,
+          });
+          throw new Error(`Rate limit exceeded: too many retries for ${rateLimitKey}`);
+        }
+      }
+      
       // Calculate delay with exponential backoff
-      const delay = Math.min(
+      let delay = Math.min(
         opts.initialDelay * Math.pow(opts.backoffMultiplier, attempt - 1),
         opts.maxDelay
       );
       
-      logger.warn(`Operation failed, retrying in ${delay}ms`, { 
+      // Add jitter to prevent thundering herd
+      if (opts.jitter) {
+        const jitterAmount = delay * opts.jitterMax * Math.random();
+        const jitterSign = Math.random() < 0.5 ? -1 : 1;
+        delay = Math.max(0, delay + (jitterSign * jitterAmount));
+      }
+      
+      logger.warn(`Operation failed, retrying in ${Math.round(delay)}ms`, { 
         context, 
         attempt,
-        delay,
-        error: lastError.message 
+        delay: Math.round(delay),
+        error: lastError.message,
+        jitter: opts.jitter,
       });
       
       // Call onRetry callback if provided
@@ -106,7 +168,7 @@ export async function retry<T>(
       }
       
       // Wait before retrying
-      await sleep(delay);
+      await sleep(Math.round(delay));
     }
   }
   

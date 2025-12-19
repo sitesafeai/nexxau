@@ -3,14 +3,15 @@ import { prisma } from '@/app/lib/prisma';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const { name, description, severity, conditions, actions, isActive } = body;
 
     const alertRule = await prisma.alertRule.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         name,
         description,
@@ -31,11 +32,12 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     await prisma.alertRule.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     return NextResponse.json({ message: 'Alert rule deleted successfully' });

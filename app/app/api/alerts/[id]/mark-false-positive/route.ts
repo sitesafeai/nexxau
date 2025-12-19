@@ -9,9 +9,10 @@ import { falsePositiveHandler } from '@/app/lib/workflows/false-positive-handler
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getSession();
     if (!session?.user) {
       return NextResponse.json(
@@ -25,7 +26,7 @@ export async function POST(
 
     // Get the alert first
     const alert = await prisma.alert.findUnique({
-      where: { id: params.id }
+      where: { id }
     });
 
     if (!alert) {
@@ -37,7 +38,7 @@ export async function POST(
 
     // Set overrideStatus on the alert
     await prisma.alert.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         overrideStatus: 'false_positive',
         overrideBy: session.user.id,
@@ -47,7 +48,7 @@ export async function POST(
     });
 
     // Create false positive report via handler
-    await falsePositiveHandler.handleFalsePositive(params.id, session.user.id, {
+    await falsePositiveHandler.handleFalsePositive(id, session.user.id, {
       isFalsePositive: true,
       reason,
       zone,

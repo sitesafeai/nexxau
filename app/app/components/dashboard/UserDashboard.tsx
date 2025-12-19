@@ -573,6 +573,10 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
   const [selectedCameraForLive, setSelectedCameraForLive] = useState<SiteCamera | null>(null);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [selectedCameraForConfig, setSelectedCameraForConfig] = useState<SiteCamera | null>(null);
+  const [showDebugModal, setShowDebugModal] = useState(false);
+  const [rawCameraData, setRawCameraData] = useState<any>(null);
+  const [showCameraInfoPopup, setShowCameraInfoPopup] = useState(false);
+  const [selectedCameraForInfo, setSelectedCameraForInfo] = useState<SiteCamera | null>(null);
 
   // Handle camera configuration
   const handleSaveConfiguration = async (formData: any) => {
@@ -660,8 +664,8 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
       
       const [metricsRes, alertsRes, camerasRes] = await Promise.all([
         fetch(`/api/worksites/${selectedSite.id}/metrics`).catch(() => null),
-        fetch(`/api/alerts?worksiteId=${selectedSite.id}&limit=100`).catch(() => null),
-        fetch(`/api/cameras?worksiteId=${selectedSite.id}`).catch(() => null)
+        fetch(`/api/alerts?worksiteId=${selectedSite.id}&limit=100`, { cache: 'no-store' }).catch(() => null),
+        fetch(`/api/cameras?worksiteId=${selectedSite.id}`, { cache: 'no-store' }).catch(() => null)
       ]);
 
       if (metricsRes?.ok) {
@@ -686,25 +690,38 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
 
       if (alertsRes?.ok) {
         const data = await alertsRes.json();
-        const formattedAlerts = (data.data || data.alerts || []).map((a: any) => ({
+        // Handle different response formats
+        const alertsList = Array.isArray(data) ? data : (data.data || data.alerts || []);
+        
+        // Filter for ACTIVE status only (matching admin dashboard behavior)
+        const activeAlerts = alertsList.filter((a: any) => 
+          (a.status?.toUpperCase() === 'ACTIVE' || a.status?.toLowerCase() === 'active')
+        );
+        
+        const formattedAlerts = activeAlerts.map((a: any) => ({
           id: a.id,
-          camera: a.worksite?.name || a.camera || 'Unknown Camera',
-          cameraId: a.cameraId || '',
+          camera: a.camera?.name || a.worksite?.name || a.camera || 'Unknown Camera',
+          cameraId: a.cameraId || a.camera?.id || '',
           alertType: a.title || a.alertType || 'Alert',
           severity: (a.severity?.toLowerCase() || 'low') as AlertSeverity,
           time: a.createdAt || a.time || new Date().toISOString(),
           status: (a.status?.toLowerCase() || 'active') as AlertStatus,
           evidence: a.evidence,
+          videoClip: a.videoClipUrl || a.metadata?.videoClipUrl,
         }));
         setAlerts(formattedAlerts);
       }
 
       if (camerasRes?.ok) {
         const data = await camerasRes.json();
-        const formattedCameras = (data.cameras || data.data || []).map((c: any) => ({
+        // Handle different response formats (matching admin dashboard behavior)
+        const camerasList = Array.isArray(data) ? data : (data.cameras || data.data || []);
+        
+        const formattedCameras = camerasList.map((c: any) => ({
           id: c.id,
           name: c.name || 'Unnamed Camera',
           zone: c.zone || c.location,
+          location: c.location || c.zone,
           status: (c.status?.toLowerCase() === 'online' || c.status?.toLowerCase() === 'active' ? 'online' : 'offline') as CameraStatus,
           aiEnabled: c.aiEnabled ?? c.aiDetection ?? false,
           recording: c.recording ?? true,
@@ -1075,9 +1092,41 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
       <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg backdrop-blur-sm">
         <div className="px-5 py-4 border-b border-slate-700/50 flex items-center justify-between">
           <h3 className="font-semibold text-white">Camera Monitoring</h3>
+          <div className="flex items-center gap-3">
           <span className="text-sm text-slate-400">
             {cameras.filter(c => c.status === 'online').length} / {cameras.length} online
           </span>
+            <button
+              onClick={async () => {
+                try {
+                  // Fetch raw camera data from API
+                  const response = await fetch(`/api/cameras?worksiteId=${selectedSite?.id}`, { cache: 'no-store' });
+                  const data = await response.json();
+                  setRawCameraData({
+                    apiResponse: data,
+                    camerasInState: cameras,
+                    selectedSiteId: selectedSite?.id,
+                    timestamp: new Date().toISOString()
+                  });
+                  setShowDebugModal(true);
+                } catch (error) {
+                  console.error('Error fetching camera debug data:', error);
+                  setRawCameraData({
+                    error: error instanceof Error ? error.message : 'Unknown error',
+                    camerasInState: cameras,
+                    selectedSiteId: selectedSite?.id,
+                    timestamp: new Date().toISOString()
+                  });
+                  setShowDebugModal(true);
+                }
+              }}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors flex items-center gap-2"
+              title="Show all camera information for debugging"
+            >
+              <Settings className="w-4 h-4" />
+              Debug Cameras
+            </button>
+          </div>
         </div>
         
         <div className="p-5">
@@ -1097,13 +1146,13 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
                     setShowLiveFeedModal(true);
                   }}
                   onConfigure={async () => {
-                    // Fetch full camera details to ensure we have all fields
+                    // Fetch full camera details to show in popup
                     try {
                       const response = await fetch(`/api/cameras/${camera.id}`);
                       if (response.ok) {
                         const data = await response.json();
                         const fullCamera = data.camera || data.data || data;
-                        setSelectedCameraForConfig({
+                        setSelectedCameraForInfo({
                           ...camera,
                           ...fullCamera,
                           zone: fullCamera.zone || fullCamera.location || camera.zone,
@@ -1117,14 +1166,14 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
                         });
                       } else {
                         // Fallback to existing camera data
-                        setSelectedCameraForConfig(camera);
+                        setSelectedCameraForInfo(camera);
                       }
                     } catch (error) {
                       console.error('Error fetching camera details:', error);
                       // Fallback to existing camera data
-                      setSelectedCameraForConfig(camera);
+                      setSelectedCameraForInfo(camera);
                     }
-                    setShowConfigModal(true);
+                    setShowCameraInfoPopup(true);
                   }}
                   userRole={currentUser?.role}
                 />
@@ -1417,6 +1466,209 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
           onToggleAI={() => handleToggleAI(selectedCameraForConfig)}
         />
       )}
+
+      {/* Camera Info Popup */}
+      {showCameraInfoPopup && selectedCameraForInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => {
+          setShowCameraInfoPopup(false);
+          setSelectedCameraForInfo(null);
+        }}>
+          <div className="bg-slate-900 rounded-xl w-full max-w-3xl border border-slate-700 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 sticky top-0 bg-slate-900">
+              <h3 className="text-xl font-semibold text-white">Camera Information: {selectedCameraForInfo.name}</h3>
+              <button
+                onClick={() => {
+                  setShowCameraInfoPopup(false);
+                  setSelectedCameraForInfo(null);
+                }}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Basic Information */}
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <h4 className="text-lg font-semibold text-white mb-4">Basic Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-slate-400 text-sm">Camera ID:</span>
+                    <p className="text-white font-mono text-sm mt-1">{selectedCameraForInfo.id}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Name:</span>
+                    <p className="text-white mt-1">{selectedCameraForInfo.name || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Location:</span>
+                    <p className="text-white mt-1">{selectedCameraForInfo.location || selectedCameraForInfo.zone || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Status:</span>
+                    <p className={`mt-1 inline-block px-2 py-1 rounded text-xs font-medium ${
+                      selectedCameraForInfo.status === 'online' ? 'bg-green-500/20 text-green-400' :
+                      selectedCameraForInfo.status === 'offline' ? 'bg-red-500/20 text-red-400' :
+                      'bg-yellow-500/20 text-yellow-400'
+                    }`}>
+                      {selectedCameraForInfo.status || 'unknown'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">AI Detection:</span>
+                    <p className={`mt-1 inline-block px-2 py-1 rounded text-xs font-medium ${
+                      selectedCameraForInfo.aiEnabled ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
+                    }`}>
+                      {selectedCameraForInfo.aiEnabled ? 'Enabled' : 'Disabled'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Recent Violations (24h):</span>
+                    <p className="text-white mt-1">{selectedCameraForInfo.recentViolations || 0}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stream URLs */}
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <h4 className="text-lg font-semibold text-white mb-4">Stream Configuration</h4>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-slate-400 text-sm">HLS URL:</span>
+                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
+                      {selectedCameraForInfo.hlsUrl || 'Not configured'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">Stream URL:</span>
+                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
+                      {selectedCameraForInfo.streamUrl || 'Not configured'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">MediaMTX Path:</span>
+                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
+                      {selectedCameraForInfo.mediamtxPath || 'Not configured'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-sm">RTSP Path:</span>
+                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
+                      {selectedCameraForInfo.rtspPath || 'Not configured'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Metadata */}
+              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <h4 className="text-lg font-semibold text-white mb-4">Additional Information</h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 text-sm">Uptime (24h):</span>
+                    <span className="text-white">{selectedCameraForInfo.uptime24h || 'N/A'}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 text-sm">Recording:</span>
+                    <span className={`${selectedCameraForInfo.recording ? 'text-green-400' : 'text-gray-400'}`}>
+                      {selectedCameraForInfo.recording ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Raw Data (for debugging) */}
+              <details className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                <summary className="text-lg font-semibold text-white cursor-pointer">Raw Camera Data (Debug)</summary>
+                <pre className="mt-4 text-xs text-slate-300 bg-slate-900/50 p-4 rounded overflow-auto max-h-64">
+                  {JSON.stringify(selectedCameraForInfo, null, 2)}
+                </pre>
+              </details>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-700 flex justify-end">
+              <button
+                onClick={() => {
+                  setShowCameraInfoPopup(false);
+                  setSelectedCameraForInfo(null);
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Debug Camera Data Modal */}
+      <Modal
+        isOpen={showDebugModal}
+        onClose={() => {
+          setShowDebugModal(false);
+          setRawCameraData(null);
+        }}
+        title="Camera Debug Information"
+        maxWidth="900px"
+      >
+        {rawCameraData ? (
+          <div className="space-y-4">
+            <div className="p-3 bg-slate-900 rounded border border-slate-700">
+              <h4 className="text-sm font-semibold text-white mb-2">Debug Info</h4>
+              <div className="text-xs text-slate-400 space-y-1">
+                <p><strong>Selected Site ID:</strong> {rawCameraData.selectedSiteId || 'None'}</p>
+                <p><strong>Cameras in State:</strong> {rawCameraData.camerasInState?.length || 0}</p>
+                <p><strong>Timestamp:</strong> {rawCameraData.timestamp}</p>
+                {rawCameraData.error && (
+                  <p className="text-red-400"><strong>Error:</strong> {rawCameraData.error}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-900 rounded border border-slate-700">
+              <h4 className="text-sm font-semibold text-white mb-2">API Response</h4>
+              <pre className="text-xs text-slate-300 overflow-auto max-h-96 p-3 bg-slate-950 rounded border border-slate-800">
+                {JSON.stringify(rawCameraData.apiResponse, null, 2)}
+              </pre>
+            </div>
+
+            <div className="p-3 bg-slate-900 rounded border border-slate-700">
+              <h4 className="text-sm font-semibold text-white mb-2">Cameras in Component State</h4>
+              <pre className="text-xs text-slate-300 overflow-auto max-h-96 p-3 bg-slate-950 rounded border border-slate-800">
+                {JSON.stringify(rawCameraData.camerasInState, null, 2)}
+              </pre>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(JSON.stringify(rawCameraData, null, 2));
+                  alert('Debug data copied to clipboard!');
+                }}
+                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded transition-colors"
+              >
+                Copy All Data
+              </button>
+              <button
+                onClick={() => {
+                  setShowDebugModal(false);
+                  setRawCameraData(null);
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <RefreshCw className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-4" />
+            <p className="text-slate-400">Loading camera debug data...</p>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

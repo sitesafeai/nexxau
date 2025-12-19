@@ -79,10 +79,11 @@ export default function CameraManagementPage() {
     setTimeout(() => setSuccessMessage(null), 5000);
   };
 
-  const handleEditCamera = () => {
+  const handleEditCamera = async () => {
     if (!selectedCamera) return;
 
-    updateCamera(selectedCamera.id, {
+    try {
+      await updateCamera(selectedCamera.id, {
       name: formData.name,
       location: formData.location,
       streamUrl: formData.streamUrl,
@@ -95,6 +96,14 @@ export default function CameraManagementPage() {
     setIsEditModalOpen(false);
     setSelectedCamera(null);
     resetForm();
+      
+      // Show success message
+      setSuccessMessage(`✅ Camera "${formData.name}" updated successfully!`);
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (error: any) {
+      console.error('Error updating camera:', error);
+      alert(`Failed to update camera: ${error.message || 'Unknown error'}`);
+    }
   };
 
   const handleDeleteCamera = (cameraId: string) => {

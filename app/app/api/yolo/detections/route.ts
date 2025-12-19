@@ -16,14 +16,46 @@ import {
 import { captureCameraClip } from '../../../lib/video-recorder';
 import { uploadVideoClip } from '../../../lib/cloud-storage';
 import { emitAlertCreated } from '../../../lib/alert-events';
+import { 
+  FrameValidator, 
+  cameraWatchdog, 
+  AlertStateMachine,
+  createAlertTransactionally 
+} from '../../../lib/safety';
+import { matchesRuleClass } from '../../../lib/detection-class-mapper';
 
 // In-memory cache for recent detections (last 50 per camera)
 const recentDetections = new Map<string, any[]>();
 
 export async function POST(request: NextRequest) {
+  const correlationId = crypto.randomUUID();
+  const startTime = Date.now();
+  
   try {
     const detectionData = await request.json();
     
+    // SAFETY: Validate frame as untrusted input
+    const validationResult = FrameValidator.validateFrame(detectionData);
+    
+    if (!validationResult.isValid) {
+      console.error(`[Detections API] Frame validation failed:`, validationResult.errors);
+      return NextResponse.json(
+        { 
+          error: 'Invalid frame data',
+          errors: validationResult.errors,
+          correlationId 
+        },
+        { status: 400 }
+      );
+    }
+    
+    // Log warnings if any
+    if (validationResult.warnings.length > 0) {
+      console.warn(`[Detections API] Frame validation warnings:`, validationResult.warnings);
+    }
+    
+    // Use sanitized data
+    const sanitizedData = validationResult.sanitizedData!;
     const {
       camera_id,
       timestamp,
@@ -31,14 +63,24 @@ export async function POST(request: NextRequest) {
       frame_data,
       frame_width,
       frame_height
-    } = detectionData;
+    } = sanitizedData;
 
-    // Validate required fields
-    if (!camera_id || !detections || !Array.isArray(detections)) {
+    // SAFETY: Check camera watchdog - is camera healthy?
+    if (cameraWatchdog.isCameraDisabled(camera_id)) {
+      console.warn(`[Detections API] Camera ${camera_id} is disabled (circuit breaker open)`);
       return NextResponse.json(
-        { error: 'Missing required fields: camera_id, detections' },
-        { status: 400 }
+        { 
+          error: 'Camera is disabled',
+          message: 'Camera has been automatically disabled due to persistent failures. Please re-enable manually.',
+          correlationId 
+        },
+        { status: 503 }
       );
+    }
+    
+    if (!cameraWatchdog.isCameraHealthy(camera_id)) {
+      console.warn(`[Detections API] Camera ${camera_id} is degraded`);
+      // Continue processing but log warning
     }
 
     // Get camera and worksite settings
@@ -74,13 +116,20 @@ export async function POST(request: NextRequest) {
 
     // If no detections pass the threshold, skip processing
     if (filteredDetections.length === 0) {
+      // SAFETY: Record valid frame even if no detections
+      cameraWatchdog.recordValidFrame(camera_id, new Date(timestamp));
+      
       return NextResponse.json({
         success: true,
         message: 'No detections above confidence threshold',
         filtered: detections.length,
-        threshold: settings.camera.detectionConfidence
+        threshold: settings.camera.detectionConfidence,
+        correlationId
       });
     }
+
+    // SAFETY: Record valid frame
+    cameraWatchdog.recordValidFrame(camera_id, new Date(timestamp));
 
     // Save detection to database first (so we can link alerts to it)
     const savedDetection = await prisma.detection.create({
@@ -132,6 +181,30 @@ export async function POST(request: NextRequest) {
         });
 
         for (const violation of zoneViolations) {
+          // SAFETY: Generate deterministic alert key for deduplication
+          const alertKey = AlertStateMachine.generateAlertKey({
+            cameraId: camera_id,
+            violationType: `zone_violation_${violation.zone.id}`,
+            timestamp: new Date(timestamp),
+            location: violation.zone.name,
+            metadata: {
+              zoneType: violation.zone.type,
+              detectedObject: violation.detection.class,
+            },
+          });
+          
+          // SAFETY: Check if alert should be created (deduplication)
+          const shouldCreate = await AlertStateMachine.shouldCreateAlert(alertKey);
+          
+          if (!shouldCreate.shouldCreate) {
+            console.log(`[Detections API] Skipping duplicate alert: ${shouldCreate.reason}`, {
+              alertKey,
+              existingAlertId: shouldCreate.existingAlertId,
+              correlationId,
+            });
+            continue;
+          }
+          
           dbPool.executeWithRetry(async () => {
             const baseMetadata = {
               type: 'zone_violation',
@@ -147,29 +220,61 @@ export async function POST(request: NextRequest) {
               frameWidth: frame_width,
               frameHeight: frame_height,
               detectionId: savedDetection.id, // Link alert to detection for feedback
+              alertKey, // Store for deduplication
+              correlationId,
             };
 
-            let alert = await prisma.alert.create({
-              data: {
+            // SAFETY: Create alert transactionally (alert + video + audit log)
+            const alertResult = await createAlertTransactionally({
+              alert: {
                 title: `Zone Violation: ${violation.zone.name}`,
                 description: getViolationDescription(violation),
                 severity: violation.severity,
                 source: 'AI_DETECTION',
                 location: `Camera: ${camera.name} - Zone: ${violation.zone.name}`,
                 worksiteId: camera.worksiteId,
-                status: 'ACTIVE',
-                metadata: baseMetadata
-              }
+                status: 'CREATED', // Use state machine state
+                metadata: baseMetadata,
+                worksite: {
+                  connect: { id: camera.worksiteId },
+                },
+              },
+              auditLog: {
+                action: 'ALERT_CREATED',
+                entity: 'ALERT',
+                entityName: `Zone Violation: ${violation.zone.name}`,
+                metadata: {
+                  ...baseMetadata,
+                  correlationId,
+                },
+                result: 'SUCCESS',
+                severity: violation.severity,
+                worksiteId: camera.worksiteId,
+              },
             });
+            
+            if (!alertResult.success) {
+              throw new Error(alertResult.error || 'Failed to create alert transactionally');
+            }
+            
+            let alert = await prisma.alert.findUnique({
+              where: { id: alertResult.alertId },
+            });
+            
+            if (!alert) {
+              throw new Error('Alert not found after creation');
+            }
 
-            // Attempt to capture and upload video clip
-            try {
-              const clip = await captureCameraClip({
+            // Attempt to capture and upload video clip (non-blocking)
+            // SAFETY: Don't let video capture failure block alert creation
+            captureCameraClip({
                 id: camera.id,
                 name: camera.name,
                 streamUrl: camera.hlsUrl || camera.streamUrl || undefined,
-              });
+            })
+              .then(async (clip) => {
               if (clip) {
+                  try {
                 const videoUrl = await uploadVideoClip(
                   clip.buffer,
                   alert.id,
@@ -177,19 +282,25 @@ export async function POST(request: NextRequest) {
                   { fileName: clip.filename }
                 );
 
-                alert = await prisma.alert.update({
+                    await prisma.alert.update({
                   where: { id: alert.id },
                   data: {
                     metadata: {
-                      ...baseMetadata,
+                          ...(alert.metadata as Record<string, any> || {}),
                       videoClipUrl: videoUrl
                     }
                   }
                 });
+                  } catch (error) {
+                    console.error(`[Detections API] Failed to upload video clip for alert ${alert.id}:`, error);
+                    // Don't throw - video is optional
               }
-            } catch (error) {
-              console.error('Failed to capture/upload video clip:', error);
             }
+              })
+              .catch((error) => {
+                console.error(`[Detections API] Failed to capture video clip for alert ${alert.id}:`, error);
+                // Don't throw - video is optional
+              });
 
             const finalMetadata = (alert.metadata ?? baseMetadata) as Record<string, any>;
 
@@ -207,7 +318,11 @@ export async function POST(request: NextRequest) {
             });
 
             return alert;
-          }).catch(err => console.error('Error creating zone violation alert:', err));
+          }).catch(err => {
+            console.error(`[Detections API] Error creating zone violation alert:`, err);
+            // SAFETY: Record failure to watchdog
+            cameraWatchdog.recordFailedFrame(camera_id, `Alert creation failed: ${err.message}`);
+          });
         }
       }
     }
@@ -262,10 +377,30 @@ export async function POST(request: NextRequest) {
       message: 'Detection results processed successfully'
     });
 
-  } catch (error) {
-    console.error('Error processing detection results:', error);
+  } catch (error: any) {
+    // SAFETY: Record failure to watchdog if we have camera_id
+    const cameraId = (detectionData as any)?.camera_id;
+    if (cameraId) {
+      cameraWatchdog.recordFailedFrame(
+        cameraId, 
+        `Detection processing failed: ${error?.message || 'Unknown error'}`
+      );
+    }
+    
+    const latency = Date.now() - startTime;
+    console.error(`[Detections API] Error processing detection results:`, {
+      error: error?.message || 'Unknown error',
+      correlationId,
+      latency,
+      cameraId,
+    });
+    
     return NextResponse.json(
-      { error: 'Failed to process detection results' },
+      { 
+        error: 'Failed to process detection results',
+        correlationId,
+        message: error?.message || 'Internal server error'
+      },
       { status: 500 }
     );
   }
@@ -377,9 +512,25 @@ async function checkSafetyViolations(
       })
     );
 
+    // Get active custom rules for this worksite
+    const customRules = await dbPool.executeWithRetry(
+      () => prisma.customRule.findMany({
+        where: {
+          isActive: true,
+          worksiteId: worksiteId,
+          // Check if rule applies to this camera (all cameras or specific camera)
+          OR: [
+            { cameraIds: { isEmpty: true } }, // Applies to all cameras
+            { cameraIds: { has: cameraId } } // Applies to this specific camera
+          ]
+        }
+      })
+    );
+
     // Track violations to check against alert threshold
     let violationCount = 0;
 
+    // Check alert rules
     for (const rule of alertRules) {
       const violations = checkRuleViolations(rule, detections);
       
@@ -411,6 +562,40 @@ async function checkSafetyViolations(
               })
             );
           }
+        }
+      }
+    }
+
+    // Check custom rules
+    for (const rule of customRules) {
+      const violations = checkCustomRuleViolations(rule, detections, cameraId);
+      
+      if (violations.length > 0) {
+        for (const violation of violations) {
+          // Create alert for custom rule violation
+          await dbPool.executeWithRetry(
+            () => prisma.alert.create({
+              data: {
+                title: rule.name,
+                description: rule.description || `${rule.name} triggered`,
+                severity: rule.severity,
+                source: 'AI_DETECTION',
+                location: `Camera: ${cameraId}`,
+                worksiteId: rule.worksiteId,
+                ruleId: rule.id,
+                metadata: {
+                  cameraId,
+                  ruleId: rule.id,
+                  ruleName: rule.name,
+                  detectionType: rule.detectionType,
+                  objectClass: rule.objectClass,
+                  violation: violation,
+                  detectionData: violation.detection,
+                  timestamp: new Date().toISOString()
+                }
+              }
+            })
+          );
         }
       }
     }
@@ -466,6 +651,88 @@ function checkRuleViolations(rule: any, detections: any[]): any[] {
           detection: person
         });
       }
+      break;
+  }
+  
+  return violations;
+}
+
+function checkCustomRuleViolations(rule: any, detections: any[], cameraId: string): any[] {
+  const violations = [];
+  
+  // Check if rule matches detection type
+  const detectionType = rule.detectionType;
+  const objectClass = rule.objectClass;
+  const minConfidence = rule.minConfidence || 0.5;
+  
+  // Filter detections by confidence
+  const confidentDetections = detections.filter(d => 
+    (d.confidence || d.score || 0) >= minConfidence
+  );
+  
+  // Get detected class names
+  const detectedClasses = confidentDetections.map(d => 
+    (d.class_name || d.class || '').toLowerCase()
+  );
+  
+  // Check different detection types
+  switch (detectionType) {
+    case 'object_present':
+      // Check if the specified object is detected
+      // Uses class mapper to support both COCO-SSD and YOLO classes
+      if (objectClass) {
+        const matchingDetections = confidentDetections.filter(d => {
+          const detectedClass = (d.class_name || d.class || '').toLowerCase();
+          return matchesRuleClass(detectedClass, objectClass);
+        });
+        
+        for (const detection of matchingDetections) {
+          violations.push({
+            type: 'CUSTOM_RULE_VIOLATION',
+            details: `${objectClass} detected (rule: ${rule.name})`,
+            location: `Camera: ${cameraId}`,
+            detection: detection
+          });
+        }
+      }
+      break;
+      
+    case 'object_missing':
+      // Check if required object is missing (e.g., person without hardhat)
+      // Works with both COCO (generic "person") and YOLO (specific "person_without_hardhat")
+      if (objectClass) {
+        // Check if person is detected (either generic "person" or any person_* class)
+        const personDetections = confidentDetections.filter(d => {
+          const detectedClass = (d.class_name || d.class || '').toLowerCase();
+          return detectedClass === 'person' || detectedClass.startsWith('person_');
+        });
+        
+        if (personDetections.length > 0) {
+          // Check if the required object is missing
+          // For YOLO: Check if "person_without_hardhat" is detected when rule wants "person_with_hardhat"
+          // For COCO: Check if person is detected but required PPE class is not
+          const hasRequiredObject = confidentDetections.some(d => {
+            const detectedClass = (d.class_name || d.class || '').toLowerCase();
+            return matchesRuleClass(detectedClass, objectClass);
+          });
+          
+          if (!hasRequiredObject) {
+            for (const detection of personDetections) {
+              violations.push({
+                type: 'CUSTOM_RULE_VIOLATION',
+                details: `Person detected without ${objectClass} (rule: ${rule.name})`,
+                location: `Camera: ${cameraId}`,
+                detection: detection
+              });
+            }
+          }
+        }
+      }
+      break;
+      
+    case 'zone_violation':
+      // Zone violations are handled separately in the zone detection logic
+      // This is just a placeholder
       break;
   }
   

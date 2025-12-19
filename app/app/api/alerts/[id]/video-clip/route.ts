@@ -7,11 +7,12 @@ import { prisma } from '@/app/lib/prisma';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const alert = await prisma.alert.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         worksite: true
       }
@@ -48,7 +49,7 @@ export async function GET(
     
     // Update alert with video clip information
     await prisma.alert.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         metadata: {
           ...metadata,

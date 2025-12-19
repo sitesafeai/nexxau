@@ -57,25 +57,51 @@ class DetectionManager:
     def fetch_camera_config_from_webapp(self):
         """Fetch camera configuration from the web application."""
         try:
+            # Try to get cameras from API
             response = requests.get(f"{self.web_app_url}/api/cameras", timeout=10)
             if response.status_code == 200:
-                cameras_data = response.json()
+                result = response.json()
+                # Handle both direct array and wrapped response
+                if isinstance(result, dict) and 'data' in result:
+                    cameras_data = result['data']
+                elif isinstance(result, list):
+                    cameras_data = result
+                else:
+                    cameras_data = []
+                
                 self.camera_config = {}
                 
                 for camera in cameras_data:
-                    camera_id = str(camera['id'])
-                    self.camera_config[camera_id] = {
-                        'name': camera['name'],
-                        'stream_url': camera['streamUrl'],
-                        'hls_url': camera.get('hlsUrl'),
-                        'location': camera['location'],
-                        'type': camera['type']
-                    }
+                    camera_id = str(camera.get('id', camera.get('cameraId', '')))
+                    if not camera_id:
+                        continue
+                        
+                    # Get stream URL (try multiple field names)
+                    stream_url = (
+                        camera.get('streamUrl') or 
+                        camera.get('stream_url') or 
+                        camera.get('rtspUrl') or
+                        camera.get('hlsUrl') or
+                        camera.get('url')
+                    )
+                    
+                    if stream_url:
+                        self.camera_config[camera_id] = {
+                            'name': camera.get('name', f'Camera {camera_id}'),
+                            'stream_url': stream_url,
+                            'hls_url': camera.get('hlsUrl') or camera.get('hls_url'),
+                            'location': camera.get('location', ''),
+                            'type': camera.get('type', 'general')
+                        }
                 
                 logger.info(f"Fetched {len(self.camera_config)} cameras from web app")
             else:
                 logger.warning(f"Failed to fetch cameras from web app: {response.status_code}")
+                logger.info("Will retry on next monitoring cycle")
                 
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"Could not connect to web app at {self.web_app_url}")
+            logger.info("Will retry on next monitoring cycle")
         except Exception as e:
             logger.error(f"Error fetching camera config from web app: {e}")
     
@@ -205,15 +231,42 @@ class DetectionManager:
         """Run the main monitoring loop."""
         logger.info("Starting detection manager monitoring loop...")
         
+        last_config_refresh = time.time()
+        config_refresh_interval = 300  # Refresh every 5 minutes
+        
         try:
             while self.running:
                 # Check camera status
                 status = self.get_camera_status()
                 logger.info(f"Active cameras: {status['active_cameras']}/{status['total_cameras']}")
                 
-                # Refresh configuration every 5 minutes
-                if int(time.time()) % 300 == 0:
+                # Refresh configuration periodically
+                current_time = time.time()
+                if current_time - last_config_refresh >= config_refresh_interval:
+                    logger.info("Refreshing camera configuration from web app...")
+                    old_config = set(self.camera_config.keys())
                     self.refresh_camera_config()
+                    new_config = set(self.camera_config.keys())
+                    
+                    # Start detection for new cameras
+                    new_cameras = new_config - old_config
+                    if new_cameras:
+                        logger.info(f"Found {len(new_cameras)} new camera(s), starting detection...")
+                        for camera_id in new_cameras:
+                            if camera_id in self.camera_config:
+                                self.start_camera_detection(camera_id, self.camera_config[camera_id])
+                    
+                    # Stop detection for removed cameras
+                    removed_cameras = old_config - new_config
+                    if removed_cameras:
+                        logger.info(f"Found {len(removed_cameras)} removed camera(s), stopping detection...")
+                        for camera_id in removed_cameras:
+                            self.stop_camera_detection(camera_id)
+                    
+                    if len(new_config) != len(old_config):
+                        logger.info(f"Camera config updated: {len(old_config)} -> {len(new_config)} cameras")
+                    
+                    last_config_refresh = current_time
                 
                 time.sleep(10)  # Check every 10 seconds
                 

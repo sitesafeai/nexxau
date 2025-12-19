@@ -338,13 +338,78 @@ function ExportButton({ analytics, worksiteId, timeRange }: { analytics: any; wo
   const [isOpen, setIsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [format, setFormat] = useState<'csv' | 'json' | 'pdf'>('csv');
+  const [worksiteName, setWorksiteName] = useState<string>('');
 
-  const handleExport = async () => {
+  // Get worksite name from localStorage or fetch it
+  useEffect(() => {
+    const getWorksiteName = async () => {
+      try {
+        // Try to get from localStorage first
+        const storedSite = localStorage.getItem('currentSite');
+        if (storedSite) {
+          const site = JSON.parse(storedSite);
+          if (site.name || site.worksiteName) {
+            setWorksiteName(site.name || site.worksiteName);
+            return;
+          }
+        }
+        
+        // If not in localStorage and we have worksiteId, fetch it
+        if (worksiteId) {
+          const response = await fetch(`/api/worksites/${worksiteId}`);
+          const data = await response.json();
+          if (data.success && data.data) {
+            setWorksiteName(data.data.name || data.data.worksiteName || 'Worksite');
+          } else {
+            setWorksiteName('Worksite');
+          }
+        } else {
+          setWorksiteName('All-Worksites');
+        }
+      } catch (error) {
+        console.error('Error fetching worksite name:', error);
+        setWorksiteName('Worksite');
+      }
+    };
+    
+    getWorksiteName();
+  }, [worksiteId]);
+
+  // Helper function to generate timestamp with minutes and seconds
+  const getTimestamp = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
+  };
+
+  // Helper function to sanitize filename
+  const sanitizeFilename = (name: string) => {
+    return name.replace(/[^a-z0-9]/gi, '-').toLowerCase().replace(/-+/g, '-').replace(/^-|-$/g, '');
+  };
+
+  // Helper function to get time range label
+  const getTimeRangeLabel = () => {
+    const rangeMap: { [key: string]: string } = {
+      '24h': '24h',
+      '7d': '7d',
+      '30d': '30d',
+      '90d': '90d'
+    };
+    return rangeMap[timeRange] || timeRange;
+  };
+
+  const handleExport = async (exportFormat?: 'csv' | 'json' | 'pdf') => {
     if (!analytics) return;
     
+    const currentFormat = exportFormat || format;
     setIsExporting(true);
     try {
-      if (format === 'csv') {
+      if (currentFormat === 'csv') {
         // Generate CSV
         const csvRows: string[] = [];
         
@@ -405,10 +470,13 @@ function ExportButton({ analytics, worksiteId, timeRange }: { analytics: any; wo
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `analytics-${worksiteId || 'all'}-${timeRange}-${new Date().toISOString().split('T')[0]}.csv`;
+        const sanitizedName = sanitizeFilename(worksiteName || 'Worksite');
+        const timestamp = getTimestamp();
+        const rangeLabel = getTimeRangeLabel();
+        link.download = `${sanitizedName}_${rangeLabel}_${timestamp}.csv`;
         link.click();
         URL.revokeObjectURL(url);
-      } else if (format === 'json') {
+      } else if (currentFormat === 'json') {
         // Generate JSON
         const jsonData = {
           generated: new Date().toISOString(),
@@ -421,76 +489,200 @@ function ExportButton({ analytics, worksiteId, timeRange }: { analytics: any; wo
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `analytics-${worksiteId || 'all'}-${timeRange}-${new Date().toISOString().split('T')[0]}.json`;
+        const sanitizedName = sanitizeFilename(worksiteName || 'Worksite');
+        const timestamp = getTimestamp();
+        const rangeLabel = getTimeRangeLabel();
+        link.download = `${sanitizedName}_${rangeLabel}_${timestamp}.json`;
         link.click();
         URL.revokeObjectURL(url);
-      } else if (format === 'pdf') {
-        // For PDF, we'll create a simple HTML-based PDF
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-          printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-              <head>
-                <title>Analytics Report</title>
-                <style>
-                  body { font-family: Arial, sans-serif; padding: 20px; }
-                  h1 { color: #333; }
-                  h2 { color: #666; margin-top: 20px; }
-                  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-                  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                  th { background-color: #f2f2f2; }
-                </style>
-              </head>
-              <body>
-                <h1>Analytics Report</h1>
-                <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
-                <p><strong>Time Range:</strong> ${timeRange}</p>
-                <p><strong>Worksite ID:</strong> ${worksiteId || 'All'}</p>
-                
-                <h2>Safety Score</h2>
-                <table>
-                  <tr><th>Current</th><td>${analytics.safetyScore?.current || 0}</td></tr>
-                  <tr><th>Previous</th><td>${analytics.safetyScore?.previous || 0}</td></tr>
-                  <tr><th>Trend</th><td>${analytics.safetyScore?.trend || 'N/A'}</td></tr>
+      } else if (currentFormat === 'pdf') {
+        // For PDF, generate using html2pdf.js library
+        const sanitizedName = sanitizeFilename(worksiteName || 'Worksite');
+        const timestamp = getTimestamp();
+        const rangeLabel = getTimeRangeLabel();
+        const pdfTitle = `${sanitizedName}_${rangeLabel}_${timestamp}`;
+        
+        // Create a temporary container with the PDF content
+        const pdfContainer = document.createElement('div');
+        pdfContainer.id = 'pdf-export-container';
+        pdfContainer.style.position = 'absolute';
+        pdfContainer.style.top = '0';
+        pdfContainer.style.left = '0';
+        pdfContainer.style.width = '794px'; // A4 width in pixels (210mm at 96dpi)
+        pdfContainer.style.padding = '40px';
+        pdfContainer.style.backgroundColor = '#ffffff';
+        pdfContainer.style.color = '#000000';
+        pdfContainer.style.fontFamily = 'Arial, sans-serif';
+        pdfContainer.style.fontSize = '12px';
+        pdfContainer.style.lineHeight = '1.6';
+        pdfContainer.style.zIndex = '9999';
+        pdfContainer.style.opacity = '0';
+        pdfContainer.style.pointerEvents = 'none';
+        
+        pdfContainer.innerHTML = `
+          <div style="text-align: center; margin-bottom: 30px; border-bottom: 3px solid #000; padding-bottom: 15px;">
+            <h1 style="color: #000; margin: 0; font-size: 24px; font-weight: bold;">Analytics Report</h1>
+          </div>
+          
+          <div style="margin-bottom: 25px; padding: 15px; background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 4px;">
+            <p style="margin: 5px 0; color: #000;"><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+            <p style="margin: 5px 0; color: #000;"><strong>Worksite:</strong> ${worksiteName || 'All Worksites'}</p>
+            <p style="margin: 5px 0; color: #000;"><strong>Time Range:</strong> ${timeRange}</p>
+          </div>
+          
+          <div style="margin-bottom: 25px;">
+            <h2 style="color: #000; font-size: 18px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px;">Safety Score</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+              <tr style="background-color: #f0f0f0;">
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Current</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.safetyScore?.current || 0}</td>
+              </tr>
+              <tr>
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Previous</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.safetyScore?.previous || 0}</td>
+              </tr>
+              <tr style="background-color: #f0f0f0;">
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Trend</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.safetyScore?.trend || 'N/A'}</td>
+              </tr>
                 </table>
-                
-                <h2>Violations</h2>
-                <table>
-                  <tr><th>Total</th><td>${analytics.violations?.total || 0}</td></tr>
-                  <tr><th>Major</th><td>${analytics.violations?.major || 0}</td></tr>
-                  <tr><th>Minor</th><td>${analytics.violations?.minor || 0}</td></tr>
-                  <tr><th>Change</th><td>${analytics.violations?.change || 0}%</td></tr>
+          </div>
+          
+          <div style="margin-bottom: 25px;">
+            <h2 style="color: #000; font-size: 18px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px;">Violations</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+              <tr style="background-color: #f0f0f0;">
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Total</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.violations?.total || 0}</td>
+              </tr>
+              <tr>
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Major</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.violations?.major || 0}</td>
+              </tr>
+              <tr style="background-color: #f0f0f0;">
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Minor</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.violations?.minor || 0}</td>
+              </tr>
+              <tr>
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Change</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.violations?.change || 0}%</td>
+              </tr>
                 </table>
-                
-                <h2>Compliance</h2>
-                <table>
-                  <tr><th>Rate</th><td>${analytics.compliance?.rate || 0}%</td></tr>
-                  <tr><th>Change</th><td>${analytics.compliance?.change || 0}%</td></tr>
+          </div>
+          
+          <div style="margin-bottom: 25px;">
+            <h2 style="color: #000; font-size: 18px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px;">Compliance</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+              <tr style="background-color: #f0f0f0;">
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Rate</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.compliance?.rate || 0}%</td>
+              </tr>
+              <tr>
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Change</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.compliance?.change || 0}%</td>
+              </tr>
                 </table>
-                
-                <h2>Cameras</h2>
-                <table>
-                  <tr><th>Total</th><td>${analytics.cameras?.total || 0}</td></tr>
-                  <tr><th>Online</th><td>${analytics.cameras?.online || 0}</td></tr>
-                  <tr><th>Offline</th><td>${analytics.cameras?.offline || 0}</td></tr>
-                  <tr><th>Uptime</th><td>${analytics.cameras?.uptime || 0}%</td></tr>
+          </div>
+          
+          <div style="margin-bottom: 25px;">
+            <h2 style="color: #000; font-size: 18px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px;">Cameras</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+              <tr style="background-color: #f0f0f0;">
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Total</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.cameras?.total || 0}</td>
+              </tr>
+              <tr>
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Online</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.cameras?.online || 0}</td>
+              </tr>
+              <tr style="background-color: #f0f0f0;">
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Offline</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.cameras?.offline || 0}</td>
+              </tr>
+              <tr>
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Uptime</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.cameras?.uptime || 0}%</td>
+              </tr>
                 </table>
-                
-                <h2>Alerts</h2>
-                <table>
-                  <tr><th>Total</th><td>${analytics.alerts?.total || 0}</td></tr>
-                  <tr><th>Resolved</th><td>${analytics.alerts?.resolved || 0}</td></tr>
-                  <tr><th>Pending</th><td>${analytics.alerts?.pending || 0}</td></tr>
-                  <tr><th>Avg Response Time</th><td>${analytics.alerts?.avgResponseTime || 'N/A'}</td></tr>
+          </div>
+          
+          <div style="margin-bottom: 25px;">
+            <h2 style="color: #000; font-size: 18px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px;">Alerts</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+              <tr style="background-color: #f0f0f0;">
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Total</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.alerts?.total || 0}</td>
+              </tr>
+              <tr>
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Resolved</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.alerts?.resolved || 0}</td>
+              </tr>
+              <tr style="background-color: #f0f0f0;">
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Pending</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.alerts?.pending || 0}</td>
+              </tr>
+              <tr>
+                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Avg Response Time</th>
+                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.alerts?.avgResponseTime || 'N/A'}</td>
+              </tr>
                 </table>
-              </body>
-            </html>
-          `);
-          printWindow.document.close();
+          </div>
+        `;
+        
+        document.body.appendChild(pdfContainer);
+        
+        // Load html2pdf.js from CDN and generate PDF
+        const loadScript = (src: string): Promise<void> => {
+          return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+            document.head.appendChild(script);
+          });
+        };
+        
+        try {
+          // Load html2pdf.js from CDN
+          await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
+          
+          // Wait for container to be in DOM and rendered
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          // Generate PDF with proper settings
+          const opt = {
+            margin: [10, 10, 10, 10],
+            filename: `${pdfTitle}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { 
+              scale: 2, 
+              useCORS: true,
+              logging: false,
+              backgroundColor: '#ffffff',
+              windowWidth: 794, // A4 width in pixels
+              allowTaint: true
+            },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+          };
+          
+          // @ts-ignore - html2pdf is loaded dynamically
+          const html2pdf = window.html2pdf();
+          await html2pdf.set(opt).from(pdfContainer).save();
+          
+          // Clean up
           setTimeout(() => {
-            printWindow.print();
-          }, 250);
+            if (document.body.contains(pdfContainer)) {
+              document.body.removeChild(pdfContainer);
+            }
+          }, 1000);
+        } catch (error) {
+          console.error('PDF generation error:', error);
+          // Clean up on error
+          if (document.body.contains(pdfContainer)) {
+            document.body.removeChild(pdfContainer);
+          }
+          alert('Failed to generate PDF. Please try again or use the print option.');
         }
       }
       
@@ -520,22 +712,22 @@ function ExportButton({ analytics, worksiteId, timeRange }: { analytics: any; wo
             className="fixed inset-0 z-40" 
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute right-0 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
+          <div className="absolute right-0 bottom-full mb-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
             <div className="py-1">
               <button
-                onClick={() => { setFormat('csv'); handleExport(); }}
+                onClick={() => { setFormat('csv'); handleExport('csv'); }}
                 className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 flex items-center gap-2"
               >
                 <span>📊 CSV</span>
               </button>
               <button
-                onClick={() => { setFormat('json'); handleExport(); }}
+                onClick={() => { setFormat('json'); handleExport('json'); }}
                 className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 flex items-center gap-2"
               >
                 <span>📄 JSON</span>
               </button>
               <button
-                onClick={() => { setFormat('pdf'); handleExport(); }}
+                onClick={() => { setFormat('pdf'); handleExport('pdf'); }}
                 className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 flex items-center gap-2"
               >
                 <span>📑 PDF</span>

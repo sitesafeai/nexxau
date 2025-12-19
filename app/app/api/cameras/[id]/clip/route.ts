@@ -6,15 +6,14 @@ import { authOptions } from '@/app/lib/auth';
 // POST /api/cameras/[id]/clip - Request clip export
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: cameraId } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const cameraId = params.id;
     const body = await request.json();
     const { startOffset, endOffset, includeOverlay } = body;
 
@@ -115,15 +114,14 @@ export async function POST(
 // GET /api/cameras/[id]/clip - Get clip export history
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: cameraId } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const cameraId = params.id;
 
     // Get recent clip exports for this camera from audit logs
     const clipExports = await prisma.auditLog.findMany({
