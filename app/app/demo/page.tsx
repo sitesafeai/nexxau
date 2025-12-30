@@ -1,239 +1,141 @@
-'use client';
+import type { Metadata } from 'next';
+import { VideoCameraIcon, ExclamationTriangleIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import MarketingNavbar from '../components/MarketingNavbar';
 
-import React from 'react';
-import Link from 'next/link';
-import Navbar from '../components/Navbar';
-import { 
-  PlayIcon,
-  ShieldCheckIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  ClockIcon,
-  ChartBarIcon,
-  VideoCameraIcon,
-  DevicePhoneMobileIcon
-} from '@heroicons/react/24/outline';
-
-const demoFeatures = [
-  {
-    name: 'Real-time Detection',
-    description: 'Watch our AI detect safety violations in real-time as they happen.',
-    icon: VideoCameraIcon,
-    color: 'bg-blue-500',
-    video: '/demo-third-aprty-sitesafe.mov'
+export const metadata: Metadata = {
+  title: 'See Nexxau in Action | Demo',
+  description: 'Watch example demonstrations of Nexxau safety monitoring: real-time detection, alert systems, and dashboard analytics.',
+  keywords: ['safety monitoring demo', 'PPE detection demo', 'construction safety demo'],
+  openGraph: {
+    title: 'See Nexxau in Action | Demo',
+    description: 'Watch example demonstrations of Nexxau safety monitoring: real-time detection, alert systems, and dashboard analytics.',
+    url: 'https://nexxau.com/demo',
   },
-  {
-    name: 'Alert System',
-    description: 'See how instant alerts are triggered and delivered to safety managers.',
-    icon: ExclamationTriangleIcon,
-    color: 'bg-red-500',
-    video: '/fast-machine-demo.mov'
+  alternates: {
+    canonical: 'https://nexxau.com/demo',
   },
-  {
-    name: 'Dashboard Analytics',
-    description: 'Explore the comprehensive analytics and reporting dashboard.',
-    icon: ChartBarIcon,
-    color: 'bg-green-500',
-    video: '/demo-third-aprty-sitesafe.mov'
-  },
-  {
-    name: 'Mobile App',
-    description: 'Experience the mobile app for on-the-go safety management.',
-    icon: DevicePhoneMobileIcon,
-    color: 'bg-purple-500',
-    video: '/fast-machine-demo.mov'
-  }
-];
-
-const benefits = [
-  {
-    name: '83% Reduction in Safety Violations',
-    description: 'Companies using Nexxau have seen dramatic improvements in safety compliance.',
-    icon: ShieldCheckIcon,
-    color: 'bg-green-500'
-  },
-  {
-    name: 'Real-time Response',
-    description: 'Get notified instantly when safety violations are detected.',
-    icon: ClockIcon,
-    color: 'bg-blue-500'
-  },
-  {
-    name: 'Comprehensive Reporting',
-    description: 'Detailed analytics and reports for safety performance tracking.',
-    icon: ChartBarIcon,
-    color: 'bg-purple-500'
-  }
-];
+};
 
 export default function DemoPage() {
+  const demoFeatures = [
+    {
+      name: 'Example Detection',
+      description: 'Example of how our AI detects safety violations in real-time.',
+      icon: VideoCameraIcon,
+      color: 'bg-blue-500',
+      label: 'Sample Detection',
+    },
+    {
+      name: 'Sample Alert',
+      description: 'Example of how instant alerts are triggered and delivered to safety managers.',
+      icon: ExclamationTriangleIcon,
+      color: 'bg-red-500',
+      label: 'Mock Alert',
+    },
+    {
+      name: 'Mock Violation Log',
+      description: 'Example of the analytics and reporting dashboard.',
+      icon: ChartBarIcon,
+      color: 'bg-green-500',
+      label: 'Example Report',
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-900">
-      <Navbar />
-      
-      {/* Hero Section */}
-      <div className="relative py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center">
-            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
+    <div className="min-h-screen bg-[#0a1628]">
+      <MarketingNavbar variant="dark" />
+
+      <main className="pt-20">
+        {/* Hero Section */}
+        <section className="py-20">
+          <div className="container mx-auto px-6 max-w-4xl text-center">
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
               See Nexxau in Action
             </h1>
-            <p className="mt-6 text-lg leading-8 text-gray-300">
-              Watch our AI-powered safety monitoring system detect violations, send alerts, and help prevent accidents in real-time.
+            <p className="text-xl text-[#8b9bb1] mb-8">
+              Example demonstrations of how Nexxau detects violations, sends alerts, and helps prevent accidents.
             </p>
-            <div className="mt-10 flex items-center justify-center gap-x-6">
+            <div className="flex flex-wrap justify-center gap-4">
               <Link
                 href="/contact/sales"
-                className="rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                className="px-6 py-3 bg-white text-[#0a1628] hover:bg-white/90 rounded-lg transition-colors font-semibold text-sm"
               >
                 Schedule Live Demo
               </Link>
-              <Link href="#demo-videos" className="text-sm font-semibold leading-6 text-white">
-                Watch Videos <span aria-hidden="true">→</span>
-              </Link>
             </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Main Demo Video */}
-      <div className="bg-gray-800 py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-4xl">
+        {/* Main Demo Example */}
+        <section className="py-20 bg-[#0d1f35]">
+          <div className="container mx-auto px-6 max-w-4xl">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              <h2 className="text-3xl font-bold text-white mb-4">
                 Platform Overview
               </h2>
-              <p className="mt-6 text-lg leading-8 text-gray-300">
-                Get a comprehensive overview of how Nexxau works in real-world construction environments.
+              <p className="text-lg text-[#8b9bb1]">
+                Example overview of how Nexxau works in construction environments.
               </p>
             </div>
-            <div className="relative rounded-2xl overflow-hidden bg-gray-700 border border-gray-600">
-              <video
-                className="w-full h-auto"
-                autoPlay
-                loop
-                muted
-                playsInline
-                poster="/demo-third-aprty-sitesafe.mov"
-              >
-                <source src="/demo-third-aprty-sitesafe.mov" type="video/mp4" />
-                Your browser does not support the video tag.
-              </video>
+            <div className="relative rounded-2xl overflow-hidden bg-[#1e3a5f] border border-white/10 aspect-video flex items-center justify-center">
+              <div className="text-center">
+                <VideoCameraIcon className="h-16 w-16 text-blue-400 mx-auto mb-4" />
+                <p className="text-white font-semibold mb-2">Example Video Feed</p>
+                <p className="text-sm text-[#8b9bb1]">Mock camera feed showing detection capabilities</p>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Demo Features */}
-      <div id="demo-videos" className="bg-gray-900 py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-blue-400">Key Features</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Explore Our Platform
-            </p>
-            <p className="mt-6 text-lg leading-8 text-gray-300">
-              See how each component of our safety monitoring system works together to protect your workers.
-            </p>
-          </div>
-          <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        {/* Demo Features */}
+        <section className="py-20">
+          <div className="container mx-auto px-6 max-w-6xl">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold text-white mb-4">Key Features</h2>
+              <p className="text-lg text-[#8b9bb1]">
+                Example demonstrations of each component of our safety monitoring system.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
               {demoFeatures.map((feature) => (
-                <div key={feature.name} className="flex flex-col bg-gray-800 rounded-2xl p-8 border border-gray-700">
+                <div key={feature.name} className="flex flex-col bg-[#1e3a5f] rounded-lg p-8 border border-white/10">
                   <div className="flex items-center gap-4 mb-6">
                     <div className={`${feature.color} p-3 rounded-lg`}>
                       <feature.icon className="h-8 w-8 text-white" aria-hidden="true" />
                     </div>
                     <h3 className="text-xl font-semibold text-white">{feature.name}</h3>
                   </div>
-                  <p className="text-gray-300 mb-6">{feature.description}</p>
+                  <p className="text-[#8b9bb1] mb-6">{feature.description}</p>
                   
-                  <div className="relative rounded-xl overflow-hidden bg-gray-700 border border-gray-600">
-                    <video
-                      className="w-full h-auto"
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      poster={feature.video}
-                    >
-                      <source src={feature.video} type="video/mp4" />
-                      Your browser does not support the video tag.
-                    </video>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Benefits Section */}
-      <div className="bg-gray-800 py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-blue-400">Proven Results</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Real Impact, Real Results
-            </p>
-            <p className="mt-6 text-lg leading-8 text-gray-300">
-              See how companies are achieving measurable improvements in safety with Nexxau.
-            </p>
-          </div>
-          <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
-              {benefits.map((benefit) => (
-                <div key={benefit.name} className="flex flex-col bg-gray-700 rounded-2xl p-8 border border-gray-600">
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className={`${benefit.color} p-3 rounded-lg`}>
-                      <benefit.icon className="h-8 w-8 text-white" aria-hidden="true" />
+                  <div className="relative rounded-xl overflow-hidden bg-[#0d1f35] border border-white/10 aspect-video flex items-center justify-center">
+                    <div className="text-center">
+                      <feature.icon className="h-12 w-12 text-blue-400 mx-auto mb-3" />
+                      <p className="text-white text-sm font-semibold mb-1">{feature.label}</p>
+                      <p className="text-xs text-[#8b9bb1]">Example visualization</p>
                     </div>
-                    <h3 className="text-lg font-semibold text-white">{benefit.name}</h3>
                   </div>
-                  <p className="text-gray-300">{benefit.description}</p>
                 </div>
               ))}
             </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Interactive Demo CTA */}
-      <div className="bg-gray-900 py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Ready for a Live Demo?
-            </h2>
-            <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-gray-300">
+        {/* CTA */}
+        <section className="py-20 bg-[#0d1f35]">
+          <div className="container mx-auto px-6 max-w-2xl text-center">
+            <h2 className="text-3xl font-bold text-white mb-4">Ready for a Live Demo?</h2>
+            <p className="text-lg text-[#8b9bb1] mb-8">
               Schedule a personalized demo with our team and see how Nexxau can transform safety at your organization.
             </p>
-            <div className="mt-10 flex items-center justify-center gap-x-6">
-              <Link
-                href="/contact/sales"
-                className="rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-              >
-                Schedule Live Demo
-              </Link>
-              <Link href="/technology" className="text-sm font-semibold leading-6 text-white">
-                Learn About Our Technology <span aria-hidden="true">→</span>
-              </Link>
-            </div>
-            <div className="mt-6 flex items-center justify-center gap-x-6 text-sm">
-              <Link href="/help" className="text-gray-300 hover:text-white">
-                Read User Guide <span aria-hidden="true">→</span>
-              </Link>
-              <Link href="/technology#api-docs" className="text-gray-300 hover:text-white">
-                View API Docs <span aria-hidden="true">→</span>
-              </Link>
-              <Link href="/demo" className="text-gray-300 hover:text-white">
-                Watch Videos <span aria-hidden="true">→</span>
-              </Link>
-            </div>
+            <Link
+              href="/contact/sales"
+              className="inline-block px-6 py-3 bg-white text-[#0a1628] hover:bg-white/90 rounded-lg transition-colors font-semibold text-sm"
+            >
+              Schedule Live Demo
+            </Link>
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   );
-} 
+}

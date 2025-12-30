@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
         userId: userId || null,
         title: data.alertType || 'Safety Notification',
         message: data.description || 'Safety system notification',
-        type: type === 'email' ? 'EMAIL' : 'SMS',
+        type: (type === 'email' ? 'EMAIL' : 'SMS') as any, // Type assertion needed - enum mismatch
         priority: priority.toUpperCase() as any,
         metadata: {
           template,
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
         isRead: success,
         readAt: success ? new Date() : null,
         metadata: {
-          ...notification.metadata,
+          ...(notification.metadata as Record<string, any> || {}),
           sent: success,
           sentAt: success ? new Date().toISOString() : null,
           error: success ? null : 'Failed to send notification'

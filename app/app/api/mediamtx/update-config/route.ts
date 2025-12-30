@@ -34,7 +34,9 @@ export async function POST(request: NextRequest) {
 
     // Ensure YAML contains a 'paths:' root; then append under it
     const hasPathsRoot = /(^|\n)\s*paths\s*:/m.test(config);
-    const pathBlock = `  ${mediamtxPath}:\n    source: ${rtspUrl}\n    sourceOnDemand: yes\n`;
+    // MediaMTX auto-detects RTSP from rtsp:// URL
+    // CRITICAL: Must explicitly enable HLS for the path, otherwise MediaMTX won't generate HLS segments
+    const pathBlock = `  ${mediamtxPath}:\n    source: ${rtspUrl}\n    sourceOnDemand: yes\n    sourceOnDemandStartTimeout: 10s\n    sourceOnDemandCloseAfter: 10s\n    hls: yes\n    hlsVariant: lowLatency\n`;
     const newPathConfig = hasPathsRoot
       ? `\n${pathBlock}`
       : `\npaths:\n${pathBlock}`;
@@ -63,36 +65,38 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Restart MediaMTX to apply new config
+    // Reload MediaMTX config (MediaMTX supports hot-reload via API)
     try {
-      console.log('Restarting MediaMTX to apply new config...');
-      const hlsPort = process.env.MEDIAMTX_HLS_PORT || '8888';
-      const rtspPort = process.env.MEDIAMTX_RTSP_PORT || '8554';
-      const webrtcPort = process.env.MEDIAMTX_WEBRTC_PORT || '9002';
-      const apiPort = process.env.MEDIAMTX_API_PORT || '9000';
-      const volumeConfig = `${configPath}:${path.posix.isAbsolute(configPath) ? '/mediamtx.yml' : configPath}`;
-
-      await execAsync('docker stop mediamtx || true');
-      await execAsync('docker rm mediamtx || true');
-      await execAsync(`docker run -d --name mediamtx \
-        -p ${hlsPort}:${hlsPort} \
-        -p ${rtspPort}:${rtspPort} \
-        -p ${webrtcPort}:${webrtcPort} \
-        -p ${apiPort}:${apiPort} \
-        -p 9001:9001 \
-        -v ${configPath}:/mediamtx.yml \
-        bluenviron/mediamtx`);
-      console.log('MediaMTX restarted successfully');
+      console.log('Reloading MediaMTX config...');
+      // MediaMTX supports config reload via API without restart
+      const reloadResponse = await fetch('http://localhost:9000/v3/config/reload', {
+        method: 'POST',
+      }).catch(() => null);
+      
+      if (reloadResponse?.ok) {
+        console.log('MediaMTX config reloaded successfully via API');
+      } else {
+        // Fallback: Restart MediaMTX binary process
+        console.log('API reload failed, restarting MediaMTX process...');
+        await execAsync('pkill -f "mediamtx.*mediamtx.yml" || true');
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for process to stop
+        
+        // Start MediaMTX in background
+        const mediamtxPath = process.env.MEDIAMTX_BINARY_PATH || 'mediamtx';
+        await execAsync(`cd ${path.dirname(configPath)} && nohup ${mediamtxPath} ${path.basename(configPath)} > /tmp/mediamtx.log 2>&1 &`);
+        console.log('MediaMTX restarted successfully');
+      }
     } catch (error) {
-      console.error('Error restarting MediaMTX:', error);
+      console.error('Error reloading/restarting MediaMTX:', error);
       // Don't fail the request if restart fails
     }
 
     // Compute HLS URL using request host and env port
+    // MediaMTX serves HLS at /{path}/index.m3u8 (not /live/{path}/index.m3u8)
     const hostHeader = request.headers.get('host') || 'localhost:8888';
     const hlsPort = process.env.MEDIAMTX_HLS_PORT || '8888';
     const publicHost = hostHeader.includes(':') ? hostHeader.split(':')[0] : hostHeader;
-    const hlsUrl = `http://${publicHost}:${hlsPort}/live/${mediamtxPath}/index.m3u8`;
+    const hlsUrl = `http://${publicHost}:${hlsPort}/${mediamtxPath}/index.m3u8`;
 
     // Persist hlsUrl on the camera if cameraId provided
     if (cameraId) {

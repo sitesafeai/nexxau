@@ -1,52 +1,40 @@
-# MediaMTX Configuration for Nexxau
-# This file is managed by the Nexxau application
+# MediaMTX Configuration
+# This file configures the MediaMTX streaming server for RTSP to HLS conversion
 
-# API configuration
+# Logging
+logLevel: info
+logDestinations: [stdout]
+logFile: ""
+
+# API server (for management)
 api: yes
 apiAddress: :9000
 
-# Metrics configuration
+# Metrics
 metrics: yes
 metricsAddress: :9001
 
-# HLS configuration
-hls: yes
-hlsAddress: :8888
-hlsAllowOrigin: "*"
-hlsVariant: lowLatency
-hlsSegmentCount: 7
-hlsSegmentDuration: 1s
-hlsPartDuration: 200ms
-
-# RTSP configuration
-rtsp: yes
+# RTSP server
 rtspAddress: :8554
 
-# WebRTC configuration  
-webrtc: yes
-webrtcAddress: :9002
-webrtcAllowOrigin: "*"
+# HLS server
+hlsAddress: :8888
+hlsAlwaysRemux: yes
+hlsVariant: lowLatency
+hlsSegmentCount: 3
+hlsSegmentDuration: 1s
+hlsSegmentMaxSize: 50M
+hlsAllowOrigin: "*"
 
-# Paths configuration - cameras will be added here dynamically
+# Paths configuration
+# Each camera stream will be added dynamically via the API
 paths:
-  # Demo camera path for testing
-  demo:
-    source: https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8
-    sourceOnDemand: yes
+  # Example path (can be removed if not needed)
+  # camera-1:
+  #   source: rtsp://your-rtsp-source-url
+  #   sourceOnDemand: yes
+  #   sourceOnDemandStartTimeout: 10s
+  #   sourceOnDemandCloseAfter: 10s
+  #   hls: yes
+  #   hlsVariant: lowLatency
 
-  # People detection stream
-  people:
-    source: rtsp://rtspstream:eExmoJQ2QwuuJyBYDWtLo@zephyr.rtsp.stream/people
-    sourceOnDemand: yes
-    sourceAnyPort: yes
-    sourceFingerprint: ""
-    sourceOnDemandStartTimeout: 10s
-    sourceOnDemandCloseAfter: 10s
-
-  camera-cmf3cadj20004p9shd6sfopo7:
-    source: rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mp4
-    sourceOnDemand: yes
-
-  camera-cmfeslnp40001p9ept5fk8fke:
-    source: http://localhost:8888/streams/people/index.m3u8
-    sourceOnDemand: yes

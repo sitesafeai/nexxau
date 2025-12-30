@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       camera,
-      hlsUrl: `http://localhost:8888/live/${mediamtxPath}/index.m3u8`,
+      hlsUrl: `http://localhost:8888/${mediamtxPath}/index.m3u8`,
     });
   } catch (error) {
     console.error('Error registering stream:', error);

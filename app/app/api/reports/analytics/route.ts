@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
       },
       orderBy: {
         _count: {
-          _all: 'desc'
+          cameraId: 'desc'
         }
       },
       take: 10

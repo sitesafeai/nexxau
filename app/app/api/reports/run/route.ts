@@ -95,11 +95,11 @@ export async function POST(request: NextRequest) {
               id: c.id,
               name: c.name,
               status: c.status,
-              enabled: c.enabled,
-              aiEnabled: c.aiEnabled,
+              enabled: (c as any).enabled ?? true, // enabled field may not exist in Camera model
+              aiEnabled: (c as any).aiEnabled ?? false, // aiEnabled field may not exist in Camera model
               'worksite.name': c.worksite?.name,
-              lastTestAt: c.lastTestAt,
-              lastTestOk: c.lastTestOk,
+              lastTestAt: (c as any).lastTestAt ?? null, // lastTestAt field may not exist in Camera model
+              lastTestOk: (c as any).lastTestOk ?? null, // lastTestOk field may not exist in Camera model
             })));
             break;
             

@@ -16,7 +16,7 @@ import { escalationProcessor } from './escalation-processor';
 import { patternDetector } from './pattern-detection';
 import { cooldownManager } from './cooldown-manager';
 import { falsePositiveHandler } from './false-positive-handler';
-import { multiCameraCorrelator } from './multi-camera-correlation';
+// multiCameraCorrelator removed
 import { shiftGracePeriodHandler } from './shift-grace-period';
 import { prisma } from '../prisma';
 
@@ -79,13 +79,7 @@ export class AlertProcessor {
         return; // Don't process further
       }
 
-      // Step 0.6: Multi-camera correlation
-      const correlated = await multiCameraCorrelator.findCorrelatedAlerts(alert);
-      if (correlated.length > 0) {
-        await multiCameraCorrelator.stitchEvent(alert, correlated);
-        console.log(`[Alert Processor] Stitched ${correlated.length + 1} alerts into event group`);
-        // Continue processing primary alert
-      }
+      // Step 0.6: Multi-camera correlation removed
 
       // Step 0.7: Apply shift grace period (downgrade PPE alerts)
       const gracePeriod = await shiftGracePeriodHandler.applyGracePeriod(alert);

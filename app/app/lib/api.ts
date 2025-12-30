@@ -192,33 +192,37 @@ const mockUsers = [
 ];
 
 // API Service Functions
+import { safeFetch, buildApiUrl, FetchError } from './fetch-utils';
+
 export class ApiService {
-  // Generic API call wrapper
+  // Generic API call wrapper with defensive error handling
   private static async apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    try {
-      const response = await fetch(`/api${endpoint}`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        ...options,
-      });
+    const url = buildApiUrl(endpoint);
+    const result = await safeFetch(url, options);
 
-      if (!response.ok) {
-        throw new Error(`API call failed: ${response.status}`);
-      }
-
-      const data = await response.json();
+    if (!result.success) {
+      const error = result.error as FetchError;
       
-      // Handle API responses that wrap data in { success: true, data: ... }
-      if (data && typeof data === 'object' && 'success' in data && 'data' in data) {
-        return data.data as T;
+      // Provide user-friendly error messages
+      if (error.type === 'network') {
+        throw new Error('Backend server is unavailable. Please check if the server is running.');
       }
       
-      return data as T;
-    } catch (error) {
-      console.error(`API call error for ${endpoint}:`, error);
-      throw error;
+      if (error.type === 'http') {
+        throw new Error(error.message || `API request failed with status ${error.status}`);
+      }
+      
+      throw new Error(error.message || 'API request failed');
     }
+
+    const data = result.data;
+    
+    // Handle API responses that wrap data in { success: true, data: ... }
+    if (data && typeof data === 'object' && 'success' in data && 'data' in data) {
+      return data.data as T;
+    }
+    
+    return data as T;
   }
 
   // Sites/Worksites

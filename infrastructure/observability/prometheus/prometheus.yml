@@ -1,0 +1,103 @@
+# Prometheus Configuration
+# Place in: /etc/prometheus/prometheus.yml
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  external_labels:
+    cluster: 'production'
+    environment: 'prod'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load alert rules
+rule_files:
+  - '/etc/prometheus/rules/*.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Camera Ingest Service
+  - job_name: 'camera-ingest-service'
+    static_configs:
+      - targets: ['camera-ingest-service:8000']
+        labels:
+          service: 'camera-ingest'
+          tier: 'ingestion'
+
+  # Detection Service
+  - job_name: 'detection-service'
+    static_configs:
+      - targets: ['detection-service:8000']
+        labels:
+          service: 'detection'
+          tier: 'ml'
+
+  # Violation Engine Service
+  - job_name: 'violation-engine-service'
+    static_configs:
+      - targets: ['violation-engine-service:8000']
+        labels:
+          service: 'violation-engine'
+          tier: 'processing'
+
+  # Snapshot Service
+  - job_name: 'snapshot-service'
+    static_configs:
+      - targets: ['snapshot-service:8000']
+        labels:
+          service: 'snapshot'
+          tier: 'storage'
+
+  # Alert Orchestrator Service
+  - job_name: 'alert-orchestrator-service'
+    static_configs:
+      - targets: ['alert-orchestrator-service:8000']
+        labels:
+          service: 'alert-orchestrator'
+          tier: 'notification'
+
+  # Alerts Service
+  - job_name: 'alerts-service'
+    static_configs:
+      - targets: ['alerts-service:8000']
+        labels:
+          service: 'alerts'
+          tier: 'notification'
+
+  # Acknowledgement Service
+  - job_name: 'acknowledgement-service'
+    static_configs:
+      - targets: ['acknowledgement-service:8000']
+        labels:
+          service: 'acknowledgement'
+          tier: 'api'
+
+  # Streaming Service
+  - job_name: 'streaming-service'
+    static_configs:
+      - targets: ['streaming-service:8000']
+        labels:
+          service: 'streaming'
+          tier: 'streaming'
+
+  # Redis Exporter (optional)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+          tier: 'infrastructure'
+
+  # PostgreSQL Exporter (optional)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
+          tier: 'infrastructure'
+

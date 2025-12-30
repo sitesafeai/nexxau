@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import CameraFeed from '../CameraFeed';
 import { 
   Camera, 
   AlertTriangle, 
@@ -51,6 +50,7 @@ import {
   Copy,
   Zap
 } from 'lucide-react';
+import CameraStreamViewer from '@/app/components/camera/CameraStreamViewer';
 
 // ============================================================
 // TYPES & INTERFACES
@@ -620,30 +620,95 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
     }
   };
 
-  // Helper function to get the best available stream URL from camera object
-  const getCameraStreamUrl = (camera: SiteCamera): string | null => {
-    // Priority: hlsUrl > mediamtxPath (generate HLS) > streamUrl > rtspPath (generate HLS)
+  // State for camera HLS URLs (cached after conversion)
+  const [cameraHlsUrls, setCameraHlsUrls] = useState<Map<string, string>>(new Map());
+  const [cameraHlsLoading, setCameraHlsLoading] = useState<Set<string>>(new Set());
+  const [cameraHlsErrors, setCameraHlsErrors] = useState<Map<string, string>>(new Map());
+  const [currentLiveHlsUrl, setCurrentLiveHlsUrl] = useState<string | null>(null);
+  const [currentLiveLoading, setCurrentLiveLoading] = useState(false);
+  const [currentLiveError, setCurrentLiveError] = useState<string | null>(null);
+
+  // Helper function to get or convert camera stream URL
+  // This function handles RTSP → HLS conversion via API
+  const getCameraStreamUrl = async (camera: SiteCamera): Promise<string | null> => {
+    // Priority: hlsUrl > already converted > mediamtxPath > streamUrl conversion
+    
+    // 1. If camera already has HLS URL, use it
     if (camera.hlsUrl) {
       return camera.hlsUrl;
     }
     
-    // If mediamtxPath exists, generate HLS URL
-    if ((camera as any).mediamtxPath) {
-      return `http://localhost:8888/live/${(camera as any).mediamtxPath}/index.m3u8`;
+    // 2. Check if we've already converted this camera
+    if (cameraHlsUrls.has(camera.id)) {
+      return cameraHlsUrls.get(camera.id) || null;
     }
     
-    // Use streamUrl if it's an HLS URL or HTTP URL
+    // 3. If mediamtxPath exists, use MediaMTX (legacy support)
+    if ((camera as any).mediamtxPath) {
+      const streamBaseUrl = process.env.NEXT_PUBLIC_STREAM_BASE_URL;
+      if (!streamBaseUrl) {
+        console.error('[UserDashboard] NEXT_PUBLIC_STREAM_BASE_URL is not configured');
+        throw new Error('Stream base URL is not configured');
+      }
+      return `${streamBaseUrl}/live/${(camera as any).mediamtxPath}/index.m3u8`;
+    }
+    
+    // 4. If streamUrl is already HLS or HTTP, use it directly
     if (camera.streamUrl) {
-      if (camera.streamUrl.includes('.m3u8') || camera.streamUrl.startsWith('http')) {
+      if (camera.streamUrl.includes('.m3u8') || (camera.streamUrl.startsWith('http') && !camera.streamUrl.startsWith('rtsp://'))) {
         return camera.streamUrl;
       }
-      // If it's RTSP, try to generate HLS URL from camera ID
+      
+      // 5. If it's RTSP, convert it via API
       if (camera.streamUrl.startsWith('rtsp://')) {
-        return `http://localhost:8888/live/camera-${camera.id}/index.m3u8`;
+        // Prevent duplicate API calls
+        if (cameraHlsLoading.has(camera.id)) {
+          return null; // Still loading
+        }
+        
+        // Check for cached error
+        if (cameraHlsErrors.has(camera.id)) {
+          return null; // Previous conversion failed
+        }
+        
+        try {
+          setCameraHlsLoading(prev => new Set(prev).add(camera.id));
+          
+          console.log(`[UserDashboard] Converting RTSP to HLS for camera ${camera.id}`);
+          const response = await fetch(`/api/streams/${camera.id}?rtspUrl=${encodeURIComponent(camera.streamUrl)}`);
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            throw new Error(errorData.error || `Failed to convert RTSP: ${response.status}`);
+      }
+          
+          const data = await response.json();
+          const hlsUrl = data.hlsUrl;
+          
+          if (!hlsUrl) {
+            throw new Error('API did not return HLS URL');
+    }
+    
+          // Cache the HLS URL
+          setCameraHlsUrls(prev => new Map(prev).set(camera.id, hlsUrl));
+          console.log(`[UserDashboard] ✅ RTSP converted to HLS: ${hlsUrl}`);
+          
+          return hlsUrl;
+        } catch (error: any) {
+          console.error(`[UserDashboard] ❌ Failed to convert RTSP for camera ${camera.id}:`, error);
+          setCameraHlsErrors(prev => new Map(prev).set(camera.id, error.message || 'Conversion failed'));
+          return null;
+        } finally {
+          setCameraHlsLoading(prev => {
+            const next = new Set(prev);
+            next.delete(camera.id);
+            return next;
+          });
+        }
       }
     }
     
-    // If rtspPath exists, try to generate HLS URL
+    // 6. If rtspPath exists, try MediaMTX (legacy)
     if ((camera as any).rtspPath) {
       const pathName = (camera as any).rtspPath.replace(/^\//, '').replace(/\/$/, '') || `camera-${camera.id}`;
       return `http://localhost:8888/live/${pathName}/index.m3u8`;
@@ -1141,9 +1206,28 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
                 <CameraCard
                   key={camera.id}
                   camera={camera}
-                  onViewLive={() => {
+                  onViewLive={async () => {
                     setSelectedCameraForLive(camera);
                     setShowLiveFeedModal(true);
+                    // Fetch HLS URL when opening live feed
+                    setCurrentLiveLoading(true);
+                    setCurrentLiveError(null);
+                    setCurrentLiveHlsUrl(null);
+                    
+                    try {
+                      const url = await getCameraStreamUrl(camera);
+                      if (url) {
+                        setCurrentLiveHlsUrl(url);
+                        setCurrentLiveLoading(false);
+                      } else {
+                        setCurrentLiveError('Failed to get stream URL. Check camera configuration.');
+                        setCurrentLiveLoading(false);
+                      }
+                    } catch (error: any) {
+                      console.error('[UserDashboard] Error getting stream URL:', error);
+                      setCurrentLiveError(error.message || 'Failed to get stream URL');
+                      setCurrentLiveLoading(false);
+                    }
                   }}
                   onConfigure={async () => {
                     // Fetch full camera details to show in popup
@@ -1354,7 +1438,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
                 <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
                 <div>
                   <h3 className="text-lg font-semibold text-white">{selectedCameraForLive.name}</h3>
-                  <p className="text-sm text-slate-400">{selectedCameraForLive.location || selectedSite?.name || 'Unknown Location'}</p>
+                  <p className="text-sm text-slate-400">{(selectedCameraForLive as any).location || selectedSite?.name || 'Unknown Location'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -1384,14 +1468,47 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
             
             {/* Video Container */}
             <div className="aspect-video bg-black relative">
-              {getCameraStreamUrl(selectedCameraForLive) ? (
+              {currentLiveLoading ? (
+                <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                  <RefreshCw className="w-12 h-12 text-blue-500 animate-spin mb-4" />
+                  <p className="text-white font-medium mb-2">Converting RTSP to HLS...</p>
+                  <p className="text-slate-400 text-sm">Starting FFmpeg stream conversion</p>
+                </div>
+              ) : currentLiveError ? (
+                <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                  <XCircle className="w-20 h-20 text-red-500 mb-4" />
+                  <p className="text-white font-medium mb-2">Stream Error</p>
+                  <p className="text-red-400 text-sm">{currentLiveError}</p>
+                  <button
+                    onClick={async () => {
+                      setCurrentLiveError(null);
+                      setCurrentLiveLoading(true);
+                      const url = await getCameraStreamUrl(selectedCameraForLive);
+                      if (url) {
+                        setCurrentLiveHlsUrl(url);
+                        setCurrentLiveLoading(false);
+                      } else {
+                        setCurrentLiveError('Failed to get stream URL');
+                        setCurrentLiveLoading(false);
+                      }
+                    }}
+                    className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : currentLiveHlsUrl ? (
                 <>
-                  <CameraFeed
-                    streamUrl={getCameraStreamUrl(selectedCameraForLive) || ''}
-                    cameraId={selectedCameraForLive.id}
+                  <CameraStreamViewer
+                    hlsUrl={currentLiveHlsUrl}
+                    protocol="hls"
                     autoPlay={true}
-                    enableDetection={selectedCameraForLive.aiEnabled || false}
+                    controls={true}
                     className="w-full h-full"
+                    onError={(error) => {
+                      console.error('[UserDashboard] Stream error:', error);
+                      setCurrentLiveError(error);
+                    }}
                   />
                   
                   {/* Live indicator */}
@@ -1504,7 +1621,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
                   </div>
                   <div>
                     <span className="text-slate-400 text-sm">Location:</span>
-                    <p className="text-white mt-1">{selectedCameraForInfo.location || selectedCameraForInfo.zone || 'N/A'}</p>
+                    <p className="text-white mt-1">{(selectedCameraForInfo as any).location || (selectedCameraForInfo as any).zone || 'N/A'}</p>
                   </div>
                   <div>
                     <span className="text-slate-400 text-sm">Status:</span>

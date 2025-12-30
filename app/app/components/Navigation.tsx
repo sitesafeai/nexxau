@@ -89,15 +89,6 @@ export default function Navigation() {
                 </Link>
               )}
               
-              {checkRole(['ADMIN', 'SITE_ADMIN']) && (
-                <Link
-                  href="/cameras"
-                  className="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Cameras
-                </Link>
-              )}
-              
               {checkRole(['ADMIN', 'SITE_ADMIN', 'SUPERVISOR', 'WORKER']) && (
                 <Link
                   href="/dashboard/object-detection"
@@ -180,16 +171,6 @@ export default function Navigation() {
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Workflow
-              </Link>
-            )}
-            
-            {checkRole(['ADMIN', 'SITE_ADMIN']) && (
-              <Link
-                href="/cameras"
-                className="text-gray-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Cameras
               </Link>
             )}
             

@@ -22,11 +22,59 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 // Create reusable transporter
 let transporter: nodemailer.Transporter | null = null;
+let configValidated = false;
+
+/**
+ * Validate email environment configuration at runtime
+ * Logs presence (not values) of required environment variables
+ */
+function validateEmailConfig(): void {
+  if (configValidated) return;
+  
+  console.log('[EMAIL CONFIG] Validating email environment configuration...');
+  
+  const requiredVars = {
+    'SMTP_HOST': process.env.SMTP_HOST,
+    'SMTP_PORT': process.env.SMTP_PORT,
+    'SMTP_USER': process.env.SMTP_USER,
+    'SMTP_PASSWORD': process.env.SMTP_PASSWORD,
+    'FROM_EMAIL': process.env.FROM_EMAIL,
+  };
+
+  let allPresent = true;
+  
+  for (const [varName, varValue] of Object.entries(requiredVars)) {
+    const status = varValue ? 'SET' : 'MISSING';
+    console.log(`[EMAIL CONFIG] ${varName}: ${status}`);
+    
+    if (!varValue) {
+      allPresent = false;
+    }
+  }
+
+  if (!allPresent) {
+    const missing = Object.entries(requiredVars)
+      .filter(([_, value]) => !value)
+      .map(([name]) => name)
+      .join(', ');
+    
+    console.error(`[EMAIL CONFIG] ⚠️  WARNING: Missing required environment variables: ${missing}`);
+    console.error('[EMAIL CONFIG] Email sending will fail until these are configured.');
+    // Don't throw here - let it fail at send time with better error
+  } else {
+    console.log('[EMAIL CONFIG] ✅ All required email configuration variables are present');
+  }
+
+  configValidated = true;
+}
 
 const getTransporter = () => {
+  // Validate config on first access
+  validateEmailConfig();
+  
   if (!transporter) {
     // Log configuration (without password) for debugging
-    console.log('[email-service] Initializing transporter with:', {
+    console.log('[EMAIL] Initializing transporter with:', {
       host: EMAIL_CONFIG.host,
       port: EMAIL_CONFIG.port,
       secure: EMAIL_CONFIG.secure,
@@ -35,9 +83,9 @@ const getTransporter = () => {
     });
 
     if (!EMAIL_CONFIG.auth.user || !EMAIL_CONFIG.auth.pass) {
-      console.error('[email-service] Missing SMTP credentials!');
-      console.error('[email-service] SMTP_USER:', EMAIL_CONFIG.auth.user ? 'Set' : 'MISSING');
-      console.error('[email-service] SMTP_PASSWORD:', EMAIL_CONFIG.auth.pass ? 'Set' : 'MISSING');
+      console.error('[EMAIL] ❌ Missing SMTP credentials!');
+      console.error('[EMAIL] SMTP_USER:', EMAIL_CONFIG.auth.user ? 'Set' : 'MISSING');
+      console.error('[EMAIL] SMTP_PASSWORD:', EMAIL_CONFIG.auth.pass ? 'Set' : 'MISSING');
       throw new Error('SMTP credentials not configured. Please set SMTP_USER and SMTP_PASSWORD in .env');
     }
 
@@ -151,29 +199,41 @@ const getEmailTemplate = (title: string, content: string, buttonText?: string, b
 // Email sending functions
 
 /**
- * Send account invitation email
+ * Send account invitation email for worksite user onboarding
  */
 export async function sendInvitationEmail(
   to: string,
   inviterName: string,
   role: string,
-  companyName: string,
-  token: string
-): Promise<{ success: boolean; error?: string }> {
+  worksiteName: string,
+  token: string,
+  companyName?: string,
+  companyId?: string,
+  worksiteId?: string
+): Promise<{ success: boolean; error?: string; errorDetails?: any }> {
   try {
-    console.log('[email-service] Sending invitation email to:', to);
-    console.log('[email-service] From:', FROM_EMAIL);
+    // Hard logging before attempting to send
+    console.log('[EMAIL] ========================================');
+    console.log('[EMAIL] INVITATION EMAIL SEND ATTEMPT');
+    console.log('[EMAIL] ========================================');
+    console.log('[EMAIL] Recipient email:', to);
+    console.log('[EMAIL] Company ID:', companyId || 'N/A');
+    console.log('[EMAIL] Worksite ID:', worksiteId || 'N/A');
+    console.log('[EMAIL] Worksite Name:', worksiteName);
+    console.log('[EMAIL] Role:', role);
+    console.log('[EMAIL] From:', FROM_EMAIL);
+    console.log('[EMAIL] Timestamp:', new Date().toISOString());
     
-    const inviteUrl = `${APP_URL}/auth/claim-account?token=${token}`;
+    const inviteUrl = `${APP_URL}/onboard?token=${token}`;
     
     const content = `
       <p>Hello!</p>
-      <p><strong>${inviterName}</strong> has invited you to join <strong>${companyName}</strong> on SiteSafe as a <strong>${role}</strong>.</p>
+      <p><strong>${inviterName}</strong> has added you to <strong>${worksiteName}</strong>${companyName ? ` (${companyName})` : ''} on SiteSafe as a <strong>${role}</strong>.</p>
       <div class="info-box">
         <p><strong>What's Next?</strong></p>
-        <p>Click the button below to create your account and set your password. This link will expire in 7 days.</p>
+        <p>Click the button below to complete your account setup and set your password. This link will expire in 24 hours.</p>
       </div>
-      <p>Once you've claimed your account, you'll have access to:</p>
+      <p>Once you've completed your account setup, you'll have access to:</p>
       <ul>
         <li>Real-time safety monitoring dashboards</li>
         <li>AI-powered violation detection</li>
@@ -185,34 +245,64 @@ export async function sendInvitationEmail(
     const mailOptions = {
       from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
       to,
-      subject: `You've been invited to join ${companyName} on SiteSafe`,
+      subject: `You've been added to ${worksiteName} – Complete Your Account`,
       html: getEmailTemplate(
-        `Welcome to ${companyName}`,
+        `Complete Your Account Setup`,
         content,
-        'Claim Your Account',
+        'Complete Account Setup',
         inviteUrl
       ),
     };
 
-    console.log('[email-service] Mail options:', {
+    console.log('[EMAIL] Mail options prepared:', {
       from: mailOptions.from,
       to: mailOptions.to,
       subject: mailOptions.subject,
+      hasHtml: !!mailOptions.html,
     });
 
+    console.log('[EMAIL] Attempting to send email via SMTP...');
     const result = await getTransporter().sendMail(mailOptions);
-    console.log('[email-service] ✅ Email sent successfully! MessageId:', result.messageId);
+    
+    // Hard logging after successful send
+    console.log('[EMAIL] ========================================');
+    console.log('[EMAIL] ✅ EMAIL SENT SUCCESSFULLY');
+    console.log('[EMAIL] ========================================');
+    console.log('[EMAIL] MessageId:', result.messageId);
+    console.log('[EMAIL] Response:', result.response || 'N/A');
+    console.log('[EMAIL] Accepted recipients:', result.accepted);
+    console.log('[EMAIL] Rejected recipients:', result.rejected);
+    console.log('[EMAIL] Timestamp:', new Date().toISOString());
 
     return { success: true };
   } catch (error: any) {
-    console.error('[email-service] ❌ Error sending invitation email:', error);
-    console.error('[email-service] Error details:', {
-      message: error.message,
-      code: error.code,
-      command: error.command,
-      response: error.response,
-    });
-    return { success: false, error: error.message || 'Unknown error sending email' };
+    // Hard logging on failure with full error object
+    console.error('[EMAIL] ========================================');
+    console.error('[EMAIL] ❌ EMAIL SEND FAILED');
+    console.error('[EMAIL] ========================================');
+    console.error('[EMAIL] Recipient email:', to);
+    console.error('[EMAIL] Company ID:', companyId || 'N/A');
+    console.error('[EMAIL] Worksite ID:', worksiteId || 'N/A');
+    console.error('[EMAIL] Error message:', error.message);
+    console.error('[EMAIL] Error code:', error.code || 'N/A');
+    console.error('[EMAIL] Error command:', error.command || 'N/A');
+    console.error('[EMAIL] Error response:', error.response || 'N/A');
+    console.error('[EMAIL] Error responseCode:', error.responseCode || 'N/A');
+    console.error('[EMAIL] Error responseMessage:', error.responseMessage || 'N/A');
+    console.error('[EMAIL] Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    console.error('[EMAIL] Timestamp:', new Date().toISOString());
+    
+    return { 
+      success: false, 
+      error: error.message || 'Unknown error sending email',
+      errorDetails: {
+        code: error.code,
+        command: error.command,
+        response: error.response,
+        responseCode: error.responseCode,
+        responseMessage: error.responseMessage
+      }
+    };
   }
 }
 
@@ -266,12 +356,20 @@ export async function sendAlertNotificationEmail(
  */
 export async function sendPasswordResetEmail(
   to: string,
+  name: string,
   resetToken: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; errorDetails?: any }> {
   try {
-    const resetUrl = `${APP_URL}/auth/reset-password?token=${resetToken}`;
+    console.log('[EMAIL] ========================================');
+    console.log('[EMAIL] PASSWORD RESET EMAIL SEND ATTEMPT');
+    console.log('[EMAIL] ========================================');
+    console.log('[EMAIL] Recipient email:', to);
+    console.log('[EMAIL] Recipient name:', name);
+    
+    const resetUrl = `${APP_URL}/reset-password?token=${resetToken}`;
     
     const content = `
+      <p>Hello ${name},</p>
       <p>We received a request to reset your password for your SiteSafe account.</p>
       <div class="info-box">
         <p><strong>Security Notice:</strong></p>
@@ -280,7 +378,7 @@ export async function sendPasswordResetEmail(
       <p>To reset your password, click the button below. This link will expire in 1 hour.</p>
     `;
 
-    await getTransporter().sendMail({
+    const mailOptions = {
       from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
       to,
       subject: 'Reset Your SiteSafe Password',
@@ -290,12 +388,35 @@ export async function sendPasswordResetEmail(
         'Reset Password',
         resetUrl
       ),
-    });
+    };
+
+    console.log('[EMAIL] Attempting to send password reset email via SMTP...');
+    const result = await getTransporter().sendMail(mailOptions);
+    
+    console.log('[EMAIL] ========================================');
+    console.log('[EMAIL] ✅ PASSWORD RESET EMAIL SENT SUCCESSFULLY');
+    console.log('[EMAIL] ========================================');
+    console.log('[EMAIL] MessageId:', result.messageId);
+    console.log('[EMAIL] Timestamp:', new Date().toISOString());
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error sending password reset email:', error);
-    return { success: false, error: error.message };
+    console.error('[EMAIL] ========================================');
+    console.error('[EMAIL] ❌ PASSWORD RESET EMAIL SEND FAILED');
+    console.error('[EMAIL] ========================================');
+    console.error('[EMAIL] Recipient email:', to);
+    console.error('[EMAIL] Error message:', error.message);
+    console.error('[EMAIL] Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    
+    return { 
+      success: false, 
+      error: error.message || 'Unknown error sending email',
+      errorDetails: {
+        code: error.code,
+        command: error.command,
+        response: error.response
+      }
+    };
   }
 }
 

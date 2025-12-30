@@ -12,9 +12,7 @@ export { patternDetector, PatternDetector, PATTERN_DEFAULTS } from './pattern-de
 export { alertProcessor, AlertProcessor } from './alert-processor';
 export { cooldownManager, CooldownManager, COOLDOWN_DEFAULTS } from './cooldown-manager';
 export { falsePositiveHandler, FalsePositiveHandler, CONFIDENCE_THRESHOLDS } from './false-positive-handler';
-export { multiCameraCorrelator, MultiCameraCorrelator, CORRELATION_DEFAULTS } from './multi-camera-correlation';
 export { shiftGracePeriodHandler, ShiftGracePeriodHandler, GRACE_PERIOD_DEFAULTS } from './shift-grace-period';
-export { cameraHealthMonitor, CameraHealthMonitor, CAMERA_HEALTH_DEFAULTS } from './camera-health-monitor';
 
 import { escalationProcessor } from './escalation-processor';
 

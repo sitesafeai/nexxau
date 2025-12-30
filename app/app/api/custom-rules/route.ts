@@ -6,12 +6,15 @@ import { retryDatabaseOperation } from '@/app/lib/retry';
 // GET /api/custom-rules - Get all custom rules
 export async function GET(request: NextRequest) {
   try {
+    console.log('[API /custom-rules] GET request received at:', new Date().toISOString());
+    console.log('[API /custom-rules] Request URL:', request.url);
+    
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get('active') === 'true';
     const cameraId = searchParams.get('cameraId');
     const worksiteId = searchParams.get('worksiteId');
 
-    console.log('[Custom Rules API] Query params:', { activeOnly, worksiteId, cameraId });
+    console.log('[API /custom-rules] Query params:', { activeOnly, worksiteId, cameraId });
     
     const rules = await retryDatabaseOperation(async () => {
       const whereClause: any = {};
@@ -115,7 +118,10 @@ export async function GET(request: NextRequest) {
       count: formattedRules.length
     });
 
-  } catch (error) {
+  } catch (error: any) {
+    console.error('[API /custom-rules] ❌ Error:', error);
+    console.error('[API /custom-rules] Error stack:', error.stack);
+    console.error('[API /custom-rules] Error name:', error.name);
     logger.error('Failed to fetch custom rules', {}, error as Error);
     return NextResponse.json(
       { 

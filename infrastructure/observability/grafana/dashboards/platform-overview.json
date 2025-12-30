@@ -1,0 +1,176 @@
+{
+  "dashboard": {
+    "title": "PPE Detection Platform - Overview",
+    "tags": ["ppe-detection", "overview"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Service Health",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "up{job=~'camera-ingest|detection|violation-engine|snapshot|alert-orchestrator|acknowledgement|streaming'}",
+            "legendFormat": "{{job}}"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Total Cameras",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "count(camera_status_total)",
+            "legendFormat": "Cameras"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Active Streams",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 9, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(streams_active_total)",
+            "legendFormat": "Active Streams"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Active Violations",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(violations_created_total) - sum(violations_resolved_total)",
+            "legendFormat": "Active Violations"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Frames Processed (Rate)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "targets": [
+          {
+            "expr": "rate(frames_processed_total[5m])",
+            "legendFormat": "{{camera_id}} ({{device}})"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Frames/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Detection Latency",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(inference_latency_ms_bucket[5m]))",
+            "legendFormat": "p95 ({{device}})"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(inference_latency_ms_bucket[5m]))",
+            "legendFormat": "p50 ({{device}})"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Latency (ms)"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Redis Stream Lag",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "targets": [
+          {
+            "expr": "redis_stream_lag_entries",
+            "legendFormat": "{{camera_id}} ({{device}})"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Lag (entries)"},
+          {"format": "short"}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [100], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "last"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "5m",
+          "frequency": "10s",
+          "handler": 1,
+          "name": "High GPU Lag",
+          "noDataState": "no_data",
+          "notifications": []
+        }
+      },
+      {
+        "id": 8,
+        "title": "Frame Backlog",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "targets": [
+          {
+            "expr": "redis_stream_length",
+            "legendFormat": "{{camera_id}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Backlog (frames)"},
+          {"format": "short"}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [15], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "last"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "5m",
+          "frequency": "10s",
+          "handler": 1,
+          "name": "High Frame Backlog",
+          "noDataState": "no_data",
+          "notifications": []
+        }
+      }
+    ]
+  }
+}
+

@@ -4922,7 +4922,7 @@ function CamerasSection({
           <Video className="mx-auto h-12 w-12 text-slate-600 mb-4" />
           <p className="text-lg font-semibold text-white">No cameras found</p>
           <p className="mt-2 text-sm text-slate-400">
-            {selectedCamerasCompany !== 'ALL' || selectedCamerasWorksite !== 'ALL'
+            {selectedCompanyId !== 'ALL' || selectedWorksiteId !== 'ALL'
               ? 'No cameras found for the selected company/worksite. Try selecting "All Companies" or "All Worksites" to see all cameras.'
               : 'No cameras have been created yet. Create cameras from the dashboard or add them via the API.'}
           </p>
@@ -4933,7 +4933,7 @@ function CamerasSection({
             >
               Manage cameras (current portal)
             </a>
-            {(selectedCamerasCompany !== 'ALL' || selectedCamerasWorksite !== 'ALL') && (
+            {(selectedCompanyId !== 'ALL' || selectedWorksiteId !== 'ALL') && (
               <button
                 onClick={() => {
                   onSelectedCompanyChange('ALL');

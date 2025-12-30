@@ -89,7 +89,7 @@ export default function AlertDetailDrawer({ alert, onClose, onOverrideApplied }:
 
   const handleOverride = async () => {
     if (!overrideStatus || (overrideStatus !== alert.overrideStatus && !overrideReason)) {
-      alert('Please select a status and reason');
+      window.alert('Please select a status and reason');
       return;
     }
 
@@ -109,11 +109,11 @@ export default function AlertDetailDrawer({ alert, onClose, onOverrideApplied }:
         onOverrideApplied();
       } else {
         const error = await res.json();
-        alert(`Failed to override: ${error.error || 'Unknown error'}`);
+        window.alert(`Failed to override: ${error.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Failed to override:', error);
-      alert('Failed to override alert');
+      window.alert('Failed to override alert');
     } finally {
       setIsSubmitting(false);
     }

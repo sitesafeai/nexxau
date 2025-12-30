@@ -44,7 +44,7 @@ export class ApiKeyManager {
         name: data.name,
         key,
         userId: data.userId,
-        permissions: data.permissions,
+        permissions: data.permissions as any, // Type assertion needed for Prisma Json field
         rateLimit: data.rateLimit || 1000,
         expiresAt: data.expiresAt,
       },

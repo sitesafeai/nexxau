@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Navbar from '../components/Navbar';
+import Image from 'next/image';
 import { CalendarIcon, UserIcon, TagIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 import Script from 'next/script';
+import MarketingNavbar from '../components/MarketingNavbar';
 
 interface Author {
   name: string;
@@ -97,8 +98,8 @@ export default function BlogPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <MarketingNavbar variant="light" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24">
           <div className="animate-pulse">
             <div className="h-8 bg-gray-200 rounded w-1/4 mb-8"></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -119,8 +120,8 @@ export default function BlogPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <MarketingNavbar variant="light" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24">
           <div className="text-red-600">
             Error loading posts: {error}
           </div>
@@ -131,7 +132,7 @@ export default function BlogPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
+      <MarketingNavbar variant="light" />
 
       {/* Structured Data */}
       <Script
@@ -140,6 +141,7 @@ export default function BlogPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       
+      <main className="pt-20">
       {/* Hero Section */}
       <div className="relative bg-gray-900 py-16 sm:py-24">
         <div className="absolute inset-0">
@@ -268,6 +270,7 @@ export default function BlogPage() {
           </div>
         </div>
       </div>
+      </main>
     </div>
   );
-} 
+}

@@ -100,9 +100,9 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
         const transformedRules: AlertRule[] = rawRules.map((rule: any) => {
           // Extract actions from alertSettings or use defaults
           const actions = rule.alertSettings?.actions || 
-                         (rule.smsEnabled ? ['send_sms'] : []) +
-                         (rule.emailEnabled ? ['send_email'] : []) +
-                         ['create_alert'];
+                         [...(rule.smsEnabled ? ['send_sms'] : []),
+                          ...(rule.emailEnabled ? ['send_email'] : []),
+                          'create_alert'];
           
           // Format trigger conditions as a readable string
           const triggerConditions = rule.triggerConditions 

@@ -1,74 +1,33 @@
-'use client';
-
-import { useState, useEffect } from 'react';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { AlertTriangle, Eye, Shield, Camera, CheckCircle, ArrowRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import MarketingNavbar from './components/MarketingNavbar';
 
-interface Detection {
-  id: number;
-  type: string;
-  x: number;
-  y: number;
-}
+export const metadata: Metadata = {
+  title: 'AI-Powered PPE Compliance Monitoring for Construction Sites | Nexxau',
+  description: 'Automated PPE violation detection for construction and industrial sites. Hardhat, safety vest, and zone compliance monitoring with real-time alerts. Reduce violations by 80%+ with existing cameras.',
+  keywords: ['PPE compliance', 'construction safety monitoring', 'hardhat detection', 'safety violation detection', 'OSHA compliance software'],
+  openGraph: {
+    title: 'AI-Powered PPE Compliance Monitoring for Construction Sites | Nexxau',
+    description: 'Automated PPE violation detection for construction and industrial sites. Hardhat, safety vest, and zone compliance monitoring with real-time alerts.',
+    url: 'https://nexxau.com',
+    siteName: 'Nexxau',
+    type: 'website',
+  },
+  alternates: {
+    canonical: 'https://nexxau.com',
+  },
+};
 
 export default function HomePage() {
-  const [detections, setDetections] = useState<Detection[]>([]);
-  const [currentTime, setCurrentTime] = useState<string>('');
-
-  useEffect(() => {
-    const updateTime = () => setCurrentTime(new Date().toLocaleTimeString());
-    updateTime();
-    const timer = setInterval(updateTime, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const newDetection = {
-        id: Date.now(),
-        type: Math.random() > 0.5 ? 'hardhat' : 'vest',
-        x: Math.random() * 70 + 15,
-        y: Math.random() * 60 + 20,
-      };
-      setDetections(prev => [...prev.slice(-2), newDetection]);
-      setTimeout(() => {
-        setDetections(prev => prev.filter(d => d.id !== newDetection.id));
-      }, 2500);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
   return (
     <div className="min-h-screen bg-[#0a1628]">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-[#0a1628]/90 backdrop-blur-sm border-b border-white/10">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <Image src="/nexxau-logo-resized.png" alt="Nexxau Logo" width={32} height={32} className="w-8 h-8 object-contain" />
-              <span className="text-xl tracking-tight text-white font-bold">NEXXAU</span>
-            </Link>
-            <nav className="hidden md:flex items-center gap-8">
-              <Link href="/" className="text-[#8b9bb1] hover:text-white transition-colors text-sm">Home</Link>
-              <Link href="/features" className="text-[#8b9bb1] hover:text-white transition-colors text-sm">Features</Link>
-              <Link href="/industries" className="text-[#8b9bb1] hover:text-white transition-colors text-sm">Industries</Link>
-              <Link href="/partners/insurance" className="text-[#8b9bb1] hover:text-white transition-colors text-sm">For Insurance</Link>
-              <Link href="/about" className="text-[#8b9bb1] hover:text-white transition-colors text-sm">About</Link>
-              <Link href="/contact" className="text-[#8b9bb1] hover:text-white transition-colors text-sm">Contact</Link>
-            </nav>
-            <Link href="/contact/sales" className="px-4 py-1.5 bg-white text-[#0a1628] hover:bg-white/90 rounded-lg transition-colors font-semibold text-sm">
-              Request Demo
-            </Link>
-          </div>
-        </div>
-      </header>
+      <MarketingNavbar variant="dark" />
 
       <main>
         {/* Hero Section */}
         <section className="relative min-h-[90vh] flex items-center overflow-hidden pt-20">
-          <div className="scanline-effect absolute inset-0" />
           <div className="absolute inset-0 opacity-10">
             <div className="absolute inset-0" style={{
               backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
@@ -78,8 +37,7 @@ export default function HomePage() {
 
           <div className="container mx-auto px-6 relative z-10">
             <div className="grid lg:grid-cols-2 gap-12 items-center">
-              {/* Left: Content */}
-              <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }} className="space-y-6">
+              <div className="space-y-6">
                 <h1 className="text-4xl md:text-5xl lg:text-6xl tracking-tight text-white leading-[1.1]">
                   PPE Violations Caught in Under 2 Seconds
                 </h1>
@@ -91,72 +49,43 @@ export default function HomePage() {
                   <Link href="/contact/sales" className="px-5 py-2.5 bg-white text-[#0a1628] hover:bg-white/90 rounded-lg transition-colors font-semibold text-sm">
                     Request Demo
                   </Link>
-                  <Link href="/features" className="px-5 py-2.5 border border-white/20 text-white hover:bg-white/10 rounded-lg transition-colors font-semibold text-sm flex items-center gap-2">
-                    See Features <ArrowRight className="h-4 w-4" />
+                  <Link href="/ppe-compliance-monitoring" className="px-5 py-2.5 border border-white/20 text-white hover:bg-white/10 rounded-lg transition-colors font-semibold text-sm flex items-center gap-2">
+                    See How It Works <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
 
-                {/* Pilot Badge */}
                 <div className="pt-4">
                   <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#22c55e]/10 text-[#22c55e] text-xs font-medium rounded-full border border-[#22c55e]/30">
                     <CheckCircle className="h-3.5 w-3.5" />
                     Now enrolling pilot partners — 30-day trial
                   </span>
                 </div>
-              </motion.div>
+              </div>
 
-              {/* Right: Live Detection Demo */}
-              <motion.div initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6, delay: 0.2 }} className="relative">
+              <div className="relative">
                 <div className="relative aspect-[4/3] bg-[#1e3a5f] rounded-lg overflow-hidden border border-white/20">
                   <div className="absolute inset-0 bg-gradient-to-br from-[#1e3a5f] to-[#0a1628]">
                     <div className="absolute inset-0 opacity-30">
-                      <Image src="https://images.unsplash.com/photo-1636790921342-cbdc4b783de6?w=800" alt="" fill className="object-cover blur-sm" />
+                      <Image src="https://images.unsplash.com/photo-1636790921342-cbdc4b783de6?w=800" alt="Construction site safety monitoring" fill className="object-cover blur-sm" />
                     </div>
                   </div>
-
-                  {/* HUD Overlay */}
-                  <div className="absolute inset-0 p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-[#22c55e] rounded-full animate-pulse" />
-                        <span className="text-xs text-white/60 font-mono">LIVE</span>
-                      </div>
-                      <span className="text-xs text-white/60 font-mono">{currentTime || '--:--:--'}</span>
-                    </div>
-
-                    {/* Detection boxes */}
-                    {detections.map((detection) => (
-                      <motion.div
-                        key={detection.id}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute"
-                        style={{ left: `${detection.x}%`, top: `${detection.y}%` }}
-                      >
-                        <div className={`w-16 h-16 ${detection.type === 'hardhat' ? 'border-[#fbbf24]' : 'border-[#ef4444]'} border-2 rounded`}>
-                          <div className={`absolute -top-5 left-0 text-xs ${detection.type === 'hardhat' ? 'text-[#fbbf24]' : 'text-[#ef4444]'} whitespace-nowrap font-mono`}>
-                            {detection.type === 'hardhat' ? 'NO HARDHAT' : 'NO VEST'}
-                          </div>
+                  <div className="absolute inset-0 p-4 flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-16 h-16 border-2 border-[#fbbf24] rounded mx-auto mb-4">
+                        <div className="absolute -top-5 left-0 text-xs text-[#fbbf24] whitespace-nowrap font-mono">
+                          NO HARDHAT
                         </div>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  {/* Alert banner */}
-                  <motion.div initial={{ y: 100 }} animate={{ y: 0 }} transition={{ duration: 0.5, delay: 1 }} className="absolute bottom-0 left-0 right-0 bg-[#ef4444]/90 backdrop-blur-sm p-3">
-                    <div className="flex items-center gap-2 text-white">
-                      <AlertTriangle className="h-4 w-4" />
-                      <span className="text-sm font-mono">VIOLATION DETECTED • Alert sent to supervisor</span>
+                      </div>
+                      <p className="text-white text-sm font-mono">Live Detection Active</p>
                     </div>
-                  </motion.div>
+                  </div>
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Problem - Short */}
+        {/* Problem Section */}
         <section className="py-20 bg-[#0d1f35]">
           <div className="container mx-auto px-6">
             <div className="max-w-3xl mx-auto text-center mb-12">
@@ -183,7 +112,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Solution - Short */}
+        {/* Solution Section */}
         <section className="py-20">
           <div className="container mx-auto px-6">
             <div className="max-w-3xl mx-auto text-center mb-12">
@@ -223,7 +152,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Industries - Compact */}
+        {/* Industries Section */}
         <section className="py-20 bg-[#0d1f35]">
           <div className="container mx-auto px-6">
             <div className="max-w-3xl mx-auto text-center mb-12">
@@ -231,56 +160,20 @@ export default function HomePage() {
             </div>
             <div className="flex flex-wrap justify-center gap-4 max-w-3xl mx-auto">
               {['Construction', 'Manufacturing', 'Logistics', 'Oil & Gas', 'Energy'].map((industry) => (
-                <div key={industry} className="px-5 py-2.5 bg-[#1e3a5f] rounded-lg border border-white/10 text-white text-sm">
+                <Link key={industry} href={`/industries/${industry.toLowerCase().replace(' & ', '-').replace(' ', '-')}`} className="px-5 py-2.5 bg-[#1e3a5f] rounded-lg border border-white/10 text-white text-sm hover:bg-[#1e3a5f]/80 transition-colors">
                   {industry}
-                </div>
+                </Link>
               ))}
             </div>
             <div className="text-center mt-8">
-              <Link href="/industries" className="text-blue-400 hover:text-blue-300 text-sm inline-flex items-center gap-2">
+              <Link href="/industries/construction" className="text-blue-400 hover:text-blue-300 text-sm inline-flex items-center gap-2">
                 See industry-specific detection <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </div>
         </section>
 
-        {/* For Insurance - Brief */}
-        <section className="py-20">
-          <div className="container mx-auto px-6">
-            <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-12 items-center">
-              <div>
-                <p className="text-blue-400 text-sm font-semibold mb-2">FOR INSURANCE</p>
-                <h2 className="text-3xl font-bold text-white mb-4">Safety Data for Smarter Underwriting</h2>
-                <p className="text-[#8b9bb1] mb-6">Objective risk scores. Video evidence. Violation trends. The data underwriters actually need.</p>
-                <Link href="/partners/insurance" className="text-blue-400 hover:text-blue-300 text-sm inline-flex items-center gap-2">
-                  Learn about insurance partnerships <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-              <div className="bg-[#1e3a5f] rounded-lg p-6 border border-white/10">
-                <ul className="space-y-4">
-                  <li className="flex items-start gap-3">
-                    <CheckCircle className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm text-[#8b9bb1]">Site-level violation frequency and severity</span>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <CheckCircle className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm text-[#8b9bb1]">Contractor comparison scoring</span>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <CheckCircle className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm text-[#8b9bb1]">Pre-incident video evidence for claims</span>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <CheckCircle className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm text-[#8b9bb1]">API access for actuarial models</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Pilot CTA */}
+        {/* CTA Section */}
         <section className="py-20 bg-[#0d1f35]">
           <div className="container mx-auto px-6">
             <div className="max-w-2xl mx-auto text-center">
@@ -290,8 +183,8 @@ export default function HomePage() {
                 <Link href="/contact/sales" className="px-6 py-3 bg-white text-[#0a1628] hover:bg-white/90 rounded-lg transition-colors font-semibold text-sm">
                   Request Demo
                 </Link>
-                <Link href="/contact" className="px-6 py-3 border border-white/20 text-white hover:bg-white/10 rounded-lg transition-colors font-semibold text-sm">
-                  Talk to Sales
+                <Link href="/pricing" className="px-6 py-3 border border-white/20 text-white hover:bg-white/10 rounded-lg transition-colors font-semibold text-sm">
+                  View Pricing
                 </Link>
               </div>
             </div>
@@ -302,18 +195,42 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="bg-[#0a1628] border-t border-white/10 py-12">
         <div className="container mx-auto px-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-2">
-              <Image src="/nexxau-logo-resized.png" alt="Nexxau Logo" width={24} height={24} className="w-6 h-6 object-contain" />
-              <span className="text-white font-bold">NEXXAU</span>
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Image src="/nexxau-logo-resized.png" alt="Nexxau Logo" width={24} height={24} className="w-6 h-6 object-contain" />
+                <span className="text-white font-bold">NEXXAU</span>
+              </div>
+              <p className="text-sm text-[#8b9bb1]">AI-powered safety monitoring for construction and industrial sites.</p>
             </div>
-            <nav className="flex flex-wrap gap-6 text-sm text-[#8b9bb1]">
-              <Link href="/features" className="hover:text-white">Features</Link>
-              <Link href="/industries" className="hover:text-white">Industries</Link>
-              <Link href="/partners/insurance" className="hover:text-white">Insurance</Link>
-              <Link href="/about" className="hover:text-white">About</Link>
-              <Link href="/contact" className="hover:text-white">Contact</Link>
-            </nav>
+            <div>
+              <h3 className="text-white font-semibold mb-4 text-sm">Solutions</h3>
+              <ul className="space-y-2 text-sm text-[#8b9bb1]">
+                <li><Link href="/ppe-compliance-monitoring" className="hover:text-white">PPE Compliance</Link></li>
+                <li><Link href="/hard-hat-detection-software" className="hover:text-white">Hard Hat Detection</Link></li>
+                <li><Link href="/high-visibility-vest-detection" className="hover:text-white">Vest Detection</Link></li>
+                <li><Link href="/osha-ppe-compliance-software" className="hover:text-white">OSHA Compliance</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-white font-semibold mb-4 text-sm">Resources</h3>
+              <ul className="space-y-2 text-sm text-[#8b9bb1]">
+                <li><Link href="/blog" className="hover:text-white">Blog</Link></li>
+                <li><Link href="/pricing" className="hover:text-white">Pricing</Link></li>
+                <li><Link href="/demo" className="hover:text-white">Demo</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-white font-semibold mb-4 text-sm">Company</h3>
+              <ul className="space-y-2 text-sm text-[#8b9bb1]">
+                <li><Link href="/about" className="hover:text-white">About</Link></li>
+                <li><Link href="/contact" className="hover:text-white">Contact</Link></li>
+                <li><Link href="/terms" className="hover:text-white">Terms</Link></li>
+                <li><Link href="/privacy" className="hover:text-white">Privacy</Link></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-white/10 pt-8 text-center">
             <p className="text-xs text-[#8b9bb1]">© 2025 Nexxau. All rights reserved.</p>
           </div>
         </div>
@@ -321,3 +238,4 @@ export default function HomePage() {
     </div>
   );
 }
+

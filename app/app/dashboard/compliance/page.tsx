@@ -77,7 +77,6 @@ export default function CompliancePage() {
                   ← Back to Dashboard
                 </button>
                 <button
-                  onClick={() => router.push('/dashboard')}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                   onClick={() => {
                     router.push('/dashboard');

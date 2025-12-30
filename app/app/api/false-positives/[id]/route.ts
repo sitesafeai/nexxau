@@ -28,7 +28,7 @@ export async function PATCH(
     const report = await prisma.falsePositiveReport.findUnique({
       where: { id },
       include: {
-        alert: true,
+        // alert: true, // FalsePositiveReport doesn't have alert relation
       },
     });
 
@@ -63,7 +63,8 @@ export async function PATCH(
           resolvedBy: session.user.id,
           resolvedAt: new Date(),
           metadata: {
-            ...(report.alert?.metadata as any || {}),
+            // alert relation not available - using alertId if needed
+            alertId: report.alertId,
             overrideInfo: {
               overriddenBy: session.user.id,
               overriddenAt: new Date().toISOString(),

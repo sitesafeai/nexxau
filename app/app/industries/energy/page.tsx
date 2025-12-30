@@ -1,16 +1,15 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { BoltIcon, ShieldCheckIcon, ChartBarIcon, ClockIcon } from '@heroicons/react/24/outline';
-import Navbar from '@/components/Navbar';
+import MarketingNavbar from '../../components/MarketingNavbar';
 
 export default function EnergyPage() {
   const router = useRouter();
 
   return (
     <div className="bg-white">
-      <Navbar />
+      <MarketingNavbar variant="light" />
       
       {/* Back Button */}
       <div className="max-w-7xl mx-auto px-6 pt-4">

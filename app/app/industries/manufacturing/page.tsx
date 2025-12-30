@@ -1,174 +1,116 @@
-'use client';
+import type { Metadata } from 'next';
+import { WrenchScrewdriverIcon, ShieldCheckIcon, ChartBarIcon, BellAlertIcon, CogIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import MarketingNavbar from '../../components/MarketingNavbar';
 
-import Link from 'next/link';
-import { WrenchScrewdriverIcon, ShieldCheckIcon, ChartBarIcon, ClockIcon } from '@heroicons/react/24/outline';
-import Navbar from '../../components/Navbar';
-import { useRouter } from 'next/navigation';
+export const metadata: Metadata = {
+  title: 'Manufacturing Safety Monitoring with AI Detection | Nexxau',
+  description: 'Manufacturing safety monitoring with automated PPE detection, machine zone monitoring, and LOTO compliance tracking. Reduce manufacturing safety violations by 80%+.',
+  keywords: ['manufacturing safety monitoring', 'manufacturing safety software', 'machine safety monitoring', 'LOTO compliance'],
+  openGraph: {
+    title: 'Manufacturing Safety Monitoring with AI Detection | Nexxau',
+    description: 'Manufacturing safety monitoring with automated PPE detection, machine zone monitoring, and LOTO compliance tracking.',
+    url: 'https://nexxau.com/industries/manufacturing',
+  },
+  alternates: {
+    canonical: 'https://nexxau.com/industries/manufacturing',
+  },
+};
 
 export default function ManufacturingPage() {
-  const router = useRouter();
-
   return (
-    <div className="bg-white">
-      <Navbar />
-      
-      {/* Hero Section */}
-      <div className="relative isolate overflow-hidden bg-gradient-to-b from-blue-100/20">
-        {/* Background image with overlay */}
-        <div className="absolute inset-0 -z-10 bg-[url('/images/hero-bg.jpg')] bg-cover bg-center opacity-10" />
-        
-        {/* Radial gradient overlay */}
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(45%_45%_at_50%_50%,rgba(59,130,246,0.1),rgba(255,255,255,0))]" />
-        
-        {/* Grid pattern overlay */}
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]" />
+    <div className="bg-[#0a1628] min-h-screen">
+      <MarketingNavbar variant="dark" />
 
-        <div className="mx-auto max-w-7xl px-6 pb-24 pt-10 sm:pb-32 lg:flex lg:px-8 lg:py-40">
-          <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-xl lg:flex-shrink-0 lg:pt-8">
-            <div className="mt-24 sm:mt-32 lg:mt-16">
-              <Link
-                href="/industries"
-                className="inline-flex space-x-6"
-              >
-                <span className="rounded-full bg-blue-600/10 px-3 py-1 text-sm font-semibold leading-6 text-blue-600 ring-1 ring-inset ring-blue-600/10">
-                  Back to Industries
-                </span>
-              </Link>
-            </div>
-            <h1 className="mt-10 text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">
-              Manufacturing Safety Solutions
+      <main className="pt-20">
+        {/* Hero */}
+        <section className="py-20">
+          <div className="container mx-auto px-6 max-w-4xl">
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
+              Manufacturing Safety Monitoring with AI Detection
             </h1>
-            <p className="mt-6 text-lg leading-8 text-gray-600">
-              Enhance manufacturing safety with automated monitoring and predictive analytics. Our AI-powered solutions help you reduce incidents, improve compliance, and protect your workforce.
+            <p className="text-xl text-[#8b9bb1] mb-8">
+              Manufacturing floors have unique hazards: machine guarding failures, LOTO violations, forklift proximity risks, and restricted zone breaches. Manual supervision can't monitor every machine, every worker, every moment. Nexxau provides 24/7 automated monitoring using your existing cameras.
             </p>
-            <div className="mt-10 flex items-center gap-x-6">
-              <Link
-                href="/contact"
-                className="rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-              >
-                Schedule a Demo
-              </Link>
-              <Link href="#features" className="text-sm font-semibold leading-6 text-gray-900">
-                Learn more <span aria-hidden="true">→</span>
-              </Link>
-            </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Features Section */}
-      <div id="features" className="py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-blue-600">Manufacturing Safety</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-              Comprehensive Safety Solutions
-            </p>
-            <p className="mt-6 text-lg leading-8 text-gray-600">
-              Our AI-powered safety solutions are specifically designed for manufacturing environments, helping you maintain the highest standards of safety and compliance.
-            </p>
-          </div>
-          <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
-            <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-3">
-              {features.map((feature) => (
-                <div key={feature.name} className="flex flex-col">
-                  <dt className="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
-                    <feature.icon className="h-5 w-5 flex-none text-blue-600" aria-hidden="true" />
-                    {feature.name}
-                  </dt>
-                  <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
-                    <p className="flex-auto">{feature.description}</p>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Section */}
-      <div className="bg-gray-50 py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <dl className="grid grid-cols-1 gap-x-8 gap-y-16 text-center lg:grid-cols-4">
-            {stats.map((stat) => (
-              <div key={stat.id} className="mx-auto flex max-w-xs flex-col gap-y-4">
-                <dt className="text-base leading-7 text-gray-600">{stat.name}</dt>
-                <dd className="order-first text-3xl font-semibold tracking-tight text-blue-600 sm:text-5xl">
-                  {stat.value}
-                </dd>
+        {/* Manufacturing Hazards */}
+        <section className="py-20 bg-[#0d1f35]">
+          <div className="container mx-auto px-6 max-w-4xl">
+            <h2 className="text-3xl font-bold text-white mb-6">Manufacturing Floor Hazards</h2>
+            <div className="grid md:grid-cols-2 gap-6 mb-8">
+              <div className="bg-[#1e3a5f] rounded-lg p-6 border border-white/10">
+                <CogIcon className="h-8 w-8 text-red-400 mb-4" />
+                <h3 className="text-white font-semibold mb-2">Machine Guarding Failures</h3>
+                <p className="text-sm text-[#8b9bb1]">Workers entering restricted machine zones without proper authorization. Zone breach detection monitors machine perimeters.</p>
               </div>
-            ))}
-          </dl>
-        </div>
-      </div>
-
-      {/* CTA Section */}
-      <div className="bg-white">
-        <div className="mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8">
-          <div className="relative isolate overflow-hidden bg-gray-900 px-6 py-24 text-center shadow-2xl sm:rounded-3xl sm:px-16">
-            <h2 className="mx-auto max-w-2xl text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Ready to Transform Your Manufacturing Safety?
-            </h2>
-            <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-gray-300">
-              Join leading manufacturers who trust Nexxau to protect their workforce and maintain compliance.
-            </p>
-            <div className="mt-10 flex items-center justify-center gap-x-6">
-              <Link
-                href="/contact"
-                className="rounded-md bg-white px-3.5 py-2.5 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-              >
-                Get started
-              </Link>
-              <Link href="/demo" className="text-sm font-semibold leading-6 text-white">
-                Watch demo <span aria-hidden="true">→</span>
-              </Link>
+              <div className="bg-[#1e3a5f] rounded-lg p-6 border border-white/10">
+                <ExclamationTriangleIcon className="h-8 w-8 text-red-400 mb-4" />
+                <h3 className="text-white font-semibold mb-2">LOTO Violations</h3>
+                <p className="text-sm text-[#8b9bb1]">Workers entering locked-out equipment zones. Detection monitors LOTO compliance and alerts supervisors to violations.</p>
+              </div>
+              <div className="bg-[#1e3a5f] rounded-lg p-6 border border-white/10">
+                <WrenchScrewdriverIcon className="h-8 w-8 text-red-400 mb-4" />
+                <h3 className="text-white font-semibold mb-2">Forklift Proximity Hazards</h3>
+                <p className="text-sm text-[#8b9bb1]">Workers too close to operating forklifts. High-visibility vest detection helps prevent struck-by incidents.</p>
+              </div>
+              <div className="bg-[#1e3a5f] rounded-lg p-6 border border-white/10">
+                <ShieldCheckIcon className="h-8 w-8 text-red-400 mb-4" />
+                <h3 className="text-white font-semibold mb-2">PPE Compliance</h3>
+                <p className="text-sm text-[#8b9bb1]">Missing eye protection, hearing protection, or other required PPE in machine areas. Automated detection ensures consistent enforcement.</p>
+              </div>
             </div>
-            <svg
-              viewBox="0 0 1024 1024"
-              className="absolute left-1/2 top-1/2 -z-10 h-[64rem] w-[64rem] -translate-x-1/2 [mask-image:radial-gradient(closest-side,white,transparent)]"
-              aria-hidden="true"
-            >
-              <circle cx={512} cy={512} r={512} fill="url(#827591b1-ce8c-4110-b064-7cb85a0b1217)" fillOpacity="0.7" />
-              <defs>
-                <radialGradient id="827591b1-ce8c-4110-b064-7cb85a0b1217">
-                  <stop stopColor="#7775D6" />
-                  <stop offset={1} stopColor="#E935C1" />
-                </radialGradient>
-              </defs>
-            </svg>
           </div>
-        </div>
-      </div>
+        </section>
+
+        {/* Nexxau Features for Manufacturing */}
+        <section className="py-20">
+          <div className="container mx-auto px-6 max-w-4xl">
+            <h2 className="text-3xl font-bold text-white mb-6">How Nexxau Maps to Manufacturing Risks</h2>
+            <div className="space-y-6 mb-8">
+              <div className="flex items-start gap-4">
+                <BellAlertIcon className="h-6 w-6 text-blue-400 flex-shrink-0 mt-1" />
+                <div>
+                  <h3 className="text-white font-semibold mb-1">Restricted Machine Zone Monitoring</h3>
+                  <p className="text-[#8b9bb1]">Monitors machine perimeters and restricted zones. Alerts supervisors when unauthorized personnel enter machine areas.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-4">
+                <ShieldCheckIcon className="h-6 w-6 text-blue-400 flex-shrink-0 mt-1" />
+                <div>
+                  <h3 className="text-white font-semibold mb-1">LOTO Procedure Compliance</h3>
+                  <p className="text-[#8b9bb1]">Monitors locked-out equipment zones. Detects workers entering LOTO-protected areas without proper authorization.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-4">
+                <ChartBarIcon className="h-6 w-6 text-blue-400 flex-shrink-0 mt-1" />
+                <div>
+                  <h3 className="text-white font-semibold mb-1">Forklift Proximity Detection</h3>
+                  <p className="text-[#8b9bb1]">Monitors workers in forklift traffic areas. High-visibility vest detection helps prevent struck-by incidents.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-4">
+                <WrenchScrewdriverIcon className="h-6 w-6 text-blue-400 flex-shrink-0 mt-1" />
+                <div>
+                  <h3 className="text-white font-semibold mb-1">PPE Compliance in Traffic Areas</h3>
+                  <p className="text-[#8b9bb1]">Detects missing high-visibility vests, eye protection, and hearing protection in areas with moving equipment.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA */}
+        <section className="py-20 bg-[#0d1f35]">
+          <div className="container mx-auto px-6 max-w-2xl text-center">
+            <h2 className="text-3xl font-bold text-white mb-4">Request Industry Demo</h2>
+            <p className="text-lg text-[#8b9bb1] mb-8">See how Nexxau monitors manufacturing floors with industry-specific detection rules.</p>
+            <Link href="/contact/sales" className="inline-block px-6 py-3 bg-white text-[#0a1628] hover:bg-white/90 rounded-lg transition-colors font-semibold text-sm">
+              Request Industry Demo
+            </Link>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
-
-const features = [
-  {
-    name: 'Machine Safety Monitoring',
-    description: 'Real-time monitoring of machine operations to detect potential hazards and prevent accidents.',
-    icon: WrenchScrewdriverIcon,
-  },
-  {
-    name: 'Production Line Safety',
-    description: 'Comprehensive safety monitoring for production lines, ensuring worker protection and operational efficiency.',
-    icon: ShieldCheckIcon,
-  },
-  {
-    name: 'Worker Protection Systems',
-    description: 'Advanced systems to protect workers from hazards and ensure proper safety protocols are followed.',
-    icon: ChartBarIcon,
-  },
-  {
-    name: 'Automated Compliance',
-    description: 'Automated tracking and reporting of safety compliance to meet industry standards and regulations.',
-    icon: ClockIcon,
-  },
-];
-
-const stats = [
-  { id: 1, name: 'Safety Violations Reduced', value: '83%' },
-  { id: 2, name: 'ROI on Safety Investment', value: '1:6' },
-  { id: 3, name: 'Cost Savings', value: '$2.4M' },
-  { id: 4, name: 'Fall-Related Accidents Reduced', value: '96%' },
-]; 

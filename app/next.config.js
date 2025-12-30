@@ -4,6 +4,8 @@ const { withSentryConfig } = require('@sentry/nextjs');
 
 const nextConfig = {
   reactStrictMode: false, // Temporarily disable for HLS testing
+  // Fix lockfile warning by explicitly setting the root
+  outputFileTracingRoot: path.join(__dirname),
   images: {
     remotePatterns: [
       {
@@ -20,8 +22,11 @@ const nextConfig = {
       },
     ],
   },
-  webpack: (config) => {
-    config.resolve.fallback = { fs: false, net: false, tls: false };
+  webpack: (config, { isServer }) => {
+    // Only disable fs/net/tls on client side, allow on server side for API routes
+    if (!isServer) {
+      config.resolve.fallback = { fs: false, net: false, tls: false };
+    }
     config.resolve.alias['@'] = path.resolve(__dirname);
     return config;
   },
@@ -41,6 +46,20 @@ const nextConfig = {
         ],
       },
     ]
+  },
+  async rewrites() {
+    // Proxy streaming requests to MediaMTX if configured
+    const streamBaseUrl = process.env.NEXT_PUBLIC_STREAM_BASE_URL;
+    if (streamBaseUrl && streamBaseUrl !== 'http://localhost:8888') {
+      return [
+        {
+          source: '/streams/:path*',
+          destination: `${streamBaseUrl}/streams/:path*`,
+        },
+      ];
+    }
+    // If using default localhost:8888, streams are served by Next.js route handler
+    return [];
   },
 }
 

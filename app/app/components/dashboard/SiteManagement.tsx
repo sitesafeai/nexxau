@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import WorksiteUserManagementModal from './WorksiteUserManagementModal';
 
 interface Site {
   id: string;
@@ -417,6 +418,19 @@ export default function SiteManagement({ currentUser }: SiteManagementProps) {
           </table>
         </div>
       </div>
+      
+      {/* Worksite User Management Modal */}
+      {showUsersModal && selectedSite && (
+        <WorksiteUserManagementModal
+          isOpen={showUsersModal}
+          onClose={() => {
+            setShowUsersModal(false);
+            setSelectedSite(null);
+          }}
+          worksiteId={selectedSite.id}
+          worksiteName={selectedSite.name}
+        />
+      )}
     </div>
   );
 }

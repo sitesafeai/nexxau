@@ -1,55 +1,63 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import Link from 'next/link';
 
-const forgotPasswordSchema = z.object({
-  email: z.string().email('Invalid email address'),
-});
-
-type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
-
 export default function ForgotPasswordPage() {
+  const [email, setEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [error, setError] = useState<string>('');
-  
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<ForgotPasswordFormData>({
-    resolver: zodResolver(forgotPasswordSchema),
-  });
+  const [error, setError] = useState('');
 
-  const onSubmit = async (data: ForgotPasswordFormData) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    if (!email || !email.includes('@')) {
+      setError('Invalid email format');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      // TODO: Implement actual password reset request logic
-      console.log('Password reset requested for:', data.email);
-      setIsSubmitted(true);
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setIsSubmitted(true);
+      } else {
+        setError(result.error || 'Temporary server error');
+      }
     } catch (err) {
-      console.error('Forgot password error:', err);
-      setError('Failed to send reset email. Please try again.');
+      setError('Temporary server error');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   if (isSubmitted) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                Check your email
-              </h2>
-              <p className="text-gray-600 mb-4">
-                We&apos;ve sent you instructions to reset your password.
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full">
+          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700">
+            <div className="mb-6">
+              <h1 className="text-2xl font-semibold text-white mb-2">
+                Reset your password
+              </h1>
+              <p className="text-sm text-slate-300">
+                If an account exists for this email, you'll receive a reset link shortly.
               </p>
+            </div>
+            <div className="mt-6">
               <Link
                 href="/login"
-                className="text-indigo-600 hover:text-indigo-500"
+                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 Return to login
               </Link>
@@ -61,57 +69,59 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Reset your password
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Enter your email address and we&apos;ll send you a link to reset your password.
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full">
+        <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700">
+          <div className="mb-8">
+            <h1 className="text-2xl font-semibold text-white mb-2">
+              Reset your password
+            </h1>
+            <p className="text-sm text-slate-300">
+              Enter your email and we'll send you a reset link.
+            </p>
+          </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
-              <div className="mt-1">
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  {...register('email')}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                />
-                {errors.email && (
-                  <p className="mt-2 text-sm text-red-600">{errors.email.message}</p>
-                )}
-              </div>
+          {error && (
+            <div className="mb-6 bg-red-500/20 border border-red-500/30 rounded-md p-4">
+              <p className="text-sm text-red-300">{error}</p>
             </div>
+          )}
 
-            {error && (
-              <div className="rounded-md bg-red-50 p-4">
-                <div className="text-sm text-red-700">{error}</div>
-              </div>
-            )}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1.5">
+                Email
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="block w-full px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                placeholder="you@company.com"
+              />
+            </div>
 
             <div>
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                disabled={isLoading}
+                className={`w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md text-sm font-medium text-white ${
+                  isLoading
+                    ? 'bg-slate-600 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                }`}
               >
-                {isSubmitting ? 'Sending...' : 'Send reset link'}
+                {isLoading ? 'Sending...' : 'Send reset link'}
               </button>
             </div>
 
             <div className="text-center">
               <Link
                 href="/login"
-                className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                className="text-sm text-slate-300 hover:text-white"
               >
                 Back to login
               </Link>
@@ -121,4 +131,4 @@ export default function ForgotPasswordPage() {
       </div>
     </div>
   );
-} 
+}

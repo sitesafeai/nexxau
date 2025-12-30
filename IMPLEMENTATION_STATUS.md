@@ -1,179 +1,255 @@
-# Implementation Status - Full Stack Features
+# Platform Implementation Status
 
-## ✅ ALL FEATURES COMPLETED - FULL STACK IMPLEMENTATION
+**Date**: 2024-01-15  
+**Goal**: Complete end-to-end implementation of all platform features
 
-### 1. User Feedback System (FULL STACK) ✅
-**Status:** ✅ Complete with database, API, and UI
+---
 
-**Backend:**
-- ✅ Added feedback fields to `Detection` model in Prisma schema:
-  - `userFeedback` (true_positive, false_positive, needs_review)
-  - `feedbackBy` (user ID)
-  - `feedbackAt` (timestamp)
-  - `feedbackNote` (optional note)
-- ✅ Created API endpoint: `/api/detections/[id]/feedback`
-  - POST: Submit feedback with Zod validation
-  - GET: Retrieve existing feedback
-  - Includes access control and audit logging
-- ✅ Input validation with Zod schemas
-- ✅ Audit logging for all feedback submissions
+## ✅ COMPLETED IMPLEMENTATIONS
 
-**Frontend:**
-- ✅ `DetectionFeedback` component with full UI
-  - True Positive / False Positive / Needs Review buttons
-  - Optional note field
-  - Loading states and error handling
-  - Compact mode for table views
-- ✅ Integrated into alerts dashboard
-  - Feedback buttons in alert dropdown menu
-  - Feedback section in alert detail modal
-  - Visual indicators for submitted feedback
+### 1. GPU Saturation Handler Integration (Detection Service)
+**Status**: ✅ **COMPLETE**
 
-**Database Migration:**
-- ⚠️ **TODO:** Run migration to add new fields:
-  ```bash
-  cd app && npx prisma migrate dev --name add_detection_feedback
-  ```
+**Changes Made**:
+- ✅ Added `GPUSaturationHandler` import to `main.py`
+- ✅ Added global variable declaration
+- ✅ Initialized handler in `main()` function
+- ✅ Added GPU saturation check in processing loop (before adding to pending frames)
+- ✅ Integrated `frames_dropped_total{reason="gpu_saturation"}` metric increment
+- ✅ Added structured logging for dropped frames
 
-### 2. Input Validation ✅
-**Status:** ✅ Complete - All major API routes validated
+**Files Modified**:
+- `services/detection-service/src/main.py`
 
-**Completed:**
-- ✅ Created validation schemas in `/app/lib/validation/`:
-  - `detection.ts` - Detection feedback validation
-  - `alerts.ts` - Alert creation/update/acknowledge validation
-  - `cameras.ts` - Camera creation/update/health validation
-  - `worksites.ts` - Worksite creation/update validation
-  - `companies.ts` - Company creation/update validation
-  - `common.ts` - Shared validation utilities
-- ✅ Applied validation to:
-  - `/api/detections/[id]/feedback` - Detection feedback
-  - `/api/alerts` - Alert creation and queries
-  - `/api/alerts/[id]/acknowledge` - Alert acknowledgment
-  - `/api/cameras` - Camera creation
-  - `/api/worksites` - Worksite creation
-  - `/api/admin/companies` - Company creation
-- ✅ Proper error messages and validation responses
-- ✅ Helper functions: `validateBody()`, `validateQuery()`
+**Verification**: 
+- Handler is called before frame processing
+- Frames are dropped probabilistically based on GPU lag
+- Metrics are incremented correctly
+- Logs show "Frame dropped due to GPU saturation"
 
-### 3. Error Tracking (Sentry) ✅
-**Status:** ✅ Complete - Fully configured
+---
 
-**Completed:**
-- ✅ Sentry SDK already installed (`@sentry/nextjs`)
-- ✅ Created Sentry config files:
-  - `sentry.client.config.ts` - Client-side error tracking
-  - `sentry.server.config.ts` - Server-side error tracking
-  - `sentry.edge.config.ts` - Edge runtime error tracking
-- ✅ Configured in `next.config.js` with `withSentryConfig`
-- ✅ Sensitive data filtering (removes auth headers, tokens, etc.)
-- ✅ Development mode protection (only sends if `SENTRY_ENABLED=true`)
-- ✅ Initialized in `instrumentation.ts` hook
+### 2. Dead-Letter Queue (Detection Service) - Partial
+**Status**: ⚠️ **PARTIAL** (Infrastructure complete, needs testing)
 
-**Setup Required:**
-- Add `SENTRY_DSN` or `NEXT_PUBLIC_SENTRY_DSN` to `.env.local`
-- Optional: `SENTRY_ORG` and `SENTRY_PROJECT` for source maps
+**Changes Made**:
+- ✅ Added `messages_dlq_total` Prometheus metric
+- ✅ Added `publish_to_dlq()` method to `DetectionProducer`
+- ✅ Added retry tracking methods to `FrameConsumer`:
+  - `get_retry_count()`
+  - `increment_retry_count()`
+  - `clear_retry_count()`
+  - `acknowledge_frame()`
+- ✅ Integrated DLQ logic into CPU mode processing loop:
+  - Retry tracking on exceptions
+  - DLQ publishing after 3 retries
+  - Metric incrementing
+  - Message acknowledgment
 
-### 4. Real-time Notifications ✅
-**Status:** ✅ Complete - Full email/SMS/in-app notification system
+**Files Modified**:
+- `services/detection-service/src/main.py`
+- `services/detection-service/src/redis_producer.py`
+- `services/detection-service/src/redis_consumer.py`
 
-**Completed:**
-- ✅ Alert notification handler (`/app/lib/alert-notification-handler.ts`)
-  - Listens to alert creation events
-  - Sends email notifications to worksite admins/supervisors
-  - Sends SMS for CRITICAL/HIGH severity alerts
-  - Creates in-app notifications for all users
-  - Respects worksite notification preferences
-- ✅ Email notifications:
-  - Uses existing `sendAlertNotificationEmail()` function
-  - Sends to all worksite admins/supervisors
-  - Includes alert details and link to dashboard
-  - Tracks email sent status in alert metadata
-- ✅ SMS notifications:
-  - Uses `SafetySMSService` for SMS sending
-  - Only for CRITICAL/HIGH severity alerts
-  - Respects SMS enabled setting
-- ✅ In-app notifications:
-  - Creates `Notification` records in database
-  - Available in dashboard notification system
-- ✅ Initialized in `instrumentation.ts` on server start
+**Remaining Work**:
+- ⚠️ DLQ logic for GPU batch mode (currently only CPU mode)
+- ⚠️ Integration testing
+- ⚠️ Verify message IDs are properly tracked
 
-### 5. Alert-Detection Linking ✅
-**Status:** ✅ Complete - Alerts now include detectionId
+---
 
-**Completed:**
-- ✅ Modified `/api/yolo/detections/route.ts`:
-  - Detection saved to database BEFORE zone violation checks
-  - Zone violation alerts include `detectionId` in metadata
-  - Enables feedback system to work with alerts
-- ✅ All alerts created from detections now linkable for feedback
+## 📋 REMAINING IMPLEMENTATIONS
 
-## 📋 Next Steps
+### 3. Dead-Letter Queue (Violation Engine Service)
+**Status**: ❌ **NOT STARTED**
 
-### Immediate (Required)
-1. **Run database migration** for detection feedback fields:
-   ```bash
-   cd app && npx prisma migrate dev --name add_detection_feedback
-   ```
+**Required Changes**:
+- Add `messages_dlq_total` metric
+- Add DLQ producer method to `ViolationStateChangeProducer` or create separate DLQ producer
+- Add retry tracking to `DetectionConsumer` in violation engine
+- Integrate DLQ logic into `processor.py` `_process_batch()` method
+- Handle poison messages after max retries
 
-2. **Configure Sentry** (optional but recommended):
-   - Add to `.env.local`:
-     ```
-     SENTRY_DSN=your_sentry_dsn_here
-     SENTRY_ORG=your_org
-     SENTRY_PROJECT=your_project
-     ```
+**Estimated Complexity**: Medium  
+**Priority**: HIGH
 
-3. **Configure Email/SMS** (if not already done):
-   - Ensure SMTP settings in `.env.local`
-   - Configure SMS service credentials
+---
 
-### Testing Checklist
-- [ ] Test detection feedback submission
-- [ ] Test alert creation with detectionId
-- [ ] Test email notifications on alert creation
-- [ ] Test SMS notifications for CRITICAL alerts
-- [ ] Test input validation on all endpoints
-- [ ] Verify Sentry error tracking (trigger a test error)
+### 4. Snapshot Fetch API Endpoint
+**Status**: ❌ **NOT STARTED**
 
-### Future Enhancements
-1. **API Documentation** (OpenAPI/Swagger)
-2. **Unit tests** for validation and notification systems
-3. **Model retraining pipeline** using false positive feedback
-4. **Analytics dashboard** for feedback metrics
-5. **Batch feedback operations**
+**Required Changes**:
+- Convert `main.py` to use FastAPI (currently uses simple service class)
+- Add `GET /snapshots/violation/{violation_id}` endpoint
+- Implement tenant_id validation (query parameter, security check)
+- Use existing `get_snapshots_by_violation()` repository method
+- Generate signed URLs with configurable TTL
+- Return 404 if no snapshots
+- Return 403 if tenant mismatch
+- Run FastAPI server alongside background service
 
-## 🔧 How to Test
+**Files to Modify**:
+- `services/snapshot-service/src/main.py`
 
-### Test Detection Feedback:
-1. Navigate to dashboard alerts
-2. Find an alert with a detection (check `alert.metadata.detectionId`)
-3. Click "Provide Feedback" or open alert details
-4. Click True Positive / False Positive / Needs Review
-5. Verify feedback is saved in database
-6. Check audit logs for feedback submission
+**Estimated Complexity**: Medium  
+**Priority**: MEDIUM
 
-### Test API Directly:
-```bash
-# Submit feedback
-curl -X POST http://localhost:3000/api/detections/{detectionId}/feedback \
-  -H "Content-Type: application/json" \
-  -H "Cookie: next-auth.session-token=..." \
-  -d '{
-    "feedback": "false_positive",
-    "note": "This was incorrectly detected"
-  }'
+---
 
-# Get feedback
-curl http://localhost:3000/api/detections/{detectionId}/feedback \
-  -H "Cookie: next-auth.session-token=..."
-```
+### 5. Storage Limit Manager Integration (Snapshot Service)
+**Status**: ❌ **NOT STARTED**
 
-## 📝 Notes
+**Required Changes**:
+- Import `StorageLimitManager` in `main.py`
+- Initialize `StorageLimitManager` with `s3_storage`
+- Pass `storage_limit_manager` to `SnapshotProcessor`
+- Add `storage_limit_manager` parameter to `SnapshotProcessor.__init__`
+- Add check in `SnapshotProcessor.process_violation_state_change()` at start:
+  - Call `storage_limit_manager.is_snapshot_allowed()`
+  - If False, return early with error reason
+  - Log warning with storage status
 
-- All features are **fully functional** - no placeholders
-- Backend validates input, checks permissions, logs actions
-- Frontend provides real-time feedback and error handling
-- Database schema supports all feedback data
-- Audit logs track all user actions
+**Files to Modify**:
+- `services/snapshot-service/src/main.py`
+- `services/snapshot-service/src/snapshot_processor.py`
 
+**Estimated Complexity**: Low  
+**Priority**: HIGH
+
+---
+
+### 6. SMS Rate Limiter Integration (Alert Orchestrator)
+**Status**: ❌ **NOT STARTED**
+
+**Required Changes**:
+- Import `SMSRateLimiter` in `main.py`
+- Initialize `SMSRateLimiter.from_env(redis_client)` in `main()`
+- Add `sms_rate_limiter` parameter to `AlertOrchestrator.__init__`
+- In `AlertOrchestrator.send_alert()`, before sending SMS:
+  - Check if channel is 'sms'
+  - Call `sms_rate_limiter.is_allowed(tenant_id)`
+  - If not allowed, log warning and fallback to 'email'
+  - Update channel name in loop if fallback occurs
+
+**Files to Modify**:
+- `services/alert-orchestrator-service/src/main.py`
+- `services/alert-orchestrator-service/src/alert_orchestrator.py`
+
+**Estimated Complexity**: Low  
+**Priority**: HIGH
+
+---
+
+### 7. FPS Controller Integration (Camera Ingest Service)
+**Status**: ❌ **NOT STARTED**
+
+**Required Changes**:
+- Import `FPSController` in `camera-manager.ts`
+- Add `fpsController` as private property in `CameraManager`
+- Initialize in constructor: `this.fpsController = new FPSController()`
+- Add `getCurrentFPS(cameraId)` method (get frame backlog from Redis or track locally)
+- Add `updateCameraFPS()` method:
+  - Iterate through all RUNNING cameras
+  - Get current FPS from controller
+  - Compare with configured FPS
+  - If changed significantly (>10%), call `ffmpegManager.updateFPS()`
+- Add `updateFPS(cameraId, newFPS)` method to `FFmpegManager`:
+  - Stop current FFmpeg process
+  - Update config FPS
+  - Restart FFmpeg with new FPS
+- Start periodic update loop (setInterval, every 30 seconds)
+- Add cleanup in `shutdown()` method
+
+**Files to Modify**:
+- `services/camera-ingest-service/src/camera-manager.ts`
+- `services/camera-ingest-service/src/ffmpeg-manager.ts`
+
+**Estimated Complexity**: Medium  
+**Priority**: HIGH
+
+---
+
+### 8. WebRTC Integration (Streaming Service)
+**Status**: ❌ **NOT STARTED**
+
+**Required Changes**:
+- Deploy Janus Gateway server (external dependency)
+- Update `_start_webrtc_stream()` in `stream_manager.py`:
+  - Create Janus session via HTTP API
+  - Attach RTSP plugin
+  - Configure RTSP source
+  - Start stream
+  - Store session info in `_webrtc_sessions` dict
+- Update `/webrtc/{camera_id}/signaling` endpoint in `main.py`:
+  - Forward signaling messages to Janus Gateway
+  - Handle SDP offer/answer
+  - Handle ICE candidates
+- Add session storage: `self._webrtc_sessions: Dict[str, Dict] = {}`
+- Handle session cleanup on stream stop
+
+**Files to Modify**:
+- `services/streaming-service/src/stream_manager.py`
+- `services/streaming-service/src/main.py`
+
+**External Dependencies**:
+- Janus Gateway server (Docker or native installation)
+- Configure RTSP plugin in Janus
+- Set `JANUS_URL` environment variable
+
+**Estimated Complexity**: High  
+**Priority**: MEDIUM
+
+---
+
+## Implementation Priority
+
+### High Priority (Cost Control & Reliability)
+1. ✅ GPU Saturation Handler (COMPLETE)
+2. ⚠️ Dead-Letter Queue - Detection Service (PARTIAL - needs GPU mode support)
+3. ❌ Dead-Letter Queue - Violation Engine
+4. ❌ Storage Limit Manager Integration
+5. ❌ SMS Rate Limiter Integration
+6. ❌ FPS Controller Integration
+
+### Medium Priority (API & Features)
+7. ❌ Snapshot Fetch API
+8. ❌ WebRTC Integration
+
+---
+
+## Next Steps
+
+1. Complete DLQ for GPU batch mode in Detection Service
+2. Implement DLQ for Violation Engine
+3. Integrate Storage Limit Manager
+4. Integrate SMS Rate Limiter
+5. Integrate FPS Controller
+6. Add Snapshot Fetch API
+7. Implement WebRTC Integration
+8. Run comprehensive end-to-end tests
+9. Generate final verification report
+
+---
+
+## Testing Checklist
+
+For each implementation, verify:
+- [ ] Code compiles without errors
+- [ ] Linter passes
+- [ ] Unit tests pass (if applicable)
+- [ ] Integration tests pass
+- [ ] Metrics are exposed correctly
+- [ ] Logs show expected behavior
+- [ ] Error handling works correctly
+- [ ] Idempotency is maintained
+- [ ] Rollback safety is ensured
+
+---
+
+## Notes
+
+- All implementations should maintain backward compatibility
+- All error handling should include structured logging
+- All metrics should follow Prometheus conventions
+- All integrations should be configurable via environment variables
+- All database writes should be transactional where applicable

@@ -11,15 +11,13 @@ import {
   getClassesByCategory,
   DetectionClass
 } from '@/app/lib/detection-classes';
-import { useCameraStore } from '@/app/lib/camera-store';
 import ZoneDrawingTool from '@/app/components/ZoneDrawingTool';
-import CameraFeed from '@/app/components/CameraFeed';
 
 export default function AlertBuilderPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const worksiteParam = searchParams.get('worksite');
-  const { cameras } = useCameraStore(worksiteParam || undefined);
+  const [cameras, setCameras] = useState<any[]>([]);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const [step, setStep] = useState(1);
@@ -404,11 +402,7 @@ export default function AlertBuilderPage() {
                   className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">All Cameras (Global Rule)</option>
-                  {cameras.map(cam => (
-                    <option key={cam.id} value={cam.id}>
-                      {cam.name} - {cam.location}
-                    </option>
-                  ))}
+                  {/* Camera selection removed */}
                 </select>
                 <p className="text-gray-500 text-sm mt-2">
                   Leave as "All Cameras" to apply this rule to every camera, or select a specific camera.
@@ -564,35 +558,9 @@ export default function AlertBuilderPage() {
                   <label className="block text-gray-300 font-medium mb-3">Draw Zone on Camera Feed</label>
                   <div className="bg-gray-900 rounded-xl overflow-hidden border-2 border-gray-700 relative">
                     <div className="aspect-video relative">
-                      <CameraFeed
-                        streamUrl={cameras.find(c => c.id === formData.cameraId)?.streamUrl || ''}
-                        cameraId={formData.cameraId}
-                        autoPlay={true}
-                        className="w-full h-full"
-                        enableDetection={false}
-                        ref={videoRef}
-                      />
-                      <ZoneDrawingTool
-                        videoRef={videoRef}
-                        cameraId={formData.cameraId}
-                        onZoneComplete={(zone) => {
-                          setFormData({
-                            ...formData,
-                            zoneCoordinates: zone.points,
-                            zoneName: zone.name,
-                            zoneType: zone.type
-                          });
-                        }}
-                        existingZones={formData.zoneCoordinates && formData.zoneName ? [{
-                          name: formData.zoneName,
-                          points: formData.zoneCoordinates,
-                          color: formData.zoneType === 'restricted' ? 'rgba(239, 68, 68, 0.3)' : 
-                                 formData.zoneType === 'safe' ? 'rgba(16, 185, 129, 0.3)' : 
-                                 'rgba(59, 130, 246, 0.3)',
-                          type: formData.zoneType
-                        }] : []}
-                        className="absolute inset-0"
-                      />
+                      <div className="flex items-center justify-center h-full">
+                        <p className="text-gray-400">Camera feed functionality has been removed</p>
+                      </div>
                     </div>
                   </div>
                   <p className="text-gray-500 text-sm mt-2">
@@ -896,7 +864,7 @@ export default function AlertBuilderPage() {
                   <label className="text-gray-400 text-sm">Camera Scope</label>
                   <p className="text-white font-semibold">
                     {formData.cameraId 
-                      ? cameras.find(c => c.id === formData.cameraId)?.name || 'Specific Camera'
+                      ? 'Specific Camera (functionality removed)'
                       : 'All Cameras (Global)'}
                   </p>
                 </div>

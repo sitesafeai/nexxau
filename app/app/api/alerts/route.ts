@@ -216,7 +216,7 @@ export async function GET(request: NextRequest) {
     console.log(`[Alerts API] [${requestId}] Prisma alert model exists:`, typeof prisma.alert);
 
     // Fetch all matching alerts
-    let allAlerts;
+    let allAlerts: any[] = [];
     const queryStartTime = Date.now();
     try {
       console.log(`[Alerts API] [${requestId}] Step 7: Executing Prisma query with where clause...`);
@@ -356,7 +356,7 @@ export async function GET(request: NextRequest) {
 
     // Apply pagination after filtering
     const total = filteredAlerts.length;
-    const alerts = filteredAlerts.slice(offset, offset + limit);
+    const alerts = filteredAlerts.slice(offset || 0, (offset || 0) + (limit || 100));
     console.log(`[Alerts API] [${requestId}] Pagination:`, {
       total,
       offset,

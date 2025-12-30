@@ -38,7 +38,7 @@ function generateMockDetections(cameraId: string) {
   }
 
   const objects = detectionStates.get(cameraId);
-  const detections = [];
+  const detections: any[] = [];
 
   // Update positions with smoother movement
   objects.forEach((obj: any) => {

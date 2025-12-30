@@ -541,7 +541,7 @@ model Camera {
   name String
   // externalId String? // Third-party camera ID (e.g., AXIS-12345) - NOT IN DATABASE YET
 
-  // Connection type: RTSP, RTMP, ONVIF, MJPEG, S3, WebRTC, PreSignedURL
+  // Connection type: RTSP, ONVIF (converted to RTSP), MJPEG
   type   String @default("RTSP")
   status String @default("pending") // pending, active, offline, error
 
@@ -561,17 +561,13 @@ model Camera {
   // connection Json?
 
   // NEW: Enhanced metadata
-  // { lat, lon, mountHeight, orientation, fov, tags[], model, notes, resolution, fps, codec }
+  // { lat, lon, mountHeight, orientation, fov, tags[], model, notes, resolution, fps, codec,
+  //   enabled, retentionDays, aiEnabled, confidenceThreshold, recordToCloud, enableLiveMonitoring,
+  //   connection: { transport, fps, resolution } }
   metadata Json?
 
-  // Operational settings - NOT IN DATABASE YET
-  // enabled       Boolean @default(true)
-  // retentionDays Int     @default(30) // 7, 14, 30, 90
-
-  // AI Detection settings - NOT IN DATABASE YET
-  // aiEnabled          Boolean @default(true)
-  // confidenceThreshold Float?  @default(0.7)
-  // detectionZones     Json? // Array of polygon zones
+  // Note: Advanced options (enabled, retentionDays, aiEnabled, etc.) are stored in metadata JSON
+  // This allows flexibility without schema migrations. For production, consider adding dedicated columns.
 
   // Test connection tracking - NOT IN DATABASE YET
   // lastTestAt    DateTime?

@@ -1,6 +1,7 @@
 import { prisma } from './prisma';
+import { Prisma } from '@prisma/client';
 import { monitoringMiddleware } from './monitoring-middleware';
-import { appLogger } from './logger';
+import { logger as appLogger } from './logger';
 import { errorTracker } from './sentry';
 
 export interface AlertRule {
@@ -69,7 +70,7 @@ export class AlertingSystem {
         this.alertRules.set(rule.id, alertRule);
       }
     } catch (error) {
-      appLogger.logError(error as Error, 'loadAlertRules');
+      appLogger.error('Error loading alert rules:', error as any);
     }
   }
 
@@ -94,7 +95,7 @@ export class AlertingSystem {
           this.lastTriggered.set(ruleId, new Date());
         }
       } catch (error) {
-        appLogger.logError(error as Error, 'checkAlerts', undefined, { ruleId });
+        appLogger.error('Error checking alerts:', error as any);
       }
     }
   }
@@ -137,7 +138,7 @@ export class AlertingSystem {
           createdAt: { gte: oneHourAgo },
           metadata: {
             path: ['error'],
-            not: null
+            not: Prisma.JsonNull
           }
         }
       });
@@ -175,7 +176,7 @@ export class AlertingSystem {
           createdAt: { gte: oneHourAgo },
           metadata: {
             path: ['error'],
-            not: null
+            not: Prisma.JsonNull
           }
         }
       });
@@ -280,14 +281,9 @@ export class AlertingSystem {
       }
     );
 
-    appLogger.logAlert(
-      rule.name,
-      rule.severity,
-      'system',
-      undefined,
-      {
-        ruleId: rule.id,
-        threshold: rule.threshold,
+    appLogger.info(`Alert triggered: ${rule.name} (${rule.severity})`, {
+      ruleId: rule.id,
+      threshold: rule.threshold,
         condition: rule.condition
       }
     );
@@ -337,7 +333,7 @@ export class AlertingSystem {
         }
       });
     } catch (error) {
-      appLogger.logError(error as Error, 'storeAlert', undefined, { alertId: alert.id });
+      appLogger.error('Error storing alert:', error as any);
     }
   }
 
@@ -357,10 +353,12 @@ export class AlertingSystem {
             break;
         }
       } catch (error) {
-        appLogger.logError(error as Error, 'sendNotifications', undefined, {
-          channel,
-          alertId: alert.id
-        });
+        appLogger.error('Error sending notifications:', error as any);
+        // Removed metadata parameter - logger.error doesn't accept it
+        // {
+          // channel,
+          // alertId: alert.id
+        // });
       }
     }
   }
@@ -368,7 +366,7 @@ export class AlertingSystem {
   // Send email notification
   private async sendEmailNotification(alert: Alert, rule: AlertRule): Promise<void> {
     // Implementation would use your email service
-    appLogger.logInfo('Email notification sent', {
+    appLogger.info('Email notification sent', {
       alertId: alert.id,
       recipients: rule.recipients,
       severity: alert.severity
@@ -378,7 +376,7 @@ export class AlertingSystem {
   // Send SMS notification
   private async sendSMSNotification(alert: Alert, rule: AlertRule): Promise<void> {
     // Implementation would use your SMS service
-    appLogger.logInfo('SMS notification sent', {
+    appLogger.info('SMS notification sent', {
       alertId: alert.id,
       recipients: rule.recipients,
       severity: alert.severity
@@ -388,7 +386,7 @@ export class AlertingSystem {
   // Send webhook notification
   private async sendWebhookNotification(alert: Alert, rule: AlertRule): Promise<void> {
     // Implementation would send HTTP POST to webhook URL
-    appLogger.logInfo('Webhook notification sent', {
+    appLogger.info('Webhook notification sent', {
       alertId: alert.id,
       severity: alert.severity
     });
@@ -407,7 +405,7 @@ export class AlertingSystem {
         data: { status: 'ACKNOWLEDGED' }
       });
 
-      appLogger.logUserActivity('alert_acknowledged', userId, 'user', true, {
+      appLogger.info(`User activity: alert_acknowledged by ${userId}`, {
         alertId,
         severity: alert.severity
       });
@@ -431,7 +429,7 @@ export class AlertingSystem {
         }
       });
 
-      appLogger.logUserActivity('alert_resolved', userId, 'user', true, {
+      appLogger.info(`User activity: alert_resolved by ${userId}`, {
         alertId,
         severity: alert.severity
       });

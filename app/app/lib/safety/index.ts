@@ -4,7 +4,6 @@
  * Central export for all safety and failure-tolerance utilities
  */
 
-export * from './camera-watchdog';
 export * from './frame-validator';
 export * from './alert-state-machine';
 export * from '../retry'; // Enhanced retry with jitter

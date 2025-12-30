@@ -37,7 +37,7 @@ interface RuleBuilderProps {
 const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedTemplate, setSelectedTemplate] = useState<RuleTemplate | null>(null);
-  const [ruleData, setRuleData] = useState({
+  const [ruleData, setRuleData] = useState<any>({
     name: '',
     description: '',
     category: 'PPE_COMPLIANCE',
@@ -230,7 +230,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
 
   const handleTemplateSelect = (template: RuleTemplate) => {
     setSelectedTemplate(template);
-    setRuleData(prev => ({
+    setRuleData((prev: any) => ({
       ...prev,
       name: template.name,
       description: template.description,
@@ -246,7 +246,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
 
   const handleCustomRule = () => {
     setSelectedTemplate(null);
-    setRuleData(prev => ({
+    setRuleData((prev: any) => ({
       ...prev,
       name: '',
       description: '',
@@ -354,7 +354,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
             <input
               type="text"
               value={ruleData.name}
-              onChange={(e) => setRuleData(prev => ({ ...prev, name: e.target.value }))}
+              onChange={(e) => setRuleData((prev: any) => ({ ...prev, name: e.target.value }))}
               className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Enter rule name"
             />
@@ -364,7 +364,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
             <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
             <textarea
               value={ruleData.description}
-              onChange={(e) => setRuleData(prev => ({ ...prev, description: e.target.value }))}
+              onChange={(e) => setRuleData((prev: any) => ({ ...prev, description: e.target.value }))}
               className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Enter rule description"
               rows={3}
@@ -376,7 +376,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
               <label className="block text-sm font-medium text-gray-300 mb-2">Category</label>
               <select
                 value={ruleData.category}
-                onChange={(e) => setRuleData(prev => ({ ...prev, category: e.target.value }))}
+                onChange={(e) => setRuleData((prev: any) => ({ ...prev, category: e.target.value }))}
                 className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="PPE_COMPLIANCE">PPE Compliance</option>
@@ -392,7 +392,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
               <label className="block text-sm font-medium text-gray-300 mb-2">Severity</label>
               <select
                 value={ruleData.severity}
-                onChange={(e) => setRuleData(prev => ({ ...prev, severity: e.target.value }))}
+                onChange={(e) => setRuleData((prev: any) => ({ ...prev, severity: e.target.value }))}
                 className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="INFO">Info</option>
@@ -410,7 +410,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
             <label className="block text-sm font-medium text-gray-300 mb-2">Target Type</label>
             <select
               value={ruleData.targetType}
-              onChange={(e) => setRuleData(prev => ({ ...prev, targetType: e.target.value }))}
+              onChange={(e) => setRuleData((prev: any) => ({ ...prev, targetType: e.target.value }))}
               className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="SITE_WIDE">Site Wide</option>
@@ -426,7 +426,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
             <input
               type="text"
               value={ruleData.targetZones.join(', ')}
-              onChange={(e) => setRuleData(prev => ({ 
+              onChange={(e) => setRuleData((prev: any) => ({ 
                 ...prev, 
                 targetZones: e.target.value.split(',').map(s => s.trim()).filter(s => s) 
               }))}
@@ -440,7 +440,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
             <input
               type="text"
               value={ruleData.targetCameras.join(', ')}
-              onChange={(e) => setRuleData(prev => ({ 
+              onChange={(e) => setRuleData((prev: any) => ({ 
                 ...prev, 
                 targetCameras: e.target.value.split(',').map(s => s.trim()).filter(s => s) 
               }))}
@@ -504,7 +504,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
             <input
               type="text"
               value={ruleData.name}
-              onChange={(e) => setRuleData(prev => ({ ...prev, name: e.target.value }))}
+              onChange={(e) => setRuleData((prev: any) => ({ ...prev, name: e.target.value }))}
               className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Enter rule name"
             />
@@ -514,7 +514,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
             <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
             <textarea
               value={ruleData.description}
-              onChange={(e) => setRuleData(prev => ({ ...prev, description: e.target.value }))}
+              onChange={(e) => setRuleData((prev: any) => ({ ...prev, description: e.target.value }))}
               className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Enter rule description"
               rows={3}
@@ -526,7 +526,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
               <label className="block text-sm font-medium text-gray-300 mb-2">Category</label>
               <select
                 value={ruleData.category}
-                onChange={(e) => setRuleData(prev => ({ ...prev, category: e.target.value }))}
+                onChange={(e) => setRuleData((prev: any) => ({ ...prev, category: e.target.value }))}
                 className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="PPE_COMPLIANCE">PPE Compliance</option>
@@ -542,7 +542,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
               <label className="block text-sm font-medium text-gray-300 mb-2">Severity</label>
               <select
                 value={ruleData.severity}
-                onChange={(e) => setRuleData(prev => ({ ...prev, severity: e.target.value }))}
+                onChange={(e) => setRuleData((prev: any) => ({ ...prev, severity: e.target.value }))}
                 className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="INFO">Info</option>
@@ -560,7 +560,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
             <label className="block text-sm font-medium text-gray-300 mb-2">Target Type</label>
             <select
               value={ruleData.targetType}
-              onChange={(e) => setRuleData(prev => ({ ...prev, targetType: e.target.value }))}
+              onChange={(e) => setRuleData((prev: any) => ({ ...prev, targetType: e.target.value }))}
               className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="SITE_WIDE">Site Wide</option>
@@ -576,7 +576,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
             <input
               type="text"
               value={ruleData.targetZones.join(', ')}
-              onChange={(e) => setRuleData(prev => ({ 
+              onChange={(e) => setRuleData((prev: any) => ({ 
                 ...prev, 
                 targetZones: e.target.value.split(',').map(s => s.trim()).filter(s => s) 
               }))}
@@ -590,7 +590,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
             <input
               type="text"
               value={ruleData.targetCameras.join(', ')}
-              onChange={(e) => setRuleData(prev => ({ 
+              onChange={(e) => setRuleData((prev: any) => ({ 
                 ...prev, 
                 targetCameras: e.target.value.split(',').map(s => s.trim()).filter(s => s) 
               }))}
@@ -612,7 +612,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
                 onChange={(e) => {
                   const newConditions = [...ruleData.conditions];
                   newConditions[index] = { ...condition, type: e.target.value };
-                  setRuleData(prev => ({ ...prev, conditions: newConditions }));
+                  setRuleData((prev: any) => ({ ...prev, conditions: newConditions }));
                 }}
                 className="bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm"
               >
@@ -628,15 +628,15 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
                 onChange={(e) => {
                   const newConditions = [...ruleData.conditions];
                   newConditions[index] = { ...condition, value: e.target.value };
-                  setRuleData(prev => ({ ...prev, conditions: newConditions }));
+                  setRuleData((prev: any) => ({ ...prev, conditions: newConditions }));
                 }}
                 className="bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm flex-1"
                 placeholder="Value"
               />
               <button
                 onClick={() => {
-                  const newConditions = ruleData.conditions.filter((_, i) => i !== index);
-                  setRuleData(prev => ({ ...prev, conditions: newConditions }));
+                  const newConditions = ruleData.conditions.filter((_: any, i: number) => i !== index);
+                  setRuleData((prev: any) => ({ ...prev, conditions: newConditions }));
                 }}
                 className="text-red-400 hover:text-red-300 text-sm"
               >
@@ -652,7 +652,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
                 value: '',
                 description: 'New condition'
               };
-              setRuleData(prev => ({ 
+              setRuleData((prev: any) => ({ 
                 ...prev, 
                 conditions: [...prev.conditions, newCondition] 
               }));
@@ -675,7 +675,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
                 onChange={(e) => {
                   const newActions = [...ruleData.actions];
                   newActions[index] = { ...action, type: e.target.value };
-                  setRuleData(prev => ({ ...prev, actions: newActions }));
+                  setRuleData((prev: any) => ({ ...prev, actions: newActions }));
                 }}
                 className="bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm"
               >
@@ -693,15 +693,15 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
                 onChange={(e) => {
                   const newActions = [...ruleData.actions];
                   newActions[index] = { ...action, description: e.target.value };
-                  setRuleData(prev => ({ ...prev, actions: newActions }));
+                  setRuleData((prev: any) => ({ ...prev, actions: newActions }));
                 }}
                 className="bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-sm flex-1"
                 placeholder="Description"
               />
               <button
                 onClick={() => {
-                  const newActions = ruleData.actions.filter((_, i) => i !== index);
-                  setRuleData(prev => ({ ...prev, actions: newActions }));
+                  const newActions = ruleData.actions.filter((_: any, i: number) => i !== index);
+                  setRuleData((prev: any) => ({ ...prev, actions: newActions }));
                 }}
                 className="text-red-400 hover:text-red-300 text-sm"
               >
@@ -716,7 +716,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({ onSave, onCancel, initialRule
                 config: {},
                 description: 'New action'
               };
-              setRuleData(prev => ({ 
+              setRuleData((prev: any) => ({ 
                 ...prev, 
                 actions: [...prev.actions, newAction] 
               }));

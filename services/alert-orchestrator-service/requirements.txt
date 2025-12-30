@@ -1,0 +1,4 @@
+redis>=5.0.0
+prometheus-client>=0.18.0
+twilio>=8.0.0
+

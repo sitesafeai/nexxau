@@ -1,204 +1,116 @@
-import { Metadata } from 'next';
-import Link from 'next/link';
-import Navbar from '../../components/Navbar';
+import type { Metadata } from 'next';
 import { BuildingOfficeIcon, ShieldCheckIcon, ChartBarIcon, ClockIcon, VideoCameraIcon, WrenchScrewdriverIcon, BellAlertIcon, BanknotesIcon } from '@heroicons/react/24/outline';
+import MarketingNavbar from '../../components/MarketingNavbar';
 
 export const metadata: Metadata = {
-  title: 'Construction Industry Solutions | Nexxau',
-  description: 'Transform construction site safety with AI-powered monitoring and real-time hazard detection. Reduce incidents by 75% and improve response time by 90%.',
+  title: 'AI Safety Monitoring Built for Construction Sites | Nexxau',
+  description: 'Construction site safety monitoring with automated PPE detection, zone breach alerts, and compliance logging. Reduce construction safety violations by 80%+ with existing cameras.',
+  keywords: ['construction safety monitoring', 'construction site safety', 'construction PPE compliance', 'construction safety software'],
+  openGraph: {
+    title: 'AI Safety Monitoring Built for Construction Sites | Nexxau',
+    description: 'Construction site safety monitoring with automated PPE detection, zone breach alerts, and compliance logging.',
+    url: 'https://nexxau.com/industries/construction',
+  },
+  alternates: {
+    canonical: 'https://nexxau.com/industries/construction',
+  },
 };
-
-const stats = [
-  { id: 1, name: 'Safety Violations Reduced', value: '83%' },
-  { id: 2, name: 'ROI on Safety Investment', value: '1:6' },
-  { id: 3, name: 'Cost Savings', value: '$2.4M' },
-  { id: 4, name: 'Fall-Related Accidents Reduced', value: '96%' },
-];
-
-const features = [
-  {
-    name: 'Real-time Site Monitoring',
-    description: '24/7 AI-powered monitoring of construction sites to detect safety hazards and violations in real-time.',
-    icon: VideoCameraIcon,
-  },
-  {
-    name: 'PPE Compliance Tracking',
-    description: 'Automated detection of PPE usage and compliance across all workers on site.',
-    icon: ShieldCheckIcon,
-  },
-  {
-    name: 'Equipment Safety Checks',
-    description: 'Continuous monitoring of equipment safety and maintenance status to prevent accidents.',
-    icon: WrenchScrewdriverIcon,
-  },
-  {
-    name: 'Worker Safety Alerts',
-    description: 'Instant alerts for potential safety hazards and violations to prevent accidents before they happen.',
-    icon: BellAlertIcon,
-  },
-];
-
-const benefits = [
-  {
-    name: 'Reduced Safety Violations',
-    description: '83% reduction in safety violations through AI-powered monitoring and real-time intervention.',
-    icon: ChartBarIcon,
-  },
-  {
-    name: 'Lower Insurance Costs',
-    description: '15% reduction in insurance premiums through improved safety records and risk management.',
-    icon: BanknotesIcon,
-  },
-  {
-    name: 'Increased Productivity',
-    description: '40% boost in EHS productivity through automated safety monitoring and reporting.',
-    icon: ClockIcon,
-  },
-  {
-    name: 'Fewer Accidents',
-    description: '96% reduction in fall-related accidents and 30% fewer injuries through predictive AI.',
-    icon: ShieldCheckIcon,
-  },
-];
 
 export default function ConstructionPage() {
   return (
-    <div className="bg-white">
-      <Navbar />
-      
-      {/* Hero Section with enhanced background */}
-      <div className="relative isolate overflow-hidden bg-gradient-to-b from-blue-50 to-white">
-        <div className="absolute inset-0 -z-10 bg-[url('/images/hero-bg.jpg')] bg-cover bg-center opacity-10" />
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(45%_45%_at_50%_50%,rgba(59,130,246,0.1),rgba(255,255,255,0))]" />
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]" />
-        <div className="mx-auto max-w-7xl px-6 pb-24 pt-10 sm:pb-32 lg:flex lg:px-8 lg:py-40">
-          <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-xl lg:flex-shrink-0 lg:pt-8">
-            <h1 className="mt-10 text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">
-              Construction Safety Solutions
+    <div className="bg-[#0a1628] min-h-screen">
+      <MarketingNavbar variant="dark" />
+
+      <main className="pt-20">
+        {/* Hero */}
+        <section className="py-20">
+          <div className="container mx-auto px-6 max-w-4xl">
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
+              AI Safety Monitoring Built for Construction Sites
             </h1>
-            <p className="mt-6 text-lg leading-8 text-gray-600">
-              Transform your construction site safety with AI-powered monitoring and real-time hazard detection. Our technology helps you protect your workforce, reduce costs, and maintain regulatory compliance.
+            <p className="text-xl text-[#8b9bb1] mb-8">
+              Construction sites have unique hazards: falls, struck-by incidents, crane zones, elevated work platforms. Manual safety patrols can't monitor every worker, every zone, every moment. Nexxau provides 24/7 automated monitoring using your existing cameras.
             </p>
-            <div className="mt-10 flex items-center gap-x-6">
-              <Link
-                href="/contact"
-                className="rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-              >
-                Schedule a Demo
-              </Link>
-              <Link href="#features" className="text-sm font-semibold leading-6 text-gray-900">
-                Learn More <span aria-hidden="true">→</span>
-              </Link>
+          </div>
+        </section>
+
+        {/* Industry-Specific Hazards */}
+        <section className="py-20 bg-[#0d1f35]">
+          <div className="container mx-auto px-6 max-w-4xl">
+            <h2 className="text-3xl font-bold text-white mb-6">Construction Site Hazards</h2>
+            <div className="grid md:grid-cols-2 gap-6 mb-8">
+              <div className="bg-[#1e3a5f] rounded-lg p-6 border border-white/10">
+                <BuildingOfficeIcon className="h-8 w-8 text-red-400 mb-4" />
+                <h3 className="text-white font-semibold mb-2">Falls from Height</h3>
+                <p className="text-sm text-[#8b9bb1]">Workers on scaffolds, roofs, and elevated platforms without proper fall protection. Detection zones can monitor elevated work areas.</p>
+              </div>
+              <div className="bg-[#1e3a5f] rounded-lg p-6 border border-white/10">
+                <WrenchScrewdriverIcon className="h-8 w-8 text-red-400 mb-4" />
+                <h3 className="text-white font-semibold mb-2">Struck-by Incidents</h3>
+                <p className="text-sm text-[#8b9bb1]">Workers struck by falling objects, cranes, or heavy equipment. High-visibility vest detection helps prevent vehicle-related incidents.</p>
+              </div>
+              <div className="bg-[#1e3a5f] rounded-lg p-6 border border-white/10">
+                <ShieldCheckIcon className="h-8 w-8 text-red-400 mb-4" />
+                <h3 className="text-white font-semibold mb-2">Crane Operation Zones</h3>
+                <p className="text-sm text-[#8b9bb1]">Unauthorized personnel entering crane swing radius or load path. Zone breach detection alerts supervisors immediately.</p>
+              </div>
+              <div className="bg-[#1e3a5f] rounded-lg p-6 border border-white/10">
+                <BellAlertIcon className="h-8 w-8 text-red-400 mb-4" />
+                <h3 className="text-white font-semibold mb-2">Subcontractor Compliance</h3>
+                <p className="text-sm text-[#8b9bb1]">Different subcontractors have varying compliance standards. Automated monitoring ensures consistent enforcement across all crews.</p>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Stats Section with enhanced background */}
-      <div className="relative bg-white py-24 sm:py-32">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(45%_45%_at_50%_50%,rgba(59,130,246,0.05),rgba(255,255,255,0))]" />
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]" />
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <dl className="grid grid-cols-1 gap-x-8 gap-y-16 text-center lg:grid-cols-4">
-            {stats.map((stat) => (
-              <div key={stat.id} className="mx-auto flex max-w-xs flex-col gap-y-4">
-                <dt className="text-base leading-7 text-gray-600">{stat.name}</dt>
-                <dd className="order-first text-3xl font-semibold tracking-tight text-blue-600 sm:text-5xl">
-                  {stat.value}
-                </dd>
+        {/* Nexxau Features for Construction */}
+        <section className="py-20">
+          <div className="container mx-auto px-6 max-w-4xl">
+            <h2 className="text-3xl font-bold text-white mb-6">How Nexxau Maps to Construction Risks</h2>
+            <div className="space-y-6 mb-8">
+              <div className="flex items-start gap-4">
+                <VideoCameraIcon className="h-6 w-6 text-blue-400 flex-shrink-0 mt-1" />
+                <div>
+                  <h3 className="text-white font-semibold mb-1">Hard Hat Detection</h3>
+                  <p className="text-[#8b9bb1]">Detects missing hardhats in areas with falling object risks, electrical hazards, or head impact dangers. Required by OSHA 29 CFR 1926.100.</p>
+                </div>
               </div>
-            ))}
-          </dl>
-        </div>
-      </div>
-
-      {/* Features Section with enhanced background */}
-      <div className="relative bg-gray-50 py-24 sm:py-32">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(45%_45%_at_50%_50%,rgba(59,130,246,0.05),rgba(255,255,255,0))]" />
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]" />
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-blue-600">Comprehensive Safety Solutions</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-              Everything you need to ensure construction site safety
-            </p>
-            <p className="mt-6 text-lg leading-8 text-gray-600">
-              Our AI-powered solutions are specifically designed for the construction industry, addressing your unique safety challenges and requirements.
-            </p>
-          </div>
-          <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
-            <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-2">
-              {features.map((feature) => (
-                <div key={feature.name} className="flex flex-col">
-                  <dt className="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
-                    <feature.icon className="h-5 w-5 flex-none text-blue-600" aria-hidden="true" />
-                    {feature.name}
-                  </dt>
-                  <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
-                    <p className="flex-auto">{feature.description}</p>
-                  </dd>
+              <div className="flex items-start gap-4">
+                <ShieldCheckIcon className="h-6 w-6 text-blue-400 flex-shrink-0 mt-1" />
+                <div>
+                  <h3 className="text-white font-semibold mb-1">High-Visibility Vest Detection</h3>
+                  <p className="text-[#8b9bb1]">Monitors workers in traffic areas, loading zones, and areas with heavy equipment. Reduces struck-by vehicle incidents.</p>
                 </div>
-              ))}
-            </dl>
-          </div>
-        </div>
-      </div>
-
-      {/* Benefits Section with enhanced background */}
-      <div className="relative bg-white py-24 sm:py-32">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(45%_45%_at_50%_50%,rgba(59,130,246,0.05),rgba(255,255,255,0))]" />
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]" />
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-blue-600">Proven Results</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-              Transform Your Safety Performance
-            </p>
-            <p className="mt-6 text-lg leading-8 text-gray-600">
-              Our AI-powered safety solutions have delivered measurable results for construction companies worldwide.
-            </p>
-          </div>
-          <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
-            <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-4">
-              {benefits.map((benefit) => (
-                <div key={benefit.name} className="flex flex-col">
-                  <dt className="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
-                    <benefit.icon className="h-5 w-5 flex-none text-blue-600" aria-hidden="true" />
-                    {benefit.name}
-                  </dt>
-                  <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
-                    <p className="flex-auto">{benefit.description}</p>
-                  </dd>
+              </div>
+              <div className="flex items-start gap-4">
+                <BellAlertIcon className="h-6 w-6 text-blue-400 flex-shrink-0 mt-1" />
+                <div>
+                  <h3 className="text-white font-semibold mb-1">Zone Breach Detection</h3>
+                  <p className="text-[#8b9bb1]">Monitors restricted zones including crane swing radius, elevated work platforms, and areas with overhead hazards. Alerts supervisors when unauthorized personnel enter.</p>
                 </div>
-              ))}
-            </dl>
+              </div>
+              <div className="flex items-start gap-4">
+                <ChartBarIcon className="h-6 w-6 text-blue-400 flex-shrink-0 mt-1" />
+                <div>
+                  <h3 className="text-white font-semibold mb-1">Subcontractor Tracking</h3>
+                  <p className="text-[#8b9bb1]">Tracks violation frequency by subcontractor. Identify crews with compliance issues before they become incidents.</p>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* CTA Section with enhanced background */}
-      <div className="relative bg-blue-600">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(45%_45%_at_50%_50%,rgba(255,255,255,0.1),rgba(255,255,255,0))]" />
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#ffffff0a_1px,transparent_1px),linear-gradient(to_bottom,#ffffff0a_1px,transparent_1px)] bg-[size:14px_24px]" />
-        <div className="mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8">
-          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Ready to transform your construction site safety?
-            <br />
-            Start using Nexxau today.
-          </h2>
-          <div className="mt-10 flex items-center gap-x-6">
-            <Link
-              href="/contact"
-              className="rounded-md bg-white px-3.5 py-2.5 text-sm font-semibold text-blue-600 shadow-sm hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-            >
-              Get started
-            </Link>
-            <Link href="/pricing" className="text-sm font-semibold leading-6 text-white">
-              View pricing <span aria-hidden="true">→</span>
+        {/* CTA */}
+        <section className="py-20 bg-[#0d1f35]">
+          <div className="container mx-auto px-6 max-w-2xl text-center">
+            <h2 className="text-3xl font-bold text-white mb-4">Request Industry Demo</h2>
+            <p className="text-lg text-[#8b9bb1] mb-8">See how Nexxau monitors construction sites with industry-specific detection rules.</p>
+            <Link href="/contact/sales" className="inline-block px-6 py-3 bg-white text-[#0a1628] hover:bg-white/90 rounded-lg transition-colors font-semibold text-sm">
+              Request Industry Demo
             </Link>
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   );
-} 
+}

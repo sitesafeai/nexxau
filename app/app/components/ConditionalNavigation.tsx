@@ -15,7 +15,6 @@ export default function ConditionalNavigation() {
     '/user-dashboard',
     '/onboarding',
     '/forbidden',
-    '/forgot-password',
   ];
 
   const shouldShowAppNav = appRoutes.some((prefix) => pathname.startsWith(prefix));

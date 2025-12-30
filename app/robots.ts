@@ -11,6 +11,6 @@ export default function robots(): MetadataRoute.Robots {
         '/private/',
       ],
     },
-    sitemap: 'https://sitesafe.com/sitemap.xml',
+    sitemap: 'https://nexxau.com/sitemap.xml',
   };
 } 

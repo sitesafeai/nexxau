@@ -54,7 +54,7 @@ export class AIDetectionIntegration {
 
       logger.info(`Detection data queued for processing: ${detectionData.objects.length} objects detected`);
     } catch (error) {
-      logger.error('Error processing detection data:', error);
+      logger.error('Error processing detection data:', error as any);
     }
   }
 
@@ -81,7 +81,7 @@ export class AIDetectionIntegration {
       this.lastProcessedTimestamp = new Date();
       logger.info(`Detection processed successfully: ${detectionData.objects.length} objects, camera ${detectionData.cameraId}`);
     } catch (error) {
-      logger.error('Error processing detection data directly:', error);
+      logger.error('Error processing detection data directly:', error as any);
     }
   }
 
@@ -113,7 +113,7 @@ export class AIDetectionIntegration {
 
       await this.processDetectionDirect(transformedData);
     } catch (error) {
-      logger.error('Error processing detection from AI service:', error);
+      logger.error('Error processing detection from AI service:', error as any);
     }
   }
 
@@ -143,7 +143,7 @@ export class AIDetectionIntegration {
 
       await this.processDetectionDirect(transformedData);
     } catch (error) {
-      logger.error('Error processing detection from WebSocket:', error);
+      logger.error('Error processing detection from WebSocket:', error as any);
     }
   }
 
@@ -173,7 +173,7 @@ export class AIDetectionIntegration {
 
       await this.processDetectionDirect(transformedData);
     } catch (error) {
-      logger.error('Error processing detection from file:', error);
+      logger.error('Error processing detection from file:', error as any);
     }
   }
 
@@ -191,7 +191,7 @@ export class AIDetectionIntegration {
         try {
           await this.processDetectionDirect(detectionData);
         } catch (error) {
-          logger.error('Error processing queued detection:', error);
+          logger.error('Error processing queued detection:', error as any);
         }
       }
     }

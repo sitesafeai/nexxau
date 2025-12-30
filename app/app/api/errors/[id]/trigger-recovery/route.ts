@@ -31,7 +31,7 @@ export async function POST(
       error.message,
       error.severity,
       error.category,
-      error.metadata
+      error.metadata as Record<string, any> | undefined
     );
 
     return NextResponse.json({

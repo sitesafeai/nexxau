@@ -1,0 +1,89 @@
+{
+  "dashboard": {
+    "title": "Violation Engine Service",
+    "tags": ["violation-engine", "processing"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Violations Created (Rate)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(violations_created_total[5m])",
+            "legendFormat": "{{violation_type}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Violations/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Violation State Transitions",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(violations_created_total[5m])",
+            "legendFormat": "Created"
+          },
+          {
+            "expr": "rate(violations_escalated_total[5m])",
+            "legendFormat": "Escalated"
+          },
+          {
+            "expr": "rate(violations_resolved_total[5m])",
+            "legendFormat": "Resolved"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Transitions/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Processing Latency",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(violation_processing_latency_ms_bucket[5m]))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(violation_processing_latency_ms_bucket[5m]))",
+            "legendFormat": "p50"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "Latency (ms)"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Error Rate",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(violation_engine_errors_total[5m])",
+            "legendFormat": "{{error_type}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Errors/sec"},
+          {"format": "short"}
+        ]
+      }
+    ]
+  }
+}
+

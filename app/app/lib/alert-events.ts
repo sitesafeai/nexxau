@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 
-interface AlertEventPayload {
+export interface AlertEventPayload {
   id: string;
   title: string;
   description: string;

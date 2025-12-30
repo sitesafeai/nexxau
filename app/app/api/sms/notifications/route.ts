@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       where.sentAt = { gte: fromDate };
     }
 
-    const notifications = await prisma.smsNotification.findMany({
+    const notifications = await prisma.sMSNotification.findMany({
       where,
       include: {
         worksite: {

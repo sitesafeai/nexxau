@@ -1,0 +1,120 @@
+{
+  "dashboard": {
+    "title": "Camera Ingest Service",
+    "tags": ["camera", "ingestion"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Camera Status",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "sum by (status) (camera_status_total)",
+            "legendFormat": "{{status}}"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Frames Pushed (Rate)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(frames_pushed_total[5m])",
+            "legendFormat": "{{camera_id}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Frames/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Frame Backlog",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "redis_stream_length",
+            "legendFormat": "{{camera_id}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Backlog (frames)"},
+          {"format": "short"}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [15], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "last"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "5m",
+          "frequency": "10s",
+          "handler": 1,
+          "name": "High Frame Backlog",
+          "noDataState": "no_data",
+          "notifications": []
+        }
+      },
+      {
+        "id": 4,
+        "title": "Frames Dropped (Rate)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(frames_dropped_total[5m])",
+            "legendFormat": "{{camera_id}} - {{reason}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Drops/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 5,
+        "title": "FFmpeg Restarts",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "rate(ffmpeg_restarts_total[5m])",
+            "legendFormat": "{{camera_id}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Restarts/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Offline Cameras",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "targets": [
+          {
+            "expr": "camera_status_total{status=\"FAILING\"}",
+            "format": "table",
+            "instant": true
+          }
+        ]
+      }
+    ]
+  }
+}
+

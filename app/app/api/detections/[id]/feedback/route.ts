@@ -25,7 +25,7 @@ export async function POST(
       );
     }
 
-    const { id: detectionId } = params;
+    const { id: detectionId } = await params;
     console.log('[API] Detection ID:', detectionId);
     const body = await request.json();
     console.log('[API] Request body:', body);
@@ -86,10 +86,10 @@ export async function POST(
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       include: {
-        worksiteUsers: {
+        worksiteAccess: {
           where: { worksiteId: detection.camera.worksiteId },
         },
-        companyUsers: {
+        companyAccess: {
           where: { companyId: detection.camera.worksite.companyId },
         },
       },
@@ -97,8 +97,8 @@ export async function POST(
 
     const hasAccess =
       user?.role === 'SUPER_ADMIN' ||
-      user?.worksiteUsers.length > 0 ||
-      user?.companyUsers.length > 0;
+      (user?.worksiteAccess && user.worksiteAccess.length > 0) ||
+      (user?.companyAccess && user.companyAccess.length > 0);
 
     if (!hasAccess) {
       return NextResponse.json(
@@ -140,23 +140,16 @@ export async function POST(
       try {
         console.log(`[feedback] Creating ${feedback} report for detection ${detectionId}`);
         
-        // Find related alert if exists
-        const relatedAlert = await prisma.alert.findFirst({
-          where: {
-            detectionId: detectionId,
-          },
-          select: {
-            id: true,
-            metadata: true,
-          },
-        });
+        // Find related alert if exists (Note: Alert model doesn't have detectionId field)
+        // We could search by metadata if detectionId is stored there, but for now we'll skip
+        const relatedAlert = null; // TODO: Implement proper Alert-Detection relationship lookup
 
-        console.log(`[feedback] Related alert found:`, relatedAlert?.id || 'none');
+        console.log(`[feedback] Related alert lookup skipped (no detectionId field in Alert model)`);
 
         // Get video/image URLs from detection metadata or alert metadata
         const detectionMetadata = detection.metadata as any;
-        const alertMetadata = relatedAlert?.metadata as any;
-        const videoUrl = alertMetadata?.videoClipUrl || detectionMetadata?.videoUrl || null;
+        const alertMetadata = null; // relatedAlert is disabled - Alert model doesn't have detectionId field
+        const videoUrl = detectionMetadata?.videoUrl || null;
         const imageUrl = detectionMetadata?.snapshotUrl || detectionMetadata?.imageUrl || null;
 
         console.log(`[feedback] Media URLs - Video: ${videoUrl ? 'yes' : 'no'}, Image: ${imageUrl ? 'yes' : 'no'}`);
@@ -169,7 +162,7 @@ export async function POST(
         console.log(`[feedback] Incident type: ${incidentType}`);
 
         const reportData = {
-          alertId: relatedAlert?.id || null,
+          alertId: null, // relatedAlert lookup disabled - Alert model doesn't have detectionId field
           detectionId: detectionId,
           worksiteId: detection.camera.worksiteId,
           cameraId: detection.cameraId,
@@ -178,7 +171,7 @@ export async function POST(
           incidentType: incidentType,
           videoUrl: videoUrl,
           imageUrl: imageUrl,
-          timestamp: detection.detectedAt || detection.createdAt,
+          timestamp: detection.timestamp || detection.createdAt,
           reviewed: false,
         };
 
@@ -266,7 +259,7 @@ export async function GET(
       );
     }
 
-    const { id: detectionId } = params;
+    const { id: detectionId } = await params;
 
     const detection = await prisma.detection.findUnique({
       where: { id: detectionId },
@@ -300,10 +293,10 @@ export async function GET(
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       include: {
-        worksiteUsers: {
+        worksiteAccess: {
           where: { worksiteId: detection.camera.worksiteId },
         },
-        companyUsers: {
+        companyAccess: {
           where: { companyId: detection.camera.worksite.companyId },
         },
       },
@@ -311,8 +304,8 @@ export async function GET(
 
     const hasAccess =
       user?.role === 'SUPER_ADMIN' ||
-      user?.worksiteUsers.length > 0 ||
-      user?.companyUsers.length > 0;
+      (user?.worksiteAccess && user.worksiteAccess.length > 0) ||
+      (user?.companyAccess && user.companyAccess.length > 0);
 
     if (!hasAccess) {
       return NextResponse.json(

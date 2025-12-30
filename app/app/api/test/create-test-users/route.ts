@@ -20,7 +20,7 @@ export async function POST(_request: NextRequest) {
       create: {
         email: 'worker@nexxau.com',
         name: 'Test Worker',
-        role: 'worker',
+        role: 'WORKER' as any,
         password: hash,
         approved: true,
         isActivated: true,

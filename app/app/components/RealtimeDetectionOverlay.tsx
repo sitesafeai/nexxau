@@ -84,7 +84,14 @@ export default function RealtimeDetectionOverlay({
   }, []);
 
   // Load TensorFlow.js and COCO-SSD model with enhanced error handling
+  // Only load after video is ready (readyState >= HAVE_CURRENT_DATA) to avoid wasting compute on dead streams
   useEffect(() => {
+    // Check if video is ready before loading model
+    if (!videoElement || !isActive) {
+      return;
+    }
+
+    // Wait for video to have current data (readyState >= 2 = HAVE_CURRENT_DATA)
     const loadModel = async () => {
       try {
         console.log('🤖 Loading TensorFlow.js AI model...');
@@ -119,15 +126,28 @@ export default function RealtimeDetectionOverlay({
           count: 1
         });
         
-        // Retry after 5 seconds
+        // Retry after 5 seconds (only if video is still ready)
         setTimeout(() => {
-          console.log('🔄 Retrying model load...');
-          loadModel();
+          if (videoElement && videoElement.readyState >= 2) {
+            console.log('🔄 Retrying model load...');
+            loadModel();
+          }
         }, 5000);
       }
     };
 
-    loadModel();
+    // Check if video is ready before loading model
+    const checkVideoReady = () => {
+      if (videoElement.readyState >= 2) { // HAVE_CURRENT_DATA
+        loadModel();
+      } else {
+        // Wait a bit and check again
+        setTimeout(checkVideoReady, 500);
+      }
+    };
+
+    // Start checking for video readiness
+    checkVideoReady();
 
     return () => {
       if (animationFrameRef.current) {

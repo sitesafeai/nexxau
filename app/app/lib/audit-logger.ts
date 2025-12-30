@@ -99,7 +99,7 @@ export async function logAudit(params: AuditLogParams): Promise<string> {
       ipAddress = 
         request.headers.get('x-forwarded-for')?.split(',')[0] ||
         request.headers.get('x-real-ip') ||
-        request.ip ||
+        (request as any).ip ||
         'unknown';
       
       userAgent = request.headers.get('user-agent') || undefined;

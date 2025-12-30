@@ -2,13 +2,21 @@
 
 import React from 'react';
 import Link from 'next/link';
-import Navbar from '../components/Navbar';
 
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-gray-900">
-      <Navbar />
+      <header className="fixed top-0 left-0 right-0 z-50 bg-gray-900/90 backdrop-blur-sm border-b border-white/10">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <span className="text-xl tracking-tight text-white font-bold">NEXXAU</span>
+            </Link>
+          </div>
+        </div>
+      </header>
       
+      <main className="pt-20">
       {/* Hero Section */}
       <div className="relative py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-6 lg:px-8">
@@ -145,6 +153,7 @@ export default function PrivacyPage() {
           </div>
         </div>
       </div>
+      </main>
     </div>
   );
 } 

@@ -2,8 +2,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import React from 'react';
 import { DashboardProvider, useDashboard, useSiteManagement, useNotifications } from '../lib/context/DashboardContext';
-import { useAlerts, useCameras, useAnalytics } from '../lib/hooks/useApi';
-import CameraFeed from '../components/CameraFeed';
+import { useAlerts, useAnalytics } from '../lib/hooks/useApi';
 import { NotificationContainer } from '../components/NotificationToast';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
@@ -11,23 +10,22 @@ import AcknowledgeAlertModal from '../components/AcknowledgeAlertModal';
 import ActiveAlerts from '@/app/components/dashboard/ActiveAlerts';
 import RealtimeDetectionOverlay from '../components/RealtimeDetectionOverlay';
 import ExportButton from '../components/ExportButton';
-import { useCameraStore } from '../lib/camera-store';
 import SafetyScoreCard from '../components/SafetyScoreCard';
 import { formatRoleLabel, isAdminRole, normalizeRole } from '../lib/roles';
 import DetectionFeedback from '../components/DetectionFeedback';
-import AddCameraModal from '../components/modals/AddCameraModal';
 import CreateWorksiteModal from '../components/modals/CreateWorksiteModal';
 import ReportsPageNew from '../components/reports/ReportsPage';
-import { useCameraStatusSSE } from '../lib/hooks/useCameraStatusSSE';
 
 // New dashboard components
 import GlobalDashboard from '../components/dashboard/GlobalDashboard';
 import UserDashboard from '../components/dashboard/UserDashboard';
 import SiteManagement from '../components/dashboard/SiteManagement';
-import CameraManagement from '../components/dashboard/CameraManagement';
 import AlertsAndRules from '../components/dashboard/AlertsAndRules';
 import ReportsAnalytics from '../components/dashboard/ReportsAnalytics';
 import WorkflowDashboard from '../components/dashboard/WorkflowDashboard';
+import CameraTestTab from '../components/camera/CameraTestTab';
+import CameraManagementTab from '../components/camera/CameraManagementTab';
+import WorksiteUserManagementModal from '../components/dashboard/WorksiteUserManagementModal';
 
 // Wrapper component that provides the dashboard context
 export default function DashboardPage() {
@@ -42,8 +40,19 @@ export default function DashboardPage() {
 
 function DashboardContent() {
   const router = useRouter();
+  // Initialize with default - make server and client render the same initially
   const [selected, setSelected] = useState('overview');
+  const [mounted, setMounted] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // Load from localStorage after mount (client-only)
+  useEffect(() => {
+    setMounted(true);
+    const saved = localStorage.getItem('dashboard_selected_tab');
+    if (saved) {
+      setSelected(saved);
+    }
+  }, []);
   const { state, selectSite, hasPermission, addNotification } = useDashboard();
   const { selectedSiteId, selectedSite, accessibleSites } = useSiteManagement();
   const { notifications, removeNotification } = useNotifications();
@@ -76,7 +85,8 @@ function DashboardContent() {
         name: isSuperAdmin ? 'Global Dashboard' : 'Overview',
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {isSuperAdmin ? (
+            {/* Always render same structure - use mounted to determine which path to show */}
+            {mounted && isSuperAdmin ? (
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             ) : (
               <>
@@ -93,16 +103,6 @@ function DashboardContent() {
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-          </svg>
-        ),
-      },
-      {
-        key: 'cameras',
-        name: 'Cameras',
-        icon: (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
         ),
       },
@@ -124,6 +124,15 @@ function DashboardContent() {
           </svg>
         ),
       }] : []),
+      {
+        key: 'cameras',
+        name: 'Cameras',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        ),
+      },
       {
         key: 'reports',
         name: 'Reports',
@@ -177,7 +186,7 @@ function DashboardContent() {
     }
 
     return items;
-  }, [isSuperAdmin]);
+  }, [isSuperAdmin, mounted]);
 
 
   useEffect(() => {
@@ -219,8 +228,9 @@ function DashboardContent() {
 
             
             {/* Worksite Info - No Selector, Just Display */}
+            {/* Always render same structure - normalize empty state for SSR/client consistency */}
             <div className="px-4 mt-4">
-              {selectedSite ? (
+              {selectedSite && mounted ? (
                 <div className="bg-slate-800/30 rounded-lg border border-slate-700/30 backdrop-blur-sm overflow-hidden">
                   <div className="p-4 bg-gradient-to-r from-blue-600/10 to-purple-600/10 border-b border-slate-700/50">
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Active Worksite</p>
@@ -264,23 +274,31 @@ function DashboardContent() {
     </div>
 
             <nav className="mt-6 flex-1 space-y-1.5 bg-transparent px-3">
-              {navigationItems.map((item) => (
-                <button
-                  key={item.key}
-                  onClick={() => {
-                    setSelected(item.key);
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className={`group flex w-full items-center px-3.5 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${
-                    selected === item.key
-                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/20'
-                      : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
-                  }`}
-                >
-                  <span className="mr-3 h-5 w-5 flex-shrink-0">{item.icon}</span>
-                  {item.name}
-                </button>
-              ))}
+              {navigationItems.map((item) => {
+                // Ensure active state is only applied after mount to prevent hydration mismatch
+                const isActive = mounted && selected === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => {
+                      setSelected(item.key);
+                      // Persist to localStorage
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('dashboard_selected_tab', item.key);
+                      }
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`group flex w-full items-center px-3.5 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${
+                      isActive
+                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/20'
+                        : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
+                    }`}
+                  >
+                    <span className="mr-3 h-5 w-5 flex-shrink-0">{item.icon}</span>
+                    {item.name}
+                  </button>
+                );
+              })}
             </nav>
 
                                 {/* User Info */}
@@ -437,11 +455,6 @@ function DashboardContent() {
                       </div>
                     </div>
             )}
-            {selected === 'cameras' && (
-              isSuperAdmin
-                ? <CameraManagement currentUser={state.currentUser} siteFilter={selectedSite?.id} />
-                : <CamerasPage currentSite={selectedSite} worksites={accessibleSites.map((s: any) => ({ id: s.id, name: s.name }))} />
-            )}
             {selected === 'alerts' && (
               isSuperAdmin
                 ? <AlertsAndRules currentUser={state.currentUser} siteFilter={selectedSite?.id} />
@@ -449,6 +462,9 @@ function DashboardContent() {
             )}
             {selected === 'alert-rules' && (
               <AlertRulesPage currentSite={selectedSite} />
+            )}
+            {selected === 'cameras' && (
+              <CameraManagementTab />
             )}
             {selected === 'ai-training' && (
               <AITrainingPage currentSite={selectedSite} />
@@ -482,16 +498,34 @@ function DashboardContent() {
 
 function OverviewPage({ currentSite }: { currentSite: any }) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('overview');
+  // Initialize from localStorage or default to 'overview'
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('overview_active_tab');
+      return saved || 'overview';
+    }
+    return 'overview';
+  });
 
   // Check if we should auto-switch to a specific tab (e.g., from alert builder)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const tab = urlParams.get('tab');
-    if (tab && ['overview', 'monitoring', 'alerts', 'reports'].includes(tab)) {
+    if (tab && ['overview', 'monitoring', 'alerts', 'reports', 'sites'].includes(tab)) {
       setActiveTab(tab);
+      // Persist to localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('overview_active_tab', tab);
+      }
     }
   }, []);
+
+  // Persist tab changes to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && activeTab) {
+      localStorage.setItem('overview_active_tab', activeTab);
+    }
+  }, [activeTab]);
 
   // Early return AFTER all hooks are called
   if (!currentSite) {
@@ -592,7 +626,13 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                setActiveTab(tab.id);
+                // Persist to localStorage
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('overview_active_tab', tab.id);
+                }
+              }}
               className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${
                 activeTab === tab.id
                   ? 'border-blue-500 text-blue-400'
@@ -620,18 +660,13 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
 
 function OverviewTab({ currentSite }: { currentSite: any }) {
   const router = useRouter();
-  // Always call hooks, even if currentSite is null/undefined
-  const { cameras } = useCameraStore(currentSite?.id || undefined);
-
-  const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showAlertConfig, setShowAlertConfig] = useState(false);
-  const [showCameraManager, setShowCameraManager] = useState(false);
-  const [enableDetection, setEnableDetection] = useState(false);
   
   // Safety Score State
   const [safetyScoreData, setSafetyScoreData] = useState<any>(null);
   const [safetyScoreLoading, setSafetyScoreLoading] = useState(true);
+  const [safetyScoreError, setSafetyScoreError] = useState<string | null>(null);
 
   // Fetch safety score on mount
   useEffect(() => {
@@ -639,6 +674,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
       if (!currentSite?.id) return;
       
       try {
+        setSafetyScoreError(null);
         setSafetyScoreLoading(true);
         const response = await fetch(
           `/api/safety-score?worksiteId=${currentSite.id}&date=${new Date().toISOString().split('T')[0]}`
@@ -648,6 +684,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
           const result = await response.json();
           if (result.success) {
             setSafetyScoreData(result.data);
+            setSafetyScoreError(null); // Clear any previous errors on success
           } else {
             // Score doesn't exist, try to calculate it
             await calculateSafetyScore();
@@ -656,8 +693,10 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
           // Score doesn't exist, try to calculate it
           await calculateSafetyScore();
         }
-      } catch (error) {
+      } catch (error: any) {
+        const errorMessage = error?.message || 'Failed to load safety score. Please check your connection and try again.';
         console.error('Error fetching safety score:', error);
+        setSafetyScoreError(errorMessage);
       } finally {
         setSafetyScoreLoading(false);
       }
@@ -678,38 +717,22 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
           const result = await response.json();
           if (result.success) {
             setSafetyScoreData(result.data);
+            setSafetyScoreError(null); // Clear any previous errors on success
+          } else {
+            setSafetyScoreError('Failed to calculate safety score. Please try again.');
           }
+        } else {
+          setSafetyScoreError(`Failed to calculate safety score: ${response.status} ${response.statusText}`);
         }
-      } catch (error) {
+      } catch (error: any) {
+        const errorMessage = error?.message || 'Failed to calculate safety score. Please check your connection and try again.';
         console.error('Error calculating safety score:', error);
+        setSafetyScoreError(errorMessage);
       }
     };
     
     fetchSafetyScore();
   }, [currentSite?.id]);
-
-  const currentCamera = cameras.length > 0 ? cameras[currentCameraIndex] : null;
-
-  const nextCamera = () => {
-    if (cameras.length > 0) {
-    setCurrentCameraIndex((prev) => (prev + 1) % cameras.length);
-    }
-  };
-
-  const previousCamera = () => {
-    if (cameras.length > 0) {
-    setCurrentCameraIndex((prev) => (prev - 1 + cameras.length) % cameras.length);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return 'bg-green-900 text-green-300';
-      case 'offline': return 'bg-red-900 text-red-300';
-      case 'maintenance': return 'bg-yellow-900 text-yellow-300';
-      default: return 'bg-gray-700 text-gray-300';
-    }
-  };
 
   const handleGenerateReport = () => {
     console.log('Generate Report clicked', currentSite);
@@ -737,20 +760,82 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
     router.push(`/dashboard/alerts${currentSite?.id ? `?worksite=${currentSite.id}` : ''}`);
   };
 
-  const navigateToCameras = () => {
-    setShowCameraManager(false);
-    router.push(`/dashboard/cameras${currentSite?.id ? `?worksite=${currentSite.id}` : ''}`);
-  };
-
   return (
     <div className="space-y-6">
       {/* Safety Score Card */}
-      {safetyScoreData && (
+      {safetyScoreLoading ? (
+        <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 border border-gray-700">
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <p className="ml-4 text-gray-400">Loading safety score...</p>
+          </div>
+        </div>
+      ) : safetyScoreError ? (
+        <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 border border-red-700">
+          <div className="flex flex-col items-center justify-center py-12">
+            <svg className="w-16 h-16 text-red-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-red-400 font-medium text-lg mb-1">Failed to Load Safety Score</p>
+            <p className="text-gray-400 text-sm mb-4 max-w-md text-center">{safetyScoreError}</p>
+            <button
+              onClick={async () => {
+                setSafetyScoreError(null);
+                setSafetyScoreLoading(true);
+                try {
+                  const response = await fetch('/api/safety-score/calculate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      worksiteId: currentSite.id,
+                      date: new Date().toISOString().split('T')[0]
+                    })
+                  });
+                  
+                  if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                      setSafetyScoreData(result.data);
+                      setSafetyScoreError(null);
+                    } else {
+                      setSafetyScoreError('Failed to calculate safety score. Please try again.');
+                    }
+                  } else {
+                    setSafetyScoreError(`Failed to calculate safety score: ${response.status} ${response.statusText}`);
+                  }
+                } catch (error: any) {
+                  const errorMessage = error?.message || 'Failed to calculate safety score. Please check your connection and try again.';
+                  setSafetyScoreError(errorMessage);
+                } finally {
+                  setSafetyScoreLoading(false);
+                }
+              }}
+              disabled={safetyScoreLoading}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+            >
+              {safetyScoreLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Retrying...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Retry
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      ) : safetyScoreData ? (
         <SafetyScoreCard
           data={safetyScoreData}
           loading={safetyScoreLoading}
           onRefresh={async () => {
             setSafetyScoreLoading(true);
+            setSafetyScoreError(null);
             try {
               const response = await fetch('/api/safety-score/calculate', {
                 method: 'POST',
@@ -766,23 +851,65 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
                 const result = await response.json();
                 if (result.success) {
                   setSafetyScoreData(result.data);
+                  setSafetyScoreError(null);
+                } else {
+                  setSafetyScoreError('Failed to refresh safety score. Please try again.');
                 }
+              } else {
+                setSafetyScoreError(`Failed to refresh safety score: ${response.status} ${response.statusText}`);
               }
-            } catch (error) {
+            } catch (error: any) {
+              const errorMessage = error?.message || 'Failed to refresh safety score. Please check your connection and try again.';
               console.error('Error refreshing safety score:', error);
+              setSafetyScoreError(errorMessage);
             } finally {
               setSafetyScoreLoading(false);
             }
           }}
         />
+      ) : (
+        <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 border border-gray-700">
+          <div className="flex flex-col items-center justify-center py-12">
+            <svg className="w-16 h-16 text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <p className="text-gray-300 font-medium text-lg mb-1">No Safety Score Available</p>
+            <p className="text-gray-400 text-sm mb-4">Safety score data is not available for this worksite yet.</p>
+            <button
+              onClick={async () => {
+                setSafetyScoreLoading(true);
+                try {
+                  const response = await fetch('/api/safety-score/calculate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      worksiteId: currentSite.id,
+                      date: new Date().toISOString().split('T')[0]
+                    })
+                  });
+                  
+                  if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                      setSafetyScoreData(result.data);
+                    }
+                  }
+                } catch (error) {
+                  console.error('Error calculating safety score:', error);
+                } finally {
+                  setSafetyScoreLoading(false);
+                }
+              }}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              Calculate Safety Score
+            </button>
+          </div>
+        </div>
       )}
       
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-gray-800 p-6 rounded-lg">
-          <h3 className="text-lg font-semibold text-white">Active Cameras</h3>
-          <p className="text-3xl font-bold text-blue-400">{currentSite.cameras}</p>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-lg font-semibold text-white">Active Alerts</h3>
           <p className="text-3xl font-bold text-red-400">{currentSite.alerts}</p>
@@ -799,90 +926,6 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
           <h3 className="text-lg font-semibold text-white">Last Activity</h3>
           <p className="text-lg font-semibold text-green-400">{currentSite.lastActivity}</p>
         </div>
-      </div>
-
-      {/* Live Stream with Camera Navigation */}
-      <div className="bg-gray-800 p-6 rounded-lg">
-        {currentCamera ? (
-          <>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={previousCamera}
-              className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-700"
-              title="Previous Camera"
-              disabled={cameras.length <= 1}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <div className="flex items-center space-x-2">
-              <h3 className="text-lg font-semibold text-white">{currentCamera.name}</h3>
-              <div className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(currentCamera.status)}`}>
-                {currentCamera.status}
-              </div>
-            </div>
-            <button
-              onClick={nextCamera}
-              className="p-2 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-700"
-              title="Next Camera"
-              disabled={cameras.length <= 1}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </div>
-          <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2 text-sm text-gray-400">
-            <span>Camera {currentCameraIndex + 1} of {cameras.length}</span>
-            <div className="flex space-x-1">
-              {cameras.map((_, index) => (
-                <div
-                  key={index}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    index === currentCameraIndex ? 'bg-blue-500' : 'bg-gray-600'
-                  }`}
-                />
-              ))}
-            </div>
-            </div>
-            <button
-              onClick={() => setEnableDetection(!enableDetection)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                enableDetection 
-                  ? 'bg-green-600 text-white' 
-                  : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-              }`}
-            >
-              AI {enableDetection ? 'ON' : 'OFF'}
-            </button>
-          </div>
-        </div>
-        
-        <CameraFeed 
-          streamUrl={currentCamera.streamUrl}
-          cameraId={currentCamera.id}
-          autoPlay={true}
-          enableDetection={enableDetection}
-        />
-        </>
-        ) : (
-          <div className="text-center py-12">
-            <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-            <h3 className="text-xl font-semibold text-gray-300 mb-2">No Cameras Available</h3>
-            <p className="text-gray-400 mb-6">Add your first camera to start monitoring</p>
-            <button
-              onClick={() => router.push(`/dashboard/camera-management${currentSite?.id ? `?worksite=${currentSite.id}` : ''}`)}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              Add Camera
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Quick Actions */}
@@ -962,32 +1005,6 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
             </div>
           </button>
 
-          {/* Manage Cameras Button */}
-          <button 
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              console.log('Manage Cameras clicked', currentSite);
-              const worksiteParam = currentSite?.id ? `?worksite=${currentSite.id}` : '';
-              const url = `/dashboard/cameras${worksiteParam}`;
-              console.log('Navigating to:', url);
-              router.push(url);
-            }}
-            className="group relative bg-gradient-to-br from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white p-6 rounded-xl border border-violet-500/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:ring-offset-2 focus:ring-offset-slate-900 shadow-lg hover:shadow-violet-500/25"
-          >
-            <div className="flex items-center space-x-4">
-              <div className="flex-shrink-0">
-                <svg className="w-8 h-8 text-violet-100 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div className="text-left">
-                <div className="font-semibold text-lg">Manage Cameras</div>
-                <div className="text-violet-100 text-sm">Add & configure feeds</div>
-              </div>
-            </div>
-          </button>
         </div>
       </div>
 
@@ -1024,7 +1041,7 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
                 </svg>
               </button>
             </div>
-            <p className="text-gray-300 mb-6">Generate a comprehensive safety report for {currentSite.name} including camera analytics, alert history, and compliance metrics.</p>
+            <p className="text-gray-300 mb-6">Generate a comprehensive safety report for {currentSite.name} including alert history and compliance metrics.</p>
             <div className="flex space-x-3">
               <button 
                 onClick={() => setShowReportModal(false)}
@@ -1079,42 +1096,6 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
         </div>
       )}
 
-      {showCameraManager && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          onClick={(e) => e.target === e.currentTarget && setShowCameraManager(false)}
-        >
-          <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-white">Manage Cameras</h3>
-              <button 
-                onClick={(e) => { e.stopPropagation(); setShowCameraManager(false); }}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <p className="text-gray-300 mb-6">Access camera management interface for {currentSite.name} to configure settings, adjust positioning, and monitor camera health.</p>
-            <div className="flex space-x-3">
-              <button 
-                onClick={() => setShowCameraManager(false)}
-                className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={navigateToCameras}
-                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Open Manager
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
@@ -1123,6 +1104,7 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
   const router = useRouter();
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
   const [showFullAlert, setShowFullAlert] = useState(false);
   const [showAcknowledgeModal, setShowAcknowledgeModal] = useState(false);
@@ -1130,9 +1112,16 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [videoClipUrl, setVideoClipUrl] = useState<string | null>(null);
   const [loadingVideo, setLoadingVideo] = useState(false);
+  const [downloadingReport, setDownloadingReport] = useState<string | null>(null);
+  const [acknowledging, setAcknowledging] = useState<string | null>(null);
+  const [severityFilter, setSeverityFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'date' | 'severity'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const loadAlerts = useCallback(async () => {
     try {
+      setError(null);
+      setLoading(true);
       const url = currentSite?.id 
         ? `/api/alerts?worksiteId=${currentSite.id}&status=ACTIVE`
         : '/api/alerts?status=ACTIVE';
@@ -1154,12 +1143,17 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
           !currentSite || alert.worksiteId === currentSite.id
         );
         setAlerts(filteredAlerts);
+        setError(null); // Clear any previous errors on success
       } else {
-        console.error('Failed to load alerts:', res.status, res.statusText);
+        const errorMessage = `Failed to load alerts: ${res.status} ${res.statusText}`;
+        console.error(errorMessage);
+        setError(errorMessage);
         setAlerts([]);
       }
-    } catch (e) {
+    } catch (e: any) {
+      const errorMessage = e?.message || 'Failed to load alerts. Please check your connection and try again.';
       console.error('Failed to load alerts:', e);
+      setError(errorMessage);
       setAlerts([]);
     } finally {
       setLoading(false);
@@ -1210,13 +1204,19 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
   };
 
   const handleAcknowledgeFromModal = () => {
+    if (alertToAcknowledge) {
+      setAcknowledging(alertToAcknowledge.id);
+    }
     setAlertToAcknowledge(null);
     setShowAcknowledgeModal(false);
-    loadAlerts(); // Reload alerts after acknowledgment
+    loadAlerts().finally(() => {
+      setAcknowledging(null);
+    }); // Reload alerts after acknowledgment
   };
 
   const handleDownloadReport = async (alertId: string) => {
     setOpenDropdown(null);
+    setDownloadingReport(alertId);
     try {
       const res = await fetch(`/api/alerts/${alertId}/report`);
       if (res.ok) {
@@ -1233,6 +1233,7 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         
+        // Show success feedback (could use toast instead of alert)
         alert('Report downloaded successfully!');
       } else {
         alert('Failed to generate report');
@@ -1240,6 +1241,8 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
     } catch (error) {
       console.error('Error downloading report:', error);
       alert('Failed to download report');
+    } finally {
+      setDownloadingReport(null);
     }
   };
 
@@ -1260,16 +1263,46 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
       </div>
 
       <div className="bg-gray-800 rounded-lg">
-        <div className="px-4 py-3 border-b border-gray-700">
+        <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between flex-wrap gap-3">
           <h3 className="text-lg font-medium text-white">Active Alerts List</h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Severity Filter */}
+            <select
+              value={severityFilter}
+              onChange={(e) => setSeverityFilter(e.target.value)}
+              className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            {/* Sort By */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'date' | 'severity')}
+              className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="date">Sort by Date</option>
+              <option value="severity">Sort by Severity</option>
+            </select>
+            {/* Sort Order */}
+            <button
+              onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-lg text-white text-sm font-medium transition-colors"
+              title={`Sort ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`}
+            >
+              {sortOrder === 'asc' ? '↑' : '↓'}
+            </button>
         </div>
-        <div className="overflow-x-auto">
+        </div>
+        <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
           <table className="min-w-full divide-y divide-gray-700">
             <thead className="bg-gray-900">
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Location</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Alert Cause</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Camera</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Level</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Date</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Manager</th>
@@ -1279,21 +1312,86 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
             <tbody className="bg-gray-800 divide-y divide-gray-700">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center">
+                  <td colSpan={6} className="px-3 py-8 text-center">
                     <div className="flex justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                     </div>
                   </td>
                 </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={6} className="px-3 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <svg className="w-16 h-16 text-red-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-red-400 font-medium text-lg mb-1">Failed to Load Alerts</p>
+                      <p className="text-gray-400 text-sm mb-4 max-w-md">{error}</p>
+                      <button
+                        onClick={() => loadAlerts()}
+                        disabled={loading}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+                      >
+                        {loading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Retrying...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Retry
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
               ) : alerts.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-gray-400">
-                    No alerts found. All systems are operating normally.
+                  <td colSpan={6} className="px-3 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <svg className="w-16 h-16 text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-gray-300 font-medium text-lg mb-1">No Active Alerts</p>
+                      <p className="text-gray-400 text-sm">All systems are operating normally for {currentSite?.name || 'this worksite'}.</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredAndSortedAlerts.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-3 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <svg className="w-16 h-16 text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <p className="text-gray-300 font-medium text-lg mb-1">No Alerts Match Your Filters</p>
+                      <p className="text-gray-400 text-sm">Try adjusting your filter or sort options.</p>
+                      <button
+                        onClick={() => {
+                          setSeverityFilter('all');
+                          setSortBy('date');
+                          setSortOrder('desc');
+                        }}
+                        className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        Clear Filters
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : (
-                alerts.map((alert) => (
-                <tr key={alert.id} className="hover:bg-gray-700">
+                filteredAndSortedAlerts.map((alert) => (
+                <tr 
+                  key={alert.id} 
+                  className={`hover:bg-gray-700 transition-colors cursor-pointer ${
+                    selectedAlert?.id === alert.id ? 'bg-blue-900/30 border-l-4 border-l-blue-500' : ''
+                  }`}
+                  onClick={() => handleViewFullAlert(alert)}
+                >
                   <td className="px-3 py-2 whitespace-nowrap">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-700 text-gray-300">
                       {alert.location || alert.worksite?.name || 'N/A'}
@@ -1303,7 +1401,6 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
                     <div className="text-sm font-medium text-white truncate max-w-xs">{alert.title || 'Alert'}</div>
                     <div className="text-xs text-gray-400 truncate max-w-xs">{alert.description}</div>
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-sm text-white">{alert.metadata?.cameraId || alert.source || 'N/A'}</td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full border ${getDangerLevelColor(alert.severity)}`}>
                       {alert.severity}
@@ -1324,22 +1421,44 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
                       {openDropdown === alert.id && (
                         <div className="absolute right-0 mt-1 w-40 bg-gray-700 rounded-md shadow-lg py-1 z-10 border border-gray-600">
                           <button
-                            onClick={() => handleViewFullAlert(alert)}
-                            className="block px-3 py-2 text-xs text-gray-300 hover:bg-gray-600 w-full text-left"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewFullAlert(alert);
+                            }}
+                            className="block px-3 py-2 text-xs text-gray-300 hover:bg-gray-600 w-full text-left transition-colors"
                           >
                             View Full Alert
                           </button>
                           <button
-                            onClick={() => handleAcknowledge(alert)}
-                            className="block px-3 py-2 text-xs text-gray-300 hover:bg-gray-600 w-full text-left"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAcknowledge(alert);
+                            }}
+                            disabled={acknowledging === alert.id}
+                            className="block px-3 py-2 text-xs text-gray-300 hover:bg-gray-600 w-full text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                           >
-                            Acknowledge
+                            {acknowledging === alert.id ? (
+                              <>
+                                <div className="w-3 h-3 border border-gray-300 border-t-transparent rounded-full animate-spin"></div>
+                                Acknowledging...
+                              </>
+                            ) : (
+                              'Acknowledge'
+                            )}
                           </button>
                           <button
                             onClick={() => handleDownloadReport(alert.id)}
-                            className="block px-3 py-2 text-xs text-gray-300 hover:bg-gray-600 w-full text-left"
+                            disabled={downloadingReport === alert.id}
+                            className="block px-3 py-2 text-xs text-gray-300 hover:bg-gray-600 w-full text-left disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                           >
-                            Download Report
+                            {downloadingReport === alert.id ? (
+                              <>
+                                <div className="w-3 h-3 border border-gray-300 border-t-transparent rounded-full animate-spin"></div>
+                                Downloading...
+                              </>
+                            ) : (
+                              'Download Report'
+                            )}
                           </button>
                           {alert.metadata?.detectionId && (
                             <button
@@ -1454,10 +1573,6 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
                       <p className="text-white">{selectedAlert.title || 'N/A'}</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400">Camera</label>
-                      <p className="text-white">{selectedAlert.metadata?.cameraId || selectedAlert.source || 'N/A'}</p>
-                    </div>
-                    <div>
                       <label className="text-sm font-medium text-gray-400">Danger Level</label>
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${getDangerLevelColor(selectedAlert.severity)}`}>
                         {selectedAlert.severity}
@@ -1566,546 +1681,12 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
 }
 
 function MonitoringTab({ currentSite }: { currentSite: any }) {
-  const router = useRouter();
-  const { cameras } = useCameraStore(currentSite?.id);
-  const { state } = useDashboard();
-  const normalizedRole = normalizeRole(state.currentUser?.role);
-  const isSuperAdmin = normalizedRole === 'SUPER_ADMIN';
-
-  // Real-time camera status updates via SSE
-  const { isConnected, cameraStatuses, lastUpdate, getCameraStatus } = useCameraStatusSSE(currentSite?.id);
-
-  const [enableDetection, setEnableDetection] = useState(true);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [selectedCameraForLive, setSelectedCameraForLive] = useState<any>(null);
-  const [savingSnapshot, setSavingSnapshot] = useState<string | null>(null);
-  const [showConfigurePopup, setShowConfigurePopup] = useState(false);
-  const [selectedCameraForConfig, setSelectedCameraForConfig] = useState<any>(null);
-
-  // Helper function to get the best available stream URL from camera object
-  const getCameraStreamUrl = (camera: any): string | null => {
-    // Priority: hlsUrl > mediamtxPath (generate HLS) > streamUrl (if HLS/HTTP) > rtspPath (generate HLS) > streamUrl (if RTSP, needs conversion)
-    
-    // 1. Direct HLS URL (highest priority)
-    if (camera.hlsUrl) {
-      return camera.hlsUrl;
-    }
-    
-    // 2. MediaMTX path - generate HLS URL
-    if (camera.mediamtxPath) {
-      const pathName = camera.mediamtxPath.replace(/^\//, '').replace(/\/$/, '');
-      return `http://localhost:8888/live/${pathName}/index.m3u8`;
-    }
-    
-    // 3. Check streamUrl - if it's already HLS or HTTP, use it directly
-    if (camera.streamUrl) {
-      // If it's an HLS URL (.m3u8) or HTTP/HTTPS URL, use it directly
-      if (camera.streamUrl.includes('.m3u8') || camera.streamUrl.startsWith('http://') || camera.streamUrl.startsWith('https://')) {
-        return camera.streamUrl;
-      }
-      
-      // If it's RTSP, we need to convert it via MediaMTX
-      // Try to use rtspPath first, then fall back to extracting stream name from RTSP URL
-      if (camera.streamUrl.startsWith('rtsp://')) {
-        // If rtspPath is set, use that (this is the configured MediaMTX path)
-        if (camera.rtspPath) {
-          const pathName = camera.rtspPath.replace(/^\//, '').replace(/\/$/, '') || `camera-${camera.id}`;
-          return `http://localhost:8888/live/${pathName}/index.m3u8`;
-        }
-        // Otherwise, try to extract a meaningful path from RTSP URL
-        // Extract stream name from RTSP URL (e.g., rtsp://.../stream1 -> stream1)
-        const rtspMatch = camera.streamUrl.match(/rtsp:\/\/[^\/]+\/(.+)$/);
-        if (rtspMatch && rtspMatch[1]) {
-          const streamName = rtspMatch[1].split('/').pop() || `camera-${camera.id}`;
-          return `http://localhost:8888/live/${streamName}/index.m3u8`;
-        }
-        // Last resort: use camera ID
-        return `http://localhost:8888/live/camera-${camera.id}/index.m3u8`;
-      }
-    }
-    
-    // 4. If rtspPath exists independently, use it
-    if (camera.rtspPath) {
-      const pathName = camera.rtspPath.replace(/^\//, '').replace(/\/$/, '') || `camera-${camera.id}`;
-      return `http://localhost:8888/live/${pathName}/index.m3u8`;
-    }
-    
-    return null;
-  };
-  
-  // Pagination: 2-4 cameras per page (user can choose)
-  const [camerasPerPage, setCamerasPerPage] = useState(3); // Default to 3
-
-  const handleSaveForTraining = async (cameraId: string, cameraName: string) => {
-    if (!isSuperAdmin) return;
-    setSavingSnapshot(cameraId);
-    try {
-      const response = await fetch('/api/training/snapshots', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cameraId,
-          category: 'unlabeled'
-        })
-      });
-
-      if (response.ok) {
-        alert(`✅ Snapshot saved for training from ${cameraName}!`);
-      } else {
-        alert('❌ Failed to save snapshot');
-      }
-    } catch (error) {
-      console.error('Error saving snapshot:', error);
-      alert('❌ Error saving snapshot');
-    } finally {
-      setSavingSnapshot(null);
-    }
-  };
-  
-  // Merge real-time status with camera data
-  const camerasWithRealTimeStatus = useMemo(() => {
-    return cameras.map((camera) => {
-      const realtimeStatus = getCameraStatus(camera.id);
-      return {
-        ...camera,
-        status: realtimeStatus?.status || camera.status,
-        lastActivity: realtimeStatus?.lastActivity || camera.lastActivity,
-        _isRealtime: !!realtimeStatus,
-      };
-    });
-  }, [cameras, cameraStatuses]);
-  
-  // Pagination calculations
-  const totalPages = Math.ceil(camerasWithRealTimeStatus.length / camerasPerPage);
-  const startIndex = currentPage * camerasPerPage;
-  const endIndex = startIndex + camerasPerPage;
-  const currentCameras = camerasWithRealTimeStatus.slice(startIndex, endIndex);
-  
-  // Reset to first page when cameras per page changes
-  useEffect(() => {
-    setCurrentPage(0);
-  }, [camerasPerPage]);
-
-  const nextPage = () => {
-    if (currentPage < totalPages - 1) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  const previousPage = () => {
-    if (currentPage > 0) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return 'bg-green-900 text-green-300';
-      case 'offline': return 'bg-red-900 text-red-300';
-      case 'maintenance': return 'bg-yellow-900 text-yellow-300';
-      default: return 'bg-gray-700 text-gray-300';
-    }
-  };
-
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <h2 className="text-xl font-semibold text-white">Camera Monitoring - {currentSite.name}</h2>
-          {/* Real-time connection status */}
-          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${
-            isConnected ? 'bg-green-900/30 text-green-400' : 'bg-gray-800 text-gray-400'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
-            {isConnected ? 'Live Updates' : 'Connecting...'}
-            {lastUpdate && isConnected && (
-              <span className="text-gray-400">· {new Date(lastUpdate).toLocaleTimeString()}</span>
-            )}
-          </div>
-          {/* Pagination Controls */}
-          {camerasWithRealTimeStatus.length > 0 && (
-            <div className="flex items-center gap-3">
-              {/* Cameras per page selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-400">Per page:</span>
-                <select
-                  value={camerasPerPage}
-                  onChange={(e) => setCamerasPerPage(Number(e.target.value))}
-                  className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value={2}>2</option>
-                  <option value={3}>3</option>
-                  <option value={4}>4</option>
-                </select>
-              </div>
-              
-              {/* Page navigation */}
-              {camerasWithRealTimeStatus.length > camerasPerPage && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={previousPage}
-                    disabled={currentPage === 0}
-                    className={`p-2 rounded-lg transition-colors ${
-                      currentPage === 0
-                        ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
-                        : 'bg-gray-700 hover:bg-gray-600 text-white'
-                    }`}
-                    title="Previous cameras"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <span className="text-gray-400 text-sm">
-                    {startIndex + 1}-{Math.min(endIndex, camerasWithRealTimeStatus.length)} of {camerasWithRealTimeStatus.length}
-                  </span>
-                  <button
-                    onClick={nextPage}
-                    disabled={currentPage === totalPages - 1}
-                    className={`p-2 rounded-lg transition-colors ${
-                      currentPage === totalPages - 1
-                        ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
-                        : 'bg-gray-700 hover:bg-gray-600 text-white'
-                    }`}
-                    title="Next cameras"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={() => setEnableDetection(!enableDetection)}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              enableDetection 
-                ? 'bg-green-600 hover:bg-green-700 text-white' 
-                : 'bg-gray-600 hover:bg-gray-500 text-gray-300'
-            }`}
-          >
-            AI Detection {enableDetection ? 'ON' : 'OFF'}
-          </button>
-          <button 
-            onClick={() => router.push(`/dashboard/camera-management${currentSite?.id ? `?worksite=${currentSite.id}` : ''}`)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-          >
-          Add Camera
-        </button>
-        </div>
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-12 text-center">
+        <h2 className="text-xl font-semibold text-white mb-4">Monitoring</h2>
+        <p className="text-slate-400">Monitoring functionality has been removed.</p>
       </div>
-
-      {cameras.length === 0 ? (
-        <div className="text-center py-12 bg-gray-800 rounded-lg">
-          <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-          <h3 className="text-xl font-semibold text-gray-300 mb-2">No Cameras Available</h3>
-          <p className="text-gray-400 mb-6">Add your first camera to start monitoring</p>
-          <button
-            onClick={() => router.push(`/dashboard/camera-management${currentSite?.id ? `?worksite=${currentSite.id}` : ''}`)}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-          >
-            Add Camera
-          </button>
-        </div>
-      ) : (
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg backdrop-blur-sm">
-          <div className="px-5 py-4 border-b border-slate-700/50 flex items-center justify-between">
-            <h3 className="font-semibold text-white">Camera Monitoring</h3>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-slate-400">
-                {camerasWithRealTimeStatus.filter(c => c.status === 'online' || c.status === 'active').length} / {camerasWithRealTimeStatus.length} online
-              </span>
-                </div>
-              </div>
-          
-          <div className="p-5">
-            {currentCameras.length === 0 ? (
-              <div className="text-center py-8">
-                <svg className="w-12 h-12 mx-auto mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                <p className="text-slate-400">No cameras configured for this site</p>
-              </div>
-                  ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {currentCameras.map((camera) => (
-                  <div key={camera.id} className="bg-slate-800/50 border border-slate-700/50 rounded-lg overflow-hidden hover:border-slate-600 transition-colors">
-                    {/* Thumbnail Area */}
-                    <div 
-                      className="relative h-28 bg-slate-900 flex items-center justify-center cursor-pointer"
-                      onClick={() => setSelectedCameraForLive(camera)}
-                    >
-                      {camera.thumbnailUrl ? (
-                        <img src={camera.thumbnailUrl} alt={camera.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <svg className="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  )}
-                      
-                      {/* Status Badge */}
-                      <div className="absolute top-2 left-2 flex items-center space-x-1">
-                        <span className={`w-2 h-2 rounded-full ${camera.status === 'online' || camera.status === 'active' ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                        <span className="text-xs text-white bg-black/60 px-1.5 py-0.5 rounded font-medium">
-                          {camera.status === 'online' || camera.status === 'active' ? 'LIVE' : 'OFFLINE'}
-                        </span>
-                      </div>
-
-                      {/* AI Badge */}
-                      {camera.aiEnabled && (
-                        <div className="absolute top-2 right-2">
-                          <span className="text-xs text-white bg-blue-600 px-1.5 py-0.5 rounded font-medium">
-                            AI
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div className="p-3">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="min-w-0 flex-1">
-                          <h4 className="font-medium text-white text-sm truncate">{camera.name}</h4>
-                          {camera.location && (
-                            <p className="text-xs text-slate-400 truncate">{camera.location}</p>
-                          )}
-                        </div>
-                        {camera.recentViolations > 0 && (
-                          <span className="text-xs font-medium text-red-400 bg-red-500/10 px-2 py-0.5 rounded flex-shrink-0 ml-2">
-                            {camera.recentViolations}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => setSelectedCameraForLive(camera)}
-                          className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
-                        >
-                          View Live
-                </button>
-                  <button 
-                          onClick={async () => {
-                            // Fetch full camera details
-                            try {
-                              const response = await fetch(`/api/cameras/${camera.id}`);
-                              if (response.ok) {
-                                const data = await response.json();
-                                const fullCamera = data.camera || data.data || data;
-                                setSelectedCameraForConfig({
-                                  ...camera,
-                                  ...fullCamera
-                                });
-                              } else {
-                                setSelectedCameraForConfig(camera);
-                              }
-                            } catch (error) {
-                              console.error('Error fetching camera details:', error);
-                              setSelectedCameraForConfig(camera);
-                            }
-                            setShowConfigurePopup(true);
-                          }}
-                          className="px-3 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded transition-colors"
-                          title="Configure Camera"
-                  >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-              </div>
-            )}
-          </div>
-      </div>
-      )}
-
-      {/* Fullscreen Modal */}
-      {selectedCameraForLive && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-7xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-white">{selectedCameraForLive.name}</h2>
-              <button
-                onClick={() => setSelectedCameraForLive(null)}
-                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden relative">
-              {getCameraStreamUrl(selectedCameraForLive) ? (
-                <CameraFeed
-                  streamUrl={getCameraStreamUrl(selectedCameraForLive) || ''}
-                  cameraId={selectedCameraForLive.id}
-                  autoPlay={true}
-                  className="w-full h-full"
-                  enableDetection={enableDetection}
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                  <svg className="w-20 h-20 text-slate-700 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                  <p className="text-white font-medium mb-2">No Stream Available</p>
-                  <p className="text-slate-400 text-sm mb-4">This camera does not have a configured stream URL.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Configure Camera Popup */}
-      {showConfigurePopup && selectedCameraForConfig && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => {
-          setShowConfigurePopup(false);
-          setSelectedCameraForConfig(null);
-        }}>
-          <div className="bg-slate-900 rounded-xl w-full max-w-3xl border border-slate-700 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 sticky top-0 bg-slate-900">
-              <h3 className="text-xl font-semibold text-white">Configure Camera: {selectedCameraForConfig.name}</h3>
-              <button
-                onClick={() => {
-                  setShowConfigurePopup(false);
-                  setSelectedCameraForConfig(null);
-                }}
-                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              {/* Basic Information */}
-              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-                <h4 className="text-lg font-semibold text-white mb-4">Basic Information</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-slate-400 text-sm">Camera ID:</span>
-                    <p className="text-white font-mono text-sm mt-1">{selectedCameraForConfig.id}</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">Name:</span>
-                    <p className="text-white mt-1">{selectedCameraForConfig.name || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">Location:</span>
-                    <p className="text-white mt-1">{selectedCameraForConfig.location || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">Status:</span>
-                    <p className={`mt-1 inline-block px-2 py-1 rounded text-xs font-medium ${
-                      selectedCameraForConfig.status === 'online' || selectedCameraForConfig.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                      selectedCameraForConfig.status === 'offline' ? 'bg-red-500/20 text-red-400' :
-                      'bg-yellow-500/20 text-yellow-400'
-                    }`}>
-                      {selectedCameraForConfig.status || 'unknown'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">AI Detection:</span>
-                    <p className={`mt-1 inline-block px-2 py-1 rounded text-xs font-medium ${
-                      selectedCameraForConfig.aiEnabled ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
-                    }`}>
-                      {selectedCameraForConfig.aiEnabled ? 'Enabled' : 'Disabled'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">Type:</span>
-                    <p className="text-white mt-1">{selectedCameraForConfig.type || 'N/A'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stream Configuration */}
-              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-                <h4 className="text-lg font-semibold text-white mb-4">Stream Configuration</h4>
-                <div className="space-y-3">
-                  <div>
-                    <span className="text-slate-400 text-sm">HLS URL:</span>
-                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
-                      {selectedCameraForConfig.hlsUrl || 'Not configured'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">Stream URL:</span>
-                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
-                      {selectedCameraForConfig.streamUrl || 'Not configured'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">MediaMTX Path:</span>
-                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
-                      {selectedCameraForConfig.mediamtxPath || 'Not configured'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">RTSP Path:</span>
-                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
-                      {selectedCameraForConfig.rtspPath || 'Not configured'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Network Information */}
-              {(selectedCameraForConfig.ipAddress || selectedCameraForConfig.port) && (
-                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-                  <h4 className="text-lg font-semibold text-white mb-4">Network Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedCameraForConfig.ipAddress && (
-                      <div>
-                        <span className="text-slate-400 text-sm">IP Address:</span>
-                        <p className="text-white font-mono text-sm mt-1">{selectedCameraForConfig.ipAddress}</p>
-                      </div>
-                    )}
-                    {selectedCameraForConfig.port && (
-                      <div>
-                        <span className="text-slate-400 text-sm">Port:</span>
-                        <p className="text-white mt-1">{selectedCameraForConfig.port}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t border-slate-700">
-                <button
-                  onClick={() => {
-                    router.push(`/dashboard/camera-settings/${selectedCameraForConfig.id}?worksite=${currentSite.id}`);
-                  }}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-                >
-                  Open Full Settings
-                </button>
-                <button
-                  onClick={() => {
-                    setShowConfigurePopup(false);
-                    setSelectedCameraForConfig(null);
-                  }}
-                  className="px-4 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -2195,7 +1776,7 @@ function ReportsTab({ currentSite }: { currentSite: any }) {
 
         <div className="bg-gray-800 p-6 rounded-lg">
           <h3 className="text-lg font-semibold text-white mb-4">Performance Report</h3>
-          <p className="text-gray-300 mb-4">System performance and camera analytics</p>
+          <p className="text-gray-300 mb-4">System performance and analytics</p>
           <ExportButton 
             siteId={currentSite.id}
             siteName={currentSite.name}
@@ -2221,17 +1802,15 @@ function SitesTab({ currentSite }: { currentSite: any }) {
     status: currentSite?.status || 'active'
   });
   const [saving, setSaving] = useState(false);
+  const [showUsersModal, setShowUsersModal] = useState(false);
   
   // Get user role and determine permissions
   const userRole = normalizeRole(state.currentUser?.role);
   const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'SUPERADMIN';
   const isCompanyAdmin = userRole === 'COMPANY_ADMIN';
   const isSiteAdmin = userRole === 'SITE_ADMIN';
-  const isSupervisor = userRole === 'SUPERVISOR';
-  const isWorker = userRole === 'WORKER';
   
   // Permission checks for each button - Super Admin has full access to everything
-  const canManageCameras = isSuperAdmin || isCompanyAdmin || isSiteAdmin;
   const canManageUsers = isSuperAdmin || isCompanyAdmin; // Super Admin and Company Admin can manage users
   const canConfigureAlerts = isSuperAdmin || isCompanyAdmin || isSiteAdmin;
   const canViewAnalytics = true; // Everyone can view analytics
@@ -2341,13 +1920,13 @@ function SitesTab({ currentSite }: { currentSite: any }) {
           ) : (
             <button
               onClick={() => setIsEditing(true)}
-              disabled={!canManageCameras}
+              disabled={!canConfigureAlerts}
               className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-                canManageCameras
+                canConfigureAlerts
                   ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
                   : 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-50'
               }`}
-              title={!canManageCameras ? 'You do not have permission to edit site information' : 'Edit Site Info'}
+              title={!canConfigureAlerts ? 'You do not have permission to edit site information' : 'Edit Site Info'}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -2403,7 +1982,7 @@ function SitesTab({ currentSite }: { currentSite: any }) {
                   currentSite.status === 'active' ? 'bg-green-900/30 text-green-400 border border-green-700/30' :
                   currentSite.status === 'maintenance' ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-700/30' :
                   'bg-red-900/30 text-red-400 border border-red-700/30'
-              }`}>
+                }`}>
                   {(currentSite.status || 'active').toUpperCase()}
               </span>
               )}
@@ -2436,10 +2015,6 @@ function SitesTab({ currentSite }: { currentSite: any }) {
             Site Statistics
           </h3>
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gradient-to-br from-blue-900/30 to-blue-800/20 border border-blue-700/30 rounded-lg p-4">
-              <p className="text-gray-400 text-xs mb-1">Total Cameras</p>
-              <p className="text-white font-bold text-3xl">{currentSite.cameras || 0}</p>
-            </div>
             <div className="bg-gradient-to-br from-red-900/30 to-red-800/20 border border-red-700/30 rounded-lg p-4">
               <p className="text-gray-400 text-xs mb-1">Active Alerts</p>
               <p className="text-white font-bold text-3xl">{currentSite.alerts || 0}</p>
@@ -2467,27 +2042,10 @@ function SitesTab({ currentSite }: { currentSite: any }) {
       {/* Quick Actions */}
       <div className="bg-slate-800/30 backdrop-blur-sm border border-slate-700/30 p-6 rounded-xl">
         <h3 className="text-lg font-bold text-white mb-4 uppercase tracking-wide">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Manage Cameras Button */}
-          <button 
-            onClick={() => canManageCameras && router.push(`/dashboard/camera-management${currentSite?.id ? `?worksite=${currentSite.id}` : ''}`)}
-            disabled={!canManageCameras}
-            className={`p-4 rounded-lg text-center transition-colors border ${
-              canManageCameras
-                ? 'bg-slate-700 hover:bg-slate-600 text-white border-slate-600 cursor-pointer'
-                : 'bg-slate-800/50 text-gray-500 border-slate-700/50 cursor-not-allowed opacity-50'
-            }`}
-            title={!canManageCameras ? 'You do not have permission to manage cameras' : 'Manage Cameras'}
-          >
-            <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-            <div className="font-medium text-sm">Manage Cameras</div>
-          </button>
-          
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Manage Users Button - Only for Company Admin, goes to company users page */}
           <button 
-            onClick={() => canManageUsers && router.push(`/company/users`)}
+            onClick={() => canManageUsers && setShowUsersModal(true)}
             disabled={!canManageUsers}
             className={`p-4 rounded-lg text-center transition-colors border ${
               canManageUsers
@@ -2533,9 +2091,20 @@ function SitesTab({ currentSite }: { currentSite: any }) {
         </div>
       </div>
 
+      {/* Worksite User Management Modal */}
+      {showUsersModal && currentSite && (
+        <WorksiteUserManagementModal
+          isOpen={showUsersModal}
+          onClose={() => setShowUsersModal(false)}
+          worksiteId={currentSite.id}
+          worksiteName={currentSite.name || currentSite.worksiteName || 'Unnamed Site'}
+        />
+      )}
     </div>
   );
 }
+
+
 
 function SitesPage({ sites, currentUser, companies }: { sites: any[]; currentUser: any; companies?: any[] }) {
   const router = useRouter();
@@ -2585,7 +2154,6 @@ function SitesPage({ sites, currentUser, companies }: { sites: any[]; currentUse
             <tr>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Site</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Cameras</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Alerts</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Safety Score</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
@@ -2594,7 +2162,7 @@ function SitesPage({ sites, currentUser, companies }: { sites: any[]; currentUse
           <tbody className="divide-y divide-slate-700/50">
             {sites.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
                   No sites available
                 </td>
               </tr>
@@ -2612,7 +2180,6 @@ function SitesPage({ sites, currentUser, companies }: { sites: any[]; currentUse
                       {site.status || 'Unknown'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-white">{site.cameras || 0}</td>
                   <td className="px-6 py-4">
                     {(site.alerts || 0) > 0 ? (
                       <span className="text-sm font-medium text-red-400">{site.alerts}</span>
@@ -2673,10 +2240,6 @@ function SitesPage({ sites, currentUser, companies }: { sites: any[]; currentUse
                       </span>
             </div>
               <div>
-                  <p className="text-xs text-slate-400 mb-1">Cameras</p>
-                  <p className="text-sm text-white">{selectedSite.cameras || 0}</p>
-              </div>
-              <div>
                   <p className="text-xs text-slate-400 mb-1">Safety Score</p>
                   <p className={`text-sm font-semibold ${getSafetyColor(selectedSite.safetyScore)}`}>
                     {selectedSite.safetyScore != null ? `${selectedSite.safetyScore}%` : 'Not calculated'}
@@ -2723,701 +2286,6 @@ function SitesPage({ sites, currentUser, companies }: { sites: any[]; currentUse
         }}
       />
                   </div>
-  );
-}
-
-function CamerasPage({ currentSite, worksites }: { currentSite: any; worksites?: any[] }) {
-  const { cameras, refreshCameras } = useCameraStore(currentSite?.id);
-  const router = useRouter();
-  const [selectedCamera, setSelectedCamera] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'online' | 'offline'>('all');
-  const [showAddCameraModal, setShowAddCameraModal] = useState(false);
-  const [showConfigurePopup, setShowConfigurePopup] = useState(false);
-  const [selectedCameraForConfig, setSelectedCameraForConfig] = useState<any>(null);
-  
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(0);
-  const [camerasPerPage, setCamerasPerPage] = useState(3); // Default to 3
-
-  // Helper function to get the best available stream URL from camera object
-  const getCameraStreamUrl = (camera: any): string | null => {
-    // Priority: hlsUrl > mediamtxPath (generate HLS) > streamUrl (if HLS/HTTP) > rtspPath (generate HLS) > streamUrl (if RTSP, needs conversion)
-    
-    // 1. Direct HLS URL (highest priority)
-    if (camera.hlsUrl) {
-      return camera.hlsUrl;
-    }
-    
-    // 2. MediaMTX path - generate HLS URL
-    if (camera.mediamtxPath) {
-      const pathName = camera.mediamtxPath.replace(/^\//, '').replace(/\/$/, '');
-      return `http://localhost:8888/live/${pathName}/index.m3u8`;
-    }
-    
-    // 3. Check streamUrl - if it's already HLS or HTTP, use it directly
-    if (camera.streamUrl) {
-      // If it's an HLS URL (.m3u8) or HTTP/HTTPS URL, use it directly
-      if (camera.streamUrl.includes('.m3u8') || camera.streamUrl.startsWith('http://') || camera.streamUrl.startsWith('https://')) {
-        return camera.streamUrl;
-      }
-      
-      // If it's RTSP, we need to convert it via MediaMTX
-      // Try to use rtspPath first, then fall back to extracting stream name from RTSP URL
-      if (camera.streamUrl.startsWith('rtsp://')) {
-        // If rtspPath is set, use that (this is the configured MediaMTX path)
-        if (camera.rtspPath) {
-          const pathName = camera.rtspPath.replace(/^\//, '').replace(/\/$/, '') || `camera-${camera.id}`;
-          return `http://localhost:8888/live/${pathName}/index.m3u8`;
-        }
-        // Otherwise, try to extract a meaningful path from RTSP URL
-        // Extract stream name from RTSP URL (e.g., rtsp://.../stream1 -> stream1)
-        const rtspMatch = camera.streamUrl.match(/rtsp:\/\/[^\/]+\/(.+)$/);
-        if (rtspMatch && rtspMatch[1]) {
-          const streamName = rtspMatch[1].split('/').pop() || `camera-${camera.id}`;
-          return `http://localhost:8888/live/${streamName}/index.m3u8`;
-        }
-        // Last resort: use camera ID
-        return `http://localhost:8888/live/camera-${camera.id}/index.m3u8`;
-      }
-    }
-    
-    // 4. If rtspPath exists independently, use it
-    if (camera.rtspPath) {
-      const pathName = camera.rtspPath.replace(/^\//, '').replace(/\/$/, '') || `camera-${camera.id}`;
-      return `http://localhost:8888/live/${pathName}/index.m3u8`;
-    }
-    
-    return null;
-  };
-
-  // CRITICAL: Filter cameras to ONLY show cameras for current worksite
-  // This prevents showing cameras from other worksites during loading transitions
-  const safeCameras = currentSite?.id 
-    ? cameras.filter((c: any) => c.worksiteId === currentSite.id)
-    : [];
-
-  const getStatusBadge = (status: string) => {
-    const s = status?.toLowerCase();
-    if (s === 'online' || s === 'active') return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
-    if (s === 'offline') return 'bg-red-500/10 text-red-400 border-red-500/30';
-    return 'bg-slate-500/10 text-slate-400 border-slate-500/30';
-  };
-
-  // Filter cameras by status only (worksiteId filtering already done in safeCameras)
-  const filteredCameras = safeCameras.filter((c: any) => {
-    // Filter by status
-    if (filterStatus === 'all') return true;
-    const status = c.status?.toLowerCase();
-    if (filterStatus === 'online') return status === 'online' || status === 'active';
-    return status === 'offline';
-  });
-
-  // Pagination calculations
-  const totalPages = Math.max(1, Math.ceil(filteredCameras.length / camerasPerPage));
-  
-  // Ensure currentPage is within valid bounds
-  const validCurrentPage = Math.min(currentPage, Math.max(0, totalPages - 1));
-  
-  // Fix currentPage if it's out of bounds
-  useEffect(() => {
-    if (currentPage !== validCurrentPage && totalPages > 0) {
-      setCurrentPage(validCurrentPage);
-    }
-  }, [currentPage, validCurrentPage, totalPages]);
-  
-  const startIndex = validCurrentPage * camerasPerPage;
-  const endIndex = startIndex + camerasPerPage;
-  const currentCameras = filteredCameras.length > 0 ? filteredCameras.slice(startIndex, endIndex) : [];
-  
-  // Debug logging
-  useEffect(() => {
-    console.log('[CamerasPage] Pagination state:', {
-      totalCameras: safeCameras.length,
-      filteredCameras: filteredCameras.length,
-      currentPage,
-      validCurrentPage,
-      camerasPerPage,
-      totalPages,
-      startIndex,
-      endIndex,
-      currentCameras: currentCameras.length,
-      camerasInStore: cameras.map((c: any) => ({ id: c.id, name: c.name, status: c.status }))
-    });
-  }, [cameras.length, filteredCameras.length, currentPage, validCurrentPage, camerasPerPage, totalPages, startIndex, endIndex, currentCameras.length]);
-  
-  // Log when cameras disappear
-  useEffect(() => {
-    if (cameras.length > 0 && filteredCameras.length === 0) {
-      console.warn('[CamerasPage] ⚠️ Cameras exist but none match filter:', {
-        totalCameras: cameras.length,
-        filterStatus,
-        cameraStatuses: [...new Set(cameras.map((c: any) => c.status))],
-        currentWorksiteId: currentSite?.id
-      });
-      console.warn('[CamerasPage] Camera worksiteIds:', cameras.map((c: any) => ({
-        name: c.name,
-        worksiteId: c.worksiteId,
-        matches: c.worksiteId === currentSite?.id
-      })));
-    }
-    if (filteredCameras.length > 0 && currentCameras.length === 0) {
-      console.warn('[CamerasPage] ⚠️ Filtered cameras exist but currentCameras is empty:', {
-        filteredCameras: filteredCameras.length,
-        currentPage,
-        validCurrentPage,
-        totalPages,
-        startIndex,
-        endIndex
-      });
-    }
-    if (cameras.length === 0) {
-      console.warn('[CamerasPage] ⚠️ No cameras in store for worksite:', currentSite?.id);
-      console.warn('[CamerasPage] This could mean:');
-      console.warn('[CamerasPage]   1. No cameras have been created for this worksite');
-      console.warn('[CamerasPage]   2. The camera store failed to load cameras');
-      console.warn('[CamerasPage]   3. The API returned no cameras for this worksite');
-    }
-  }, [cameras.length, filteredCameras.length, currentCameras.length, filterStatus, currentPage, validCurrentPage, totalPages, startIndex, endIndex, currentSite?.id]);
-
-  // Reset to page 0 when camerasPerPage changes
-  useEffect(() => {
-    setCurrentPage(0);
-  }, [camerasPerPage]);
-
-  // Reset to page 0 when filter changes
-  useEffect(() => {
-    setCurrentPage(0);
-  }, [filterStatus]);
-
-  // Don't render camera feeds until we have a valid currentSite
-  // This prevents brief flashes of cameras from other worksites
-  if (!currentSite || !currentSite.id) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold text-white">Camera Monitoring</h1>
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded p-8 text-center">
-          <p className="text-slate-400">Select a worksite to view cameras.</p>
-        </div>
-      </div>
-    );
-  }
-  
-  // Additional safety check: don't render cameras if they don't match current worksite
-  // This prevents rendering cameras from other worksites during loading transitions
-  if (cameras.length > 0 && safeCameras.length === 0 && cameras.some((c: any) => c.worksiteId)) {
-    // We have cameras but none match current worksite - this is a loading state
-    // Don't render them to prevent brief flashes
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold text-white">Camera Monitoring - {currentSite.name}</h1>
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded p-8 text-center">
-          <p className="text-slate-400">Loading cameras...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-semibold text-white">Camera Monitoring</h1>
-          <p className="text-sm text-slate-400 mt-1">
-            {currentSite.name} • {filteredCameras.length} camera{filteredCameras.length !== 1 ? 's' : ''}
-            {filteredCameras.length > 0 && totalPages > 1 && (
-              <span className="ml-2">
-                (Page {currentPage + 1} of {totalPages})
-              </span>
-            )}
-            {cameras.length !== filteredCameras.length && (
-              <span className="ml-2 text-slate-500">
-                ({cameras.length} total)
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="flex items-center space-x-3">
-          {/* View Toggle */}
-          <div className="flex items-center border border-slate-600 rounded overflow-hidden">
-              <button 
-              onClick={() => setViewMode('grid')}
-              className={`px-3 py-1.5 text-xs font-medium ${viewMode === 'grid' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
-              >
-              Grid
-              </button>
-              <button 
-              onClick={() => setViewMode('list')}
-              className={`px-3 py-1.5 text-xs font-medium ${viewMode === 'list' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
-              >
-              List
-              </button>
-            </div>
-          {/* Filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as any)}
-            className="text-sm bg-slate-800 border border-slate-600 text-white rounded px-3 py-1.5"
-          >
-            <option value="all">All Status</option>
-            <option value="online">Online</option>
-            <option value="offline">Offline</option>
-          </select>
-              <button 
-          onClick={() => setShowAddCameraModal(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
-        >
-          Add Camera
-              </button>
-                </div>
-              </div>
-      
-      {filteredCameras.length === 0 ? (
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded p-12 text-center">
-          <svg className="w-12 h-12 mx-auto text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-          <p className="text-slate-400">No cameras found</p>
-          {cameras.length > 0 ? (
-            <p className="text-xs text-slate-500 mt-2">
-              {cameras.length} camera{cameras.length !== 1 ? 's' : ''} in store, but none match the current filter (Status: {filterStatus})
-            </p>
-          ) : (
-            <div className="mt-4 space-y-2">
-              <p className="text-xs text-slate-500">
-                No cameras have been created for this worksite yet.
-              </p>
-              <button
-                onClick={() => setShowAddCameraModal(true)}
-                className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
-              >
-                Add Your First Camera
-              </button>
-            </div>
-          )}
-        </div>
-      ) : viewMode === 'grid' ? (
-        <>
-        <div className="p-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {currentCameras.map((camera: any) => (
-              <div key={camera.id} className="bg-slate-800/50 border border-slate-700/50 rounded-lg overflow-hidden hover:border-slate-600 transition-colors">
-                {/* Icon Placeholder */}
-                <div className="relative h-28 bg-slate-900 flex items-center justify-center cursor-pointer">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-camera w-8 h-8 text-slate-600">
-                    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
-                    <circle cx="12" cy="13" r="3"></circle>
-                    </svg>
-                  <div className="absolute top-2 left-2 flex items-center space-x-1">
-                    <span className={`w-2 h-2 rounded-full ${camera.status === 'online' || camera.status === 'active' ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
-                    <span className="text-xs text-white bg-black/60 px-1.5 py-0.5 rounded font-medium">LIVE</span>
-          </div>
-              </div>
-              {/* Info */}
-                <div className="p-3">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="min-w-0 flex-1">
-                      <h4 className="font-medium text-white text-sm truncate">{camera.name}</h4>
-                <p className="text-xs text-slate-400 truncate">{camera.location || 'No location'}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-          <button 
-                    onClick={() => setSelectedCamera(camera)}
-                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
-          >
-                    View Live
-          </button>
-          <button 
-                      onClick={async () => {
-                        // Fetch full camera details
-                        try {
-                          const response = await fetch(`/api/cameras/${camera.id}`);
-                          if (response.ok) {
-                            const data = await response.json();
-                            const fullCamera = data.camera || data.data || data;
-                            setSelectedCameraForConfig({
-                              ...camera,
-                              ...fullCamera
-                            });
-                          } else {
-                            setSelectedCameraForConfig(camera);
-                          }
-                        } catch (error) {
-                          console.error('Error fetching camera details:', error);
-                          setSelectedCameraForConfig(camera);
-                        }
-                        setShowConfigurePopup(true);
-                      }}
-                      className="px-3 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded transition-colors"
-                      title="Configure Camera"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-settings w-4 h-4" aria-hidden="true">
-                        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
-                        <circle cx="12" cy="12" r="3"></circle>
-                      </svg>
-          </button>
-                </div>
-            </div>
-          </div>
-        ))}
-          </div>
-      </div>
-      {/* Pagination Controls for Grid */}
-      {filteredCameras.length > camerasPerPage && (
-        <div className="flex items-center justify-between pt-4">
-          <button
-            onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
-            disabled={currentPage === 0}
-            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors"
-          >
-            Previous
-          </button>
-          <div className="flex items-center gap-2">
-            {Array.from({ length: totalPages }, (_, i) => (
-              <button
-                key={i}
-                onClick={() => setCurrentPage(i)}
-                className={`px-3 py-1 text-sm font-medium rounded transition-colors ${
-                  currentPage === i
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                {i + 1}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
-            disabled={currentPage >= totalPages - 1}
-            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors"
-          >
-            Next
-          </button>
-        </div>
-      )}
-      </>
-      ) : (
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-slate-900/50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase">Camera</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase">AI</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase">Violations</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700/50">
-              {currentCameras.map((camera: any) => (
-                <tr key={camera.id} className="hover:bg-slate-700/20">
-                  <td className="px-6 py-4">
-                    <p className="text-sm font-medium text-white">{camera.name}</p>
-                    <p className="text-xs text-slate-400">{camera.location || '—'}</p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded border ${getStatusBadge(camera.status)}`}>
-                      {camera.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    {camera.aiEnabled ? (
-                      <span className="text-xs text-blue-400 font-medium">Enabled</span>
-                    ) : (
-                      <span className="text-xs text-slate-500">Off</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-white">{camera.violationCount || 0}</td>
-                  <td className="px-6 py-4">
-              <button
-                      onClick={() => setSelectedCamera(camera)}
-                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded"
-          >
-                      View
-          </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {/* Pagination Controls for List */}
-          {filteredCameras.length > camerasPerPage && (
-            <div className="flex items-center justify-between px-6 py-4 border-t border-slate-700/50">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
-                disabled={currentPage === 0}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors"
-              >
-                Previous
-              </button>
-              <div className="flex items-center gap-2">
-                {Array.from({ length: totalPages }, (_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setCurrentPage(i)}
-                    className={`px-3 py-1 text-sm font-medium rounded transition-colors ${
-                      currentPage === i
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                    }`}
-                  >
-                    {i + 1}
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
-                disabled={currentPage >= totalPages - 1}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors"
-              >
-                Next
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Configure Camera Popup */}
-      {showConfigurePopup && selectedCameraForConfig && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => {
-          setShowConfigurePopup(false);
-          setSelectedCameraForConfig(null);
-        }}>
-          <div className="bg-slate-900 rounded-xl w-full max-w-3xl border border-slate-700 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 sticky top-0 bg-slate-900">
-              <h3 className="text-xl font-semibold text-white">Configure Camera: {selectedCameraForConfig.name}</h3>
-              <button
-                onClick={() => {
-                  setShowConfigurePopup(false);
-                  setSelectedCameraForConfig(null);
-                }}
-                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              {/* Basic Information */}
-              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-                <h4 className="text-lg font-semibold text-white mb-4">Basic Information</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-slate-400 text-sm">Camera ID:</span>
-                    <p className="text-white font-mono text-sm mt-1">{selectedCameraForConfig.id}</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">Name:</span>
-                    <p className="text-white mt-1">{selectedCameraForConfig.name || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">Location:</span>
-                    <p className="text-white mt-1">{selectedCameraForConfig.location || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">Status:</span>
-                    <p className={`mt-1 inline-block px-2 py-1 rounded text-xs font-medium ${
-                      selectedCameraForConfig.status === 'online' || selectedCameraForConfig.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                      selectedCameraForConfig.status === 'offline' ? 'bg-red-500/20 text-red-400' :
-                      'bg-yellow-500/20 text-yellow-400'
-                    }`}>
-                      {selectedCameraForConfig.status || 'unknown'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">AI Detection:</span>
-                    <p className={`mt-1 inline-block px-2 py-1 rounded text-xs font-medium ${
-                      selectedCameraForConfig.aiEnabled ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
-                    }`}>
-                      {selectedCameraForConfig.aiEnabled ? 'Enabled' : 'Disabled'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">Type:</span>
-                    <p className="text-white mt-1">{selectedCameraForConfig.type || 'N/A'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stream Configuration */}
-              <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-                <h4 className="text-lg font-semibold text-white mb-4">Stream Configuration</h4>
-                <div className="space-y-3">
-                  <div>
-                    <span className="text-slate-400 text-sm">HLS URL:</span>
-                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
-                      {selectedCameraForConfig.hlsUrl || 'Not configured'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">Stream URL:</span>
-                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
-                      {selectedCameraForConfig.streamUrl || 'Not configured'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">MediaMTX Path:</span>
-                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
-                      {selectedCameraForConfig.mediamtxPath || 'Not configured'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-sm">RTSP Path:</span>
-                    <p className="text-white font-mono text-xs mt-1 break-all bg-slate-900/50 p-2 rounded">
-                      {selectedCameraForConfig.rtspPath || 'Not configured'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Network Information */}
-              {(selectedCameraForConfig.ipAddress || selectedCameraForConfig.port) && (
-                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-                  <h4 className="text-lg font-semibold text-white mb-4">Network Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedCameraForConfig.ipAddress && (
-                      <div>
-                        <span className="text-slate-400 text-sm">IP Address:</span>
-                        <p className="text-white font-mono text-sm mt-1">{selectedCameraForConfig.ipAddress}</p>
-                      </div>
-                    )}
-                    {selectedCameraForConfig.port && (
-                      <div>
-                        <span className="text-slate-400 text-sm">Port:</span>
-                        <p className="text-white mt-1">{selectedCameraForConfig.port}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t border-slate-700">
-                <button
-                  onClick={() => {
-                    router.push(`/dashboard/camera-settings/${selectedCameraForConfig.id}?worksite=${currentSite.id}`);
-                  }}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-                >
-                  Open Full Settings
-                </button>
-                <button
-                  onClick={() => {
-                    setShowConfigurePopup(false);
-                    setSelectedCameraForConfig(null);
-                  }}
-                  className="px-4 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Live Modal */}
-      {selectedCamera && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded max-w-4xl w-full" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-slate-700 flex justify-between items-center">
-                <div>
-                <h3 className="text-lg font-semibold text-white">{selectedCamera.name}</h3>
-                <p className="text-sm text-slate-400">{selectedCamera.location || 'Live Feed'}</p>
-        </div>
-              <button onClick={() => setSelectedCamera(null)} className="p-2 hover:bg-slate-700 rounded">
-                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-4">
-              <div className="aspect-video bg-slate-900 rounded overflow-hidden">
-                {getCameraStreamUrl(selectedCamera) ? (
-                  <CameraFeed 
-                    streamUrl={getCameraStreamUrl(selectedCamera) || ''}
-                    cameraId={selectedCamera.id}
-                    autoPlay={true}
-                    enableDetection={true}
-                    className="w-full h-full"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                    <svg className="w-20 h-20 text-slate-700 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    <p className="text-white font-medium mb-2">No Stream Available</p>
-                    <p className="text-slate-400 text-sm mb-4">This camera does not have a configured stream URL.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Camera Modal */}
-      <AddCameraModal
-        isOpen={showAddCameraModal}
-        onClose={() => setShowAddCameraModal(false)}
-        worksites={worksites || (currentSite ? [{ id: currentSite.id, name: currentSite.name }] : [])}
-        defaultWorksiteId={currentSite?.id}
-        onSave={async (camera) => {
-          console.log('[CamerasPage] Creating camera:', {
-            name: camera.name,
-            worksiteId: camera.worksiteId,
-            currentSiteId: currentSite?.id
-          });
-          
-          const response = await fetch('/api/cameras', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(camera),
-          });
-          
-          if (!response.ok) {
-            const error = await response.json();
-            console.error('[CamerasPage] Failed to create camera:', error);
-            throw new Error(error.error || 'Failed to create camera');
-          }
-          
-          const result = await response.json();
-          console.log('[CamerasPage] Camera created successfully:', result);
-          
-          // Refresh cameras list for the current worksite
-          // Use the camera's worksiteId (from the created camera) or fallback to currentSite.id
-          const targetWorksiteId = result.data?.worksiteId || camera.worksiteId || currentSite?.id;
-          
-          console.log('[CamerasPage] Created camera result:', {
-            cameraId: result.data?.id,
-            cameraName: result.data?.name,
-            worksiteId: result.data?.worksiteId,
-            targetWorksiteId
-          });
-          
-          if (refreshCameras && targetWorksiteId) {
-            console.log('[CamerasPage] Refreshing cameras after creation for worksite:', targetWorksiteId);
-            // Add a delay to ensure database transaction is committed
-            // Try multiple times with increasing delays
-            const refreshAttempts = [300, 800, 1500];
-            refreshAttempts.forEach((delay, index) => {
-              setTimeout(async () => {
-                console.log(`[CamerasPage] Refresh attempt ${index + 1} after ${delay}ms`);
-                await refreshCameras(targetWorksiteId);
-                console.log('[CamerasPage] Cameras refreshed for worksite:', targetWorksiteId);
-              }, delay);
-            });
-          } else {
-            console.warn('[CamerasPage] Cannot refresh - missing refreshCameras or worksiteId. refreshCameras:', !!refreshCameras, 'targetWorksiteId:', targetWorksiteId);
-          }
-        }}
-      />
-    </div>
   );
 }
 

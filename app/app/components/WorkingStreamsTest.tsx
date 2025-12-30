@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import CameraFeed from './CameraFeed'; // Adjust the import path as needed
+// import CameraFeed from './CameraFeed'; // CameraFeed was removed
 
 // Working test streams as of 2024/2025
 const WORKING_STREAMS = [
@@ -183,10 +183,12 @@ const WorkingStreamsTest: React.FC = () => {
             <strong>URL:</strong> <span className="font-mono text-blue-600">{selectedStream}</span>
           </div>
           
-          <CameraFeed
-            streamUrl={selectedStream}
-            className="w-full max-w-2xl"
+          {/* CameraFeed was removed - use native video element instead */}
+          <video
+            src={selectedStream}
+            controls
             autoPlay={false}
+            className="w-full max-w-2xl"
           />
         </div>
       </div>

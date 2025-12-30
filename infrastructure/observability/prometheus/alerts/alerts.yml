@@ -1,0 +1,206 @@
+# Prometheus Alert Rules
+# Place in Prometheus rules directory: /etc/prometheus/rules/
+
+groups:
+  - name: gpu_lag
+    interval: 30s
+    rules:
+      - alert: HighGPULag
+        expr: |
+          redis_stream_lag_entries{device="cuda"} > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: detection-service
+        annotations:
+          summary: "High GPU lag detected"
+          description: "GPU stream lag is {{ $value }} entries for camera {{ $labels.camera_id }}"
+
+      - alert: CriticalGPULag
+        expr: |
+          redis_stream_lag_entries{device="cuda"} > 500
+        for: 2m
+        labels:
+          severity: critical
+          service: detection-service
+        annotations:
+          summary: "Critical GPU lag detected"
+          description: "GPU stream lag is {{ $value }} entries for camera {{ $labels.camera_id }}. Detection may be delayed."
+
+  - name: frame_backlog
+    interval: 30s
+    rules:
+      - alert: HighFrameBacklog
+        expr: |
+          redis_stream_length > 15
+        for: 5m
+        labels:
+          severity: warning
+          service: camera-ingest-service
+        annotations:
+          summary: "High frame backlog detected"
+          description: "Frame backlog is {{ $value }} frames for camera {{ $labels.camera_id }} (max: 20)"
+
+      - alert: CriticalFrameBacklog
+        expr: |
+          redis_stream_length > 18
+        for: 2m
+        labels:
+          severity: critical
+          service: camera-ingest-service
+        annotations:
+          summary: "Critical frame backlog detected"
+          description: "Frame backlog is {{ $value }} frames for camera {{ $labels.camera_id }}. Frames are being dropped."
+
+      - alert: ExcessiveFrameDrops
+        expr: |
+          rate(frames_dropped_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: camera-ingest-service
+        annotations:
+          summary: "Excessive frame drops"
+          description: "Frame drop rate is {{ $value }}/sec for camera {{ $labels.camera_id }}"
+
+  - name: camera_offline
+    interval: 30s
+    rules:
+      - alert: CameraOffline
+        expr: |
+          camera_status_total{status="FAILING"} > 0
+        for: 2m
+        labels:
+          severity: warning
+          service: camera-ingest-service
+        annotations:
+          summary: "Camera offline"
+          description: "Camera {{ $labels.camera_id }} is offline (status: FAILING)"
+
+      - alert: CameraDegraded
+        expr: |
+          camera_status_total{status="DEGRADED"} > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: camera-ingest-service
+        annotations:
+          summary: "Camera degraded"
+          description: "Camera {{ $labels.camera_id }} is degraded (multiple failures)"
+
+      - alert: StreamUnavailable
+        expr: |
+          stream_availability == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: streaming-service
+        annotations:
+          summary: "Stream unavailable"
+          description: "Stream for camera {{ $labels.camera_id }} is unavailable (protocol: {{ $labels.protocol }})"
+
+  - name: alert_delivery_failure
+    interval: 30s
+    rules:
+      - alert: HighAlertDeliveryFailureRate
+        expr: |
+          rate(alerts_orchestrated_total{success="false"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: alert-orchestrator-service
+        annotations:
+          summary: "High alert delivery failure rate"
+          description: "Alert delivery failure rate is {{ $value }}/sec ({{ $labels.tenant_id }})"
+
+      - alert: CriticalAlertDeliveryFailureRate
+        expr: |
+          rate(alerts_orchestrated_total{success="false"}[5m]) > 0.5
+        for: 2m
+        labels:
+          severity: critical
+          service: alert-orchestrator-service
+        annotations:
+          summary: "Critical alert delivery failure rate"
+          description: "Alert delivery failure rate is {{ $value }}/sec ({{ $labels.tenant_id }})"
+
+      - alert: ChannelDeliveryFailure
+        expr: |
+          rate(alert_channel_errors_total[5m]) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          service: alert-orchestrator-service
+        annotations:
+          summary: "Alert channel delivery failures"
+          description: "Channel {{ $labels.channel }} has high error rate: {{ $value }}/sec"
+
+      - alert: EmailDeliveryFailure
+        expr: |
+          rate(alert_channel_errors_total{channel="email"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: alert-orchestrator-service
+        annotations:
+          summary: "Email delivery failures"
+          description: "Email channel has high error rate: {{ $value }}/sec"
+
+      - alert: SMSDeliveryFailure
+        expr: |
+          rate(alert_channel_errors_total{channel="sms"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: alert-orchestrator-service
+        annotations:
+          summary: "SMS delivery failures"
+          description: "SMS channel has high error rate: {{ $value }}/sec"
+
+  - name: service_health
+    interval: 30s
+    rules:
+      - alert: ServiceDown
+        expr: |
+          up{job=~"camera-ingest|detection|violation-engine|snapshot|alert-orchestrator|acknowledgement|streaming"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service is down"
+          description: "Service {{ $labels.job }} is down (instance: {{ $labels.instance }})"
+
+      - alert: HighErrorRate
+        expr: |
+          (
+            rate(detection_service_errors_total[5m]) > 1 OR
+            rate(violation_engine_errors_total[5m]) > 1 OR
+            rate(snapshot_service_errors_total[5m]) > 0.5
+          )
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Service {{ $labels.job }} has high error rate"
+
+      - alert: HighMemoryUsage
+        expr: |
+          process_resident_memory_bytes > 2e9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Service {{ $labels.job }} is using {{ $value | humanize }} bytes of memory"
+
+      - alert: HighCPUUsage
+        expr: |
+          rate(process_cpu_seconds_total[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "Service {{ $labels.job }} is using {{ $value | humanizePercentage }} CPU"
+

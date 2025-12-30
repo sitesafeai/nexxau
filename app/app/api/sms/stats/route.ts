@@ -39,23 +39,23 @@ export async function GET(request: NextRequest) {
     // Total counts by status
     const [totalSent, delivered, failed, undelivered, todaySent, thisWeekSent, thisMonthSent] =
       await Promise.all([
-        prisma.smsNotification.count({ where: baseWhere }),
-        prisma.smsNotification.count({ where: { ...baseWhere, status: 'delivered' } }),
-        prisma.smsNotification.count({ where: { ...baseWhere, status: 'failed' } }),
-        prisma.smsNotification.count({ where: { ...baseWhere, status: 'undelivered' } }),
-        prisma.smsNotification.count({
+        prisma.sMSNotification.count({ where: baseWhere }),
+        prisma.sMSNotification.count({ where: { ...baseWhere, status: 'delivered' } }),
+        prisma.sMSNotification.count({ where: { ...baseWhere, status: 'failed' } }),
+        prisma.sMSNotification.count({ where: { ...baseWhere, status: 'undelivered' } }),
+        prisma.sMSNotification.count({
           where: {
             ...baseWhere,
             sentAt: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
           },
         }),
-        prisma.smsNotification.count({
+        prisma.sMSNotification.count({
           where: {
             ...baseWhere,
             sentAt: { gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
           },
         }),
-        prisma.smsNotification.count({
+        prisma.sMSNotification.count({
           where: {
             ...baseWhere,
             sentAt: { gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) },
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       ]);
 
     // Average delivery time (minutes) for delivered messages
-    const deliveredMessages = await prisma.smsNotification.findMany({
+    const deliveredMessages = await prisma.sMSNotification.findMany({
       where: { ...baseWhere, status: 'delivered', deliveredAt: { not: null } },
       select: { sentAt: true, deliveredAt: true },
       take: 1000,
@@ -81,14 +81,18 @@ export async function GET(request: NextRequest) {
     }
 
     // Top violation types by count
-    const violationGroups = await prisma.smsNotification.groupBy({
+    const violationGroups = await prisma.sMSNotification.groupBy({
       by: ['violationType'],
       where: {
         ...baseWhere,
         violationType: { not: null },
       },
       _count: { _all: true },
-      orderBy: { _count: { _all: 'desc' } },
+      orderBy: {
+        _count: {
+          violationType: 'desc'
+        }
+      },
       take: 10,
     });
 
@@ -98,7 +102,7 @@ export async function GET(request: NextRequest) {
     }));
 
     // Simple delivery trend: counts per day in range
-    const trendMessages = await prisma.smsNotification.findMany({
+    const trendMessages = await prisma.sMSNotification.findMany({
       where: baseWhere,
       select: { sentAt: true },
       orderBy: { sentAt: 'asc' },

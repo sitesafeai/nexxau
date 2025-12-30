@@ -8,7 +8,7 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     // Initialize Sentry for server-side
     if (process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN) {
-      await import('./sentry.server.config');
+      await import('../sentry.server.config');
       console.log('[instrumentation] Sentry initialized for server');
     }
 

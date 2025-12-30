@@ -171,7 +171,10 @@ export async function POST(request: NextRequest) {
         name,
         description: description || null,
         severity,
+        category: body.category || 'CUSTOM',
         condition: conditions || {}, // Using condition (singular) as per schema, default to empty object
+        actions: actions || [],
+        escalationLevels: body.escalationLevels || [],
         isActive: isActive !== undefined ? isActive : true,
         worksiteId: body.worksiteId || null,
         userId: body.userId || null

@@ -61,19 +61,23 @@ export interface ViolationData {
 }
 
 export interface SafetyScoreResult {
-  score: number;
+  score: number; // Always between 0 and 100 (clamped)
   grade: string;
   breakdown: {
-    baseCompliance: number;
-    coverageFactor: number;
-    violationPenalty: number;
+    baseCompliance: number; // C ∈ [0.5, 1.0]
+    coverageFactor: number; // F_cov ∈ [0.7, 1.0]
+    violationPenalty: number; // P ∈ [0, 0.9]
     components: {
       majorViolations: { count: number; penalty: number };
       minorViolations: { count: number; penalty: number };
       customAlerts: Array<{ type: string; count: number; weight: number; penalty: number }>;
     };
     scalingFactor: number;
-    bonus: { consecutiveSafeDays: number; bonusAmount: number };
+    bonus: { consecutiveSafeDays: number; bonusAmount: number }; // bonus ∈ [0, 0.15]
+    // Detection source metadata (if available)
+    detectionsSource?: 'ACTUAL' | 'ESTIMATED';
+    estimationPenaltyApplied?: boolean;
+    estimationPenalty?: number;
   };
   trend?: {
     yesterday?: number;
@@ -287,6 +291,23 @@ function generateRecommendations(
 
 /**
  * Calculate comprehensive safety score
+ * 
+ * @param worksiteId - Worksite identifier
+ * @param date - Date for calculation
+ * @param violations - Violation data (major, minor, custom alerts)
+ * @param totalDetections - Total detection count (actual or estimated)
+ * @param baseCompliance - Base compliance factor C (will be clamped to [0.5, 1.0])
+ * @param coverageFactor - Coverage factor F_cov (will be clamped to [0.7, 1.0])
+ * @param config - Optional config override
+ * @param detectionMetadata - Optional metadata about detection source
+ * 
+ * @returns SafetyScoreResult with clamped score [0, 100]
+ * 
+ * Safety Guarantees:
+ * - All input variables are clamped before calculation
+ * - Final score is always between 0 and 100
+ * - Formula: Score = 100 × C × F_cov × (1 - P) × (1 + bonus)
+ * - Clamps: C ∈ [0.5, 1.0], F_cov ∈ [0.7, 1.0], P ∈ [0, 0.9], bonus ∈ [0, 0.15]
  */
 export async function calculateSafetyScore(
   worksiteId: string,
@@ -295,10 +316,24 @@ export async function calculateSafetyScore(
   totalDetections: number,
   baseCompliance: number = 0.90,
   coverageFactor: number = 0.95,
-  config?: Partial<SafetyScoreConfig>
+  config?: Partial<SafetyScoreConfig>,
+  detectionMetadata?: {
+    detectionsSource: 'ACTUAL' | 'ESTIMATED';
+    estimationPenaltyApplied: boolean;
+  }
 ): Promise<SafetyScoreResult> {
   // Merge with defaults
   const cfg: SafetyScoreConfig = { ...DEFAULT_SAFETY_CONFIG, ...config };
+  
+  // ============================================
+  // CLAMP INPUT VARIABLES (Safety Requirement)
+  // ============================================
+  
+  // Clamp base compliance: C ∈ [0.5, 1.0]
+  const C = Math.min(1.0, Math.max(0.5, baseCompliance));
+  
+  // Clamp coverage factor: F_cov ∈ [0.7, 1.0]
+  const F_cov = Math.min(1.0, Math.max(0.7, coverageFactor));
   
   // Check for insufficient data
   const insufficientData = totalDetections < cfg.minDetections;
@@ -370,57 +405,85 @@ export async function calculateSafetyScore(
   // ============================================
   // 4. SCALING FACTOR
   // ============================================
+  // Normalize penalty by detection volume
+  // More detections = more reliable penalty calculation
   
   const S = Math.max(1, totalDetections / 100);
   
   // ============================================
-  // 5. CAPPED PENALTY
+  // 5. CAPPED PENALTY (with clamp)
   // ============================================
+  // Clamp penalty: P ∈ [0, 0.9] (max 90% penalty)
+  // This prevents a single bad day from completely zeroing the score
+  // The clamp ensures: 0 ≤ P ≤ 0.9 (never more than 90% penalty)
   
-  const P = Math.min(cfg.maxPenalty, N / S);
-  
-  // ============================================
-  // 6. BASE SCORE
-  // ============================================
-  
-  let safetyScore = 100 * baseCompliance * coverageFactor * (1 - P);
+  const rawPenalty = N / S;
+  const P = Math.min(0.9, Math.max(0, Math.min(cfg.maxPenalty, rawPenalty)));
   
   // ============================================
-  // 7. CONSECUTIVE SAFE DAYS BONUS
+  // 6. BASE SCORE (using clamped values)
   // ============================================
+  // Formula: Score = 100 × C × F_cov × (1 - P) × (1 - estimationPenalty)
+  // All inputs are clamped: C ∈ [0.5, 1.0], F_cov ∈ [0.7, 1.0], P ∈ [0, 0.9]
+  // This ensures the score calculation is deterministic and bounded
+  
+  // Apply estimation penalty if detections were estimated
+  // This penalty exists because estimated data is less reliable than actual detections
+  // Penalty: 10% reduction when using estimated detection counts
+  let estimationPenalty = 0;
+  if (detectionMetadata?.estimationPenaltyApplied) {
+    estimationPenalty = 0.10; // 10% penalty for estimated data
+  }
+  
+  // Calculate base score with clamped inputs
+  // Using clamped C and F_cov ensures score is always in valid range
+  let safetyScore = 100 * C * F_cov * (1 - P) * (1 - estimationPenalty);
+  
+  // ============================================
+  // 7. CONSECUTIVE SAFE DAYS BONUS (with clamp)
+  // ============================================
+  // Reward sites with consistent safety performance
+  // Clamp bonus: bonus ∈ [0, 0.15] (max 15% bonus)
+  // This prevents bonus from exceeding reasonable bounds
   
   // Get consecutive safe days from previous scores
   const consecutiveSafeDays = await getConsecutiveSafeDays(worksiteId, date);
   
   let bonusAmount = 0;
   if (consecutiveSafeDays >= cfg.safeDayThreshold) {
-    bonusAmount = Math.min(
+    const rawBonus = Math.min(
       cfg.maxBonus,
       consecutiveSafeDays * cfg.safeDayBonusRate
     );
+    // Clamp bonus to [0, 0.15] to prevent excessive bonuses
+    bonusAmount = Math.min(0.15, Math.max(0, rawBonus));
     safetyScore = safetyScore * (1 + bonusAmount);
   }
   
   // ============================================
-  // 8. CAP AT 100
+  // 8. FINAL CLAMP: Score ∈ [0, 100]
   // ============================================
-  
-  safetyScore = Math.min(100, safetyScore);
-  
-  // ============================================
-  // 9. GRADE
-  // ============================================
-  
-  const { grade } = getGrade(safetyScore);
+  // Final safety clamp: ensure score is always between 0 and 100
+  // This is a critical safety measure - no matter what inputs or edge cases,
+  // the score will NEVER exceed [0, 100] bounds
+  // Why this exists: Prevents mathematical errors, overflow, or invalid scores
+  const rawScore = safetyScore;
+  const finalScore = Math.min(100, Math.max(0, rawScore));
   
   // ============================================
-  // 10. BREAKDOWN
+  // 9. GRADE (using final clamped score)
+  // ============================================
+  
+  const { grade } = getGrade(finalScore);
+  
+  // ============================================
+  // 10. BREAKDOWN (with detection source info)
   // ============================================
   
   const breakdown = {
-    baseCompliance,
-    coverageFactor,
-    violationPenalty: P,
+    baseCompliance: C, // Use clamped value
+    coverageFactor: F_cov, // Use clamped value
+    violationPenalty: P, // Use clamped value
     components: {
       majorViolations: {
         count: Math.round(V_maj_weighted),
@@ -456,9 +519,17 @@ export async function calculateSafetyScore(
   const trend = await calculateTrends(worksiteId, date);
   
   return {
-    score: Math.round(safetyScore * 100) / 100,
+    score: Math.round(finalScore * 100) / 100, // Use final clamped score
     grade,
-    breakdown,
+    breakdown: {
+      ...breakdown,
+      // Include detection source metadata in breakdown
+      ...(detectionMetadata && {
+        detectionsSource: detectionMetadata.detectionsSource,
+        estimationPenaltyApplied: detectionMetadata.estimationPenaltyApplied,
+        estimationPenalty: estimationPenalty
+      })
+    },
     trend,
     recommendations,
     insufficientData

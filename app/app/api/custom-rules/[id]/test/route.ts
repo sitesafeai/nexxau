@@ -8,8 +8,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-  const { id } = params;
   const { testData } = await req.json();
 
   // Get the rule

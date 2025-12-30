@@ -9,7 +9,6 @@ import {
   X, 
   Plus, 
   Trash2, 
-  Video, 
   Users, 
   Shield, 
   Settings, 
@@ -43,22 +42,11 @@ interface Worksite {
   createdAt: string;
   updatedAt: string;
   _count?: {
-    cameras: number;
     alerts: number;
     workers: number;
   };
 }
 
-interface Camera {
-  id: string;
-  name: string;
-  location: string | null;
-  type: string | null;
-  status: string | null;
-  streamUrl: string | null;
-  lastHeartbeat: string | null;
-  metadata: any;
-}
 
 interface Worker {
   id: string;
@@ -69,7 +57,7 @@ interface Worker {
   lastLogin: string | null;
 }
 
-type TabType = 'overview' | 'cameras' | 'personnel' | 'compliance' | 'settings';
+type TabType = 'overview' | 'personnel' | 'compliance' | 'settings';
 
 export default function WorksiteManagementPage() {
   const params = useParams();
@@ -78,7 +66,6 @@ export default function WorksiteManagementPage() {
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [worksite, setWorksite] = useState<Worksite | null>(null);
-  const [cameras, setCameras] = useState<Camera[]>([]);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +76,6 @@ export default function WorksiteManagementPage() {
   const [editedWorksite, setEditedWorksite] = useState<Partial<Worksite>>({});
 
   // Modals
-  const [showAddCameraModal, setShowAddCameraModal] = useState(false);
   const [showAddWorkerModal, setShowAddWorkerModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -127,13 +113,6 @@ export default function WorksiteManagementPage() {
         setError('Invalid worksite data format received');
         setLoading(false);
         return;
-      }
-
-      // Fetch cameras
-      const camRes = await fetch(`/api/cameras?worksiteId=${worksiteId}`);
-      if (camRes.ok) {
-        const camData = await camRes.json();
-        setCameras(Array.isArray(camData) ? camData : camData.data || []);
       }
 
       // Fetch workers (users assigned to this worksite)
@@ -203,12 +182,6 @@ export default function WorksiteManagementPage() {
     return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
   };
 
-  const getCameraStatusColor = (status: string | null) => {
-    const s = status?.toLowerCase();
-    if (s === 'online' || s === 'active') return 'text-green-400';
-    if (s === 'offline') return 'text-red-400';
-    return 'text-gray-400';
-  };
 
   if (loading) {
     return (
@@ -260,7 +233,6 @@ export default function WorksiteManagementPage() {
 
   const tabs = [
     { id: 'overview' as TabType, name: 'Overview', icon: Activity },
-    { id: 'cameras' as TabType, name: 'Cameras & Devices', icon: Video },
     { id: 'personnel' as TabType, name: 'Personnel', icon: Users },
     { id: 'compliance' as TabType, name: 'Compliance & Alerts', icon: Shield },
     { id: 'settings' as TabType, name: 'Site Settings', icon: Settings },
@@ -280,19 +252,19 @@ export default function WorksiteManagementPage() {
               Dashboard
             </button>
             <ChevronRight className="w-4 h-4" />
-            <span className="text-white">{worksite.name}</span>
+            <span className="text-white">{worksite?.name || 'Unknown Worksite'}</span>
           </div>
 
           {/* Title and Actions */}
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-4 mb-2">
-                <h1 className="text-4xl font-bold text-white">{worksite.name}</h1>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(worksite.status)}`}>
-                  {worksite.status}
+                <h1 className="text-4xl font-bold text-white">{worksite?.name || 'Unknown Worksite'}</h1>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(worksite?.status || 'ACTIVE')}`}>
+                  {worksite?.status || 'ACTIVE'}
                 </span>
               </div>
-              {worksite.location && (
+              {worksite?.location && (
                 <div className="flex items-center gap-2 text-slate-400">
                   <MapPin className="w-4 h-4" />
                   <span>{worksite.location}</span>
@@ -310,13 +282,6 @@ export default function WorksiteManagementPage() {
                   >
                     <Edit2 className="w-4 h-4" />
                     Edit Info
-                  </button>
-                  <button
-                    onClick={() => setShowAddCameraModal(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Camera
                   </button>
                   <button
                     onClick={() => setShowAddWorkerModal(true)}
@@ -346,7 +311,7 @@ export default function WorksiteManagementPage() {
                   <button
                     onClick={() => {
                       setEditMode(false);
-                      setEditedWorksite(worksite);
+                      setEditedWorksite(worksite || {});
                     }}
                     className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
                   >
@@ -384,18 +349,9 @@ export default function WorksiteManagementPage() {
           {activeTab === 'overview' && (
             <OverviewTab 
               worksite={editMode ? editedWorksite : worksite} 
-              cameras={cameras}
               workers={workers}
               editMode={editMode}
               onEdit={setEditedWorksite}
-            />
-          )}
-          
-          {activeTab === 'cameras' && (
-            <CamerasTab 
-              cameras={cameras} 
-              worksiteId={worksiteId}
-              onRefresh={fetchWorksiteData}
             />
           )}
           
@@ -433,7 +389,7 @@ export default function WorksiteManagementPage() {
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">Delete Worksite?</h2>
               <p className="text-slate-400">
-                This action cannot be undone. All cameras, workers, and data associated with <strong className="text-white">{worksite.name}</strong> will be permanently deleted.
+                This action cannot be undone. All workers and data associated with <strong className="text-white">{worksite?.name || 'this worksite'}</strong> will be permanently deleted.
               </p>
             </div>
             
@@ -455,18 +411,6 @@ export default function WorksiteManagementPage() {
         </div>
       )}
 
-      {/* Add Camera Modal */}
-      {showAddCameraModal && (
-        <AddCameraModal
-          worksiteId={worksiteId}
-          onClose={() => setShowAddCameraModal(false)}
-          onSuccess={() => {
-            setShowAddCameraModal(false);
-            fetchWorksiteData();
-          }}
-        />
-      )}
-
       {/* Add Worker Modal */}
       {showAddWorkerModal && (
         <AddWorkerModal
@@ -483,11 +427,7 @@ export default function WorksiteManagementPage() {
 }
 
 // Overview Tab Component
-function OverviewTab({ worksite, cameras, workers, editMode, onEdit }: any) {
-  const onlineCameras = cameras.filter((c: Camera) => 
-    c.status?.toLowerCase() === 'online' || c.status?.toLowerCase() === 'active'
-  ).length;
-
+function OverviewTab({ worksite, workers, editMode, onEdit }: any) {
   const activeWorkers = workers.filter((w: Worker) => w.status === 'active').length;
 
   return (
@@ -580,19 +520,7 @@ function OverviewTab({ worksite, cameras, workers, editMode, onEdit }: any) {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Cameras */}
-        <div className="bg-gradient-to-br from-blue-600/20 to-blue-700/20 rounded-xl p-6 border border-blue-500/30">
-          <div className="flex items-center justify-between mb-4">
-            <Video className="w-8 h-8 text-blue-400" />
-            <span className="text-sm text-blue-300">Cameras</span>
-          </div>
-          <div className="text-3xl font-bold text-white mb-1">
-            {onlineCameras} / {cameras.length}
-          </div>
-          <div className="text-sm text-slate-300">Online / Total</div>
-        </div>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Workers */}
         <div className="bg-gradient-to-br from-green-600/20 to-green-700/20 rounded-xl p-6 border border-green-500/30">
           <div className="flex items-center justify-between mb-4">
@@ -635,130 +563,6 @@ function OverviewTab({ worksite, cameras, workers, editMode, onEdit }: any) {
             <span className="text-white font-medium">Run Diagnostics</span>
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// Cameras Tab Component
-function CamerasTab({ cameras, worksiteId, onRefresh }: any) {
-  const handleDeleteCamera = async (cameraId: string) => {
-    if (!confirm('Are you sure you want to remove this camera?')) return;
-
-    try {
-      const res = await fetch(`/api/cameras/${cameraId}`, {
-        method: 'DELETE'
-      });
-
-      if (res.ok) {
-        alert('Camera removed successfully');
-        onRefresh();
-      } else {
-        alert('Failed to remove camera');
-      }
-    } catch (error) {
-      console.error('Error removing camera:', error);
-      alert('Error removing camera');
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-slate-800/50 backdrop-blur rounded-xl border border-slate-700 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-700">
-          <h2 className="text-xl font-bold text-white">Cameras & Devices ({cameras.length})</h2>
-        </div>
-        
-        {cameras.length === 0 ? (
-          <div className="p-12 text-center">
-            <Video className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-white mb-2">No Cameras Yet</h3>
-            <p className="text-slate-400 mb-6">Add cameras to monitor this worksite.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-700/50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                    Camera Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                    Location
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">
-                    Last Activity
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-700">
-                {cameras.map((camera: Camera) => (
-                  <tr key={camera.id} className="hover:bg-slate-700/30">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <Video className="w-5 h-5 text-slate-400" />
-                        <span className="text-white font-medium">{camera.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-slate-300">
-                      {camera.location || 'Not specified'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-slate-300">
-                      {camera.type || 'Unknown'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${
-                          camera.status?.toLowerCase() === 'online' || camera.status?.toLowerCase() === 'active'
-                            ? 'bg-green-400'
-                            : 'bg-red-400'
-                        }`}></div>
-                        <span className="text-slate-300">{camera.status || 'Unknown'}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-slate-300">
-                      {camera.lastHeartbeat 
-                        ? new Date(camera.lastHeartbeat).toLocaleString()
-                        : 'Never'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button 
-                          className="p-2 text-blue-400 hover:text-blue-300 transition-colors"
-                          title="View Live Feed"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button 
-                          className="p-2 text-slate-400 hover:text-white transition-colors"
-                          title="Edit Camera"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteCamera(camera.id)}
-                          className="p-2 text-red-400 hover:text-red-300 transition-colors"
-                          title="Remove Camera"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -1016,7 +820,7 @@ function SettingsTab({ worksite, editMode, onEdit, onSave, onDelete }: any) {
           <div>
             <h3 className="text-white font-semibold mb-2">Delete This Worksite</h3>
             <p className="text-slate-400 text-sm mb-4">
-              Once you delete a worksite, there is no going back. This will permanently delete all cameras, 
+              Once you delete a worksite, there is no going back. This will permanently delete all 
               personnel assignments, alerts, and historical data associated with this worksite.
             </p>
             <button
@@ -1037,127 +841,6 @@ function SettingsTab({ worksite, editMode, onEdit, onSave, onDelete }: any) {
             </button>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// Add Camera Modal Component
-function AddCameraModal({ worksiteId, onClose, onSuccess }: any) {
-  const [formData, setFormData] = useState({
-    name: '',
-    location: '',
-    type: 'IP',
-    streamUrl: ''
-  });
-  const [saving, setSaving] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-
-    try {
-      const res = await fetch('/api/cameras', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          worksiteId
-        })
-      });
-
-      if (res.ok) {
-        onSuccess();
-      } else {
-        alert('Failed to add camera');
-      }
-    } catch (error) {
-      console.error('Error adding camera:', error);
-      alert('Error adding camera');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-6">
-      <div className="bg-slate-800 rounded-2xl p-8 max-w-md w-full border border-slate-700 shadow-2xl">
-        <h2 className="text-2xl font-bold text-white mb-6">Add Camera</h2>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Camera Name *
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., Main Entrance"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Location
-            </label>
-            <input
-              type="text"
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., North Gate"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Camera Type
-            </label>
-            <select
-              value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="IP">IP Camera</option>
-              <option value="PTZ">PTZ Camera</option>
-              <option value="Analog">Analog Camera</option>
-              <option value="Dome">Dome Camera</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Stream URL (RTSP/HLS)
-            </label>
-            <input
-              type="text"
-              value={formData.streamUrl}
-              onChange={(e) => setFormData({ ...formData, streamUrl: e.target.value })}
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="rtsp://..."
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
-            >
-              {saving ? 'Adding...' : 'Add Camera'}
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );

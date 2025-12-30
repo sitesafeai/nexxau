@@ -58,7 +58,7 @@ export class AWSSNSService {
       this.config = config;
       logger.info('AWS SNS SMS service initialized successfully');
     } catch (error) {
-      logger.error('Failed to initialize AWS SNS SMS service:', error);
+      logger.error('Failed to initialize AWS SNS SMS service:', error as any);
     }
   }
 
@@ -75,7 +75,7 @@ export class AWSSNSService {
       const message = this.formatSafetyViolationMessage(violation);
       return await this.sendSMS(phoneNumber, message, violation);
     } catch (error) {
-      logger.error('Failed to send safety violation SMS:', error);
+      logger.error('Failed to send safety violation SMS:', error as any);
       return false;
     }
   }
@@ -161,7 +161,7 @@ Reply STOP to unsubscribe from safety alerts.
         return false;
       }
     } catch (error) {
-      logger.error(`Failed to send AWS SNS SMS to ${phoneNumber}:`, error);
+      logger.error(`Failed to send AWS SNS SMS to ${phoneNumber}:`, error as any);
       return false;
     }
   }
@@ -195,7 +195,7 @@ Reply STOP to unsubscribe from safety alerts.
         return false;
       }
     } catch (error) {
-      logger.error(`Failed to send AWS SNS test SMS to ${phoneNumber}:`, error);
+      logger.error(`Failed to send AWS SNS test SMS to ${phoneNumber}:`, error as any);
       return false;
     }
   }

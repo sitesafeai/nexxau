@@ -184,20 +184,48 @@ export function DashboardProvider({ children }: DashboardProviderProps) {
       
       dispatch({ type: 'SET_ACCESSIBLE_SITES', payload: accessibleSites });
       
-      // Auto-select site: prioritize URL parameter, then fallback to first site
+      // Auto-select site: prioritize URL parameter, then user's primary worksite, then first site
       if (!state.selectedSiteId && accessibleSites.length > 0) {
-        // Check if URL has a worksite parameter
+        let selectedWorksiteId: string | null = null;
+        
+        // Priority 1: URL parameter
         if (worksiteParam) {
           const matchingSite = accessibleSites.find((site: any) => site.id === worksiteParam);
           if (matchingSite) {
-            dispatch({ type: 'SET_SELECTED_SITE', payload: worksiteParam });
-          } else {
-            // URL parameter doesn't match any accessible site, select first
-            dispatch({ type: 'SET_SELECTED_SITE', payload: accessibleSites[0].id });
+            selectedWorksiteId = worksiteParam;
           }
-        } else {
-          // No URL parameter, select first site
-          dispatch({ type: 'SET_SELECTED_SITE', payload: accessibleSites[0].id });
+        }
+        
+        // Priority 2: User's primary worksite (the one they were invited from)
+        if (!selectedWorksiteId && currentUser) {
+          // Check if user has a primary worksiteId
+          if (currentUser.worksiteId) {
+            const primarySite = accessibleSites.find((site: any) => site.id === currentUser.worksiteId);
+            if (primarySite) {
+              selectedWorksiteId = currentUser.worksiteId;
+            }
+          }
+          
+          // If no primary worksiteId, check worksiteAccess for the most recent/primary worksite
+          if (!selectedWorksiteId && (currentUser as any).worksiteAccess && Array.isArray((currentUser as any).worksiteAccess)) {
+            const worksiteAccess = (currentUser as any).worksiteAccess;
+            // Get the first worksite from access (usually the one they were invited to)
+            if (worksiteAccess.length > 0 && worksiteAccess[0].worksiteId) {
+              const invitedWorksite = accessibleSites.find((site: any) => site.id === worksiteAccess[0].worksiteId);
+              if (invitedWorksite) {
+                selectedWorksiteId = worksiteAccess[0].worksiteId;
+              }
+            }
+          }
+        }
+        
+        // Priority 3: First accessible site
+        if (!selectedWorksiteId) {
+          selectedWorksiteId = accessibleSites[0].id;
+        }
+        
+        if (selectedWorksiteId) {
+          dispatch({ type: 'SET_SELECTED_SITE', payload: selectedWorksiteId });
         }
       } else if (worksiteParam && state.selectedSiteId !== worksiteParam) {
         // URL parameter changed, update selection

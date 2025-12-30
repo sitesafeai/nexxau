@@ -1,0 +1,23 @@
+# Detection Service Dependencies
+
+# YOLO Model (Ultralytics)
+ultralytics>=8.0.0
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Image Processing
+Pillow>=10.0.0
+numpy>=1.24.0
+
+# Redis
+redis>=5.0.0
+
+# Web Framework & API
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# Metrics
+prometheus-client>=0.19.0
+
+# Note: For GPU support, install PyTorch with CUDA:
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118

@@ -1,1024 +1,856 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
-import { createCameraSchema } from '@/app/lib/validation/cameras';
-import { validateBody } from '@/app/lib/validation/common';
-import { getSession } from '@/app/lib/auth';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { normalizeRole } from '@/app/lib/roles';
+import * as path from 'path';
+import * as fs from 'fs';
 
-// GET /api/cameras - Get cameras (optionally filtered by worksite)
+/**
+ * GET /api/cameras
+ * Get cameras, optionally filtered by worksiteId
+ * 
+ * Query parameters:
+ * - worksiteId: Filter cameras by worksite ID
+ * 
+ * Returns: Array of cameras or { cameras: [...] }
+ */
 export async function GET(request: NextRequest) {
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  const startTime = Date.now();
+  
+  // Outer try/catch for any unexpected errors
   try {
-    // Check authentication
-    const session = await getSession();
-    const user = session?.user;
+    console.log(`[API /cameras] [${requestId}] GET request received at:`, new Date().toISOString());
+    console.log(`[API /cameras] [${requestId}] Request URL:`, request.url);
+    
+    // Quick database connectivity check
+    try {
+      const dbCheckStart = Date.now();
+      await Promise.race([
+        prisma.$queryRaw`SELECT 1`,
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Database connection check timeout after 3s')), 3000)
+        )
+      ]);
+      const dbCheckDuration = Date.now() - dbCheckStart;
+      console.log(`[API /cameras] [${requestId}] Database connection check: OK (${dbCheckDuration}ms)`);
+    } catch (dbCheckError: any) {
+      console.error(`[API /cameras] [${requestId}] ❌ Database connection check failed:`, dbCheckError);
+      return NextResponse.json(
+        {
+          error: 'Database unavailable',
+          code: 'DATABASE_ERROR',
+          message: 'Unable to connect to database. Please try again later.'
+        },
+        { status: 503 }
+      );
+    }
+    
+    // ============================================================
+    // PART A: DEFENSIVE GUARDS (MANDATORY)
+    // ============================================================
+    
+    // 1. Validate authenticated user exists
+    console.log(`[API /cameras] [${requestId}] Step 1: Validating session...`);
+    let session;
+    try {
+      const sessionStart = Date.now();
+      // Add timeout to session lookup (5 seconds)
+      session = await Promise.race([
+        getServerSession(authOptions),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session lookup timeout after 5s')), 5000)
+        )
+      ]) as any;
+      const sessionDuration = Date.now() - sessionStart;
+      console.log(`[API /cameras] [${requestId}] Session lookup took ${sessionDuration}ms`);
+    } catch (sessionError: any) {
+      console.error(`[API /cameras] [${requestId}] ❌ Session lookup failed:`, sessionError);
+      console.error(`[API /cameras] [${requestId}] Session error name:`, sessionError.name);
+      console.error(`[API /cameras] [${requestId}] Session error message:`, sessionError.message);
+      console.error(`[API /cameras] [${requestId}] Session error stack:`, sessionError.stack);
+      
+      // Check if it's a timeout
+      if (sessionError.message?.includes('timeout')) {
+        return NextResponse.json(
+          { 
+            error: 'Request timeout',
+            code: 'TIMEOUT',
+            message: 'Session lookup timed out'
+          },
+          { status: 504 }
+        );
+      }
+      
+      return NextResponse.json(
+        { 
+          error: 'Unauthorized',
+          code: 'SESSION_ERROR',
+          message: 'Failed to validate session'
+        },
+        { status: 401 }
+      );
+    }
+    
+    if (!session?.user) {
+      console.log(`[API /cameras] [${requestId}] ❌ Unauthorized: No session`);
+      return NextResponse.json(
+        { 
+          error: 'Unauthorized',
+          code: 'UNAUTHORIZED'
+        },
+        { status: 401 }
+      );
+    }
 
-    if (!user) {
+    console.log(`[API /cameras] [${requestId}] Session validated. User:`, session.user.email);
+
+    // 2. Get and validate user from database
+    console.log(`[API /cameras] [${requestId}] Step 2: Fetching user from database...`);
+    let currentUser;
+    try {
+      const userQueryStart = Date.now();
+      currentUser = await Promise.race([
+        prisma.user.findUnique({
+          where: { email: session.user.email || undefined },
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            isActivated: true,
+            companyId: true,
+            worksiteAccess: {
+              select: {
+                worksiteId: true,
+                role: true
+              }
+            }
+          }
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('User query timeout after 10s')), 10000)
+        )
+      ]) as any;
+      const userQueryDuration = Date.now() - userQueryStart;
+      console.log(`[API /cameras] [${requestId}] User query took ${userQueryDuration}ms`);
+    } catch (dbError: any) {
+      console.error(`[API /cameras] [${requestId}] ❌ Database error fetching user:`, dbError);
+      console.error(`[API /cameras] [${requestId}] Error name:`, dbError.name);
+      console.error(`[API /cameras] [${requestId}] Error message:`, dbError.message);
+      console.error(`[API /cameras] [${requestId}] Error stack:`, dbError.stack);
+      
+      // Check if it's a timeout
+      if (dbError.message?.includes('timeout')) {
+        return NextResponse.json(
+          {
+            error: 'Request timeout',
+            code: 'TIMEOUT',
+            message: 'Database query timed out while fetching user'
+          },
+          { status: 504 }
+        );
+      }
+      
+      return NextResponse.json(
+        {
+          error: 'Unable to load cameras',
+          code: 'CAMERA_FETCH_FAILED',
+          message: 'Database error while validating user'
+        },
+        { status: 500 }
+      );
+    }
+
+    // 3. Validate user exists and is active
+    if (!currentUser) {
+      console.log(`[API /cameras] [${requestId}] ❌ User not found in database`);
+      return NextResponse.json(
+        {
+          error: 'Unauthorized',
+          code: 'USER_NOT_FOUND'
+        },
+        { status: 401 }
+      );
+    }
+
+    if (currentUser.isActivated === false) {
+      console.log(`[API /cameras] [${requestId}] ❌ User is not activated`);
+      return NextResponse.json(
+        {
+          error: 'Unauthorized',
+          code: 'USER_INACTIVE'
+        },
+        { status: 401 }
+      );
+    }
+
+    console.log(`[API /cameras] [${requestId}] User validated. ID:`, currentUser.id);
+
+    // 4. Validate worksiteId if provided
+    console.log(`[API /cameras] [${requestId}] Step 3: Parsing query parameters...`);
+    const { searchParams } = new URL(request.url);
+    const worksiteId = searchParams.get('worksiteId');
+    console.log(`[API /cameras] [${requestId}] worksiteId from query:`, worksiteId);
+
+    if (worksiteId) {
+      // Validate worksiteId is a valid string (not empty, reasonable length)
+      if (typeof worksiteId !== 'string' || worksiteId.trim().length === 0 || worksiteId.length > 100) {
+        console.log(`[API /cameras] [${requestId}] ❌ Invalid worksiteId format:`, worksiteId);
+        return NextResponse.json(
+          {
+            error: 'Invalid worksite ID format',
+            code: 'INVALID_WORKSITE_ID'
+          },
+          { status: 400 }
+        );
+      }
+
+      // 5. Validate user has access to worksite
+      console.log(`[API /cameras] [${requestId}] Step 4: Validating worksite access...`);
+      const userRole = normalizeRole(currentUser.role);
+      const isGlobalAdmin = 
+        userRole === 'SUPER_ADMIN' ||
+        userRole === 'COMPANY_ADMIN' ||
+        userRole === 'ADMIN';
+
+      let hasAccess = false;
+
+      if (isGlobalAdmin) {
+        // Global admins can access any worksite
+        // Verify worksite exists
+        try {
+          const worksiteCheckStart = Date.now();
+          const worksite = await Promise.race([
+            prisma.worksite.findUnique({
+              where: { id: worksiteId.trim() },
+              select: { id: true }
+            }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Worksite query timeout after 10s')), 10000)
+            )
+          ]) as any;
+          const worksiteCheckDuration = Date.now() - worksiteCheckStart;
+          console.log(`[API /cameras] [${requestId}] Worksite check took ${worksiteCheckDuration}ms`);
+          
+          hasAccess = !!worksite;
+          if (!hasAccess) {
+            console.log(`[API /cameras] [${requestId}] ❌ Worksite not found:`, worksiteId);
+            return NextResponse.json(
+              {
+                error: 'Worksite not found',
+                code: 'WORKSITE_NOT_FOUND'
+              },
+              { status: 404 }
+            );
+          }
+        } catch (dbError: any) {
+          console.error(`[API /cameras] [${requestId}] ❌ Database error checking worksite:`, dbError);
+          console.error(`[API /cameras] [${requestId}] Error name:`, dbError.name);
+          console.error(`[API /cameras] [${requestId}] Error message:`, dbError.message);
+          
+          if (dbError.message?.includes('timeout')) {
+            return NextResponse.json(
+              {
+                error: 'Request timeout',
+                code: 'TIMEOUT',
+                message: 'Database query timed out while checking worksite'
+              },
+              { status: 504 }
+            );
+          }
+          
+          return NextResponse.json(
+            {
+              error: 'Unable to load cameras',
+              code: 'CAMERA_FETCH_FAILED',
+              message: 'Database error while validating worksite'
+            },
+            { status: 500 }
+          );
+        }
+      } else {
+        // Regular users: check worksiteAccess
+        const userWorksiteAccess = currentUser.worksiteAccess.find(
+          (access) => access.worksiteId === worksiteId.trim()
+        );
+
+        if (!userWorksiteAccess) {
+          // Also check if worksite belongs to user's company
+          if (currentUser.companyId) {
+            try {
+              const worksiteCheckStart = Date.now();
+              const worksite = await Promise.race([
+                prisma.worksite.findUnique({
+                  where: { id: worksiteId.trim() },
+                  select: { id: true, companyId: true }
+                }),
+                new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Worksite query timeout after 10s')), 10000)
+                )
+              ]) as any;
+              const worksiteCheckDuration = Date.now() - worksiteCheckStart;
+              console.log(`[API /cameras] [${requestId}] Worksite company check took ${worksiteCheckDuration}ms`);
+
+              if (worksite && worksite.companyId === currentUser.companyId) {
+                hasAccess = true;
+              } else {
+                console.log(`[API /cameras] [${requestId}] ❌ User does not have access to worksite:`, worksiteId);
+                return NextResponse.json(
+                  {
+                    error: 'Forbidden',
+                    code: 'ACCESS_DENIED'
+                  },
+                  { status: 403 }
+                );
+              }
+            } catch (dbError: any) {
+              console.error(`[API /cameras] [${requestId}] ❌ Database error checking worksite access:`, dbError);
+              console.error(`[API /cameras] [${requestId}] Error name:`, dbError.name);
+              console.error(`[API /cameras] [${requestId}] Error message:`, dbError.message);
+              
+              if (dbError.message?.includes('timeout')) {
+                return NextResponse.json(
+                  {
+                    error: 'Request timeout',
+                    code: 'TIMEOUT',
+                    message: 'Database query timed out while checking worksite access'
+                  },
+                  { status: 504 }
+                );
+              }
+              
+              return NextResponse.json(
+                {
+                  error: 'Unable to load cameras',
+                  code: 'CAMERA_FETCH_FAILED',
+                  message: 'Database error while validating worksite access'
+                },
+                { status: 500 }
+              );
+            }
+          } else {
+            console.log(`[API /cameras] [${requestId}] ❌ User does not have access to worksite:`, worksiteId);
+            return NextResponse.json(
+              {
+                error: 'Forbidden',
+                code: 'ACCESS_DENIED'
+              },
+              { status: 403 }
+            );
+          }
+        } else {
+          hasAccess = true;
+        }
+      }
+
+      if (!hasAccess) {
+        console.log(`[API /cameras] [${requestId}] ❌ Access denied to worksite:`, worksiteId);
+        return NextResponse.json(
+          {
+            error: 'Forbidden',
+            code: 'ACCESS_DENIED'
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    console.log(`[API /cameras] [${requestId}] ✅ All guards passed. Query params - worksiteId:`, worksiteId);
+
+    // ============================================================
+    // PART B: DATABASE QUERY (WRAPPED IN TRY/CATCH WITH TIMEOUT)
+    // ============================================================
+
+    console.log(`[API /cameras] [${requestId}] Step 5: Querying cameras from database...`);
+    let cameras;
+    try {
+      // Build where clause
+      const whereClause: any = {};
+      if (worksiteId) {
+        whereClause.worksiteId = worksiteId.trim();
+        console.log(`[API /cameras] [${requestId}] Filtering by worksiteId:`, worksiteId);
+      }
+
+      // Query cameras from database with timeout
+      const cameraQueryStart = Date.now();
+      cameras = await Promise.race([
+        prisma.camera.findMany({
+          where: whereClause,
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            location: true,
+            streamUrl: true,
+            hlsUrl: true,
+            mediamtxPath: true,
+            rtspPath: true,
+            ipAddress: true,
+            port: true,
+            metadata: true,
+            worksiteId: true,
+            type: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Camera query timeout after 15s')), 15000)
+        )
+      ]) as any;
+      
+      const cameraQueryDuration = Date.now() - cameraQueryStart;
+      console.log(`[API /cameras] [${requestId}] Camera query took ${cameraQueryDuration}ms`);
+    } catch (dbError: any) {
+      // Log full error server-side
+      console.error(`[API /cameras] [${requestId}] ❌ Database error:`, dbError);
+      console.error(`[API /cameras] [${requestId}] Error name:`, dbError.name);
+      console.error(`[API /cameras] [${requestId}] Error message:`, dbError.message);
+      console.error(`[API /cameras] [${requestId}] Error stack:`, dbError.stack);
+      if (dbError.code) console.error(`[API /cameras] [${requestId}] Error code:`, dbError.code);
+      if (dbError.meta) console.error(`[API /cameras] [${requestId}] Error meta:`, dbError.meta);
+
+      // Check if it's a timeout
+      if (dbError.message?.includes('timeout')) {
+        return NextResponse.json(
+          {
+            error: 'Request timeout',
+            code: 'TIMEOUT',
+            message: 'Database query timed out while fetching cameras'
+          },
+          { status: 504 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          error: 'Unable to load cameras',
+          code: 'CAMERA_FETCH_FAILED',
+          message: 'Database query failed'
+        },
+        { status: 500 }
+      );
+    }
+
+    // ============================================================
+    // PART C: HANDLE EMPTY STATES (NOT AN ERROR)
+    // ============================================================
+
+    console.log(`[API /cameras] [${requestId}] Cameras found:`, cameras.length);
+
+    // Empty array is valid - return 200 with []
+    if (cameras.length === 0) {
+      const totalDuration = Date.now() - startTime;
+      console.log(`[API /cameras] [${requestId}] ✅ No cameras found - returning empty array (took ${totalDuration}ms)`);
+      return NextResponse.json([], { status: 200 });
+    }
+
+    // ============================================================
+    // PART D: FORMAT RESPONSE
+    // ============================================================
+
+    console.log(`[API /cameras] [${requestId}] Step 6: Formatting camera data...`);
+    let formattedCameras;
+    try {
+      const formatStart = Date.now();
+      formattedCameras = cameras.map((c: any) => ({
+        id: c.id,
+        name: c.name || 'Unnamed Camera',
+        status: c.status || 'pending',
+        location: c.location || null,
+        streamUrl: c.streamUrl || null,
+        hlsUrl: c.hlsUrl || null,
+        mediamtxPath: c.mediamtxPath || null,
+        rtspPath: c.rtspPath || null,
+        ipAddress: c.ipAddress || null,
+        port: c.port || null,
+        type: c.type || 'RTSP',
+        worksiteId: c.worksiteId,
+        // Extract metadata fields if present
+        aiEnabled: (c.metadata as any)?.aiEnabled ?? false,
+        recording: (c.metadata as any)?.recording ?? true,
+        recentViolations: (c.metadata as any)?.recentViolations ?? 0,
+        lastDetection: (c.metadata as any)?.lastDetection || null,
+        uptime24h: (c.metadata as any)?.uptime24h ?? 99,
+        thumbnailUrl: (c.metadata as any)?.thumbnailUrl || null,
+        zone: c.location || (c.metadata as any)?.zone || null,
+        createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+      }));
+      const formatDuration = Date.now() - formatStart;
+      console.log(`[API /cameras] [${requestId}] Formatting took ${formatDuration}ms`);
+    } catch (formatError: any) {
+      console.error(`[API /cameras] [${requestId}] ❌ Error formatting cameras:`, formatError);
+      console.error(`[API /cameras] [${requestId}] Format error stack:`, formatError.stack);
+      return NextResponse.json(
+        {
+          error: 'Unable to load cameras',
+          code: 'CAMERA_FETCH_FAILED',
+          message: 'Error formatting camera data'
+        },
+        { status: 500 }
+      );
+    }
+
+    const totalDuration = Date.now() - startTime;
+    console.log(`[API /cameras] [${requestId}] ✅ Successfully returning ${formattedCameras.length} cameras (total: ${totalDuration}ms)`);
+    
+    // Return JSON array (frontend handles both array and { cameras: [...] } formats)
+    return NextResponse.json(formattedCameras, { status: 200 });
+
+  } catch (error: any) {
+    // Catch-all for any unexpected errors
+    const totalDuration = Date.now() - startTime;
+    console.error(`[API /cameras] [${requestId}] ❌ Unexpected error (after ${totalDuration}ms):`, error);
+    console.error(`[API /cameras] [${requestId}] Error name:`, error.name);
+    console.error(`[API /cameras] [${requestId}] Error message:`, error.message);
+    console.error(`[API /cameras] [${requestId}] Error stack:`, error.stack);
+    
+    // Check if it's a timeout
+    if (error.name === 'TimeoutError' || error.message?.includes('timeout') || error.message?.includes('timed out')) {
+      return NextResponse.json(
+        {
+          error: 'Request timeout',
+          code: 'TIMEOUT',
+          message: 'Request timed out'
+        },
+        { status: 504 }
+      );
+    }
+    
+    return NextResponse.json(
+      {
+        error: 'Unable to load cameras',
+        code: 'CAMERA_FETCH_FAILED',
+        message: error.message || 'Unknown error'
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/cameras
+ * Create a new camera
+ * 
+ * Body: {
+ *   name: string (required)
+ *   type: 'IP Camera (RTSP)' | 'ONVIF Camera' | 'Cloud Stream' (required)
+ *   streamUrl: string (required, must start with rtsp://)
+ *   worksiteId: string (required)
+ *   username?: string (optional)
+ *   password?: string (optional)
+ *   frameRate?: number (optional)
+ *   resolution?: string (optional)
+ * }
+ * 
+ * Permissions: ADMIN, COMPANY_ADMIN, SITE_ADMIN, or SAFETY_MANAGER
+ */
+export async function POST(request: NextRequest) {
+  try {
+    console.log('[API /cameras] POST request received at:', new Date().toISOString());
+    
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    const { searchParams } = new URL(request.url);
-    const rawWorksiteId = searchParams.get('worksiteId');
-    
-    // Normalize worksiteId: trim whitespace, handle null/undefined, ensure string type
-    const normalizedWorksiteId = rawWorksiteId?.trim() || null;
-    
-    // Normalize role for comparison
-    const userRole = user.role?.toUpperCase?.() || '';
-    const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'SUPERADMIN';
-    const isCompanyAdmin = userRole === 'COMPANY_ADMIN' || userRole === 'COMPANYADMIN';
-    
-    // Log user and worksiteId details for debugging
-    console.log('[cameras API GET] User:', user.email, 'Role:', userRole, 'CompanyId:', user.companyId);
-    if (normalizedWorksiteId) {
-      console.log('[cameras API GET] Raw worksiteId:', rawWorksiteId);
-      console.log('[cameras API GET] Normalized worksiteId:', normalizedWorksiteId);
-      console.log('[cameras API GET] WorksiteId type:', typeof normalizedWorksiteId);
-      console.log('[cameras API GET] WorksiteId length:', normalizedWorksiteId.length);
+    // Check permissions
+    const userRole = normalizeRole(session.user.role);
+    const canCreateCamera = 
+      userRole === 'SUPER_ADMIN' ||
+      userRole === 'COMPANY_ADMIN' ||
+      userRole === 'SITE_ADMIN' ||
+      userRole === 'SAFETY_MANAGER' ||
+      userRole === 'SAFETY_ADMIN';
+
+    if (!canCreateCamera) {
+      console.log('[API /cameras] Permission denied:', { userRole, email: session.user.email });
+      return NextResponse.json(
+        { success: false, error: 'Insufficient permissions to create cameras' },
+        { status: 403 }
+      );
     }
 
-    // Build where clause based on user role and worksiteId
-    const where: any = {};
-    
-    if (normalizedWorksiteId) {
-      // User requested specific worksite - verify they have access
-      if (isSuperAdmin) {
-        // Super admin can access any worksite - no additional permission check needed
-        where.worksiteId = normalizedWorksiteId;
-        console.log('[cameras API GET] SUPER_ADMIN - filtering by worksiteId:', normalizedWorksiteId);
-      } else if (isCompanyAdmin && user.companyId) {
-        // Company admin can only see cameras from their company's worksites
-        // Verify the worksite belongs to their company first, then filter by worksiteId
-        try {
-          const worksite = await prisma.worksite.findUnique({
-            where: { id: normalizedWorksiteId },
-            select: { id: true, companyId: true }
-          });
-          
-          if (worksite && worksite.companyId === user.companyId) {
-        where.worksiteId = normalizedWorksiteId;
-            console.log('[cameras API GET] COMPANY_ADMIN - worksite verified, filtering by worksiteId:', normalizedWorksiteId);
-      } else {
-            console.log('[cameras API GET] COMPANY_ADMIN - worksite does not belong to company, returning empty');
-            return NextResponse.json({
-              success: true,
-              data: [],
-              count: 0,
-              total: 0,
-            });
-          }
-        } catch (worksiteCheckError) {
-          console.error('[cameras API GET] Error checking worksite, using simple filter:', worksiteCheckError);
-        where.worksiteId = normalizedWorksiteId;
-        }
-      } else {
-        // Regular users can only see cameras from worksites they have access to
-        // Verify the user has access to the worksite first, then filter by worksiteId
-        try {
-          const worksiteUser = await prisma.worksiteUser.findFirst({
-            where: {
-              worksiteId: normalizedWorksiteId,
-              userId: user.id
-            },
-            select: { id: true }
-          });
-          
-          if (worksiteUser) {
-            where.worksiteId = normalizedWorksiteId;
-            console.log('[cameras API GET] Regular user - access verified, filtering by worksiteId:', normalizedWorksiteId);
-          } else {
-            console.log('[cameras API GET] Regular user - no access to worksite, returning empty');
-            return NextResponse.json({
-              success: true,
-              data: [],
-              count: 0,
-              total: 0,
-            });
-          }
-        } catch (accessCheckError) {
-          console.error('[cameras API GET] Error checking access, using simple filter:', accessCheckError);
-          where.worksiteId = normalizedWorksiteId;
-        }
-      }
-    } else {
-      // No worksiteId specified - filter by user access
-      if (isSuperAdmin) {
-        // Super admin sees all cameras
-        console.log('[cameras API GET] SUPER_ADMIN - fetching all cameras');
-      } else if (isCompanyAdmin && user.companyId) {
-        // Company admin sees cameras from their company's worksites
-        where.worksite = {
-          companyId: user.companyId
-        };
-        console.log('[cameras API GET] COMPANY_ADMIN - filtering by companyId:', user.companyId);
-      } else {
-        // Regular users see cameras from worksites they have access to
-        where.worksite = {
-          worksiteUsers: {
-            some: {
-              userId: user.id
-            }
-          }
-        };
-        console.log('[cameras API GET] Regular user - filtering by accessible worksites for user:', user.id);
-      }
-    }
-
-    let cameras;
-    try {
-      console.log('[cameras API GET] Query where clause:', JSON.stringify(where, null, 2));
-      
-      // First, let's check what cameras exist for debugging (only in development)
-      if (normalizedWorksiteId && process.env.NODE_ENV === 'development') {
-        // Check if the worksite exists and what company it belongs to
-        const worksite = await prisma.worksite.findUnique({
-          where: { id: normalizedWorksiteId },
-          select: { id: true, name: true, companyId: true }
-        });
-        if (worksite) {
-          console.log('[cameras API GET] Worksite found:', worksite);
-          console.log('[cameras API GET] Worksite companyId:', worksite.companyId, 'User companyId:', user.companyId);
-          if (worksite.companyId !== user.companyId && !isSuperAdmin) {
-            console.log('[cameras API GET] ⚠️ Worksite belongs to different company! User cannot access cameras from this worksite.');
-            console.log('[cameras API GET] ⚠️ This is why the query returns 0 cameras - the permission filter is blocking them.');
-          } else {
-            console.log('[cameras API GET] ✅ Worksite belongs to user\'s company - permission check should pass');
-          }
-        } else {
-          console.log('[cameras API GET] ⚠️ Worksite not found:', normalizedWorksiteId);
-        }
-        
-        // Check cameras directly without permission filter
-        const camerasWithoutFilter = await prisma.camera.findMany({
-          where: { worksiteId: normalizedWorksiteId },
-          select: { id: true, name: true, worksiteId: true, createdAt: true }
-        });
-        console.log('[cameras API GET] Cameras for worksiteId (no permission filter):', camerasWithoutFilter.length, 'found');
-        if (camerasWithoutFilter.length > 0) {
-          console.log('[cameras API GET] ✅ Cameras exist:', camerasWithoutFilter.map(c => ({ id: c.id, name: c.name })));
-        } else {
-          console.log('[cameras API GET] ❌ No cameras exist for worksiteId', normalizedWorksiteId);
-        }
-        
-        const allCameras = await prisma.camera.findMany({
-          select: { id: true, name: true, worksiteId: true, createdAt: true },
-          orderBy: { createdAt: 'desc' },
-          take: 20 // Limit to avoid too much logging
-        });
-        console.log('[cameras API GET] Recent cameras in DB (last 20):', allCameras.map(c => ({
-          id: c.id,
-          name: c.name,
-          worksiteId: c.worksiteId,
-          createdAt: c.createdAt
-        })));
-        const matching = allCameras.filter(c => c.worksiteId === normalizedWorksiteId);
-        console.log('[cameras API GET] Cameras matching worksiteId', normalizedWorksiteId, ':', matching.length, 'found');
-        if (matching.length > 0) {
-          console.log('[cameras API GET] ✅ Matching cameras:', matching.map(c => ({ id: c.id, name: c.name, createdAt: c.createdAt })));
-        } else {
-          console.log('[cameras API GET] ❌ No cameras match worksiteId', normalizedWorksiteId);
-          console.log('[cameras API GET] Available worksiteIds in recent cameras:', [...new Set(allCameras.map(c => c.worksiteId))]);
-        }
-      }
-      
-      // Log the exact query we're about to execute
-      console.log('[cameras API GET] Executing Prisma query with where:', JSON.stringify(where, null, 2));
-      
-      // For debugging: if no filters, log a warning
-      if (Object.keys(where).length === 0) {
-        console.log('[cameras API GET] ⚠️ No where clause - will fetch ALL cameras (super admin)');
-      }
-      
-      cameras = await prisma.camera.findMany({
-        where,
-        select: {
-          id: true,
-          name: true,
-          type: true,
-          status: true,
-          streamUrl: true,
-          location: true,
-          ipAddress: true,
-          port: true,
-          username: true,
-          password: true,
-          rtspPath: true,
-          hlsUrl: true,
-          mediamtxPath: true,
-          metadata: true,
-          worksiteId: true,
-          createdAt: true,
-          updatedAt: true,
-          // lastHeartbeat: true, // NOT IN DATABASE YET
-          worksite: {
-            select: {
-              id: true,
-              name: true,
-              worksiteName: true
-            }
-          },
-          health: {
-            select: {
-              id: true,
-              status: true,
-              streamQuality: true,
-              frameRate: true,
-              resolution: true,
-              lastCheck: true,
-              createdAt: true
-            },
-            orderBy: {
-              createdAt: 'desc'
-            },
-            take: 1
-          },
-          _count: {
-            select: {
-              detections: true,
-              safetyViolations: true
-            }
-          }
-        },
-        orderBy: {
-          createdAt: 'desc'
-        }
-      });
-      
-      console.log(`[cameras API] Found ${cameras.length} cameras for worksite: ${normalizedWorksiteId || 'all'}`);
-    } catch (dbError) {
-      console.error('[cameras API] Database error fetching cameras:', dbError);
-      // Return empty array if database fails
-      return NextResponse.json({
-        success: true,
-        data: [],
-        count: 0,
-        error: 'Database error'
-      });
-    }
-
-    console.log('[cameras API GET] Found', cameras.length, 'cameras matching query');
-    
-    // Log sample worksiteIds from results for comparison
-    if (cameras.length > 0 && normalizedWorksiteId) {
-      const sampleWorksiteIds = cameras.slice(0, 3).map(c => ({
-        id: c.id,
-        name: c.name,
-        worksiteId: c.worksiteId,
-        worksiteIdType: typeof c.worksiteId,
-        worksiteIdLength: c.worksiteId?.length
-      }));
-      console.log('[cameras API GET] Sample worksiteIds from results:', sampleWorksiteIds);
-    }
-    
-    if (normalizedWorksiteId) {
-      if (cameras.length > 0) {
-        console.log('[cameras API GET] ✅ Cameras found for worksiteId', normalizedWorksiteId, ':', cameras.map(c => ({ id: c.id, name: c.name, worksiteId: c.worksiteId })));
-      } else {
-        console.log('[cameras API GET] ⚠️ No cameras found for worksiteId:', normalizedWorksiteId);
-        // Try a direct query to see if the camera exists at all
-        try {
-          const directCheck = await prisma.camera.findFirst({
-            where: { worksiteId: normalizedWorksiteId },
-            select: { id: true, name: true, worksiteId: true }
-          });
-          if (directCheck) {
-            console.log('[cameras API GET] ⚠️ Direct query found camera:', directCheck);
-            console.log('[cameras API GET] ⚠️ But findMany returned 0. This suggests a query issue.');
-            console.log('[cameras API GET] Direct check worksiteId:', {
-              value: directCheck.worksiteId,
-              type: typeof directCheck.worksiteId,
-              length: directCheck.worksiteId?.length,
-              matchesQuery: directCheck.worksiteId === normalizedWorksiteId
-            });
-          } else {
-            console.log('[cameras API GET] ⚠️ Direct query also returned null - camera truly does not exist for this worksiteId');
-          }
-        } catch (checkError) {
-          console.error('[cameras API GET] Error checking for camera:', checkError);
-        }
-      }
-    }
-    
-    // Format cameras with computed fields
-    const formattedCameras = cameras.map(camera => {
-      try {
-        const latestHealth = camera.health?.[0];
-        const lastActivity = latestHealth?.lastCheck || camera.updatedAt;
-        const minutesSinceActivity = lastActivity 
-          ? Math.floor((Date.now() - new Date(lastActivity).getTime()) / 1000 / 60)
-          : 0;
-        
-        // Determine status based on database status or health record
-        let status: 'online' | 'offline' | 'error' = 'online'; // Default to online for new cameras
-        
-        if (latestHealth) {
-          // Use health record status if available
-          if (latestHealth.status === 'OFFLINE') {
-            status = 'offline';
-          } else if (latestHealth.status === 'ERROR') {
-            status = 'error';
-          } else {
-            status = 'online';
-          }
-        } else if (camera.status === 'active') {
-          // No health record but camera is active
-          status = 'online';
-        } else {
-          status = 'offline';
-        }
-
-        return {
-          id: camera.id,
-          name: camera.name,
-          streamUrl: camera.streamUrl || camera.hlsUrl,
-          streamType: camera.hlsUrl ? 'hls' : camera.streamUrl?.startsWith('rtsp') ? 'rtsp' : 'http',
-          location: camera.location || 'Unknown',
-          status,
-          resolution: latestHealth?.resolution || '1920x1080',
-          fps: latestHealth?.frameRate || 30,
-          lastActivity: lastActivity?.toISOString() || new Date().toISOString(),
-          minutesSinceActivity,
-          detectionCount: camera._count?.detections || 0,
-          violationCount: camera._count?.safetyViolations || 0,
-          features: {
-            aiDetection: true,
-            nightVision: false,
-            ptz: false,
-            audio: false
-          },
-          worksiteId: camera.worksiteId,
-          worksite: camera.worksite,
-          createdAt: camera.createdAt?.toISOString() || new Date().toISOString(),
-          updatedAt: camera.updatedAt?.toISOString() || new Date().toISOString()
-        };
-      } catch (formatError: any) {
-        console.error('[cameras API GET] Error formatting camera:', camera.id, formatError);
-        // Return a basic formatted camera if formatting fails
-        return {
-          id: camera.id,
-          name: camera.name || 'Unknown',
-          streamUrl: camera.streamUrl || camera.hlsUrl || null,
-          streamType: camera.hlsUrl ? 'hls' : 'rtsp',
-          location: camera.location || 'Unknown',
-          status: camera.status || 'offline',
-          resolution: '1920x1080',
-          fps: 30,
-          lastActivity: camera.updatedAt?.toISOString() || new Date().toISOString(),
-          minutesSinceActivity: 0,
-          detectionCount: 0,
-          violationCount: 0,
-          features: { aiDetection: true, nightVision: false, ptz: false, audio: false },
-          worksiteId: camera.worksiteId,
-          worksite: camera.worksite,
-          createdAt: camera.createdAt?.toISOString() || new Date().toISOString(),
-          updatedAt: camera.updatedAt?.toISOString() || new Date().toISOString()
-        };
-      }
-    });
-
-    // Ensure we return cameras array even if empty
-    const responseData = {
-      success: true,
-      data: Array.isArray(formattedCameras) ? formattedCameras : [],
-      count: formattedCameras.length,
-      total: formattedCameras.length,
-    };
-    
-    console.log('[cameras API GET] Returning response:', {
-      success: responseData.success,
-      dataLength: responseData.data.length,
-      count: responseData.count
-    });
-    
-    return NextResponse.json(responseData);
-
-  } catch (error: any) {
-    console.error('[cameras API GET] Failed to fetch cameras:', error);
-    console.error('[cameras API GET] Error details:', {
-      message: error?.message,
-      code: error?.code,
-      name: error?.name,
-      meta: error?.meta,
-      stack: error?.stack
-    });
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to fetch cameras',
-        details: error instanceof Error ? error.message : 'Unknown error',
-        ...(process.env.NODE_ENV === 'development' && {
-          debug: {
-            name: error?.name,
-            code: error?.code,
-            meta: error?.meta
-          }
-        })
-      },
-      { status: 500 }
-    );
-  }
-}
-
-// POST /api/cameras - Create a new camera
-export async function POST(request: NextRequest) {
-  try {
     const body = await request.json();
-    
-    // Support both legacy and new format
-    const isNewFormat = body.connection !== undefined;
-    
-    if (isNewFormat) {
-      // New format with connection/metadata objects
-      return handleNewFormatCreate(body);
-    }
-    
-    // Legacy format handling
-    const validation = validateBody(createCameraSchema, body);
-
-    if (!validation.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Validation failed',
-          details: validation.error.errors,
-        },
-        { status: 400 }
-      );
-    }
-
-    const data = validation.data;
-    const { 
-      name, 
-      streamUrl, 
-      hlsUrl,
-      location, 
-      worksiteId,
-      type = 'IP Camera',
-      ipAddress,
-      port,
-      username,
-      password,
-      rtspPath,
-      mediamtxPath,
-      metadata
-    } = data;
-
-    // Ensure we have either streamUrl or hlsUrl
-    if (!streamUrl && !hlsUrl) {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: 'Either streamUrl or hlsUrl is required' 
-        }, 
-        { status: 400 }
-      );
-    }
-
-    // Get default worksite if not provided
-    let targetWorksiteId = worksiteId;
-    if (!targetWorksiteId) {
-      const defaultWorksite = await prisma.worksite.findFirst({
-        orderBy: { createdAt: 'asc' }
-      });
-      
-      if (!defaultWorksite) {
-        // Cannot create worksite without companyId - return error
-        return NextResponse.json(
-          { 
-            success: false,
-            error: 'worksiteId is required when no default worksite exists. Worksite must be created with a company first.' 
-          }, 
-          { status: 400 }
-        );
-      } else {
-        targetWorksiteId = defaultWorksite.id;
-      }
-    }
-
-    // Determine stream type and URLs
-    const finalStreamUrl = streamUrl || hlsUrl;
-    const isHLS = finalStreamUrl?.includes('.m3u8') || finalStreamUrl?.includes('hls') || !!hlsUrl;
-    const isRTSP = finalStreamUrl?.startsWith('rtsp://');
-
-    // Create camera with transaction
-    const camera = await prisma.$transaction(async (tx) => {
-      // Create camera
-      const newCamera = await tx.camera.create({
-        data: {
-          name,
-          type: type || 'IP Camera',
-          status: 'active',
-          streamUrl: isRTSP ? finalStreamUrl : undefined,
-          hlsUrl: isHLS ? (hlsUrl || finalStreamUrl) : undefined,
-          location: location || 'Unspecified',
-          ipAddress,
-          port,
-          username,
-          password,
-          rtspPath,
-          mediamtxPath,
-          metadata: metadata || undefined,
-          worksiteId: targetWorksiteId
-        },
-        include: {
-          worksite: {
-            select: {
-              id: true,
-              name: true,
-              worksiteName: true
-            }
-          }
-        }
-      });
-
-      // Create initial health record
-      await tx.cameraHealth.create({
-        data: {
-          cameraId: newCamera.id,
-          status: 'ONLINE',
-          streamQuality: 100,
-          frameRate: 30,
-          resolution: '1920x1080',
-          lastCheck: new Date()
-        }
-      });
-
-      return newCamera;
-    });
-
-    // Format response
-    const formattedCamera = {
-      id: camera.id,
-      name: camera.name,
-      streamUrl: camera.streamUrl || camera.hlsUrl,
-      streamType: isHLS ? 'hls' : isRTSP ? 'rtsp' : 'http',
-      location: camera.location,
-      status: 'online' as const,
-      resolution: '1920x1080',
-      fps: 30,
-      lastActivity: camera.createdAt.toISOString(),
-      minutesSinceActivity: 0,
-      detectionCount: 0,
-      violationCount: 0,
-      features: {
-        aiDetection: true,
-        nightVision: false,
-        ptz: false,
-        audio: false
-      },
-      worksiteId: camera.worksiteId,
-      worksite: camera.worksite,
-      createdAt: camera.createdAt.toISOString(),
-      updatedAt: camera.updatedAt.toISOString()
-    };
-
-    return NextResponse.json({
-      success: true,
-      data: formattedCamera,
-      message: 'Camera created successfully'
-    }, { status: 201 });
-
-  } catch (error) {
-    console.error('Failed to create camera:', error);
-    return NextResponse.json(
-      { 
-        success: false,
-        error: 'Failed to create camera',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      }, 
-      { status: 500 }
-    );
-  }
-}
-
-// Handle new format camera creation with connection/metadata objects
-async function handleNewFormatCreate(body: any) {
-  try {
-    const {
-      name,
-      externalId,
-      worksiteId,
-      connection,
-      metadata,
-      enabled = true,
-      retentionDays = 30,
-      aiEnabled = true,
-      confidenceThreshold = 0.7,
-    } = body;
+    const { name, type, streamUrl, worksiteId, username, password, frameRate, resolution } = body;
 
     // Validation
-    if (!name || name.length < 3) {
-      return NextResponse.json({
-        success: false,
-        error: 'Camera name is required (min 3 characters)'
-      }, { status: 400 });
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Camera name is required' },
+        { status: 400 }
+      );
     }
 
-    if (!worksiteId) {
-      return NextResponse.json({
-        success: false,
-        error: 'Worksite ID is required'
-      }, { status: 400 });
+    if (!type || !['IP Camera (RTSP)', 'ONVIF Camera', 'Cloud Stream'].includes(type)) {
+      return NextResponse.json(
+        { success: false, error: 'Valid camera type is required' },
+        { status: 400 }
+      );
     }
 
-    // Check for stream URL in appropriate field based on connection type
-    const hasStreamUrl = 
-      connection?.rtspUrl || 
-      connection?.hlsUrl || 
-      connection?.webrtcUrl;
-    
-    if (!hasStreamUrl) {
-      console.error('[cameras API] Missing stream URL:', { connection });
-      return NextResponse.json({
-        success: false,
-        error: 'Stream URL is required (rtspUrl, hlsUrl, or webrtcUrl)'
-      }, { status: 400 });
+    if (!streamUrl || typeof streamUrl !== 'string' || !streamUrl.trim()) {
+      return NextResponse.json(
+        { success: false, error: 'Stream URL is required' },
+        { status: 400 }
+      );
     }
-    
-    console.log('[cameras API] Creating camera with:', {
-      name,
-      worksiteId,
-      connectionType: connection.type,
-      hasStreamUrl: !!hasStreamUrl
+
+    // Validate RTSP URL format
+    if (type === 'IP Camera (RTSP)' || type === 'ONVIF Camera') {
+      if (!streamUrl.startsWith('rtsp://')) {
+        return NextResponse.json(
+          { success: false, error: 'RTSP URL must start with rtsp://' },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (!worksiteId || typeof worksiteId !== 'string') {
+      return NextResponse.json(
+        { success: false, error: 'Worksite ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Verify worksite exists and user has access
+    const worksite = await prisma.worksite.findUnique({
+      where: { id: worksiteId },
+      select: { id: true, name: true, companyId: true }
     });
 
-    // Verify worksite exists before creating camera
-    try {
-      const worksiteExists = await prisma.worksite.findUnique({
-        where: { id: worksiteId },
-        select: { id: true, name: true }
-      });
-      
-      if (!worksiteExists) {
-        console.error('[cameras API] Worksite not found:', worksiteId);
-        return NextResponse.json({
-          success: false,
-          error: `Worksite with ID ${worksiteId} not found`
-        }, { status: 404 });
-      }
-      
-      console.log('[cameras API] Worksite verified:', worksiteExists.name);
-    } catch (worksiteError: any) {
-      console.error('[cameras API] Error checking worksite:', worksiteError);
-      return NextResponse.json({
-        success: false,
-        error: 'Failed to verify worksite',
-        details: worksiteError?.message
-      }, { status: 500 });
+    if (!worksite) {
+      return NextResponse.json(
+        { success: false, error: 'Worksite not found' },
+        { status: 404 }
+      );
     }
 
-    // Create camera with transaction
-    let camera;
-    try {
-      camera = await prisma.$transaction(async (tx) => {
-        console.log('[cameras API] Starting camera creation transaction');
-      
-      // Determine which URL field to use based on connection type
-      const streamUrl = connection.type === 'RTSP' || connection.type === 'RTMP' || connection.type === 'MJPEG'
-        ? (connection.rtspUrl || null)
-        : null;
-      const hlsUrl = connection.type === 'HLS' || connection.type === 'PreSignedURL'
-        ? (connection.hlsUrl || null)
-        : null;
-      
-      console.log('[cameras API] Camera data:', {
-        name,
-        type: connection.type || 'RTSP',
-        worksiteId,
-        hasStreamUrl: !!streamUrl,
-        hasHlsUrl: !!hlsUrl
-      });
-      
-      // Build metadata object
-      const cameraMetadata: any = {};
-      if (metadata) {
-        if (metadata.lat !== undefined && metadata.lat !== null) cameraMetadata.lat = metadata.lat;
-        if (metadata.lon !== undefined && metadata.lon !== null) cameraMetadata.lon = metadata.lon;
-        if (metadata.mountHeight !== undefined && metadata.mountHeight !== null) cameraMetadata.mountHeight = metadata.mountHeight;
-        if (metadata.orientation !== undefined && metadata.orientation !== null) cameraMetadata.orientation = metadata.orientation;
-        if (metadata.fov !== undefined && metadata.fov !== null) cameraMetadata.fov = metadata.fov;
-        if (metadata.tags && Array.isArray(metadata.tags)) cameraMetadata.tags = metadata.tags;
-        if (metadata.model) cameraMetadata.model = metadata.model;
-        if (metadata.notes) cameraMetadata.notes = metadata.notes;
-        if (metadata.resolution) cameraMetadata.resolution = metadata.resolution;
-        if (metadata.fps !== undefined && metadata.fps !== null) cameraMetadata.fps = metadata.fps;
-        if (metadata.codec) cameraMetadata.codec = metadata.codec;
-      }
-      
-      // Determine location - prefer metadata.notes, fallback to 'Unspecified'
-      const cameraLocation = metadata?.notes || 'Unspecified';
-      
-      // Determine stream URL - ensure we have at least one
-      const finalStreamUrl = streamUrl || hlsUrl;
-      if (!finalStreamUrl) {
-        throw new Error('Stream URL is required (rtspUrl, hlsUrl, or webrtcUrl)');
-      }
-      
-      console.log('[cameras API] Creating camera with data:', {
+    // Get current user for audit log
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email || undefined },
+      select: { id: true }
+    });
+
+    // Map camera type to database type
+    const cameraType = type === 'IP Camera (RTSP)' ? 'RTSP' : type === 'ONVIF Camera' ? 'ONVIF' : 'CLOUD';
+
+    // Create camera
+    const camera = await prisma.camera.create({
+      data: {
         name: name.trim(),
-        type: connection.type || 'RTSP',
-        status: 'pending',
-        streamUrl: streamUrl || undefined,
-        hlsUrl: hlsUrl || undefined,
-        location: cameraLocation,
-        worksiteId: worksiteId,
-        worksiteIdType: typeof worksiteId,
-        hasMetadata: Object.keys(cameraMetadata).length > 0
-      });
-      
-      if (!worksiteId) {
-        console.error('[cameras API] ❌ ERROR: worksiteId is missing or null!');
-        throw new Error('worksiteId is required');
-      }
-      
-      // Verify worksite exists before creating camera
-      const worksiteExists = await tx.worksite.findUnique({
-        where: { id: worksiteId },
-        select: { id: true, name: true, companyId: true }
-      });
-      
-      if (!worksiteExists) {
-        console.error('[cameras API] ❌ ERROR: Worksite does not exist:', worksiteId);
-        throw new Error(`Worksite ${worksiteId} does not exist`);
-      }
-      
-      console.log('[cameras API] ✅ Worksite verified:', {
-        id: worksiteExists.id,
-        name: worksiteExists.name,
-        companyId: worksiteExists.companyId
-      });
-      
-      const newCamera = await tx.camera.create({
-        data: {
-          name: name.trim(),
-          type: connection.type || 'RTSP',
-          status: 'pending', // Set to pending until first successful test
-          
-          // Legacy fields for backward compatibility
-          streamUrl: streamUrl || undefined,
-          hlsUrl: hlsUrl || undefined,
-          username: connection.username || undefined,
-          password: connection.password || undefined, // TODO: Encrypt in production
-          
-          rtspPath: connection.type === 'RTSP' ? (connection.rtspUrl || undefined) : undefined,
-          location: cameraLocation,
-          metadata: Object.keys(cameraMetadata).length > 0 ? cameraMetadata : undefined,
-          
-          worksiteId: worksiteId, // Explicitly set worksiteId
-        },
-        include: {
-          worksite: {
-            select: {
-              id: true,
-              name: true,
-              worksiteName: true,
-            }
-          }
+        type: cameraType,
+        streamUrl: streamUrl.trim(),
+        worksiteId,
+        status: 'pending', // Initial status - will be updated when stream is verified
+        username: username?.trim() || null,
+        password: password?.trim() || null, // Note: Should be encrypted in production
+        metadata: {
+          frameRate: frameRate || null,
+          resolution: resolution || null,
+          aiEnabled: false, // Default to false, can be enabled later
+          recording: true, // Default to true
         }
-      });
-
-      // Create initial health record
-      try {
-        await tx.cameraHealth.create({
-          data: {
-            cameraId: newCamera.id,
-            status: 'ONLINE',
-            streamQuality: 100,
-            frameRate: metadata?.fps || 30,
-            resolution: metadata?.resolution || '1920x1080',
-            lastCheck: new Date(),
-          }
-        });
-        console.log('[cameras API] Health record created successfully');
-      } catch (healthError: any) {
-        // Log but don't fail camera creation if health record fails
-        console.warn('[cameras API] Failed to create health record:', healthError?.message || healthError);
-        console.warn('[cameras API] Health error code:', healthError?.code);
-        console.warn('[cameras API] Health error meta:', healthError?.meta);
+      },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        status: true,
+        streamUrl: true,
+        worksiteId: true,
+        createdAt: true,
+        updatedAt: true
       }
-
-      // Create audit log (optional - don't fail if it errors)
-      // Note: entityName column may not exist in database, so we skip it
-      try {
-        await tx.auditLog.create({
-          data: {
-            action: 'CAMERA_CREATED',
-            entityType: 'CAMERA',
-            entityId: newCamera.id,
-            // worksiteId doesn't exist in AuditLog schema - store in details instead
-            details: {
-              name: newCamera.name,
-              type: connection.type,
-              worksiteId: newCamera.worksiteId,
-              worksiteName: newCamera.worksite?.name,
-            },
-            // result and severity don't exist in AuditLog schema - store in details if needed
-          }
-        });
-        console.log('[cameras API] Audit log created successfully');
-      } catch (auditError: any) {
-        // Log but don't fail camera creation if audit log fails
-        console.warn('[cameras API] Failed to create audit log:', auditError?.message || auditError);
-        console.warn('[cameras API] Audit error code:', auditError?.code);
-      }
-
-        console.log('[cameras API] Camera created successfully in transaction:', {
-          id: newCamera.id,
-          name: newCamera.name,
-          worksiteId: newCamera.worksiteId,
-          worksiteName: newCamera.worksite?.name
-        });
-        return newCamera;
-      }, {
-        timeout: 10000, // 10 second timeout
-        isolationLevel: 'ReadCommitted' // Explicit isolation level
-      });
-      
-      console.log('[cameras API] ✅ Transaction completed successfully, camera object:', {
-        id: camera.id,
-        name: camera.name,
-        worksiteId: camera.worksiteId
-      });
-    } catch (transactionError: any) {
-      console.error('[cameras API] ❌ Transaction failed:', transactionError?.message);
-      console.error('[cameras API] Transaction error stack:', transactionError?.stack);
-      console.error('[cameras API] Transaction error code:', transactionError?.code);
-      throw transactionError;
-    }
-
-    console.log('[cameras API] Camera transaction completed, verifying camera exists:', {
-      id: camera.id,
-      name: camera.name,
-      worksiteId: camera.worksiteId,
-      worksiteIdType: typeof camera.worksiteId,
-      worksiteIdLength: camera.worksiteId?.length,
-      worksiteName: camera.worksite?.name
     });
-    
-    // Immediately check if camera exists using raw SQL to bypass any Prisma caching
-    try {
-      const rawCheck = await prisma.$queryRaw<Array<{ id: string; name: string; worksiteId: string }>>`
-        SELECT id, name, "worksiteId" FROM "Camera" WHERE id = ${camera.id}
-      `;
-      console.log('[cameras API] Raw SQL check result:', rawCheck.length > 0 ? 'Camera found' : 'Camera NOT found', rawCheck);
-    } catch (rawError: any) {
-      console.error('[cameras API] Raw SQL check failed:', rawError?.message);
-    }
-    
-    // Verify the camera was actually saved by querying it back
-    // Use retry logic to handle potential transaction isolation delays
-    const maxRetries = 3;
-    const retryDelay = 100; // ms
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        if (attempt > 1) {
-          console.log(`[cameras API] Verification attempt ${attempt}/${maxRetries}, waiting ${retryDelay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-        }
-        
-        const verifyCamera = await prisma.camera.findUnique({
-          where: { id: camera.id },
-          select: {
-            id: true,
-            name: true,
-            worksiteId: true,
-            worksite: {
-              select: {
-                id: true,
-                name: true
-              }
+
+    console.log('[API /cameras] ✅ Camera created:', camera.id, camera.name);
+
+    // ============================================================
+    // AUTOMATIC RTSP → HLS CONVERSION
+    // ============================================================
+    // CRITICAL: Start HLS conversion immediately for RTSP cameras
+    // This runs asynchronously so API response isn't blocked
+    if ((cameraType === 'RTSP' || cameraType === 'ONVIF') && streamUrl.trim().startsWith('rtsp://')) {
+      console.log(`[API /cameras] 🎬 Starting automatic RTSP → HLS conversion for camera ${camera.id}`);
+      
+      // Start conversion asynchronously (don't block API response)
+      (async () => {
+        try {
+          const { ensureHlsStream } = await import('@/app/lib/streaming/hlsManager');
+          const hlsUrl = ensureHlsStream(camera.id, streamUrl.trim());
+          
+          if (hlsUrl) {
+            // Wait for first segment to be created (up to 15 seconds)
+            const maxWaitTime = 15000; // 15 seconds
+            const checkInterval = 500; // Check every 500ms
+            const startTime = Date.now();
+            let playlistReady = false;
+            
+            // Determine stream directory path
+            const cwd = process.cwd();
+            let streamDir: string;
+            if (fs.existsSync(path.join(cwd, 'public'))) {
+              streamDir = path.join(cwd, 'public', 'streams', camera.id);
+            } else if (fs.existsSync(path.join(cwd, 'app', 'public'))) {
+              streamDir = path.join(cwd, 'app', 'public', 'streams', camera.id);
+            } else {
+              streamDir = path.join(cwd, 'public', 'streams', camera.id);
             }
+            
+            const playlistPath = path.join(streamDir, 'index.m3u8');
+            
+            // Poll for playlist file creation
+            while (Date.now() - startTime < maxWaitTime) {
+              if (fs.existsSync(playlistPath)) {
+                try {
+                  const playlistContent = fs.readFileSync(playlistPath, 'utf8');
+                  // Check if playlist has at least one segment
+                  if (playlistContent.includes('.ts') && !playlistContent.includes('#EXT-X-ENDLIST')) {
+                    playlistReady = true;
+                    console.log(`[API /cameras] ✅ HLS playlist ready for camera ${camera.id} after ${Date.now() - startTime}ms`);
+                    break;
+                  }
+                } catch (readError) {
+                  // Playlist exists but can't read it yet - continue waiting
+                }
+              }
+              await new Promise(resolve => setTimeout(resolve, checkInterval));
+            }
+            
+            if (playlistReady) {
+              // Update camera with HLS URL and mark as online
+              await prisma.camera.update({
+                where: { id: camera.id },
+                data: {
+                  hlsUrl: hlsUrl,
+                  status: 'active', // Mark as active once HLS is ready
+                }
+              });
+              
+              console.log(`[API /cameras] ✅ HLS conversion complete for camera ${camera.id}: ${hlsUrl}`);
+            } else {
+              // Playlist not ready after timeout - mark as pending but don't fail
+              console.warn(`[API /cameras] ⚠️ HLS playlist not ready for camera ${camera.id} after ${maxWaitTime}ms - will retry on next access`);
+              // Don't update status - keep as 'pending' so frontend knows to retry
+            }
+          } else {
+            // HLS conversion failed to start
+            console.error(`[API /cameras] ❌ Failed to start HLS conversion for camera ${camera.id}`);
+            await prisma.camera.update({
+              where: { id: camera.id },
+              data: {
+                status: 'offline',
+                metadata: {
+                  ...((await prisma.camera.findUnique({ where: { id: camera.id }, select: { metadata: true } }))?.metadata as any || {}),
+                  hlsConversionError: 'Failed to start FFmpeg process',
+                  hlsConversionErrorTime: new Date().toISOString(),
+                }
+              }
+            });
+          }
+        } catch (conversionError: any) {
+          console.error(`[API /cameras] ❌ HLS conversion error for camera ${camera.id}:`, conversionError);
+          
+          // Update camera with error status
+          try {
+            await prisma.camera.update({
+              where: { id: camera.id },
+              data: {
+                status: 'offline',
+                metadata: {
+                  ...((await prisma.camera.findUnique({ where: { id: camera.id }, select: { metadata: true } }))?.metadata as any || {}),
+                  hlsConversionError: conversionError.message || 'Unknown error',
+                  hlsConversionErrorTime: new Date().toISOString(),
+                }
+              }
+            });
+          } catch (updateError) {
+            console.error(`[API /cameras] Failed to update camera error status:`, updateError);
+          }
+        }
+      })().catch(err => {
+        // Catch any unhandled errors in async conversion
+        console.error(`[API /cameras] Unhandled error in HLS conversion for camera ${camera.id}:`, err);
+      });
+    } else {
+      // Non-RTSP camera (Cloud Stream) - set HLS URL directly if provided
+      if (streamUrl.trim().includes('.m3u8')) {
+        await prisma.camera.update({
+          where: { id: camera.id },
+          data: {
+            hlsUrl: streamUrl.trim(),
+            status: 'active',
           }
         });
-        
-        if (verifyCamera) {
-          console.log(`[cameras API] ✅ Camera verified in database (attempt ${attempt}):`, {
-            id: verifyCamera.id,
-            name: verifyCamera.name,
-            worksiteId: verifyCamera.worksiteId,
-            worksiteIdType: typeof verifyCamera.worksiteId,
-            worksiteIdLength: verifyCamera.worksiteId?.length,
-            worksiteName: verifyCamera.worksite?.name
-          });
-          
-          // Also verify we can find it by worksiteId
-          if (verifyCamera.worksiteId) {
-            const normalizedWorksiteId = String(verifyCamera.worksiteId).trim();
-            console.log('[cameras API] Verifying camera can be found by worksiteId:', normalizedWorksiteId);
-            
-            const camerasByWorksite = await prisma.camera.findMany({
-              where: { worksiteId: normalizedWorksiteId },
-              select: { id: true, name: true, worksiteId: true }
-            });
-            
-            console.log('[cameras API] ✅ Found', camerasByWorksite.length, 'cameras for worksiteId', normalizedWorksiteId);
-            console.log('[cameras API] Camera IDs in result:', camerasByWorksite.map(c => c.id));
-            
-            const foundCamera = camerasByWorksite.find(c => c.id === verifyCamera.id);
-            if (foundCamera) {
-              console.log('[cameras API] ✅ New camera IS included in worksite query - it should appear in GET requests');
-              break; // Success, exit retry loop
-            } else {
-              console.error('[cameras API] ❌ New camera NOT found in worksite query!');
-              console.error('[cameras API] This means the camera exists but the query filter is not working');
-              console.error('[cameras API] Detailed comparison:');
-              console.error('[cameras API]   Camera worksiteId:', {
-                value: verifyCamera.worksiteId,
-                type: typeof verifyCamera.worksiteId,
-                length: verifyCamera.worksiteId?.length,
-                stringified: String(verifyCamera.worksiteId)
-              });
-              console.error('[cameras API]   Query worksiteId:', {
-                value: normalizedWorksiteId,
-                type: typeof normalizedWorksiteId,
-                length: normalizedWorksiteId.length
-              });
-              console.error('[cameras API]   Strict equal:', verifyCamera.worksiteId === normalizedWorksiteId);
-              console.error('[cameras API]   String equal:', String(verifyCamera.worksiteId) === String(normalizedWorksiteId));
-              
-              // Log sample worksiteIds from the query result for comparison
-              if (camerasByWorksite.length > 0) {
-                console.error('[cameras API]   Sample worksiteIds from query result:', camerasByWorksite.slice(0, 3).map(c => ({
-                  id: c.id,
-                  name: c.name,
-                  worksiteId: c.worksiteId,
-                  worksiteIdType: typeof c.worksiteId,
-                  worksiteIdLength: c.worksiteId?.length
-                })));
-              }
-              
-              // If this is the last attempt, log error but don't fail
-              if (attempt === maxRetries) {
-                console.error('[cameras API] ⚠️ Camera created but may not be immediately queryable by worksiteId');
-              }
-            }
-          }
-          break; // Exit retry loop if camera found
-        } else {
-          if (attempt === maxRetries) {
-            console.error('[cameras API] ❌ Camera NOT found in database after creation (all retries exhausted)!', camera.id);
-          } else {
-            console.warn(`[cameras API] ⚠️ Camera not found on attempt ${attempt}, will retry...`);
-          }
-        }
-      } catch (verifyError: any) {
-        console.error(`[cameras API] Error verifying camera (attempt ${attempt}):`, verifyError?.message);
-        if (attempt === maxRetries) {
-          console.error('[cameras API] Verification failed after all retries');
-        }
       }
     }
 
-    // Format response
+    // Create audit log
+    if (currentUser?.id) {
+      await prisma.auditLog.create({
+        data: {
+          userId: currentUser.id,
+          action: 'CAMERA_CREATED',
+          entityType: 'Camera',
+          entityId: camera.id,
+          metadata: {
+            cameraName: camera.name,
+            cameraType: camera.type,
+            worksiteId,
+            worksiteName: worksite.name
+          }
+        }
+      }).catch(err => {
+        console.error('[API /cameras] Failed to create audit log:', err);
+      });
+    }
+
+    // Return response immediately (HLS conversion happens in background)
     return NextResponse.json({
       success: true,
       data: {
         id: camera.id,
         name: camera.name,
-        // externalId: camera.externalId, // Field doesn't exist
         type: camera.type,
-        status: camera.status,
-        // enabled: camera.enabled, // Field doesn't exist
-        // connection: camera.connection, // Field doesn't exist
-        metadata: camera.metadata,
-        // retentionDays: camera.retentionDays, // Field doesn't exist
-        // aiEnabled: camera.aiEnabled, // Field doesn't exist
-        // confidenceThreshold: camera.confidenceThreshold, // Field doesn't exist
+        status: camera.status, // Will be 'pending' for RTSP, updated to 'active' when HLS is ready
+        streamUrl: camera.streamUrl,
         worksiteId: camera.worksiteId,
-        worksite: camera.worksite,
         createdAt: camera.createdAt.toISOString(),
         updatedAt: camera.updatedAt.toISOString(),
-      },
-      message: 'Camera created successfully'
+        // Note: hlsUrl will be set asynchronously for RTSP cameras
+        hlsUrl: cameraType === 'CLOUD' && streamUrl.trim().includes('.m3u8') ? streamUrl.trim() : null,
+      }
     }, { status: 201 });
 
   } catch (error: any) {
-    console.error('[cameras API] Failed to create camera (new format):', error);
-    console.error('[cameras API] Error details:', {
-      message: error.message,
-      code: error.code,
-      name: error.name,
-      meta: error.meta,
-      stack: error.stack
-    });
+    console.error('[API /cameras] ❌ POST Error:', error);
+    console.error('[API /cameras] Error stack:', error.stack);
+    console.error('[API /cameras] Error name:', error.name);
     
-    // Provide more specific error messages
-    let errorMessage = 'Failed to create camera';
+    // Handle Prisma unique constraint errors
     if (error.code === 'P2002') {
-      errorMessage = 'Camera with this name already exists';
-    } else if (error.code === 'P2003') {
-      errorMessage = 'Invalid worksite ID';
-    } else if (error.message) {
-      errorMessage = error.message;
+      return NextResponse.json(
+        { success: false, error: 'Camera with this name already exists for this worksite' },
+        { status: 409 }
+      );
     }
-    
-    return NextResponse.json({
-      success: false,
-      error: errorMessage,
-      details: error.message,
-      code: error.code
-    }, { status: 500 });
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to create camera',
+        message: error.message || 'Unknown error'
+      },
+      { status: 500 }
+    );
   }
 }

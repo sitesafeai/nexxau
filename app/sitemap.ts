@@ -1,36 +1,33 @@
 import { MetadataRoute } from 'next';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://sitesafe.com';
+  const baseUrl = 'https://nexxau.com';
 
   // Static routes
   const routes = [
     '',
+    '/ppe-compliance-monitoring',
+    '/hard-hat-detection-software',
+    '/high-visibility-vest-detection',
+    '/construction-site-safety-monitoring',
+    '/osha-ppe-compliance-software',
+    '/industries/construction',
+    '/industries/manufacturing',
+    '/industries/logistics',
+    '/industries/oil-and-gas',
+    '/pricing',
     '/blog',
-    '/industries',
-    '/solutions',
-    '/about',
+    '/demo',
     '/contact',
+    '/about',
+    '/terms',
+    '/privacy',
   ].map((route) => ({
     url: `${baseUrl}${route}`,
     lastModified: new Date(),
-    changeFrequency: 'daily' as const,
+    changeFrequency: 'weekly' as const,
     priority: route === '' ? 1 : 0.8,
   }));
 
-  // Blog posts (this would typically come from your CMS or database)
-  const blogPosts = [
-    {
-      slug: 'ai-safety-monitoring',
-      lastModified: new Date('2024-03-15'),
-    },
-    // Add more blog posts here
-  ].map((post) => ({
-    url: `${baseUrl}/blog/${post.slug}`,
-    lastModified: post.lastModified,
-    changeFrequency: 'weekly' as const,
-    priority: 0.7,
-  }));
-
-  return [...routes, ...blogPosts];
-} 
+  return routes;
+}

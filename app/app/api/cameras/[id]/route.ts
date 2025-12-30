@@ -1,370 +1,500 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
-
-/**
- * GET /api/cameras/[id]
- * Get a single camera
- */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const camera = await prisma.camera.findFirst({
-      where: { id },
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        status: true,
-        streamUrl: true,
-        location: true,
-        ipAddress: true,
-        port: true,
-        username: true,
-        password: true,
-        rtspPath: true,
-        hlsUrl: true,
-        mediamtxPath: true,
-        metadata: true,
-        worksiteId: true,
-        createdAt: true,
-        updatedAt: true,
-        worksite: {
-          select: {
-            id: true,
-            name: true,
-            worksiteName: true
-          }
-        },
-        health: {
-          select: {
-            id: true,
-            status: true,
-            streamQuality: true,
-            frameRate: true,
-            resolution: true,
-            lastCheck: true
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 1
-        }
-      }
-    });
-
-    if (!camera) {
-      return NextResponse.json(
-        { success: false, error: 'Camera not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: camera
-    });
-  } catch (error) {
-    console.error('[GET /api/cameras/:id] Error fetching camera:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch camera' },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * PATCH /api/cameras/[id]
- * Update camera settings (partial update)
- */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id: cameraId } = await params;
-    const body = await request.json();
-
-    // Check if camera exists
-    const existingCamera = await prisma.camera.findUnique({
-      where: { id: cameraId }
-    });
-
-    if (!existingCamera) {
-      return NextResponse.json(
-        { success: false, error: 'Camera not found' },
-        { status: 404 }
-      );
-    }
-
-    // Sanitize to only update fields that exist in the database
-    const updateData: any = {};
-
-    // Basic fields that exist in DB
-    if (body.name !== undefined) updateData.name = body.name;
-    if (body.type !== undefined) updateData.type = body.type;
-    if (body.status !== undefined) updateData.status = body.status;
-    if (body.worksiteId !== undefined) updateData.worksiteId = body.worksiteId;
-
-    // Fields that DON'T exist in DB yet - SKIP THEM
-    // if (body.externalId !== undefined) updateData.externalId = body.externalId; // NOT IN DB
-    // if (body.enabled !== undefined) updateData.enabled = body.enabled; // NOT IN DB
-    // if (body.retentionDays !== undefined) updateData.retentionDays = body.retentionDays; // NOT IN DB
-    // if (body.aiEnabled !== undefined) updateData.aiEnabled = body.aiEnabled; // NOT IN DB
-    // if (body.confidenceThreshold !== undefined) updateData.confidenceThreshold = body.confidenceThreshold; // NOT IN DB
-
-    // Connection object - NOT IN DB YET, skip it
-    // if (body.connection !== undefined) {
-    //   updateData.connection = body.connection;
-    // }
-
-    // Handle metadata object (this EXISTS in DB)
-    if (body.metadata !== undefined) {
-      updateData.metadata = body.metadata;
-    }
-
-    // Test connection results - NOT IN DB YET
-    // if (body.lastTestAt !== undefined) updateData.lastTestAt = new Date(body.lastTestAt); // NOT IN DB
-    // if (body.lastTestOk !== undefined) updateData.lastTestOk = body.lastTestOk; // NOT IN DB
-    // if (body.lastTestError !== undefined) updateData.lastTestError = body.lastTestError; // NOT IN DB
-    // if (body.lastSnapshot !== undefined) updateData.lastSnapshot = body.lastSnapshot; // NOT IN DB
-
-    // Legacy field updates that DO exist in DB
-    if (body.streamUrl !== undefined) updateData.streamUrl = body.streamUrl;
-    if (body.hlsUrl !== undefined) updateData.hlsUrl = body.hlsUrl;
-    if (body.location !== undefined) updateData.location = body.location;
-    if (body.ipAddress !== undefined) updateData.ipAddress = body.ipAddress;
-    if (body.port !== undefined) updateData.port = body.port;
-    if (body.username !== undefined) updateData.username = body.username;
-    if (body.password !== undefined) updateData.password = body.password;
-    if (body.rtspPath !== undefined) updateData.rtspPath = body.rtspPath;
-    if (body.mediamtxPath !== undefined) updateData.mediamtxPath = body.mediamtxPath;
-
-    console.log('[PATCH /api/cameras/:id] Updating camera:', cameraId, 'with data:', updateData);
-
-    const camera = await prisma.$transaction(async (tx) => {
-      const updated = await tx.camera.update({
-        where: { id: cameraId },
-        data: updateData,
-        include: {
-          worksite: {
-            select: {
-              id: true,
-              name: true,
-              worksiteName: true,
-            }
-          }
-        }
-      });
-
-      // Create audit log
-      await tx.auditLog.create({
-        data: {
-          action: 'CAMERA_UPDATED',
-          entity: 'CAMERA',
-          entityId: updated.id,
-          entityName: updated.name,
-          worksiteId: updated.worksiteId,
-          changes: {
-            old: existingCamera,
-            new: updateData,
-          },
-          result: 'SUCCESS',
-          severity: 'INFO',
-        }
-      });
-
-      return updated;
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: camera
-    });
-  } catch (error: any) {
-    console.error('Error updating camera:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to update camera', details: error.message },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * PUT /api/cameras/[id]
- * Full camera replacement (new format)
- */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id: cameraId } = await params;
-    const body = await request.json();
-
-    // Check if camera exists
-    const existingCamera = await prisma.camera.findUnique({
-      where: { id: cameraId }
-    });
-
-    if (!existingCamera) {
-      return NextResponse.json(
-        { success: false, error: 'Camera not found' },
-        { status: 404 }
-      );
-    }
-
-    const {
-      name,
-      externalId,
-      worksiteId,
-      connection,
-      metadata,
-      enabled = true,
-      retentionDays = 30,
-      aiEnabled = true,
-      confidenceThreshold = 0.7,
-    } = body;
-
-    // Validation
-    if (!name || name.length < 3) {
-      return NextResponse.json({
-        success: false,
-        error: 'Camera name is required (min 3 characters)'
-      }, { status: 400 });
-    }
-
-    if (!worksiteId) {
-      return NextResponse.json({
-        success: false,
-        error: 'Worksite ID is required'
-      }, { status: 400 });
-    }
-
-    const camera = await prisma.$transaction(async (tx) => {
-      const updated = await tx.camera.update({
-        where: { id: cameraId },
-        data: {
-          name,
-          // externalId: externalId || null, // Field doesn't exist in Camera schema
-          type: connection?.type || 'RTSP',
-          // enabled, // Field doesn't exist in Camera schema - use status instead
-          
-          // Legacy fields
-          streamUrl: connection?.rtspUrl || null,
-          hlsUrl: connection?.hlsUrl || null,
-          username: connection?.username || null,
-          password: connection?.password || null,
-          
-          // Note: connection field doesn't exist in Camera schema
-          // Store connection info in metadata or use individual fields (rtspUrl, etc.)
-          
-          metadata: metadata ? (() => {
-            const meta: any = {};
-            if (metadata.lat !== undefined && metadata.lat !== null) meta.lat = metadata.lat;
-            if (metadata.lon !== undefined && metadata.lon !== null) meta.lon = metadata.lon;
-            if (metadata.mountHeight !== undefined && metadata.mountHeight !== null) meta.mountHeight = metadata.mountHeight;
-            if (metadata.orientation !== undefined && metadata.orientation !== null) meta.orientation = metadata.orientation;
-            if (metadata.fov !== undefined && metadata.fov !== null) meta.fov = metadata.fov;
-            if (metadata.tags) meta.tags = metadata.tags;
-            if (metadata.model) meta.model = metadata.model;
-            if (metadata.notes) meta.notes = metadata.notes;
-            if (metadata.resolution) meta.resolution = metadata.resolution;
-            if (metadata.fps !== undefined && metadata.fps !== null) meta.fps = metadata.fps;
-            if (metadata.codec) meta.codec = metadata.codec;
-            return Object.keys(meta).length > 0 ? meta : undefined;
-          })() : (existingCamera.metadata as any) || undefined,
-          
-          // retentionDays, // Field doesn't exist in Camera schema
-          // aiEnabled, // Field doesn't exist in Camera schema
-          // confidenceThreshold, // Field doesn't exist in Camera schema
-          worksiteId,
-        },
-        include: {
-          worksite: {
-            select: {
-              id: true,
-              name: true,
-              worksiteName: true,
-            }
-          }
-        }
-      });
-
-      // Create audit log
-      await tx.auditLog.create({
-        data: {
-          action: 'CAMERA_UPDATED',
-          entity: 'CAMERA',
-          entityId: updated.id,
-          entityName: updated.name,
-          worksiteId: updated.worksiteId,
-          changes: {
-            old: { name: existingCamera.name, worksiteId: existingCamera.worksiteId },
-            new: { name: updated.name, worksiteId: updated.worksiteId },
-          },
-          result: 'SUCCESS',
-          severity: 'INFO',
-        }
-      });
-
-      return updated;
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        id: camera.id,
-        name: camera.name,
-        // externalId: camera.externalId, // Field doesn't exist
-        type: camera.type,
-        status: camera.status,
-        // enabled: camera.enabled, // Field doesn't exist
-        // connection: camera.connection, // Field doesn't exist
-        metadata: camera.metadata,
-        // retentionDays: camera.retentionDays, // Field doesn't exist
-        // aiEnabled: camera.aiEnabled, // Field doesn't exist
-        // confidenceThreshold: camera.confidenceThreshold, // Field doesn't exist
-        worksiteId: camera.worksiteId,
-        worksite: camera.worksite,
-        createdAt: camera.createdAt.toISOString(),
-        updatedAt: camera.updatedAt.toISOString(),
-      },
-      message: 'Camera updated successfully'
-    });
-
-  } catch (error: any) {
-    console.error('Error updating camera:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to update camera', details: error.message },
-      { status: 500 }
-    );
-  }
-}
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { normalizeRole } from '@/app/lib/roles';
+import { stopHlsStream } from '@/app/lib/streaming/hlsManager';
+import * as path from 'path';
+import * as fs from 'fs';
 
 /**
  * DELETE /api/cameras/[id]
- * Delete a camera
+ * 
+ * Delete a camera from the database and stop all associated streams.
+ * 
+ * Side effects (ALL REQUIRED):
+ * - Stop FFmpeg/HLS stream for that camera
+ * - Kill associated FFmpeg process
+ * - Remove camera from active stream registry
+ * - Delete camera record from database
+ * - Remove HLS files: app/public/streams/{cameraId}/
  */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse> {
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  const startTime = Date.now();
+  
   try {
-    const { id } = await params;
-    await prisma.camera.delete({
-      where: { id }
+    // ============================================================
+    // PART A: AUTHENTICATION & AUTHORIZATION
+    // ============================================================
+    console.log(`[API /cameras/[id] DELETE] [${requestId}] Request received at:`, new Date().toISOString());
+    
+    // 1. Validate authenticated user exists
+    let session;
+    try {
+      const sessionStart = Date.now();
+      session = await Promise.race([
+        getServerSession(authOptions),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session lookup timeout after 5s')), 5000)
+        )
+      ]) as any;
+      const sessionDuration = Date.now() - sessionStart;
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] Session lookup took ${sessionDuration}ms`);
+    } catch (sessionError: any) {
+      console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Session lookup failed:`, {
+        name: sessionError.name,
+        message: sessionError.message,
+        stack: sessionError.stack
+      });
+      return NextResponse.json(
+        { 
+          error: 'Unauthorized',
+          code: 'SESSION_ERROR',
+          message: sessionError.message?.includes('timeout') 
+            ? 'Session lookup timed out' 
+            : 'Failed to validate session'
+        },
+        { status: sessionError.message?.includes('timeout') ? 504 : 401 }
+      );
+    }
+    
+    if (!session?.user) {
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] ❌ Unauthorized: No session`);
+      return NextResponse.json(
+        { 
+          error: 'Unauthorized',
+          code: 'UNAUTHORIZED'
+        },
+        { status: 401 }
+      );
+    }
+
+    const userId = session.user.id;
+    const userEmail = session.user.email;
+    const userRole = normalizeRole(session.user.role);
+    
+    console.log(`[API /cameras/[id] DELETE] [${requestId}] User authenticated:`, {
+      userId,
+      email: userEmail,
+      role: userRole
     });
 
-    return NextResponse.json({
-      success: true,
-      message: 'Camera deleted successfully'
+    // 2. Check delete permissions
+    const allowedRoles = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'SITE_ADMIN'];
+    if (!allowedRoles.includes(userRole)) {
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] ❌ Forbidden: Role ${userRole} cannot delete cameras`);
+      return NextResponse.json(
+        { 
+          error: 'Forbidden',
+          code: 'INSUFFICIENT_PERMISSIONS',
+          message: `Role ${userRole} does not have permission to delete cameras`
+        },
+        { status: 403 }
+      );
+    }
+
+    // ============================================================
+    // PART B: VALIDATE REQUEST PARAMETERS
+    // ============================================================
+    const { id: cameraId } = await params;
+    const trimmedCameraId = cameraId?.trim();
+
+    if (!trimmedCameraId || trimmedCameraId.length === 0) {
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] ❌ Invalid camera ID:`, cameraId);
+      return NextResponse.json(
+        { 
+          error: 'Camera ID is required',
+          code: 'INVALID_CAMERA_ID'
+        },
+        { status: 400 }
+      );
+    }
+
+    console.log(`[API /cameras/[id] DELETE] [${requestId}] Camera ID:`, trimmedCameraId);
+
+    // ============================================================
+    // PART C: VERIFY CAMERA EXISTS & USER HAS ACCESS
+    // ============================================================
+    let camera;
+    try {
+      const cameraQueryStart = Date.now();
+      camera = await Promise.race([
+        prisma.camera.findUnique({
+          where: { id: trimmedCameraId },
+          select: { 
+            id: true, 
+            name: true, 
+            worksiteId: true,
+            worksite: {
+              select: {
+                id: true,
+                companyId: true
+              }
+            }
+          },
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Camera query timeout after 10s')), 10000)
+        )
+      ]) as any;
+      const cameraQueryDuration = Date.now() - cameraQueryStart;
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] Camera query took ${cameraQueryDuration}ms`);
+    } catch (dbError: any) {
+      console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Database error fetching camera:`, {
+        name: dbError.name,
+        message: dbError.message,
+        code: dbError.code,
+        stack: dbError.stack
+      });
+      return NextResponse.json(
+        {
+          error: 'Database error',
+          code: 'DATABASE_ERROR',
+          message: dbError.message || 'Failed to fetch camera from database'
+        },
+        { status: dbError.message?.includes('timeout') ? 504 : 500 }
+      );
+    }
+
+    if (!camera) {
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] ❌ Camera not found:`, trimmedCameraId);
+      return NextResponse.json(
+        { 
+          error: 'Camera not found',
+          code: 'CAMERA_NOT_FOUND'
+        },
+        { status: 404 }
+      );
+    }
+
+    console.log(`[API /cameras/[id] DELETE] [${requestId}] Camera found:`, {
+      id: camera.id,
+      name: camera.name,
+      worksiteId: camera.worksiteId
     });
-  } catch (error) {
-    console.error('Error deleting camera:', error);
+
+    // 3. Verify user has access to the worksite
+    if (userRole !== 'SUPER_ADMIN') {
+      let hasAccess = false;
+      
+      if (userRole === 'COMPANY_ADMIN') {
+        // COMPANY_ADMIN can delete cameras in their company's worksites
+        try {
+          const userCompany = await Promise.race([
+            prisma.user.findUnique({
+              where: { id: userId },
+              select: { companyId: true }
+            }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('User query timeout after 5s')), 5000)
+            )
+          ]) as any;
+          
+          if (userCompany?.companyId && camera.worksite?.companyId === userCompany.companyId) {
+            hasAccess = true;
+          }
+        } catch (err: any) {
+          console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Error checking company access:`, err);
+          return NextResponse.json(
+            {
+              error: 'Database error',
+              code: 'DATABASE_ERROR',
+              message: 'Failed to verify access permissions'
+            },
+            { status: 500 }
+          );
+        }
+      } else if (userRole === 'SITE_ADMIN') {
+        // SITE_ADMIN can delete cameras in worksites they have access to
+        try {
+          const worksiteAccess = await Promise.race([
+            prisma.worksiteUser.findFirst({
+              where: {
+                userId: userId,
+                worksiteId: camera.worksiteId,
+                role: 'SITE_ADMIN'
+              }
+            }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Worksite access query timeout after 5s')), 5000)
+            )
+          ]) as any;
+          
+          hasAccess = !!worksiteAccess;
+        } catch (err: any) {
+          console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Error checking worksite access:`, err);
+          return NextResponse.json(
+            {
+              error: 'Database error',
+              code: 'DATABASE_ERROR',
+              message: 'Failed to verify access permissions'
+            },
+            { status: 500 }
+          );
+        }
+      }
+
+      if (!hasAccess) {
+        console.log(`[API /cameras/[id] DELETE] [${requestId}] ❌ Forbidden: User does not have access to worksite:`, camera.worksiteId);
+        return NextResponse.json(
+          { 
+            error: 'Forbidden',
+            code: 'ACCESS_DENIED',
+            message: 'You do not have permission to delete cameras in this worksite'
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ All guards passed. Starting deletion process...`);
+
+    // ============================================================
+    // PART D: STOP STREAM FIRST (CRITICAL - must happen before DB deletion)
+    // ============================================================
+    console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 1: Stopping stream process...`);
+    
+    try {
+      // Wait for stream to fully stop (FFmpeg process must exit completely)
+      const streamStopped = await stopHlsStream(trimmedCameraId);
+      if (streamStopped) {
+        console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Stream process stopped for camera ${trimmedCameraId}`);
+        // Give filesystem a moment to release file locks
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } else {
+        console.log(`[API /cameras/[id] DELETE] [${requestId}] ℹ️ No active stream found for camera ${trimmedCameraId}`);
+      }
+    } catch (streamError: any) {
+      console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Error stopping stream (continuing with deletion):`, {
+        name: streamError.name,
+        message: streamError.message,
+        stack: streamError.stack
+      });
+      // Continue with deletion even if stream stop fails
+    }
+
+    // ============================================================
+    // PART E: DELETE STREAM FILES (must happen after stream is stopped)
+    // ============================================================
+    console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 2: Removing stream files...`);
+    
+    try {
+      const cwd = process.cwd();
+      let streamDir: string;
+      
+      if (fs.existsSync(path.join(cwd, 'public'))) {
+        streamDir = path.join(cwd, 'public', 'streams', trimmedCameraId);
+      } else if (fs.existsSync(path.join(cwd, 'app', 'public'))) {
+        streamDir = path.join(cwd, 'app', 'public', 'streams', trimmedCameraId);
+      } else {
+        streamDir = path.join(cwd, 'public', 'streams', trimmedCameraId);
+      }
+
+      if (fs.existsSync(streamDir)) {
+        // Remove all files in the directory
+        const files = fs.readdirSync(streamDir);
+        let filesDeleted = 0;
+        files.forEach((file) => {
+          try {
+            fs.unlinkSync(path.join(streamDir, file));
+            filesDeleted++;
+          } catch (err) {
+            console.warn(`[API /cameras/[id] DELETE] [${requestId}] Warning: Failed to delete file ${file}:`, err);
+          }
+        });
+
+        // Remove the directory itself
+        try {
+          fs.rmdirSync(streamDir);
+          console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Removed stream directory: ${streamDir} (${filesDeleted} files deleted)`);
+        } catch (err) {
+          console.warn(`[API /cameras/[id] DELETE] [${requestId}] Warning: Failed to remove directory:`, err);
+        }
+      } else {
+        console.log(`[API /cameras/[id] DELETE] [${requestId}] ℹ️ Stream directory not found: ${streamDir}`);
+      }
+    } catch (fileError: any) {
+      console.warn(`[API /cameras/[id] DELETE] [${requestId}] Warning: Error removing stream files (continuing):`, fileError.message);
+      // Continue with deletion even if file removal fails
+    }
+
+    // ============================================================
+    // PART F: DELETE RELATED RECORDS (CASCADE)
+    // ============================================================
+    // Delete all related records that might block camera deletion
+    // Detection model doesn't have onDelete: Cascade, so we must delete manually
+    
+    try {
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 3: Deleting related database records...`);
+      
+      // Delete Detection records (no cascade, must delete manually)
+      const detectionsResult = await Promise.race([
+        prisma.detection.deleteMany({
+          where: { cameraId: trimmedCameraId }
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Delete detections timeout after 15s')), 15000)
+        )
+      ]) as any;
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted ${detectionsResult.count} detection records`);
+
+      // Delete Alert records (has SetNull, but delete for cleanliness)
+      const alertsResult = await Promise.race([
+        prisma.alert.deleteMany({
+          where: { cameraId: trimmedCameraId }
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Delete alerts timeout after 15s')), 15000)
+        )
+      ]) as any;
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted ${alertsResult.count} alert records`);
+
+      // Delete SafetyViolation records (has SetNull, but delete for cleanliness)
+      const violationsResult = await Promise.race([
+        prisma.safetyViolation.deleteMany({
+          where: { cameraId: trimmedCameraId }
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Delete violations timeout after 15s')), 15000)
+        )
+      ]) as any;
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted ${violationsResult.count} safety violation records`);
+
+      // Delete CustomRule records (has SetNull, but delete for cleanliness)
+      const customRulesResult = await Promise.race([
+        prisma.customRule.deleteMany({
+          where: { cameraId: trimmedCameraId }
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Delete custom rules timeout after 15s')), 15000)
+        )
+      ]) as any;
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted ${customRulesResult.count} custom rule records`);
+
+      // Delete CustomRuleTrigger records
+      const triggersResult = await Promise.race([
+        prisma.customRuleTrigger.deleteMany({
+          where: { cameraId: trimmedCameraId }
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Delete triggers timeout after 15s')), 15000)
+        )
+      ]) as any;
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted ${triggersResult.count} custom rule trigger records`);
+
+      // Delete CustomRuleViolation records
+      const ruleViolationsResult = await Promise.race([
+        prisma.customRuleViolation.deleteMany({
+          where: { cameraId: trimmedCameraId }
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Delete rule violations timeout after 15s')), 15000)
+        )
+      ]) as any;
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted ${ruleViolationsResult.count} custom rule violation records`);
+
+      // Delete SMSNotification records (has SetNull, but delete for cleanliness)
+      const smsResult = await Promise.race([
+        prisma.sMSNotification.deleteMany({
+          where: { cameraId: trimmedCameraId }
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Delete SMS notifications timeout after 15s')), 15000)
+        )
+      ]) as any;
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted ${smsResult.count} SMS notification records`);
+
+      // Note: TrainingImage, CameraHealth, FalsePositiveReport, TruePositiveReport have onDelete: Cascade
+      // so they will be deleted automatically when camera is deleted
+
+    } catch (relatedDeleteError: any) {
+      console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Error deleting related records:`, {
+        name: relatedDeleteError.name,
+        message: relatedDeleteError.message,
+        code: relatedDeleteError.code,
+        stack: relatedDeleteError.stack
+      });
+      return NextResponse.json(
+        {
+          error: 'Failed to delete related records',
+          code: 'RELATED_DELETE_ERROR',
+          message: relatedDeleteError.message || 'Database error while deleting related records'
+        },
+        { status: relatedDeleteError.message?.includes('timeout') ? 504 : 500 }
+      );
+    }
+
+    // ============================================================
+    // PART G: DELETE CAMERA RECORD (FINAL STEP)
+    // ============================================================
+    console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 4: Deleting camera record...`);
+    
+    try {
+      const deleteStart = Date.now();
+      const deleteResult = await Promise.race([
+        prisma.camera.delete({
+          where: { id: trimmedCameraId }
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Delete camera timeout after 15s')), 15000)
+        )
+      ]) as any;
+      const deleteDuration = Date.now() - deleteStart;
+      
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Camera deleted successfully (${deleteDuration}ms)`);
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted camera:`, {
+        id: deleteResult.id,
+        name: deleteResult.name,
+        worksiteId: deleteResult.worksiteId
+      });
+      
+      const totalDuration = Date.now() - startTime;
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Total deletion completed in ${totalDuration}ms`);
+
+      // Return 204 No Content (as per REST best practices for DELETE)
+      return new NextResponse(null, { status: 204 });
+
+    } catch (deleteError: any) {
+      console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Error deleting camera record:`, {
+        name: deleteError.name,
+        message: deleteError.message,
+        code: deleteError.code,
+        meta: deleteError.meta,
+        stack: deleteError.stack
+      });
+      
+      // Return the REAL error message, not a generic one
+      return NextResponse.json(
+        {
+          error: 'Failed to delete camera',
+          code: deleteError.code || 'DELETE_ERROR',
+          message: deleteError.message || 'Unknown database error',
+          details: deleteError.meta || undefined
+        },
+        { status: deleteError.message?.includes('timeout') ? 504 : 500 }
+      );
+    }
+
+  } catch (error: any) {
+    console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Unexpected error in DELETE handler:`, {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    
     return NextResponse.json(
-      { success: false, error: 'Failed to delete camera' },
+      {
+        error: 'Failed to delete camera',
+        code: 'UNEXPECTED_ERROR',
+        message: error.message || 'An unexpected error occurred'
+      },
       { status: 500 }
     );
   }
 }
+

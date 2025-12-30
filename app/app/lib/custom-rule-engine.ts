@@ -101,9 +101,9 @@ export class CustomRuleEngine {
           alertSettings: rule.alertSettings as any,
           timeConstraints: rule.timeConstraints as any,
           locationConstraints: rule.locationConstraints as any,
-          aiModelType: rule.aiModelType,
+          aiModelType: rule.aiModelType || undefined,
           confidenceThreshold: rule.confidenceThreshold,
-          customModelPath: rule.customModelPath,
+          customModelPath: rule.customModelPath || undefined,
           smsEnabled: rule.smsEnabled,
           emailEnabled: rule.emailEnabled,
           dashboardEnabled: rule.dashboardEnabled,
@@ -111,16 +111,16 @@ export class CustomRuleEngine {
           emailRecipients: rule.emailRecipients as string[],
           cooldownMinutes: rule.cooldownMinutes,
           maxAlertsPerHour: rule.maxAlertsPerHour,
-          worksiteId: rule.worksiteId,
-          cameraId: rule.cameraId,
+          worksiteId: rule.worksiteId || undefined,
+          cameraId: rule.cameraId || undefined,
           triggerCount: rule.triggerCount,
-          lastTriggeredAt: rule.lastTriggeredAt
+          lastTriggeredAt: rule.lastTriggeredAt || undefined
         });
       });
 
       logger.info(`Loaded ${this.activeRules.size} active custom rules`);
     } catch (error) {
-      logger.error('Failed to load custom rules:', error);
+      logger.error('Failed to load custom rules:', error as any);
     }
   }
 
@@ -161,11 +161,11 @@ export class CustomRuleEngine {
             await this.handleRuleTrigger(rule, detectionData, result);
           }
         } catch (error) {
-          logger.error(`Error evaluating rule ${rule.name}:`, error);
+          logger.error(`Error evaluating rule ${rule.name}:`, error as any);
         }
       }
     } catch (error) {
-      logger.error('Error processing detection:', error);
+      logger.error('Error processing detection:', error as any);
     }
   }
 
@@ -421,7 +421,7 @@ export class CustomRuleEngine {
       logger.info(`Rule "${rule.name}" triggered: ${violation.description}`);
 
     } catch (error) {
-      logger.error(`Error handling rule trigger for ${rule.name}:`, error);
+      logger.error(`Error handling rule trigger for ${rule.name}:`, error as any);
     }
   }
 
@@ -458,7 +458,7 @@ export class CustomRuleEngine {
           try {
             const smsResult = await multiSmsService.sendSafetyViolationSMS(phoneNumber, {
               violationType: violation.violationType,
-              severity: rule.severity,
+              severity: rule.severity as any, // Type assertion needed - severity is string but expected enum
               location: violation.location || 'Unknown Location',
               description: violation.description,
               timestamp: violation.detectedAt,
@@ -477,7 +477,7 @@ export class CustomRuleEngine {
               });
             }
           } catch (error) {
-            logger.error(`Failed to send SMS for rule ${rule.name}:`, error);
+            logger.error(`Failed to send SMS for rule ${rule.name}:`, error as any);
           }
         }
       }
@@ -498,7 +498,7 @@ export class CustomRuleEngine {
       }
 
     } catch (error) {
-      logger.error(`Error sending notifications for rule ${rule.name}:`, error);
+      logger.error(`Error sending notifications for rule ${rule.name}:`, error as any);
     }
   }
 

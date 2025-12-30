@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
+import { Cache, CacheKeys } from '@/app/lib/cache';
+import { isCameraOnline, getCameraStatusMetrics } from '@/app/lib/camera-status';
+
+/**
+ * GET /api/worksites/[id]/metrics
+ * 
+ * Returns aggregated metrics for a worksite.
+ * 
+ * Internal Architecture:
+ * - Split into independent functions for clarity and future caching:
+ *   - getCameraMetrics(): Camera online/offline counts (derived from health)
+ *   - getAlertMetrics(): Alert counts by severity
+ *   - getSafetyScoreMetrics(): Latest safety score
+ *   - getLastActivity(): Most recent activity timestamp
+ * 
+ * Camera Status:
+ * - Derived from CameraHealth records, NOT from camera.status string
+ * - Uses isCameraOnline() helper for consistent logic
+ * - Online = latest health check < 60s ago AND status === 'ONLINE'
+ * 
+ * Each function is independently callable and cacheable for future optimization.
+ */
 
 export async function GET(
   request: NextRequest,
@@ -32,6 +54,10 @@ export async function GET(
       user = await prisma.user.findUnique({
         where: { email: userEmail },
         include: {
+          worksiteAccess: {
+            where: { worksiteId },
+            select: { worksiteId: true, role: true }
+          },
           company: {
             include: {
               worksites: {
@@ -48,6 +74,10 @@ export async function GET(
       user = await prisma.user.findUnique({
         where: { id: (session.user as any).id },
         include: {
+          worksiteAccess: {
+            where: { worksiteId },
+            select: { worksiteId: true, role: true }
+          },
           company: {
             include: {
               worksites: {
@@ -71,8 +101,10 @@ export async function GET(
       );
     }
 
+    // Check access: SUPER_ADMIN, company worksite access, or worksiteAccess
     const hasAccess = isSuperAdmin || 
-      (user?.company?.worksites?.some(ws => ws.id === worksiteId));
+      (user?.company?.worksites?.some(ws => ws.id === worksiteId)) ||
+      (user?.worksiteAccess && user.worksiteAccess.length > 0);
 
     if (!hasAccess) {
       return NextResponse.json(
@@ -91,13 +123,13 @@ export async function GET(
             select: {
               id: true,
               status: true,
-              aiEnabled: true,
-              lastDetection: true
+              // aiEnabled: true, // Field doesn't exist in Camera model
+              // lastDetection: true // Field doesn't exist in Camera model
             }
           },
           alerts: {
             where: {
-              status: { in: ['active', 'ACTIVE', 'Active'] }
+              status: { in: ['ACTIVE', 'ACKNOWLEDGED'] }
             },
             select: {
               id: true,
@@ -137,68 +169,95 @@ export async function GET(
       );
     }
 
-    // Calculate metrics with safe defaults
-    const cameras = worksite.cameras || [];
-    const activeCameras = cameras.filter(c => {
-      const status = (c.status || 'active').toLowerCase();
-      return status === 'online' || status === 'active';
-    }).length;
-    const offlineCameras = cameras.length - activeCameras;
-    const aiEnabledCameras = cameras.filter(c => c.aiEnabled === true).length;
-
-    const alerts = worksite.alerts || [];
-    const highAlerts = alerts.filter(a => a.severity?.toLowerCase() === 'high').length;
-    const mediumAlerts = alerts.filter(a => a.severity?.toLowerCase() === 'medium').length;
-    const lowAlerts = alerts.filter(a => a.severity?.toLowerCase() === 'low').length;
-
-    const latestScore = worksite.safetyScores?.[0]?.safetyScore ?? null;
+    // ============================================
+    // FETCH METRICS WITH CACHING (modular + cacheable)
+    // ============================================
+    // Each metric is fetched independently and cached with appropriate TTL
+    // This allows Overview tab to render metrics as they arrive without blocking
     
-    // Get last activity (most recent alert or camera detection)
-    let lastActivity: number | null = null;
+    // Camera metrics: 1 min TTL (health-based, moderate updates)
+    const cameraMetricsData = await Cache.wrap(
+      CacheKeys.cameraMetrics(worksiteId),
+      async () => {
+        const camerasWithHealth = await prisma.camera.findMany({
+          where: { worksiteId },
+          include: {
+            health: {
+              orderBy: { lastCheck: 'desc' },
+              take: 1
+            }
+          },
+          select: {
+            id: true,
+            status: true,
+            health: {
+              select: {
+                status: true,
+                lastCheck: true
+              }
+            },
+            metadata: true
+          }
+        });
+        
+        let activeCameras = 0;
+        let offlineCameras = 0;
+        let aiEnabledCameras = 0;
+        
+        for (const camera of camerasWithHealth) {
+          if (isCameraOnline(camera)) {
+            activeCameras++;
+          } else {
+            offlineCameras++;
+          }
+          
+          if (camera.metadata && typeof camera.metadata === 'object') {
+            const metadata = camera.metadata as any;
+            if (metadata.aiEnabled === true) {
+              aiEnabledCameras++;
+            }
+          }
+        }
+        
+        return {
+          activeCameras,
+          offlineCameras,
+          totalCameras: camerasWithHealth.length,
+          aiEnabledCameras
+        };
+      },
+      { ttl: 60 } // 1 min TTL
+    );
     
-    try {
-      const timestamps: number[] = [];
+    // Fetch other metrics in parallel with caching
+    const [alertMetrics, safetyScoreMetrics, lastActivityTimestamp] = await Promise.all([
+      // Alert metrics: 10 sec TTL (frequent updates)
+      Cache.wrap(
+        CacheKeys.alertMetrics(worksiteId),
+        () => Promise.resolve(getAlertMetrics((worksite as any).alerts || [])),
+        { ttl: 10 }
+      ),
       
-      // Add alert timestamps
-      for (const alert of alerts) {
-        if (alert.createdAt) {
-          const ts = new Date(alert.createdAt).getTime();
-          if (!isNaN(ts)) timestamps.push(ts);
-        }
-      }
+      // Safety score metrics: 5 min TTL (matches safety score cache)
+      Cache.wrap(
+        CacheKeys.safetyScoreMetrics(worksiteId),
+        () => Promise.resolve(getSafetyScoreMetrics((worksite as any).safetyScores || [])),
+        { ttl: 60 * 5 }
+      ),
       
-      // Add camera detection timestamps
-      for (const camera of cameras) {
-        if (camera.lastDetection) {
-          const ts = new Date(camera.lastDetection).getTime();
-          if (!isNaN(ts)) timestamps.push(ts);
-        }
-      }
-      
-      // Add worksite updated timestamp
-      if (worksite.updatedAt) {
-        const ts = new Date(worksite.updatedAt).getTime();
-        if (!isNaN(ts)) timestamps.push(ts);
-      }
-      
-      if (timestamps.length > 0) {
-        lastActivity = Math.max(...timestamps);
-      }
-    } catch (e) {
-      console.error('Error calculating last activity:', e);
-    }
-
+      // Last activity: 30 sec TTL (moderate updates)
+      Cache.wrap(
+        CacheKeys.lastActivity(worksiteId),
+        () => getLastActivity(worksiteId, worksite.updatedAt),
+        { ttl: 30 }
+      )
+    ]);
+    
     return NextResponse.json({
-      activeCameras,
-      offlineCameras,
-      aiEnabledCameras,
-      totalCameras: cameras.length,
-      totalAlerts: alerts.length,
-      highAlerts,
-      mediumAlerts,
-      lowAlerts,
-      safetyScore: latestScore,
-      lastActivity: lastActivity ? new Date(lastActivity).toISOString() : null
+      ...cameraMetricsData,
+      ...alertMetrics,
+      ...safetyScoreMetrics,
+      lastActivity: lastActivityTimestamp ? new Date(lastActivityTimestamp).toISOString() : null
     });
   } catch (error: any) {
     console.error('Error fetching worksite metrics:', error);
@@ -206,6 +265,166 @@ export async function GET(
       { error: 'Failed to fetch metrics', details: error.message },
       { status: 500 }
     );
+  }
+}
+
+// ============================================
+// INTERNAL METRICS FUNCTIONS (refactored for clarity and future caching)
+// ============================================
+
+/**
+ * Get camera metrics for a worksite
+ * 
+ * Returns online/offline counts derived from health data, not status strings.
+ * This function is independently callable and cacheable.
+ */
+async function getCameraMetrics(worksiteId: string): Promise<{
+  activeCameras: number;
+  offlineCameras: number;
+  totalCameras: number;
+  aiEnabledCameras: number;
+}> {
+  const camerasWithHealth = await prisma.camera.findMany({
+    where: { worksiteId },
+    include: {
+      health: {
+        orderBy: { lastCheck: 'desc' },
+        take: 1
+      }
+    },
+    select: {
+      id: true,
+      metadata: true
+    }
+  });
+  
+  let activeCameras = 0;
+  let offlineCameras = 0;
+  let aiEnabledCameras = 0;
+  
+  for (const camera of camerasWithHealth) {
+    if (isCameraOnline(camera)) {
+      activeCameras++;
+    } else {
+      offlineCameras++;
+    }
+    
+    if (camera.metadata && typeof camera.metadata === 'object') {
+      const metadata = camera.metadata as any;
+      if (metadata.aiEnabled === true) {
+        aiEnabledCameras++;
+      }
+    }
+  }
+  
+  return {
+    activeCameras,
+    offlineCameras,
+    totalCameras: camerasWithHealth.length,
+    aiEnabledCameras
+  };
+}
+
+/**
+ * Get alert metrics for a worksite
+ * 
+ * Returns alert counts by severity.
+ * This function is independently callable and cacheable.
+ */
+function getAlertMetrics(alerts: any[]): {
+  totalAlerts: number;
+  highAlerts: number;
+  mediumAlerts: number;
+  lowAlerts: number;
+} {
+  const highAlerts = alerts.filter((a: any) => 
+    a.severity?.toLowerCase() === 'high' || 
+    a.severity?.toLowerCase() === 'critical'
+  ).length;
+  
+  const mediumAlerts = alerts.filter((a: any) => 
+    a.severity?.toLowerCase() === 'medium'
+  ).length;
+  
+  const lowAlerts = alerts.filter((a: any) => 
+    a.severity?.toLowerCase() === 'low'
+  ).length;
+  
+  return {
+    totalAlerts: alerts.length,
+    highAlerts,
+    mediumAlerts,
+    lowAlerts
+  };
+}
+
+/**
+ * Get safety score metrics for a worksite
+ * 
+ * Returns latest safety score.
+ * This function is independently callable and cacheable.
+ */
+function getSafetyScoreMetrics(safetyScores: any[]): {
+  safetyScore: number | null;
+} {
+  const latestScore = safetyScores?.[0]?.safetyScore ?? null;
+  return {
+    safetyScore: latestScore
+  };
+}
+
+/**
+ * Get last activity timestamp for a worksite
+ * 
+ * Checks most recent timestamp from:
+ * - Latest alert
+ * - Latest camera detection
+ * - Worksite updatedAt
+ * 
+ * This function is independently callable and cacheable.
+ */
+async function getLastActivity(
+  worksiteId: string,
+  worksiteUpdatedAt: Date
+): Promise<number | null> {
+  try {
+    const timestamps: number[] = [];
+    
+    // Get latest alert timestamp
+    const latestAlert = await prisma.alert.findFirst({
+      where: { worksiteId },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true }
+    });
+    if (latestAlert?.createdAt) {
+      timestamps.push(new Date(latestAlert.createdAt).getTime());
+    }
+    
+    // Get latest detection timestamp
+    const latestDetection = await prisma.detection.findFirst({
+      where: {
+        camera: { worksiteId }
+      },
+      orderBy: { timestamp: 'desc' },
+      select: { timestamp: true }
+    });
+    if (latestDetection?.timestamp) {
+      timestamps.push(new Date(latestDetection.timestamp).getTime());
+    }
+    
+    // Add worksite updated timestamp
+    if (worksiteUpdatedAt) {
+      timestamps.push(new Date(worksiteUpdatedAt).getTime());
+    }
+    
+    if (timestamps.length > 0) {
+      return Math.max(...timestamps);
+    }
+    
+    return null;
+  } catch (e) {
+    console.error('Error calculating last activity:', e);
+    return null;
   }
 }
 

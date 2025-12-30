@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch reports - user's own reports + system templates
-    let reports = [];
+    let reports: any[] = [];
     try {
       reports = await prisma.report.findMany({
         where: {
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
         deliverySettings: schedule ? {
           method: schedule.delivery?.method,
           recipients: schedule.delivery?.recipients,
-        } : null,
+        } : undefined,
       },
     });
 

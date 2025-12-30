@@ -6,10 +6,11 @@ import { prisma } from '@/app/lib/prisma';
  * Get real analytics data from the database
  */
 export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const worksiteId = searchParams.get('worksiteId');
+  const timeRange = searchParams.get('timeRange') || '7d';
+  
   try {
-    const { searchParams } = new URL(request.url);
-    const worksiteId = searchParams.get('worksiteId');
-    const timeRange = searchParams.get('timeRange') || '7d';
     
     if (!worksiteId) {
       return NextResponse.json(
@@ -69,8 +70,8 @@ export async function GET(request: NextRequest) {
     }
     
     const criticalAlerts = allAlerts.filter(a => a.severity === 'CRITICAL' && a.status !== 'RESOLVED').length;
-    const highAlerts = allAlerts.filter(a => a.severity === 'HIGH' && a.status !== 'RESOLVED').length;
-    const mediumAlerts = allAlerts.filter(a => a.severity === 'MEDIUM' && a.status !== 'RESOLVED').length;
+    const highAlerts = allAlerts.filter(a => (a.severity === 'WARNING' || a.severity === 'CRITICAL') && a.status !== 'RESOLVED').length;
+    const mediumAlerts = allAlerts.filter(a => a.severity === 'INFO' && a.status !== 'RESOLVED').length;
     
     const offlineCameras = cameras.filter(c => c.status === 'offline' || c.status === 'error').length;
     const totalCameras = cameras.length;
@@ -102,8 +103,8 @@ export async function GET(request: NextRequest) {
     });
     
     const prevCritical = previousAlerts.filter(a => a.severity === 'CRITICAL' && a.status !== 'RESOLVED').length;
-    const prevHigh = previousAlerts.filter(a => a.severity === 'HIGH' && a.status !== 'RESOLVED').length;
-    const prevMedium = previousAlerts.filter(a => a.severity === 'MEDIUM' && a.status !== 'RESOLVED').length;
+    const prevHigh = previousAlerts.filter(a => (a.severity === 'WARNING' || a.severity === 'CRITICAL') && a.status !== 'RESOLVED').length;
+    const prevMedium = previousAlerts.filter(a => a.severity === 'INFO' && a.status !== 'RESOLVED').length;
     
     let previousScore = 100;
     previousScore -= prevCritical * 10;
@@ -143,10 +144,10 @@ export async function GET(request: NextRequest) {
     }
 
     const majorViolations = violations.filter(v => 
-      v.severity === 'CRITICAL' || v.severity === 'HIGH'
+      v.severity === 'CRITICAL' || v.severity === 'WARNING' || v.severity === 'EMERGENCY'
     );
     const minorViolations = violations.filter(v => 
-      v.severity === 'MEDIUM' || v.severity === 'LOW'
+      v.severity === 'INFO'
     );
 
     // Get previous period for comparison (reuse previousPeriodStart from safety score calculation)
@@ -171,7 +172,7 @@ export async function GET(request: NextRequest) {
       // Extract violation type from alert title or use severity
       const violationType = v.title || v.severity || 'Unknown';
       const existing = acc.find(item => item.type === violationType);
-      const severity = v.severity === 'CRITICAL' || v.severity === 'HIGH' 
+      const severity = v.severity === 'CRITICAL' || v.severity === 'WARNING' || v.severity === 'EMERGENCY' 
         ? 'major' 
         : 'minor';
       
@@ -373,7 +374,7 @@ export async function GET(request: NextRequest) {
         violationsByType.push({
           type,
           count: 1,
-          severity: alert.severity === 'CRITICAL' || alert.severity === 'HIGH' ? 'major' : 'minor'
+          severity: (alert.severity === 'CRITICAL' || alert.severity === 'WARNING' || alert.severity === 'EMERGENCY') ? 'major' : 'minor'
         });
       }
     });

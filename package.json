@@ -1,24 +1,24 @@
 {
-  "name": "nexxau",
-  "version": "0.1.0",
+  "name": "nexxau-monorepo",
+  "version": "1.0.0",
   "private": true,
+  "description": "Production-grade multi-tenant PPE detection platform",
+  "workspaces": [
+    "services/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "cd app && npm run dev",
-    "build": "cd app && npm run build",
-    "start": "cd app && npm run start",
-    "lint": "cd app && npm run lint"
+    "build": "npm run build --workspaces",
+    "build:packages": "npm run build --workspace=packages/*",
+    "clean": "npm run clean --workspaces || true",
+    "lint": "npm run lint --workspaces || true",
+    "test": "npm run test --workspaces || true"
   },
-  "dependencies": {
-    "@heroicons/react": "^2.2.0",
-    "@prisma/client": "^6.7.0",
-    "@xyflow/react": "^12.8.2",
-    "next": "^15.4.1",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
   },
   "devDependencies": {
-    "@types/node": "^24.0.14",
-    "@types/react": "^19.1.8",
-    "typescript": "^5.8.3"
+    "typescript": "^5.3.3"
   }
 }

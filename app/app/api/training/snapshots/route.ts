@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
         worksiteId: camera.worksiteId,
         category: category || 'unlabeled',
         labeled: false,
-        annotations: bbox ? { bbox } : null,
+        annotations: bbox ? { bbox } : undefined,
         metadata: {
           capturedAt: new Date().toISOString(),
           source: 'manual_capture',

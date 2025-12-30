@@ -1,9 +1,8 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
 import { ShieldCheckIcon, EyeIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import MarketingNavbar from '../components/MarketingNavbar';
 
 const principles = [
   {
@@ -26,28 +25,7 @@ const principles = [
 export default function AboutClient() {
   return (
     <div className="min-h-screen bg-gray-900">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-gray-900/90 backdrop-blur-sm border-b border-white/10">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/test-homepage" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <Image src="/nexxau-logo-resized.png" alt="Nexxau Logo" width={32} height={32} className="w-8 h-8 object-contain" />
-              <span className="text-xl tracking-tight text-white font-bold">NEXXAU</span>
-            </Link>
-            <nav className="hidden md:flex items-center gap-8">
-              <Link href="/test-homepage" className="text-gray-400 hover:text-white transition-colors text-sm">Home</Link>
-              <Link href="/features" className="text-gray-400 hover:text-white transition-colors text-sm">Features</Link>
-              <Link href="/industries" className="text-gray-400 hover:text-white transition-colors text-sm">Industries</Link>
-              <Link href="/partners/insurance" className="text-gray-400 hover:text-white transition-colors text-sm">For Insurance</Link>
-              <Link href="/about" className="text-white transition-colors text-sm">About</Link>
-              <Link href="/contact" className="text-gray-400 hover:text-white transition-colors text-sm">Contact</Link>
-            </nav>
-            <Link href="/contact/sales" className="px-4 py-1.5 bg-white text-gray-900 hover:bg-white/90 rounded-lg transition-colors font-semibold text-sm">
-              Request Demo
-            </Link>
-          </div>
-        </div>
-      </header>
+      <MarketingNavbar variant="dark" />
       
       {/* Hero Section */}
       <div className="relative pt-32 pb-16">

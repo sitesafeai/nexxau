@@ -79,8 +79,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-    const { id } = await params;
     const body = await request.json();
 
     console.log(`[Custom Rules API] PATCH request for rule ${id}:`, body);
@@ -162,8 +162,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-    const { id } = await params;
 
     await retryDatabaseOperation(async () => {
       return await prisma.customRule.delete({
