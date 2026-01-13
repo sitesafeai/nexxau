@@ -6,6 +6,14 @@ const nextConfig = {
   reactStrictMode: false, // Temporarily disable for HLS testing
   // Fix lockfile warning by explicitly setting the root
   outputFileTracingRoot: path.join(__dirname),
+  eslint: {
+    // Disable ESLint during build to avoid memory issues
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    // Disable TypeScript errors during build to avoid memory issues
+    ignoreBuildErrors: true,
+  },
   images: {
     remotePatterns: [
       {

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Janus VideoRoom Test - Subscriber</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        h1 {
+            color: #4CAF50;
+        }
+        #status {
+            padding: 10px;
+            margin: 10px 0;
+            background: #2a2a2a;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        #status.error {
+            background: #4a1a1a;
+            color: #ff6b6b;
+        }
+        #status.success {
+            background: #1a4a1a;
+            color: #6bff6b;
+        }
+        #video-container {
+            margin: 20px 0;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #remote-video {
+            width: 100%;
+            max-width: 1280px;
+            height: auto;
+            background: #000;
+        }
+        #video-container:empty::before {
+            content: "Waiting for video stream...";
+            color: #666;
+            font-size: 18px;
+        }
+        #console-log {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .log-entry {
+            margin: 2px 0;
+        }
+        .log-error {
+            color: #f00;
+        }
+        .log-success {
+            color: #0f0;
+        }
+        .log-info {
+            color: #0ff;
+        }
+    </style>
+</head>
+<body>
+    <h1>Janus VideoRoom Test - Subscriber</h1>
+    
+    <div id="status">Initializing...</div>
+    
+    <div id="video-container">
+        <video id="remote-video" autoplay playsinline muted></video>
+    </div>
+    
+    <h2>Console Log</h2>
+    <div id="console-log"></div>
+
+    <!-- Load WebRTC adapter first -->
+    <script src="/libs/adapter.min.js"></script>
+    <!-- Load Janus library -->
+    <script src="/libs/janus.js"></script>
+    <!-- Load our test script -->
+    <script src="/videoroom-test.js"></script>
+</body>
+</html>
+
