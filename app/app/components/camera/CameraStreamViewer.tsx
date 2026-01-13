@@ -461,7 +461,6 @@ export default function CameraStreamViewer({
         // Live sync - CRITICAL for live streams
         liveSyncDurationCount: 3, // Sync to 3 segments behind live edge
         liveMaxLatencyDurationCount: 5, // Max 5 segments behind
-        liveSyncDuration: 6, // Sync to 6 seconds behind live edge (3 segments × 2s)
         maxLiveSyncPlaybackRate: 1.5, // Prevent seeking beyond live edge
         liveDurationInfinity: false, // Don't buffer indefinitely
         liveBackBufferLength: 0, // Don't keep old segments in buffer (prevents freeze)

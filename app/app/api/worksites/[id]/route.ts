@@ -42,6 +42,7 @@ export async function GET(
             status: true,
             location: true,
             streamUrl: true,
+            janusFeedId: true,
             metadata: true
           }
         },

@@ -1,45 +1,50 @@
 /**
- * PHASE 2: Backend Streaming Service - API Endpoint
+ * Backend Streaming Service - API Endpoint
  * 
- * This endpoint provides live video streaming for a camera.
- * It is completely separate from the testing endpoint (Phase 1).
+ * This endpoint provides live video streaming metadata for a camera.
  * 
  * Responsibilities:
- * - Accept a camera ID
- * - Resolve the camera's stream URL
- * - Return stream information or proxy the stream
+ * - Fetch camera from database
+ * - Return stream metadata (WebRTC or HLS)
+ * - Support Janus WebRTC streaming
  * 
- * Constraints:
- * - No UI logic
- * - No test logic
- * - No snapshots
- * - No frontend assumptions
- * - Must be separate from testing
+ * Response format:
+ * - WebRTC: { streamType: "webrtc", janusServerUrl, mountpointId, cameraId }
+ * - HLS: { streamType: "hls", hlsUrl, cameraId }
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveCameraStream, validateStreamUrl } from '@/app/lib/camera/streaming-service';
-import { Camera } from '@/app/lib/camera/types';
+import { prisma } from '@/app/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { normalizeRole } from '@/app/lib/roles';
 
 /**
  * GET /api/cameras/:id/stream
  * 
- * Returns stream information for a camera.
+ * Returns stream metadata for a camera.
  * 
- * In a real implementation, this might:
- * - Look up camera from database (not in this phase)
- * - Proxy the stream through the server
- * - Return stream metadata
+ * Required response format for WebRTC:
+ * {
+ *   "cameraId": "...",
+ *   "streamType": "webrtc",
+ *   "janusServerUrl": "ws://192.168.64.4:8188",
+ *   "mountpointId": 10
+ * }
  * 
- * For now, it accepts a camera object in the request body
- * (in Phase 5, this will be resolved from database/state)
+ * Required response format for HLS:
+ * {
+ *   "cameraId": "...",
+ *   "streamType": "hls",
+ *   "hlsUrl": "http://..."
+ * }
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   try {
-    const cameraId = params.id;
+    const { id: cameraId } = await params;
     
     if (!cameraId) {
       return NextResponse.json(
@@ -47,66 +52,136 @@ export async function GET(
         { status: 400 }
       );
     }
-    
-    // In Phase 5, this will fetch from database/state
-    // For now, we require camera data in query params or body
-    // This is a temporary approach until state management is added
-    
-    const searchParams = request.nextUrl.searchParams;
-    const streamUrl = searchParams.get('streamUrl');
-    const protocol = searchParams.get('protocol') as Camera['protocol'] | null;
-    
-    if (!streamUrl || !protocol) {
+
+    // Authentication check
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
       return NextResponse.json(
-        { 
-          error: 'Camera streamUrl and protocol must be provided',
-          note: 'In Phase 5, camera will be resolved from database/state'
-        },
-        { status: 400 }
+        { error: 'Unauthorized' },
+        { status: 401 }
       );
     }
-    
-    // Validate protocol
-    if (!['rtsp', 'webrtc', 'hls'].includes(protocol)) {
-      return NextResponse.json(
-        { error: 'Invalid protocol. Must be: rtsp, webrtc, or hls' },
-        { status: 400 }
-      );
-    }
-    
-    // Create temporary camera object for resolution
-    const camera: Camera = {
-      id: cameraId,
-      name: 'Temporary', // Will come from database in Phase 5
-      protocol,
-      streamUrl,
-      status: 'live' // Will come from database in Phase 5
-    };
-    
-    // Validate stream URL format
-    if (!validateStreamUrl(streamUrl, protocol)) {
-      return NextResponse.json(
-        { error: `Invalid ${protocol} stream URL format` },
-        { status: 400 }
-      );
-    }
-    
-    // Resolve the stream
-    const streamResolution = resolveCameraStream(camera);
-    
-    return NextResponse.json({
-      cameraId,
-      streamUrl: streamResolution.streamUrl,
-      protocol: streamResolution.protocol,
-      directUrl: streamResolution.directUrl,
-      proxyUrl: streamResolution.proxyUrl,
-      // In a full implementation, might include:
-      // - Stream health status
-      // - Available resolutions
-      // - Authentication requirements
+
+    // Fetch camera from database
+    const camera = await prisma.camera.findUnique({
+      where: { id: cameraId },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        streamUrl: true,
+        hlsUrl: true,
+        mediamtxPath: true,
+        janusFeedId: true, // NEW: Support new Janus system
+        metadata: true,
+        worksiteId: true,
+      },
     });
+
+    if (!camera) {
+      return NextResponse.json(
+        { error: 'Camera not found' },
+        { status: 404 }
+      );
+    }
+
+    // Authorization: Check if user has access to camera's worksite
+    const userRole = normalizeRole(session.user.role);
+    const isGlobalAdmin = 
+      userRole === 'SUPER_ADMIN' ||
+      userRole === 'COMPANY_ADMIN' ||
+      userRole === 'ADMIN';
+
+    if (!isGlobalAdmin) {
+      // For non-admins, verify worksite access via company
+      const userCompany = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { companyId: true },
+      });
+
+      if (userCompany?.companyId) {
+        const worksite = await prisma.worksite.findFirst({
+          where: {
+            id: camera.worksiteId,
+            companyId: userCompany.companyId,
+          },
+          select: { id: true },
+        });
+
+        if (!worksite) {
+          return NextResponse.json(
+            { error: 'Access denied to camera' },
+            { status: 403 }
+          );
+        }
+      } else {
+        // User has no company - deny access
+        return NextResponse.json(
+          { error: 'Access denied to camera' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Determine stream type: WebRTC (preferred) or HLS (fallback)
+    // NEW SYSTEM: Check janusFeedId first (new Janus RTSP integration)
+    // OLD SYSTEM: Fall back to metadata.mountpointId for backward compatibility
+    const metadata = camera.metadata as any || {};
+    const janusServerUrl = metadata.janusServerUrl || process.env.NEXT_PUBLIC_JANUS_SERVER_URL || process.env.JANUS_SERVER_URL || 'ws://localhost:8088/janus';
+    
+    // NEW: Check janusFeedId first (preferred - new system)
+    // OLD: Fall back to metadata.mountpointId (backward compatibility)
+    const feedId = camera.janusFeedId ?? metadata.mountpointId ?? metadata.mountpoint_id;
+
+    // If feedId exists (either janusFeedId or mountpointId), validate and return WebRTC
+    if (feedId !== undefined && feedId !== null) {
+      // Parse feedId to number
+      const parsedFeedId = typeof feedId === 'number' ? feedId : parseInt(feedId, 10);
+      
+      // Validate feedId is a valid number > 0
+      if (isNaN(parsedFeedId) || parsedFeedId <= 0) {
+        console.error(`[API /cameras/[id]/stream] Invalid feedId for camera ${camera.id}: ${feedId}`);
+        return NextResponse.json(
+          { 
+            error: 'Camera is not configured for WebRTC (invalid feedId)',
+            cameraId: camera.id,
+          },
+          { status: 503 }
+        );
+      }
+
+      // Return WebRTC response with feedId (maps to mountpointId in Janus VideoRoom)
+      return NextResponse.json({
+        cameraId: camera.id,
+        streamType: 'webrtc',
+        janusServerUrl,
+        mountpointId: parsedFeedId, // Use feedId as mountpointId for Janus VideoRoom
+      });
+    }
+
+    // No feedId (neither janusFeedId nor mountpointId) - camera is not configured for WebRTC
+    console.warn(`[API /cameras/[id]/stream] Camera ${camera.id} is not configured for WebRTC (missing janusFeedId or mountpointId)`);
+    
+    // Fallback to HLS if available
+    if (camera.hlsUrl) {
+      return NextResponse.json({
+        cameraId: camera.id,
+        streamType: 'hls',
+        hlsUrl: camera.hlsUrl,
+      });
+    }
+
+    // If no stream available, return explicit error
+    return NextResponse.json(
+      { 
+        error: 'Camera is not configured for WebRTC (missing janusFeedId or mountpointId)',
+        cameraId: camera.id,
+      },
+      { status: 503 }
+    );
     
   } catch (error: any) {
+    console.error('[API /cameras/[id]/stream] Error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to resolve camera stream' },
       { status: 500 }

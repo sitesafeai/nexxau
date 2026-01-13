@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import DashboardHeader from '@/app/components/DashboardHeader';
+import CameraGrid from '@/app/components/cameras/CameraGrid';
+import AddCameraModal from '@/app/components/cameras/AddCameraModal';
+import { useCameraManager } from '@/app/hooks/useCameraManager';
 
 interface Camera {
   id: string;
@@ -14,6 +17,11 @@ interface Camera {
   rtspPath: string | null;
   status: string;
   location: string | null;
+  janusFeedId: number | null;
+  metadata: {
+    aiEnabled?: boolean;
+    [key: string]: any;
+  } | null;
 }
 
 interface WorksiteUser {
@@ -57,6 +65,22 @@ export default function WorksiteDetailPage() {
     email: '',
     role: 'WORKER'
   });
+  
+  // Camera state
+  const [cameras, setCameras] = useState<Camera[]>([]);
+  const [isAddCameraModalOpen, setIsAddCameraModalOpen] = useState(false);
+  
+  // Camera manager (one per worksite)
+  const janusServerUrl = process.env.NEXT_PUBLIC_JANUS_SERVER_URL || 'ws://localhost:8088/janus';
+  const roomId = 1234; // TODO: Get from worksite config
+  const cameraManager = useCameraManager({
+    janusServerUrl,
+    roomId,
+    onError: (err) => {
+      console.error('[WorksitePage] Camera manager error:', err);
+      setError(`Camera system error: ${err.message}`);
+    }
+  });
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -77,6 +101,8 @@ export default function WorksiteDetailPage() {
 
       if (data.success) {
         setWorksite(data.data);
+        // Update cameras state from worksite data
+        setCameras(data.data.cameras || []);
       } else {
         setError(data.error || 'Failed to load worksite');
       }
@@ -133,6 +159,56 @@ export default function WorksiteDetailPage() {
       alert('Failed to remove user');
     }
   };
+  
+  /**
+   * Handle camera added
+   */
+  const handleCameraAdded = useCallback((camera: Camera) => {
+    // Add to cameras state (triggers CameraTile mount, which registers with manager)
+    setCameras(prev => [...prev, camera]);
+  }, []);
+  
+  /**
+   * Handle camera removal
+   * 
+   * IMPORTANT: Remove from state FIRST (triggers CameraTile unmount),
+   * THEN call API (after UI updates)
+   */
+  const handleRemoveCamera = useCallback(async (cameraId: string) => {
+    // Remove from state immediately (triggers unmount and cleanup)
+    setCameras(prev => prev.filter(c => c.id !== cameraId));
+    
+    // CameraTile will unmount and cleanup via manager.removeCamera()
+    // After UI updates, call API to delete from backend
+    try {
+      const response = await fetch(`/api/cameras/${cameraId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        console.error('[WorksitePage] Failed to delete camera:', data.error);
+        // Camera already removed from UI, so just log error
+        // TODO: Could show toast notification
+      }
+    } catch (err) {
+      console.error('[WorksitePage] Error deleting camera:', err);
+      // Camera already removed from UI, so just log error
+    }
+  }, []);
+  
+  /**
+   * Handle AI toggle
+   */
+  const handleToggleAI = useCallback(async (cameraId: string, enabled: boolean) => {
+    try {
+      await cameraManager.toggleAI(cameraId, enabled);
+    } catch (err: any) {
+      console.error('[WorksitePage] Failed to toggle AI:', err);
+      // Error is handled by cameraManager, but we could show toast here
+      throw err; // Re-throw so CameraTile can handle it
+    }
+  }, [cameraManager]);
 
   if (loading) {
     return (
@@ -307,53 +383,41 @@ export default function WorksiteDetailPage() {
 
         {/* Cameras */}
         <div className="bg-slate-800/50 backdrop-blur rounded-xl border border-slate-700 overflow-hidden">
-          <div className="p-6 border-b border-slate-700">
+          <div className="p-6 border-b border-slate-700 flex items-center justify-between">
             <h2 className="text-2xl font-bold text-white">Cameras</h2>
+            <button
+              onClick={() => setIsAddCameraModalOpen(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              Add Camera
+            </button>
           </div>
 
-          {worksite.cameras.length === 0 ? (
-            <div className="p-12 text-center">
-              <p className="text-slate-400">No cameras configured yet</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-900/50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Location</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Stream URL</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-700">
-                  {worksite.cameras.map((camera) => (
-                    <tr key={camera.id} className="hover:bg-slate-700/30 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
-                        {camera.name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                        {camera.location || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          camera.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {camera.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400 truncate max-w-xs">
-                        {camera.streamUrl || camera.hlsUrl || camera.rtspPath || 'Not configured'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="p-6">
+            <CameraGrid
+              cameras={cameras.map(c => ({
+                id: c.id,
+                name: c.name,
+                janusFeedId: c.janusFeedId,
+                rtspUrl: c.streamUrl,
+                metadata: c.metadata
+              }))}
+              cameraManager={cameraManager}
+              onToggleAI={handleToggleAI}
+              onRemoveCamera={handleRemoveCamera}
+            />
+          </div>
         </div>
       </div>
       </div>
+
+      {/* Add Camera Modal */}
+      <AddCameraModal
+        worksiteId={worksiteId}
+        isOpen={isAddCameraModalOpen}
+        onClose={() => setIsAddCameraModalOpen(false)}
+        onCameraAdded={handleCameraAdded}
+      />
 
       {/* Invite User Modal */}
       {showInviteModal && (
