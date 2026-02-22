@@ -7,7 +7,7 @@ import Link from 'next/link';
 import DashboardHeader from '@/app/components/DashboardHeader';
 import CameraGrid from '@/app/components/cameras/CameraGrid';
 import AddCameraModal from '@/app/components/cameras/AddCameraModal';
-import { useCameraManager } from '@/app/hooks/useCameraManager';
+import { canCreateCamera, type UserRole } from '@/app/lib/permissions';
 
 interface Camera {
   id: string;
@@ -20,9 +20,40 @@ interface Camera {
   janusFeedId: number | null;
   metadata: {
     aiEnabled?: boolean;
+    overlayEnabled?: boolean;
     [key: string]: any;
   } | null;
 }
+
+const OVERLAY_PREFS_KEY = 'nexxauCameraOverlayPrefs';
+
+const loadOverlayPrefs = (): Record<string, boolean> => {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+  try {
+    const raw = localStorage.getItem(OVERLAY_PREFS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      return parsed as Record<string, boolean>;
+    }
+  } catch {
+    // ignore invalid storage
+  }
+  return {};
+};
+
+const saveOverlayPrefs = (prefs: Record<string, boolean>) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  try {
+    localStorage.setItem(OVERLAY_PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    // ignore storage errors
+  }
+};
 
 interface WorksiteUser {
   id: string;
@@ -69,18 +100,6 @@ export default function WorksiteDetailPage() {
   // Camera state
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [isAddCameraModalOpen, setIsAddCameraModalOpen] = useState(false);
-  
-  // Camera manager (one per worksite)
-  const janusServerUrl = process.env.NEXT_PUBLIC_JANUS_SERVER_URL || 'ws://localhost:8088/janus';
-  const roomId = 1234; // TODO: Get from worksite config
-  const cameraManager = useCameraManager({
-    janusServerUrl,
-    roomId,
-    onError: (err) => {
-      console.error('[WorksitePage] Camera manager error:', err);
-      setError(`Camera system error: ${err.message}`);
-    }
-  });
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -102,7 +121,20 @@ export default function WorksiteDetailPage() {
       if (data.success) {
         setWorksite(data.data);
         // Update cameras state from worksite data
-        setCameras(data.data.cameras || []);
+        const overlayPrefs = loadOverlayPrefs();
+        const nextCameras = (data.data.cameras || []).map((camera: Camera) => {
+          const overlayEnabled = typeof overlayPrefs[camera.id] === 'boolean'
+            ? overlayPrefs[camera.id]
+            : (camera.metadata?.overlayEnabled ?? true);
+          return {
+            ...camera,
+            metadata: {
+              ...(camera.metadata || {}),
+              overlayEnabled
+            }
+          };
+        });
+        setCameras(nextCameras);
       } else {
         setError(data.error || 'Failed to load worksite');
       }
@@ -198,17 +230,21 @@ export default function WorksiteDetailPage() {
   }, []);
   
   /**
-   * Handle AI toggle
+   * Handle overlay toggle (client-only)
    */
-  const handleToggleAI = useCallback(async (cameraId: string, enabled: boolean) => {
-    try {
-      await cameraManager.toggleAI(cameraId, enabled);
-    } catch (err: any) {
-      console.error('[WorksitePage] Failed to toggle AI:', err);
-      // Error is handled by cameraManager, but we could show toast here
-      throw err; // Re-throw so CameraTile can handle it
-    }
-  }, [cameraManager]);
+  const handleToggleOverlay = useCallback(async (cameraId: string, enabled: boolean) => {
+    setCameras(prev =>
+      prev.map(c =>
+        c.id === cameraId
+          ? { ...c, metadata: { ...c.metadata, overlayEnabled: enabled } }
+          : c
+      )
+    );
+
+    const prefs = loadOverlayPrefs();
+    prefs[cameraId] = enabled;
+    saveOverlayPrefs(prefs);
+  }, []);
 
   if (loading) {
     return (
@@ -385,12 +421,14 @@ export default function WorksiteDetailPage() {
         <div className="bg-slate-800/50 backdrop-blur rounded-xl border border-slate-700 overflow-hidden">
           <div className="p-6 border-b border-slate-700 flex items-center justify-between">
             <h2 className="text-2xl font-bold text-white">Cameras</h2>
-            <button
-              onClick={() => setIsAddCameraModalOpen(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              Add Camera
-            </button>
+            {canCreateCamera((session?.user as any)?.role as UserRole) && (
+              <button
+                onClick={() => setIsAddCameraModalOpen(true)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                Add Camera
+              </button>
+            )}
           </div>
 
           <div className="p-6">
@@ -402,22 +440,23 @@ export default function WorksiteDetailPage() {
                 rtspUrl: c.streamUrl,
                 metadata: c.metadata
               }))}
-              cameraManager={cameraManager}
-              onToggleAI={handleToggleAI}
+              onToggleOverlay={handleToggleOverlay}
               onRemoveCamera={handleRemoveCamera}
             />
-          </div>
+            </div>
         </div>
       </div>
       </div>
 
-      {/* Add Camera Modal */}
-      <AddCameraModal
-        worksiteId={worksiteId}
-        isOpen={isAddCameraModalOpen}
-        onClose={() => setIsAddCameraModalOpen(false)}
-        onCameraAdded={handleCameraAdded}
-      />
+      {/* Add Camera Modal (super-admin only) */}
+      {canCreateCamera((session?.user as any)?.role as UserRole) && (
+        <AddCameraModal
+          worksiteId={worksiteId}
+          isOpen={isAddCameraModalOpen}
+          onClose={() => setIsAddCameraModalOpen(false)}
+          onCameraAdded={handleCameraAdded}
+        />
+      )}
 
       {/* Invite User Modal */}
       {showInviteModal && (

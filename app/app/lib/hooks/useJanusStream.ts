@@ -84,6 +84,8 @@ export function useJanusStream(options: UseJanusStreamOptions): UseJanusStreamRe
   const isMountedRef = useRef<boolean>(true);
   const isConnectingRef = useRef<boolean>(false);
   const metadataRef = useRef<JanusStreamMetadata | null>(null);
+  const connectRef = useRef<(() => Promise<void>) | null>(null);
+  const hasAutoRecreatedRef = useRef<boolean>(false);
 
   /**
    * Handle state changes from JanusClient
@@ -93,6 +95,9 @@ export function useJanusStream(options: UseJanusStreamOptions): UseJanusStreamRe
 
     setStreamState(state);
     
+    if (state === 'live') {
+      hasAutoRecreatedRef.current = false; // Reset so future "not found" can auto-recreate again
+    }
     if (state === 'error' || state === 'offline') {
       setStream(null);
     }
@@ -100,15 +105,51 @@ export function useJanusStream(options: UseJanusStreamOptions): UseJanusStreamRe
 
   /**
    * Handle errors from JanusClient (FIX 5: Support error codes)
+   * When Janus returns "Mountpoint not found" (e.g. after restart), auto-call recreate-mountpoint and retry once.
    */
   const handleError = useCallback((errorMsg: string, errorCode?: string) => {
     if (!isMountedRef.current) return;
 
+    // Auto-recreate mountpoint once when Janus says stream not found (e.g. after Janus restart)
+    if (errorCode === 'MOUNTPOINT_NOT_FOUND' && cameraId && !hasAutoRecreatedRef.current) {
+      hasAutoRecreatedRef.current = true;
+      setStreamState('loading');
+      setError('Recreating stream...');
+      (async () => {
+        try {
+          const res = await fetch(`/api/cameras/${cameraId}/recreate-mountpoint`, { method: 'POST' });
+          const data = await res.json().catch(() => ({}));
+          if (!isMountedRef.current) return;
+          if (!data.success) {
+            setError(errorMsg);
+            setErrorCode(errorCode || null);
+            setStreamState('error');
+            onError?.(errorMsg);
+            return;
+          }
+          if (clientRef.current) {
+            clientRef.current.destroy();
+            clientRef.current = null;
+          }
+          isConnectingRef.current = false;
+          const doConnect = connectRef.current;
+          if (doConnect) await doConnect();
+        } catch (_e) {
+          if (!isMountedRef.current) return;
+          setError(errorMsg);
+          setErrorCode(errorCode || null);
+          setStreamState('error');
+          onError?.(errorMsg);
+        }
+      })();
+      return;
+    }
+
     setError(errorMsg);
-    setErrorCode(errorCode || null); // FIX 5: Store error code
+    setErrorCode(errorCode || null);
     setStreamState('error');
     onError?.(errorMsg);
-  }, [onError]);
+  }, [cameraId, onError]);
 
   /**
    * Handle remote stream from JanusClient
@@ -218,6 +259,11 @@ export function useJanusStream(options: UseJanusStreamOptions): UseJanusStreamRe
       isConnectingRef.current = false;
     }
   }, [cameraId, handleStateChange, handleError, handleRemoteStream, handleCleanup, onError]);
+  
+  // Update ref whenever connect changes (so effect can use latest version)
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   /**
    * Disconnect from stream
@@ -245,38 +291,50 @@ export function useJanusStream(options: UseJanusStreamOptions): UseJanusStreamRe
   }, [connect, disconnect]);
 
   /**
-   * Auto-connect on mount
+   * Connection timeout: if we stay in 'loading' too long, show error.
+   * Janus may never send an SDP offer if the RTSP source is unreachable from the server.
+   */
+  useEffect(() => {
+    if (streamState !== 'loading') return;
+
+    const timeoutMs = 18000; // 18 seconds
+    const timeoutMsg =
+      'Stream didn’t start in time. The camera source may be unreachable from Janus (e.g. check Docker network or RTSP URL).';
+    const t = setTimeout(() => {
+      if (!isMountedRef.current) return;
+      setStreamState((s) => {
+        if (s !== 'loading') return s;
+        setError(timeoutMsg);
+        return 'error';
+      });
+    }, timeoutMs);
+    return () => clearTimeout(t);
+  }, [streamState]);
+
+  /**
+   * Auto-connect on mount and cleanup on unmount
+   * Single effect handles both to avoid duplicate cleanup
+   * Only depends on cameraId and autoConnect to avoid unnecessary reconnections
    */
   useEffect(() => {
     isMountedRef.current = true;
 
-    if (autoConnect && cameraId) {
-      connect();
+    if (autoConnect && cameraId && connectRef.current) {
+      connectRef.current();
     }
 
     return () => {
-      isMountedRef.current = false;
-      if (clientRef.current) {
-        clientRef.current.destroy();
-        clientRef.current = null;
-      }
-    };
-  }, [autoConnect, cameraId]); // Only depend on autoConnect and cameraId, not connect
-
-  /**
-   * Cleanup on unmount
-   */
-  useEffect(() => {
-    return () => {
+      // Cleanup on unmount or when cameraId/autoConnect changes
       isMountedRef.current = false;
       isConnectingRef.current = false;
+      
       if (clientRef.current) {
-        console.log('[useJanusStream] Unmount cleanup');
+        console.log('[useJanusStream] Cleanup - destroying client', { cameraId });
         clientRef.current.destroy();
         clientRef.current = null;
       }
     };
-  }, []);
+  }, [autoConnect, cameraId]); // Only depend on cameraId and autoConnect, not connect
 
   return {
     streamState,

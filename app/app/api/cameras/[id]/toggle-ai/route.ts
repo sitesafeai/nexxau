@@ -14,6 +14,7 @@ import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { normalizeRole } from '@/app/lib/roles';
+import { startRtpForward, stopRtpForward } from '@/app/lib/services/janusRtspService';
 
 export async function POST(
   request: NextRequest,
@@ -69,7 +70,7 @@ export async function POST(
     // Step 5: Verify camera exists
     const existingCamera = await prisma.camera.findUnique({
       where: { id: cameraId },
-      select: { id: true, metadata: true }
+      select: { id: true, metadata: true, janusFeedId: true }
     });
 
     if (!existingCamera) {
@@ -80,8 +81,55 @@ export async function POST(
       );
     }
 
-    // Step 6: Update camera metadata
     const currentMetadata = (existingCamera.metadata as any) || {};
+
+    // Step 6: Configure YOLO pipeline when enabling/disabling
+    if (enabled) {
+      if (!existingCamera.janusFeedId) {
+        return NextResponse.json(
+          { success: false, error: 'Camera is missing janusFeedId for RTP forwarding' },
+          { status: 400 }
+        );
+      }
+
+      const yoloServiceUrl = process.env.YOLO_SERVICE_URL || 'http://localhost:8765';
+      const yoloRtpHost = process.env.YOLO_RTP_HOST || '127.0.0.1';
+      const yoloBasePort = parseInt(process.env.YOLO_RTP_BASE_PORT || '5004', 10);
+      const rtpCodec = process.env.YOLO_RTP_CODEC || 'vp8';
+
+      const rtpPort = currentMetadata.yoloRtpPort || (yoloBasePort + existingCamera.janusFeedId);
+
+      const forwardResult = await startRtpForward({
+        mountpointId: existingCamera.janusFeedId,
+        host: yoloRtpHost,
+        port: rtpPort,
+        codec: rtpCodec,
+      });
+
+      const startUrl = `${yoloServiceUrl}/rtp/start/${existingCamera.janusFeedId}?rtp_port=${rtpPort}&camera_id=${cameraId}`;
+      const yoloResponse = await fetch(startUrl, { method: 'POST' });
+      if (!yoloResponse.ok) {
+        throw new Error(`YOLO service start failed: ${yoloResponse.status}`);
+      }
+
+      currentMetadata.yoloRtpPort = rtpPort;
+      if (forwardResult.streamId) {
+        currentMetadata.yoloRtpStreamId = forwardResult.streamId;
+      }
+    } else {
+      if (existingCamera.janusFeedId) {
+        const yoloServiceUrl = process.env.YOLO_SERVICE_URL || 'http://localhost:8765';
+        const stopUrl = `${yoloServiceUrl}/rtp/stop/${existingCamera.janusFeedId}`;
+        await fetch(stopUrl, { method: 'POST' }).catch(() => null);
+
+        await stopRtpForward({
+          mountpointId: existingCamera.janusFeedId,
+          streamId: currentMetadata.yoloRtpStreamId,
+        });
+      }
+    }
+
+    // Step 7: Update camera metadata
     const updatedMetadata = {
       ...currentMetadata,
       aiEnabled: enabled
@@ -105,7 +153,7 @@ export async function POST(
 
     console.log(`[API /cameras/:id/toggle-ai] [${requestId}] ✅ AI toggled to ${enabled} for camera: ${camera.id}`);
 
-    // Step 7: Format response
+    // Step 8: Format response
     const response = {
       success: true,
       data: {

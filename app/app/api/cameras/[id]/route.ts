@@ -4,6 +4,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { normalizeRole } from '@/app/lib/roles';
 import { stopHlsStream } from '@/app/lib/streaming/hlsManager';
+import { stopRtpPush } from '@/app/lib/services/cameraIngestClient';
+import { destroyRtspPublisher, listStreamingStreams } from '@/app/lib/services/janusRtspService';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -254,22 +256,68 @@ export async function DELETE(
     console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ All guards passed. Starting deletion process...`);
 
     // ============================================================
-    // PART D: STOP STREAM FIRST (CRITICAL - must happen before DB deletion)
+    // PART D: STOP ALL STREAMS AND CLEANUP INFRASTRUCTURE
     // ============================================================
-    console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 1: Stopping stream process...`);
     
+    // Step 1: Stop RTP worker (camera-ingest-service)
+    if (camera.janusFeedId) {
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 1a: Stopping RTP worker...`);
+      try {
+        const rtpStopResult = await stopRtpPush({ cameraId: trimmedCameraId });
+        if (rtpStopResult.success) {
+          console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ RTP worker stopped for camera ${trimmedCameraId}`);
+        } else {
+          console.log(`[API /cameras/[id] DELETE] [${requestId}] ℹ️ RTP worker not found or already stopped for camera ${trimmedCameraId}`);
+        }
+      } catch (rtpError: any) {
+        console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Error stopping RTP worker (continuing with deletion):`, {
+          name: rtpError.name,
+          message: rtpError.message,
+        });
+        // Continue with deletion even if RTP stop fails
+      }
+    } else {
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] ℹ️ No janusFeedId, skipping RTP worker stop`);
+    }
+
+    // Step 2: Destroy Janus mountpoint
+    if (camera.janusFeedId) {
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 1b: Destroying Janus mountpoint ${camera.janusFeedId}...`);
+      try {
+        // Wrap in timeout to prevent hanging
+        await Promise.race([
+          destroyRtspPublisher(Number(camera.janusFeedId)),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Janus mountpoint destruction timeout after 5s')), 5000)
+          )
+        ]);
+        console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Janus mountpoint ${camera.janusFeedId} destroyed`);
+      } catch (janusError: any) {
+        console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Error destroying Janus mountpoint (continuing with deletion):`, {
+          name: janusError.name,
+          message: janusError.message,
+          stack: janusError.stack,
+        });
+        // Continue with deletion even if Janus cleanup fails
+      }
+    } else {
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] ℹ️ No janusFeedId, skipping Janus mountpoint destruction`);
+    }
+
+    // Step 3: Stop HLS stream (if exists)
+    console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 1c: Stopping HLS stream process...`);
     try {
       // Wait for stream to fully stop (FFmpeg process must exit completely)
       const streamStopped = await stopHlsStream(trimmedCameraId);
       if (streamStopped) {
-        console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Stream process stopped for camera ${trimmedCameraId}`);
+        console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ HLS stream process stopped for camera ${trimmedCameraId}`);
         // Give filesystem a moment to release file locks
         await new Promise(resolve => setTimeout(resolve, 500));
       } else {
-        console.log(`[API /cameras/[id] DELETE] [${requestId}] ℹ️ No active stream found for camera ${trimmedCameraId}`);
+        console.log(`[API /cameras/[id] DELETE] [${requestId}] ℹ️ No active HLS stream found for camera ${trimmedCameraId}`);
       }
     } catch (streamError: any) {
-      console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Error stopping stream (continuing with deletion):`, {
+      console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Error stopping HLS stream (continuing with deletion):`, {
         name: streamError.name,
         message: streamError.message,
         stack: streamError.stack
@@ -498,3 +546,93 @@ export async function DELETE(
   }
 }
 
+/**
+ * PATCH /api/cameras/[id]
+ * Update camera (e.g. switch to a different Janus stream).
+ * Body: { janusFeedId?: number }
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userRole = normalizeRole(session.user.role);
+    const allowedRoles = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'SITE_ADMIN'];
+    if (!allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { id: cameraId } = await params;
+    if (!cameraId?.trim()) {
+      return NextResponse.json({ error: 'Camera ID is required' }, { status: 400 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const janusFeedId = body.janusFeedId;
+
+    if (janusFeedId === undefined || janusFeedId === null) {
+      return NextResponse.json(
+        { error: 'Body must include janusFeedId (number) to switch stream' },
+        { status: 400 }
+      );
+    }
+
+    const feedId = Number(janusFeedId);
+    if (!Number.isInteger(feedId) || feedId <= 0) {
+      return NextResponse.json({ error: 'Invalid janusFeedId' }, { status: 400 });
+    }
+
+    const streams = await listStreamingStreams();
+    const stream = streams.find((s) => s.id === feedId);
+    if (!stream) {
+      return NextResponse.json(
+        { error: `Janus stream ${feedId} not found. Choose a stream from the list.` },
+        { status: 400 }
+      );
+    }
+
+    const camera = await prisma.camera.findUnique({
+      where: { id: cameraId.trim() },
+      select: { id: true, worksiteId: true, metadata: true },
+    });
+    if (!camera) {
+      return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
+    }
+
+    const updated = await prisma.camera.update({
+      where: { id: cameraId.trim() },
+      data: {
+        janusFeedId: feedId,
+        streamUrl: null,
+        type: 'Janus Stream',
+        metadata: {
+          ...(camera.metadata as any || {}),
+          staticMountpoint: true,
+          janusStreamName: stream.name,
+          janusStreamDescription: stream.description,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        janusFeedId: true,
+        status: true,
+        streamUrl: true,
+        type: true,
+        metadata: true,
+      },
+    });
+
+    return NextResponse.json({ success: true, data: updated });
+  } catch (error: any) {
+    console.error('[API /cameras/[id] PATCH] Error:', error?.message);
+    return NextResponse.json(
+      { error: error?.message || 'Failed to update camera' },
+      { status: 500 }
+    );
+  }
+}

@@ -16,7 +16,6 @@
 
 import React, { useCallback, useMemo } from 'react';
 import CameraTile, { CameraTileProps } from './CameraTile';
-import { useCameraManager } from '@/app/hooks/useCameraManager';
 
 export interface CameraGridProps {
   cameras: Array<{
@@ -26,12 +25,14 @@ export interface CameraGridProps {
     rtspUrl: string | null;
     metadata: {
       aiEnabled?: boolean;
+      overlayEnabled?: boolean;
       [key: string]: any;
     } | null;
   }>;
-  cameraManager: ReturnType<typeof useCameraManager>;
-  onToggleAI: (cameraId: string, enabled: boolean) => Promise<void>;
+  onToggleOverlay: (cameraId: string, enabled: boolean) => Promise<void>;
   onRemoveCamera: (cameraId: string) => void;
+  onOpenSettings?: (cameraId: string) => void;
+  onOpenFullscreen?: (cameraId: string) => void;
 }
 
 /**
@@ -44,9 +45,10 @@ export interface CameraGridProps {
  */
 const CameraGrid: React.FC<CameraGridProps> = ({
   cameras,
-  cameraManager,
-  onToggleAI,
-  onRemoveCamera
+  onToggleOverlay,
+  onRemoveCamera,
+  onOpenSettings,
+  onOpenFullscreen
 }) => {
   /**
    * Determine grid columns based on camera count
@@ -64,9 +66,9 @@ const CameraGrid: React.FC<CameraGridProps> = ({
   /**
    * Stable callback for toggle AI
    */
-  const handleToggleAI = useCallback(async (cameraId: string, enabled: boolean) => {
-    await onToggleAI(cameraId, enabled);
-  }, [onToggleAI]);
+  const handleToggleOverlay = useCallback(async (cameraId: string, enabled: boolean) => {
+    await onToggleOverlay(cameraId, enabled);
+  }, [onToggleOverlay]);
   
   /**
    * Stable callback for remove camera
@@ -92,9 +94,10 @@ const CameraGrid: React.FC<CameraGridProps> = ({
         <CameraTile
           key={camera.id}
           camera={camera}
-          cameraManager={cameraManager}
-          onToggleAI={handleToggleAI}
+          onToggleOverlay={handleToggleOverlay}
           onRemove={handleRemoveCamera}
+          onOpenSettings={onOpenSettings}
+          onOpenFullscreen={onOpenFullscreen}
         />
       ))}
     </div>

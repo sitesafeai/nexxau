@@ -39,6 +39,60 @@ export default function ActiveAlerts() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    let eventSource: EventSource | null = null;
+
+    const startStream = () => {
+      let streamUrl = '/api/alerts/stream';
+      try {
+        const storedSite = localStorage.getItem('currentSite');
+        if (storedSite) {
+          const site = JSON.parse(storedSite);
+          if (site?.id) {
+            streamUrl = `${streamUrl}?worksiteId=${encodeURIComponent(site.id)}`;
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to parse currentSite for alert stream filter:', error);
+      }
+
+      eventSource = new EventSource(streamUrl);
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data?.ready) return;
+
+          if (data?.status && data.status !== 'ACTIVE') {
+            setAlerts((prev) => prev.filter((alert) => alert.id !== data.id));
+            return;
+          }
+
+          setAlerts((prev) => {
+            const existingIndex = prev.findIndex((alert) => alert.id === data.id);
+            if (existingIndex >= 0) {
+              const next = [...prev];
+              next[existingIndex] = { ...next[existingIndex], ...data };
+              return next;
+            }
+            return [data as Alert, ...prev];
+          });
+        } catch (error) {
+          console.error('Failed to parse alert stream message:', error);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('Alert stream error:', error);
+      };
+    };
+
+    startStream();
+
+    return () => {
+      eventSource?.close();
+    };
+  }, []);
+
   const loadAlerts = async () => {
     try {
       const res = await fetch('/api/alerts', { cache: 'no-store' });

@@ -53,6 +53,24 @@ interface JanusAdminResponse {
   };
 }
 
+interface JanusGatewayResponse {
+  janus: string;
+  transaction?: string;
+  session_id?: number;
+  sender?: number;
+  data?: {
+    id?: number;
+  };
+  plugindata?: {
+    plugin: string;
+    data: Record<string, any>;
+  };
+  error?: {
+    code: number;
+    reason: string;
+  };
+}
+
 interface JanusRtspMountRequest {
   request: 'mount' | 'unmount' | 'list';
   mountpoint_id?: number;
@@ -64,6 +82,39 @@ interface JanusRtspMountRequest {
     rtsp_user?: string;
     rtsp_pwd?: string;
   };
+}
+
+interface JanusStreamingCreateRequest {
+  request: 'create' | 'destroy' | 'list';
+  id?: number;
+  type?: 'rtsp' | 'rtp';
+  name?: string;
+  description?: string;
+  url?: string;
+  audio?: boolean;
+  video?: boolean;
+  videoport?: number;
+  videopt?: number;
+  videortpmap?: string;
+  videocodec?: string;
+}
+
+export const generateMountpointId = (): number => {
+  const base = Date.now() % 1_000_000_000;
+  const random = Math.floor(Math.random() * 1000);
+  return Math.min(base + random, 2_147_483_647);
+};
+
+interface JanusRtpForwardRequest {
+  request: 'rtp_forward' | 'stop_rtp_forward' | 'rtp_forward_stop';
+  id?: number;
+  mountpoint_id?: number;
+  host?: string;
+  video_port?: number;
+  video_codec?: string;
+  video?: boolean;
+  audio?: boolean;
+  stream_id?: number;
 }
 
 /**
@@ -84,6 +135,69 @@ function getJanusAdminConfig(): { url: string; secret?: string } {
     url: adminUrl.replace(/\/$/, ''), // Remove trailing slash
     secret: adminSecret,
   };
+}
+
+function getJanusApiConfig(): { url: string } {
+  const apiUrl = process.env.JANUS_HTTP_URL;
+  if (!apiUrl) {
+    throw new Error(
+      'JANUS_HTTP_URL environment variable is not set. ' +
+      'Please configure it in your .env file (e.g., JANUS_HTTP_URL=http://localhost:8088/janus)'
+    );
+  }
+  return { url: apiUrl.replace(/\/$/, '') };
+}
+
+function createTransactionId(): string {
+  return `tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function janusApiRequest(endpoint: string, body: any): Promise<JanusGatewayResponse> {
+  const config = getJanusApiConfig();
+  const url = `${config.url}${endpoint}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error');
+    throw new Error(`Janus API request failed: HTTP ${response.status} ${response.statusText}. ${errorText}`);
+  }
+  const data: JanusGatewayResponse = await response.json();
+  if (data.error) {
+    throw new Error(`Janus API error: [${data.error.code}] ${data.error.reason}`);
+  }
+  return data;
+}
+
+async function withStreamingHandle<T>(fn: (sessionId: number, handleId: number) => Promise<T>): Promise<T> {
+  const createTx = createTransactionId();
+  const session = await janusApiRequest('', { janus: 'create', transaction: createTx });
+  const sessionId = session.data?.id || session.session_id;
+  if (!sessionId) {
+    throw new Error('Failed to create Janus session');
+  }
+  try {
+    const attachTx = createTransactionId();
+    const attach = await janusApiRequest(`/${sessionId}`, {
+      janus: 'attach',
+      plugin: 'janus.plugin.streaming',
+      transaction: attachTx,
+    });
+    const handleId = attach.data?.id || attach.sender;
+    if (!handleId) {
+      throw new Error('Failed to attach to janus.plugin.streaming');
+    }
+    return await fn(sessionId, handleId);
+  } finally {
+    const destroyTx = createTransactionId();
+    try {
+      await janusApiRequest(`/${sessionId}`, { janus: 'destroy', transaction: destroyTx });
+    } catch (error) {
+      console.warn('[Janus RTSP Service] Failed to destroy Janus session:', (error as Error).message);
+    }
+  }
 }
 
 /**
@@ -118,10 +232,22 @@ async function janusAdminRequest(
       // If Bearer doesn't work, try: url += `?admin_key=${config.secret}`;
     }
 
+    const transaction = body?.transaction || createTransactionId();
+    const payload = body?.janus
+      ? {
+          transaction,
+          ...body,
+        }
+      : {
+          janus: 'message',
+          transaction,
+          body,
+        };
+
     const response = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
       signal: controller.signal,
     });
 
@@ -215,57 +341,138 @@ export async function createRtspPublisher(rtspUrl: string): Promise<number> {
   console.log(`[Janus RTSP Service] Creating RTSP mount for: ${rtspUrl}`);
 
   try {
-    // Janus RTSP plugin mount request format
-    // Reference: Janus RTSP plugin uses "mount" request with rtsp_url
-    const requestBody: JanusRtspMountRequest = {
-      request: 'mount',
-      rtsp_url: rtspUrl,
-      options: {
+    return await withStreamingHandle(async (sessionId, handleId) => {
+      const requestBody: JanusStreamingCreateRequest = {
+        request: 'create',
+        type: 'rtsp',
+        id: generateMountpointId(),
+        name: `rtsp-${Date.now()}`,
+        description: 'RTSP camera stream',
+        url: rtspUrl,
         video: true,
-        audio: true, // Include audio by default, can be disabled if needed
-      },
-    };
+        audio: true,
+      };
 
-    const response = await janusAdminRequest('/rtsp', requestBody);
+      const tx = createTransactionId();
+      const response = await janusApiRequest(`/${sessionId}/${handleId}`, {
+        janus: 'message',
+        body: requestBody,
+        transaction: tx,
+      });
 
-    // Extract mountpoint_id (feed ID) from response
-    // Janus RTSP plugin returns mountpoint_id in plugindata.data
-    const mountpointId = response.plugindata?.data?.mountpoint_id;
-
-    if (!mountpointId || typeof mountpointId !== 'number') {
-      // Alternative: Check for feed_id if mountpoint_id is not present
-      const feedId = response.plugindata?.data?.feed_id;
-      if (feedId && typeof feedId === 'number') {
-        console.log(
-          `[Janus RTSP Service] RTSP mount created successfully with feed ID: ${feedId}`
+      const mountpointId =
+        response.plugindata?.data?.id ||
+        response.plugindata?.data?.mountpoint_id ||
+        response.plugindata?.data?.stream?.id;
+      if (!mountpointId || typeof mountpointId !== 'number') {
+        throw new Error(
+          `Janus API response missing mountpoint ID. ` +
+          `Response: ${JSON.stringify(response, null, 2)}`
         );
-        return feedId;
       }
 
-      // If neither field is present, try to extract from publishers array
-      // (some Janus setups return the publisher ID in the publishers list)
-      const publishers = response.plugindata?.data?.publishers;
-      if (publishers && publishers.length > 0 && publishers[0].id) {
-        const publisherId = publishers[0].id;
-        console.log(
-          `[Janus RTSP Service] RTSP mount created successfully with publisher ID: ${publisherId}`
-        );
-        return publisherId;
-      }
-
-      throw new Error(
-        `Janus Admin API response missing mountpoint_id or feed_id. ` +
-        `Response: ${JSON.stringify(response, null, 2)}`
+      console.log(
+        `[Janus RTSP Service] RTSP mount created successfully with ID: ${mountpointId}`
       );
-    }
-
-    console.log(
-      `[Janus RTSP Service] RTSP mount created successfully with mountpoint ID: ${mountpointId}`
-    );
-    return mountpointId;
+      return mountpointId;
+    });
   } catch (error: any) {
     console.error(
       `[Janus RTSP Service] Failed to create RTSP mount for ${rtspUrl}:`,
+      error.message
+    );
+    throw error;
+  }
+}
+
+export async function createRtpMountpoint(params: {
+  mountpointId?: number;
+  videoPort: number;
+  videoCodec?: string;
+  payloadType?: number;
+  name?: string;
+  description?: string;
+}): Promise<number> {
+  const {
+    mountpointId = generateMountpointId(),
+    videoPort,
+    videoCodec = 'h264',
+    payloadType = 96,
+    name,
+    description,
+  } = params;
+
+  if (!videoPort || videoPort <= 0) {
+    throw new Error('videoPort must be a positive integer');
+  }
+
+  // ============================================================
+  // PORT VERIFICATION LOGGING
+  // ============================================================
+  console.log('=== Janus Mountpoint Creation - Port Verification ===');
+  console.log('Mountpoint ID:', mountpointId);
+  console.log('Video Port:', videoPort);
+  console.log('Video Codec:', videoCodec);
+  console.log('Payload Type:', payloadType);
+  console.log('⚠️ CRITICAL: Janus will listen for RTP packets on port', videoPort);
+  console.log('⚠️ CRITICAL: FFmpeg MUST send RTP to this exact port:', videoPort);
+  console.log('⚠️ VERIFY: Port calculation matches between services!');
+
+  try {
+    return await withStreamingHandle(async (sessionId, handleId) => {
+      const requestBody: JanusStreamingCreateRequest = {
+        request: 'create',
+        type: 'rtp',
+        id: mountpointId,
+        name: name || `rtp-${mountpointId}`,
+        description: description || 'RTP camera stream',
+        video: true,
+        audio: false,
+        videoport: videoPort,
+        videopt: payloadType,
+        videortpmap: `${videoCodec.toUpperCase()}/90000`,
+        videocodec: videoCodec.toLowerCase(),
+      };
+      
+      console.log('Janus mountpoint creation request:', {
+        mountpointId,
+        videoport: videoPort,
+        videopt: payloadType,
+        videocodec: videoCodec,
+        videortpmap: `${videoCodec.toUpperCase()}/90000`,
+      });
+
+      const tx = createTransactionId();
+      const response = await janusApiRequest(`/${sessionId}/${handleId}`, {
+        janus: 'message',
+        body: requestBody,
+        transaction: tx,
+      });
+
+      // Try multiple possible locations for the mountpoint ID
+      const createdId =
+        response.plugindata?.data?.id ||
+        response.plugindata?.data?.mountpoint_id ||
+        response.plugindata?.data?.stream?.id ||
+        (response.plugindata?.data?.created ? 
+          parseInt(String(response.plugindata.data.created).replace('mp-', '')) : null);
+      
+      if (!createdId || typeof createdId !== 'number') {
+        console.error('[Janus RTSP Service] Full response:', JSON.stringify(response, null, 2));
+        throw new Error(
+          `Janus API response missing mountpoint ID. ` +
+          `Response: ${JSON.stringify(response, null, 2)}`
+        );
+      }
+
+      console.log(
+        `[Janus RTSP Service] RTP mount created successfully with ID: ${createdId}`
+      );
+      return createdId;
+    });
+  } catch (error: any) {
+    console.error(
+      `[Janus RTSP Service] Failed to create RTP mount ${mountpointId}:`,
       error.message
     );
     throw error;
@@ -296,13 +503,19 @@ export async function destroyRtspPublisher(feedId: number): Promise<void> {
   console.log(`[Janus RTSP Service] Destroying RTSP mount with feed ID: ${feedId}`);
 
   try {
-    // Janus RTSP plugin unmount request format
-    const requestBody: JanusRtspMountRequest = {
-      request: 'unmount',
-      mountpoint_id: feedId,
-    };
+    await withStreamingHandle(async (sessionId, handleId) => {
+      const requestBody: JanusStreamingCreateRequest = {
+        request: 'destroy',
+        id: feedId,
+      };
 
-    await janusAdminRequest('/rtsp', requestBody);
+      const tx = createTransactionId();
+      await janusApiRequest(`/${sessionId}/${handleId}`, {
+        janus: 'message',
+        body: requestBody,
+        transaction: tx,
+      });
+    });
 
     console.log(
       `[Janus RTSP Service] RTSP mount destroyed successfully for feed ID: ${feedId}`
@@ -339,26 +552,187 @@ export async function listRtspMounts(): Promise<Array<{
   console.log('[Janus RTSP Service] Listing RTSP mounts');
 
   try {
-    const requestBody: JanusRtspMountRequest = {
-      request: 'list',
-    };
+    return await withStreamingHandle(async (sessionId, handleId) => {
+      const requestBody: JanusStreamingCreateRequest = {
+        request: 'list',
+      };
 
-    const response = await janusAdminRequest('/rtsp', requestBody);
+      const tx = createTransactionId();
+      const response = await janusApiRequest(`/${sessionId}/${handleId}`, {
+        janus: 'message',
+        body: requestBody,
+        transaction: tx,
+      });
 
-    // Parse mount list from response
-    // Format depends on Janus RTSP plugin version
-    const mounts = response.plugindata?.data;
+      const list = response.plugindata?.data?.list;
+      if (!Array.isArray(list)) {
+        return [];
+      }
 
-    if (!mounts) {
-      return [];
-    }
-
-    // If response contains array of mounts, return it
-    // Otherwise, return empty array (list format varies by Janus version)
-    return [];
+      return list.map((item: any) => ({
+        mountpoint_id: item.id,
+        rtsp_url: item.url || '',
+        mounted: item.mounted || 'unknown',
+      }));
+    });
   } catch (error: any) {
     console.error('[Janus RTSP Service] Failed to list RTSP mounts:', error.message);
     throw error;
   }
 }
 
+/**
+ * List all streaming mountpoints (for dropdown: id, name, description, type).
+ * Used when adding a camera that "displays" an existing Janus stream.
+ */
+export async function listStreamingStreams(): Promise<Array<{
+  id: number;
+  name?: string;
+  description?: string;
+  type?: string;
+}>> {
+  try {
+    return await withStreamingHandle(async (sessionId, handleId) => {
+      const tx = createTransactionId();
+      const response = await janusApiRequest(`/${sessionId}/${handleId}`, {
+        janus: 'message',
+        body: { request: 'list' as const },
+        transaction: tx,
+      });
+      const list = response.plugindata?.data?.list;
+      if (!Array.isArray(list)) {
+        return [];
+      }
+      return list.map((item: any) => ({
+        id: item.id,
+        name: item.name ?? item.description ?? `Stream ${item.id}`,
+        description: item.description ?? item.name ?? '',
+        type: item.type ?? 'rtp',
+      }));
+    });
+  } catch (error: any) {
+    console.error('[Janus RTSP Service] Failed to list streaming streams:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Get information about a specific mountpoint
+ * 
+ * @param mountpointId - The mountpoint ID to query
+ * @returns Promise resolving to mountpoint info or null if not found
+ */
+export async function getMountpointInfo(mountpointId: number): Promise<{
+  id: number;
+  name?: string;
+  description?: string;
+  type?: string;
+  videoport?: number;
+  videopt?: number;
+  videocodec?: string;
+  [key: string]: any;
+} | null> {
+  if (!mountpointId || typeof mountpointId !== 'number' || mountpointId <= 0) {
+    throw new Error('mountpointId must be a positive integer');
+  }
+
+  console.log(`[Janus RTSP Service] Getting info for mountpoint ${mountpointId}`);
+
+  try {
+    return await withStreamingHandle(async (sessionId, handleId) => {
+      const requestBody: JanusStreamingCreateRequest = {
+        request: 'list',
+      };
+
+      const tx = createTransactionId();
+      const response = await janusApiRequest(`/${sessionId}/${handleId}`, {
+        janus: 'message',
+        body: requestBody,
+        transaction: tx,
+      });
+
+      const list = response.plugindata?.data?.list;
+      if (!Array.isArray(list)) {
+        return null;
+      }
+
+      const mountpoint = list.find((item: any) => item.id === mountpointId);
+      if (!mountpoint) {
+        return null;
+      }
+
+      return {
+        id: mountpoint.id,
+        name: mountpoint.name,
+        description: mountpoint.description,
+        type: mountpoint.type,
+        videoport: mountpoint.videoport,
+        videopt: mountpoint.videopt,
+        videocodec: mountpoint.videocodec,
+        ...mountpoint,
+      };
+    });
+  } catch (error: any) {
+    console.error(`[Janus RTSP Service] Failed to get mountpoint info for ${mountpointId}:`, error.message);
+    throw error;
+  }
+}
+
+export async function startRtpForward(params: {
+  mountpointId: number;
+  host: string;
+  port: number;
+  codec?: string;
+}): Promise<{ streamId?: number }> {
+  const { mountpointId, host, port, codec = 'vp8' } = params;
+  if (!mountpointId || mountpointId <= 0) {
+    throw new Error('mountpointId must be a positive integer');
+  }
+  if (!host) {
+    throw new Error('host is required for RTP forward');
+  }
+  if (!port || port <= 0) {
+    throw new Error('port is required for RTP forward');
+  }
+  return await withStreamingHandle(async (sessionId, handleId) => {
+    const requestBody: JanusRtpForwardRequest = {
+      request: 'rtp_forward',
+      id: mountpointId,
+      mountpoint_id: mountpointId,
+      host,
+      video_port: port,
+      video_codec: codec,
+      video: true,
+      audio: false,
+    };
+    const tx = createTransactionId();
+    const response = await janusApiRequest(`/${sessionId}/${handleId}`, {
+      janus: 'message',
+      body: requestBody,
+      transaction: tx,
+    });
+    const streamId = response.plugindata?.data?.stream_id;
+    return { streamId: typeof streamId === 'number' ? streamId : undefined };
+  });
+}
+
+export async function stopRtpForward(params: {
+  mountpointId: number;
+  streamId?: number;
+}): Promise<void> {
+  const { mountpointId, streamId } = params;
+  if (!mountpointId || mountpointId <= 0) {
+    throw new Error('mountpointId must be a positive integer');
+  }
+  await withStreamingHandle(async (sessionId, handleId) => {
+    const requestBody: JanusRtpForwardRequest = streamId
+      ? { request: 'stop_rtp_forward', stream_id: streamId }
+      : { request: 'rtp_forward_stop', id: mountpointId, mountpoint_id: mountpointId };
+    const tx = createTransactionId();
+    await janusApiRequest(`/${sessionId}/${handleId}`, {
+      janus: 'message',
+      body: requestBody,
+      transaction: tx,
+    });
+  });
+}

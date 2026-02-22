@@ -4,8 +4,14 @@
  * Controls frame rate based on system load to reduce costs and ensure stability.
  */
 
-import { logger } from '@nexxau/logger';
+import { createLogger, Logger } from '@nexxau/logger';
 import os from 'os';
+
+const logger = createLogger({
+  service: 'camera-ingest-service',
+  environment: process.env.NODE_ENV || 'development',
+  version: '1.0.0',
+});
 
 export interface FPSControllerConfig {
   minFPS: number;

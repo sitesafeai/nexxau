@@ -26,6 +26,7 @@
 export interface JanusLoaderOptions {
   scriptUrl?: string;
   timeoutMs?: number;
+  debug?: boolean | 'all' | 'none';
 }
 
 export class JanusLoaderError extends Error {
@@ -85,8 +86,9 @@ export class JanusLoader {
 
     const scriptUrl = options.scriptUrl || this.DEFAULT_SCRIPT_URL;
     const timeoutMs = options.timeoutMs || this.DEFAULT_TIMEOUT_MS;
+    const debug = options.debug ?? false;
 
-    this.loadPromise = this._loadInternal(scriptUrl, timeoutMs);
+    this.loadPromise = this._loadInternal(scriptUrl, timeoutMs, debug);
     
     // Clear promise on error so we can retry
     this.loadPromise.catch(() => {
@@ -106,7 +108,11 @@ export class JanusLoader {
    * 
    * Load order: adapter.js → janus.js → Janus.init()
    */
-  private static async _loadInternal(scriptUrl: string, timeoutMs: number): Promise<typeof window.Janus> {
+  private static async _loadInternal(
+    scriptUrl: string,
+    timeoutMs: number,
+    debug: boolean | 'all' | 'none'
+  ): Promise<typeof window.Janus> {
     // Check browser WebRTC support first
     if (typeof window === 'undefined') {
       throw new JanusLoaderError(
@@ -144,7 +150,7 @@ export class JanusLoader {
 
     // Load Janus script (using local file)
     console.log(`[JanusLoader] Loading Janus from: ${scriptUrl}`);
-    return this._loadScript(scriptUrl, timeoutMs);
+    return this._loadScript(scriptUrl, timeoutMs, debug);
   }
 
   /**
@@ -258,7 +264,11 @@ export class JanusLoader {
    * CRITICAL: Adapter.js MUST be loaded before this method is called.
    * This is enforced by _loadInternal() which loads adapter first.
    */
-  private static async _loadScript(scriptUrl: string, timeoutMs: number): Promise<typeof window.Janus> {
+  private static async _loadScript(
+    scriptUrl: string,
+    timeoutMs: number,
+    debug: boolean | 'all' | 'none'
+  ): Promise<typeof window.Janus> {
     // RUNTIME VALIDATION: Ensure adapter is loaded before Janus
     if (!(window as any).adapter) {
       throw new JanusLoaderError(
@@ -358,7 +368,7 @@ export class JanusLoader {
         // Initialize Janus (legacy API)
         try {
           window.Janus.init({
-            debug: false,
+            debug,
             callback: () => {
               console.log('[JanusLoader] ✅ Janus initialized successfully');
               this.janusLibraryLoaded = true;

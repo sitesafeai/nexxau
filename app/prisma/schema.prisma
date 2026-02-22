@@ -32,50 +32,49 @@ model Session {
   userId       String
   expires      DateTime
   ipAddress    String?
-  userAgent    String?
-  location     String?
   isActive     Boolean  @default(true)
   lastActivity DateTime @default(now())
+  location     String?
+  userAgent    String?
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model User {
-  id                 String                  @id @default(cuid())
+  id                 String               @id @default(cuid())
   name               String?
-  email              String?                 @unique
+  email              String?              @unique
   emailVerified      DateTime?
   password           String?
   image              String?
   phoneNumber        String?
-  role               UserRole                @default(WORKER)
   companyId          String?
   worksiteId         String?
-  inviteToken        String?                 @unique
-  inviteExpires      DateTime?
-  invitedBy          String?
-  isActivated        Boolean                 @default(false)
-  approved           Boolean                 @default(false)
-  onboardingComplete Boolean                 @default(false)
-  verificationToken  String?                 @unique
-  mfaEnabled         Boolean                 @default(false)
-  mfaSecret          String?
-  mfaBackupCodes     Json?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  isActivated        Boolean              @default(false)
+  approved           Boolean              @default(false)
+  verificationToken  String?              @unique
   lastLogin          DateTime?
-  timezone           String?                 @default("America/New_York")
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
+  mfaBackupCodes     Json?
+  mfaEnabled         Boolean              @default(false)
+  mfaSecret          String?
+  inviteExpires      DateTime?
+  inviteToken        String?              @unique
+  invitedBy          String?
+  onboardingComplete Boolean              @default(false)
+  timezone           String?              @default("America/New_York")
+  role               UserRole             @default(WORKER)
   accounts           Account[]
   sessions           Session[]
-  company            Company?                @relation(fields: [companyId], references: [id])
-  worksite           Worksite?               @relation(fields: [worksiteId], references: [id])
+  company            Company?             @relation(fields: [companyId], references: [id])
+  worksite           Worksite?            @relation(fields: [worksiteId], references: [id])
   worksiteAccess     WorksiteUser[]
   companyAccess      CompanyUser[]
   alertResponses     AlertResponse[]
   alertRules         AlertRule[]
-  resolvedAlerts     Alert[]                 @relation("ResolvedAlerts")
-  overriddenAlerts   Alert[]                 @relation("OverriddenAlerts")
+  resolvedAlerts     Alert[]              @relation("ResolvedAlerts")
+  overriddenAlerts   Alert[]              @relation("OverriddenAlerts")
   resolutionLogs     AlertResolutionLog[]
-  overrideAudits     AlertOverrideAuditLog[]
   blogPosts          BlogPost[]
   mfaCodes           MFACode[]
   apiKeys            ApiKey[]
@@ -84,23 +83,17 @@ model User {
   errorLogs          ErrorLog[]
   customRules        CustomRule[]
   auditLogs          AuditLog[]
-  reports            Report[]
   Workflow           Workflow[]
 }
 
 model AuditLog {
   id         String    @id @default(cuid())
   userId     String?
+  worksiteId String?
   action     String
   entity     String
   entityId   String?
-  entityName String?
-  worksiteId String?
-  companyId  String?
   changes    Json?
-  details    Json?
-  result     String?
-  severity   String?
   ipAddress  String?
   userAgent  String?
   metadata   Json?
@@ -112,10 +105,7 @@ model AuditLog {
   @@index([action])
   @@index([entity])
   @@index([entityId])
-  @@index([worksiteId])
-  @@index([companyId])
   @@index([createdAt])
-  @@index([entity, createdAt])
 }
 
 model WorksiteUser {
@@ -162,11 +152,11 @@ model Company {
   name            String
   companyUsername String                 @unique
   email           String                 @unique
-  contactEmail    String?
   phone           String?
   address         String?
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
+  contactEmail    String?
   worksites       Worksite[]
   users           User[]
   companyUsers    CompanyUser[]
@@ -177,13 +167,13 @@ model Worksite {
   id                       String                    @id @default(cuid())
   name                     String
   worksiteName             String                    @unique
-  location                 String?
   address                  String?
   companyId                String
   cameraSystemType         String                    @default("mixed")
-  status                   String                    @default("ACTIVE")
   createdAt                DateTime                  @default(now())
   updatedAt                DateTime                  @updatedAt
+  location                 String?
+  status                   String                    @default("ACTIVE")
   company                  Company                   @relation(fields: [companyId], references: [id])
   cameraSystemConfig       CameraSystemConfig?
   workers                  Worker[]
@@ -202,18 +192,9 @@ model Worksite {
   safetyScoreConfig        SafetyScoreConfig?
   violationClassifications ViolationClassification[]
   worksiteUsers            WorksiteUser[]
-  falsePositiveReports     FalsePositiveReport[]
-  truePositiveReports      TruePositiveReport[]
   trainingImages           TrainingImage[]
   auditLogs                AuditLog[]
   workflows                Workflow[]
-  escalationChains         EscalationChain[]
-  incidentReports          IncidentReport[]
-  worksiteMetrics          WorksiteMetrics[]
-  alertBatches             AlertBatch[]
-
-  @@index([companyId])
-  @@index([status])
 }
 
 model CompanyBillingRecord {
@@ -246,47 +227,38 @@ model Worker {
 }
 
 model Alert {
-  id                  String                  @id @default(cuid())
-  title               String
-  description         String
-  severity            AlertSeverity
-  status              AlertStatus             @default(ACTIVE)
-  source              String
-  location            String?
-  metadata            Json?
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @updatedAt
-  resolvedAt          DateTime?
-  resolvedBy          String?
-  resolutionType      String?
-  resolutionNotes     String?
-  fpReason            String?
-  snoozeUntil         DateTime?
-  workerId            String?
-  violationType       String?
-  detectionSnapshot   String?
-  detectionVideo      String?
-  detectionData       Json?
-  overrideStatus      String?
-  overrideBy          String?
-  overrideAt          DateTime?
-  overrideReason      String?
-  modelVersion        String?
-  isTrainingCandidate Boolean                 @default(false)
-  ruleId              String?
-  worksiteId          String?
-  cameraId            String?
-  resolvedByUser      User?                   @relation("ResolvedAlerts", fields: [resolvedBy], references: [id])
-  overrideByUser      User?                   @relation("OverriddenAlerts", fields: [overrideBy], references: [id])
-  rule                AlertRule?              @relation(fields: [ruleId], references: [id])
-  worksite            Worksite?               @relation(fields: [worksiteId], references: [id])
-  camera              Camera?                 @relation(fields: [cameraId], references: [id])
-  responses           AlertResponse[]
-  resolutionLogs      AlertResolutionLog[]
-  overrideAudits      AlertOverrideAuditLog[]
-  incidents           Incident[]
-  escalations         Escalation[]
-  incidentReport      IncidentReport?
+  id                String               @id @default(cuid())
+  title             String
+  description       String
+  severity          AlertSeverity
+  status            AlertStatus          @default(ACTIVE)
+  source            String
+  location          String?
+  metadata          Json?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  resolvedAt        DateTime?
+  ruleId            String?
+  worksiteId        String?
+  cameraId          String?
+  detectionData     Json?
+  detectionSnapshot String?
+  detectionVideo    String?
+  fpReason          String?
+  resolutionNotes   String?
+  resolutionType    String?
+  resolvedBy        String?
+  overrideBy        String?
+  snoozeUntil       DateTime?
+  violationType     String?
+  workerId          String?
+  resolvedByUser    User?                @relation("ResolvedAlerts", fields: [resolvedBy], references: [id])
+  overrideByUser    User?                @relation("OverriddenAlerts", fields: [overrideBy], references: [id])
+  rule              AlertRule?           @relation(fields: [ruleId], references: [id])
+  worksite          Worksite?            @relation(fields: [worksiteId], references: [id])
+  camera            Camera?              @relation(fields: [cameraId], references: [id])
+  responses         AlertResponse[]
+  resolutionLogs    AlertResolutionLog[]
 }
 
 model AlertResolutionLog {
@@ -302,25 +274,6 @@ model AlertResolutionLog {
   createdAt     DateTime @default(now())
   alert         Alert    @relation(fields: [alertId], references: [id])
   user          User     @relation(fields: [userId], references: [id])
-}
-
-model AlertOverrideAuditLog {
-  id                   String   @id @default(cuid())
-  alertId              String
-  userId               String
-  oldStatus            String?
-  newStatus            String
-  oldTrainingCandidate Boolean?
-  newTrainingCandidate Boolean?
-  reason               String?
-  notes                String?
-  createdAt            DateTime @default(now())
-  alert                Alert    @relation(fields: [alertId], references: [id])
-  user                 User     @relation(fields: [userId], references: [id])
-
-  @@index([alertId])
-  @@index([userId])
-  @@index([createdAt])
 }
 
 model AlertRule {
@@ -365,39 +318,34 @@ model AlertResponse {
 }
 
 model Camera {
-  id                   String                @id @default(cuid())
-  name                 String
-  type                 String                @default("RTSP")
-  status               String                @default("pending")
-  streamUrl            String?
-  location             String?
-  ipAddress            String?
-  port                 Int?
-  username             String?
-  password             String?
-  rtspPath             String?
-  hlsUrl               String?
-  mediamtxPath         String?
-  metadata             Json?
-  worksiteId           String
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  janusFeedId          Int?
-  worksite             Worksite              @relation(fields: [worksiteId], references: [id])
-  detections           Detection[]
-  health               CameraHealth[]
-  safetyViolations     SafetyViolation[]
-  smsNotifications     SMSNotification[]
-  customRules          CustomRule[]
-  ruleTriggers         CustomRuleTrigger[]
-  ruleViolations       CustomRuleViolation[]
-  trainingImages       TrainingImage[]
-  alerts               Alert[]
-  falsePositiveReports FalsePositiveReport[]
-  truePositiveReports  TruePositiveReport[]
-
-  @@index([worksiteId])
-  @@index([status])
+  id               String                @id @default(cuid())
+  name             String
+  type             String
+  status           String                @default("active")
+  streamUrl        String?
+  location         String?
+  ipAddress        String?
+  port             Int?
+  username         String?
+  password         String?
+  rtspPath         String?
+  hlsUrl           String?
+  mediamtxPath     String?
+  worksiteId       String
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  metadata         Json?
+  janusFeedId      Int?
+  worksite         Worksite              @relation(fields: [worksiteId], references: [id])
+  detections       Detection[]
+  health           CameraHealth[]
+  safetyViolations SafetyViolation[]
+  smsNotifications SMSNotification[]
+  customRules      CustomRule[]
+  ruleTriggers     CustomRuleTrigger[]
+  ruleViolations   CustomRuleViolation[]
+  trainingImages   TrainingImage[]
+  alerts           Alert[]
 }
 
 model CameraSystemConfig {
@@ -418,12 +366,12 @@ model Detection {
   frameWidth   Int?
   frameHeight  Int?
   metadata     Json?
-  userFeedback String?
-  feedbackBy   String?
-  feedbackAt   DateTime?
-  feedbackNote String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  feedbackAt   DateTime?
+  feedbackBy   String?
+  feedbackNote String?
+  userFeedback String?
   camera       Camera    @relation(fields: [cameraId], references: [id])
 
   @@index([userFeedback])
@@ -801,265 +749,41 @@ model ViolationClassification {
   @@index([worksiteId])
 }
 
-model Report {
-  id               String         @id @default(cuid())
-  name             String
-  ownerId          String?
-  isTemplate       Boolean        @default(false)
-  isSystem         Boolean        @default(false)
-  spec             Json
-  schedule         String?
-  nextRunAt        DateTime?
-  lastRunAt        DateTime?
-  deliverySettings Json?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  owner            User?          @relation(fields: [ownerId], references: [id])
-  exports          ReportExport[]
-
-  @@index([ownerId])
-  @@index([isTemplate])
-  @@index([isSystem])
-}
-
-model ReportExport {
-  id            String    @id @default(cuid())
-  reportId      String
-  jobId         String    @unique
-  format        String
-  status        String    @default("queued")
-  fileKey       String?
-  fileUrl       String?
-  fileSize      Int?
-  error         String?
-  requestedBy   String
-  requestedAt   DateTime  @default(now())
-  completedAt   DateTime?
-  expiresAt     DateTime?
-  downloadCount Int       @default(0)
-  report        Report    @relation(fields: [reportId], references: [id], onDelete: Cascade)
-
-  @@index([reportId])
-  @@index([jobId])
-  @@index([status])
-}
-
-model Incident {
-  id             String    @id @default(cuid())
-  title          String
-  description    String?
-  severity       String
-  status         String    @default("open")
-  alertId        String?
-  cameraId       String?
-  worksiteId     String
-  ownerId        String?
-  assignedTo     String?
-  evidence       Json?
-  resolvedAt     DateTime?
-  resolvedBy     String?
-  resolutionType String?
-  resolutionNote String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  alert          Alert?    @relation(fields: [alertId], references: [id])
-
-  @@index([worksiteId])
-  @@index([status])
-  @@index([alertId])
-}
-
 model Workflow {
-  id              String              @id @default(cuid())
-  worksiteId      String?
-  userId          String?
-  name            String
-  description     String?
-  type            WorkflowType
-  enabled         Boolean             @default(true)
-  triggerType     String
-  triggerConfig   Json
-  actions         Json
-  batchingEnabled Boolean             @default(false)
-  batchWindow     Int?
-  rateLimitWindow Int?
-  priority        Int                 @default(1)
-  createdBy       String?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  lastRunAt       DateTime?
-  worksite        Worksite?           @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
-  user            User?               @relation(fields: [userId], references: [id])
-  executions      WorkflowExecution[]
-
-  @@index([worksiteId])
-  @@index([userId])
-  @@index([type])
-  @@index([enabled])
+  id                   String    @id @default(cuid())
+  name                 String
+  description          String?
+  nodes                Json
+  connections          Json
+  isActive             Boolean   @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  siteId               String?
+  userId               String?
+  averageExecutionTime Int?
+  executionCount       Int       @default(0)
+  lastExecuted         DateTime?
+  successRate          Float?
+  worksiteId           String?
+  worksite             Worksite? @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  user                 User?     @relation(fields: [userId], references: [id])
 }
 
-model WorkflowExecution {
-  id              String    @id @default(cuid())
-  workflowId      String
-  triggeredBy     String
-  triggerData     Json?
-  status          String
-  startedAt       DateTime  @default(now())
-  completedAt     DateTime?
-  actionsExecuted Int       @default(0)
-  actionsFailed   Int       @default(0)
-  results         Json?
-  error           String?
-  createdAt       DateTime  @default(now())
-  workflow        Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-
-  @@index([workflowId])
-  @@index([status])
-  @@index([startedAt])
-}
-
-model EscalationChain {
-  id          String       @id @default(cuid())
-  worksiteId  String
+model Site {
+  id          String   @id
   name        String
   description String?
-  severity    String[]
-  alertTypes  String[]
-  steps       Json
-  enabled     Boolean      @default(true)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  worksite    Worksite     @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
-  escalations Escalation[]
-
-  @@index([worksiteId])
-  @@index([enabled])
+  location    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
 }
 
-model Escalation {
-  id             String          @id @default(cuid())
-  alertId        String
-  chainId        String
-  currentLevel   Int             @default(1)
-  status         String
-  acknowledgedAt DateTime?
-  acknowledgedBy String?
-  notifications  Json
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  alert          Alert           @relation(fields: [alertId], references: [id], onDelete: Cascade)
-  chain          EscalationChain @relation(fields: [chainId], references: [id], onDelete: Cascade)
-
-  @@index([alertId])
-  @@index([chainId])
-  @@index([status])
-}
-
-model NotificationLog {
-  id          String    @id @default(cuid())
-  worksiteId  String?
-  alertId     String?
-  workflowId  String?
-  channel     String
-  recipient   String
-  subject     String?
-  body        String
-  metadata    Json?
-  status      String
-  sentAt      DateTime?
-  deliveredAt DateTime?
-  error       String?
-  cost        Float?
-  createdAt   DateTime  @default(now())
-
-  @@index([worksiteId])
-  @@index([alertId])
-  @@index([workflowId])
-  @@index([status])
-  @@index([createdAt])
-}
-
-model IncidentReport {
-  id           String    @id @default(cuid())
-  worksiteId   String
-  alertId      String    @unique
-  reportNumber String    @unique
-  severity     String
-  title        String
-  summary      String
-  details      Json
-  snapshots    Json
-  videoClips   Json?
-  reviewedBy   String?
-  reviewedAt   DateTime?
-  reviewNotes  String?
-  auditHash    String?
-  immutable    Boolean   @default(false)
-  sentTo       Json?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  worksite     Worksite  @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
-  alert        Alert     @relation(fields: [alertId], references: [id], onDelete: Cascade)
-
-  @@index([worksiteId])
-  @@index([severity])
-  @@index([createdAt])
-}
-
-model WorksiteMetrics {
-  id               String   @id @default(cuid())
-  worksiteId       String
-  date             DateTime
-  totalAlerts      Int      @default(0)
-  alertsByType     Json
-  alertsBySeverity Json
-  alertsByHour     Json
-  camerasOnline    Int      @default(0)
-  camerasOffline   Int      @default(0)
-  averageUptime    Float?
-  complianceRate   Float?
-  violationsByZone Json?
-  topHotspots      Json?
-  createdAt        DateTime @default(now())
-  worksite         Worksite @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
-
-  @@unique([worksiteId, date])
-  @@index([worksiteId])
-  @@index([date])
-}
-
-model AlertBatch {
-  id                String    @id @default(cuid())
-  worksiteId        String
-  batchStart        DateTime
-  batchEnd          DateTime
-  alertIds          String[]
-  alertCount        Int
-  topTypes          Json
-  topZones          Json
-  severityBreakdown Json
-  notificationSent  Boolean   @default(false)
-  sentAt            DateTime?
-  createdAt         DateTime  @default(now())
-  worksite          Worksite  @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
-
-  @@index([worksiteId])
-  @@index([batchStart])
-}
-
-model WorkflowTemplate {
-  id            String       @id @default(cuid())
-  name          String
-  description   String
-  type          WorkflowType
-  defaultConfig Json
-  category      String
-  isActive      Boolean      @default(true)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-
-  @@index([type])
-  @@index([category])
+enum InquiryStatus {
+  UNREAD
+  READ
+  REPLIED
+  RESOLVED
+  ARCHIVED
 }
 
 model ContactInquiry {
@@ -1082,67 +806,15 @@ model ContactInquiry {
   @@index([status])
   @@index([isRead])
   @@index([createdAt])
-  @@map("ContactInquiry")
-}
-
-model FalsePositiveReport {
-  id            String    @id @default(cuid())
-  alertId       String?
-  detectionId   String?
-  worksiteId    String?
-  cameraId      String?
-  reportedBy    String?
-  description   String?
-  incidentType  String?
-  videoUrl      String?
-  imageUrl      String?
-  timestamp     DateTime?
-  reviewed      Boolean   @default(false)
-  reviewedBy    String?
-  reviewedAt    DateTime?
-  trainingNotes String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  worksite      Worksite? @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
-  camera        Camera?   @relation(fields: [cameraId], references: [id], onDelete: Cascade)
-
-  @@index([worksiteId])
-  @@index([cameraId])
-  @@index([reviewed])
-  @@index([createdAt])
-}
-
-model TruePositiveReport {
-  id            String    @id @default(cuid())
-  alertId       String?
-  detectionId   String?
-  worksiteId    String?
-  cameraId      String?
-  reportedBy    String?
-  description   String?
-  incidentType  String?
-  videoUrl      String?
-  imageUrl      String?
-  timestamp     DateTime?
-  reviewed      Boolean   @default(false)
-  reviewedBy    String?
-  reviewedAt    DateTime?
-  trainingNotes String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  worksite      Worksite? @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
-  camera        Camera?   @relation(fields: [cameraId], references: [id], onDelete: Cascade)
-
-  @@index([worksiteId])
-  @@index([cameraId])
-  @@index([reviewed])
-  @@index([createdAt])
 }
 
 enum UserRole {
   SUPER_ADMIN
   COMPANY_ADMIN
   SITE_ADMIN
+  SUPERVISOR
+  WORKER
+  VIEWER
   SALES_ADMIN
   MARKETING_ADMIN
   OPERATIONS_ADMIN
@@ -1151,9 +823,6 @@ enum UserRole {
   HR_ADMIN
   SUPPORT_ADMIN
   CUSTOMER_SUCCESS
-  SUPERVISOR
-  WORKER
-  VIEWER
 }
 
 enum WorksiteRole {
@@ -1170,10 +839,9 @@ enum CompanyRole {
 }
 
 enum AlertSeverity {
-  INFO
-  WARNING
-  CRITICAL
-  EMERGENCY
+  LOW
+  MEDIUM
+  HIGH
 }
 
 enum RuleCategory {
@@ -1240,22 +908,4 @@ enum CameraStatus {
   DEGRADED
   ERROR
   MAINTENANCE
-}
-
-enum WorkflowType {
-  ALERT_ESCALATION
-  CAMERA_HEALTH
-  SCHEDULED_REPORT
-  PATTERN_DETECTION
-  AUTO_CLASSIFICATION
-  INCIDENT_REPORT
-  STORM_MODE
-}
-
-enum InquiryStatus {
-  UNREAD
-  READ
-  REPLIED
-  RESOLVED
-  ARCHIVED
 }

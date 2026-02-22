@@ -98,6 +98,7 @@ interface SiteCamera {
   id: string;
   name: string;
   zone?: string;
+  location?: string;
   status: CameraStatus;
   aiEnabled: boolean;
   recording: boolean;
@@ -105,10 +106,11 @@ interface SiteCamera {
   lastDetection: string | null;
   uptime24h: number;
   thumbnailUrl?: string;
-  streamUrl?: string;
-  hlsUrl?: string;
-  mediamtxPath?: string;
-  rtspPath?: string;
+  streamUrl?: string | null;
+  hlsUrl?: string | null;
+  mediamtxPath?: string | null;
+  rtspPath?: string | null;
+  janusFeedId?: number | null;
 }
 
 interface RecentActivity {
@@ -798,6 +800,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
           hlsUrl: c.hlsUrl || null,
           mediamtxPath: c.mediamtxPath || null,
           rtspPath: c.rtspPath || null,
+          janusFeedId: c.janusFeedId ?? null,
         }));
         setCameras(formattedCameras);
       }
@@ -1581,6 +1584,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
           }}
           onSave={handleSaveConfiguration}
           onToggleAI={() => handleToggleAI(selectedCameraForConfig)}
+          onStreamSwitched={() => fetchSiteData(true)}
         />
       )}
 
@@ -1795,13 +1799,59 @@ function ConfigureCameraModal({
   camera, 
   onClose, 
   onSave, 
-  onToggleAI 
+  onToggleAI,
+  onStreamSwitched
 }: { 
   camera: any; 
   onClose: () => void; 
   onSave: (data: any) => void;
   onToggleAI: () => void;
+  onStreamSwitched?: () => void;
 }) {
+  const [janusStreams, setJanusStreams] = useState<Array<{ id: number; name?: string; description?: string }>>([]);
+  const [loadingStreams, setLoadingStreams] = useState(false);
+  const [selectedFeedId, setSelectedFeedId] = useState<string>(String(camera.janusFeedId ?? ''));
+  const [switching, setSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedFeedId(String(camera.janusFeedId ?? ''));
+  }, [camera?.id, camera?.janusFeedId]);
+
+  useEffect(() => {
+    setLoadingStreams(true);
+    fetch('/api/janus/streams')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.data)) setJanusStreams(data.data);
+      })
+      .catch(() => setJanusStreams([]))
+      .finally(() => setLoadingStreams(false));
+  }, []);
+
+  const handleSwitchStream = async () => {
+    const feedId = Number(selectedFeedId);
+    if (!Number.isInteger(feedId) || feedId <= 0) return;
+    if (feedId === (camera.janusFeedId ?? null)) return;
+    setSwitchError(null);
+    setSwitching(true);
+    try {
+      const res = await fetch(`/api/cameras/${camera.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ janusFeedId: feedId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to update');
+      onStreamSwitched?.();
+      onClose();
+    } catch (e: any) {
+      setSwitchError(e?.message || 'Failed to switch stream');
+    } finally {
+      setSwitching(false);
+    }
+  };
+
   // Initialize form data from camera object, handling both SiteCamera and full camera API response structures
   const getInitialFormData = () => {
     const location = camera.location || camera.zone || '';
@@ -1920,6 +1970,32 @@ function ConfigureCameraModal({
               className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <p className="text-xs text-slate-500 mt-1">MediaMTX path name (auto-generates HLS URL: http://localhost:8888/live/{'{path}'}/index.m3u8)</p>
+          </div>
+
+          <div className="border-t border-slate-700 pt-4">
+            <label className="block text-sm font-medium text-slate-300 mb-2">Switch to Janus stream</label>
+            <p className="text-xs text-slate-500 mb-2">Use stream 6 if you run feed-stream-6.sh on your Mac. Current: {camera.janusFeedId != null ? `Stream ${camera.janusFeedId}` : 'Not set'}</p>
+            <select
+              value={selectedFeedId}
+              onChange={(e) => { setSelectedFeedId(e.target.value); setSwitchError(null); }}
+              disabled={loadingStreams || switching}
+              className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+            >
+              <option value="">Select stream</option>
+              {janusStreams.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.description ?? s.name ?? `Stream ${s.id}`} (ID: {s.id})
+                </option>
+              ))}
+            </select>
+            {switchError && <p className="text-red-400 text-xs mt-1">{switchError}</p>}
+            <button
+              onClick={handleSwitchStream}
+              disabled={!selectedFeedId || Number(selectedFeedId) === (camera.janusFeedId ?? 0) || switching}
+              className="mt-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none text-white rounded-lg text-sm"
+            >
+              {switching ? 'Switching…' : 'Switch to this stream'}
+            </button>
           </div>
           
           <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg">

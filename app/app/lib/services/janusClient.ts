@@ -97,6 +97,7 @@ export class JanusClient {
   private metadata: JanusStreamMetadata | null = null;
   private callbacks: JanusClientCallbacks;
   private isDestroyed = false;
+  private remoteStream: MediaStream | null = null;
   
   // FIX 2: Retry state
   private watchRetryCount = 0;
@@ -116,6 +117,34 @@ export class JanusClient {
   }
 
   /**
+   * Normalize Janus server URL.
+   * - Ensures /janus path for HTTP(S) REST API
+   * - Leaves WebSocket URLs untouched (e.g., ws://192.168.64.4:8188)
+   */
+  private normalizeJanusServerUrl(rawUrl: string): string {
+    if (!rawUrl) {
+      return rawUrl;
+    }
+
+    let normalized = rawUrl.trim();
+
+    const isHttp = normalized.startsWith('http://') || normalized.startsWith('https://');
+    const isWs = normalized.startsWith('ws://') || normalized.startsWith('wss://');
+
+    // Ensure /janus path for HTTP(S) REST API only
+    if (isHttp && !normalized.endsWith('/janus')) {
+      normalized = normalized.replace(/\/+$/, '') + '/janus';
+    }
+
+    // Leave WebSocket URLs unchanged (port 8188 usually has no /janus path)
+    if (isWs) {
+      return normalized;
+    }
+
+    return normalized;
+  }
+
+  /**
    * Connect to Janus server and start streaming
    */
   async connect(metadata: JanusStreamMetadata): Promise<void> {
@@ -123,7 +152,11 @@ export class JanusClient {
       throw new Error('JanusClient has been destroyed');
     }
 
-    this.metadata = metadata;
+    const normalizedServerUrl = this.normalizeJanusServerUrl(metadata.janusServerUrl);
+    this.metadata = {
+      ...metadata,
+      janusServerUrl: normalizedServerUrl,
+    };
     this.watchRetryCount = 0; // Reset retry count
     this.sessionDestroyed = false;
     this.transportClosed = false;
@@ -131,6 +164,7 @@ export class JanusClient {
     const logContext: LogContext = {
       cameraId: metadata.cameraId,
       mountpointId: metadata.mountpointId,
+      janusServerUrl: normalizedServerUrl,
     };
 
     JanusLogger.info('Connecting to Janus', logContext);
@@ -179,6 +213,10 @@ export class JanusClient {
       if (error instanceof JanusLoaderError) {
         errorMessage = `Janus library error: ${error.message}`;
         errorCode = error.code;
+      }
+
+      if (errorMessage.includes('API call failed')) {
+        errorMessage = `${errorMessage} (Check CORS on Janus REST API or use ws:// URL)`;
       }
 
       this.callbacks.onError?.(errorMessage, errorCode);
@@ -309,8 +347,36 @@ export class JanusClient {
         onmessage: (msg: any, jsep: any) => {
           this.handlePluginMessage(msg, jsep);
         },
+        onremotetrack: (track: MediaStreamTrack, mid: string, on: boolean) => {
+          JanusLogger.info('Remote track received', { ...logContext, mid, kind: track.kind, on });
+          
+          // Only handle video tracks
+          if (track.kind !== 'video' || mid !== 'v') {
+            return;
+          }
+
+          // Create or get existing MediaStream
+          if (!this.remoteStream) {
+            this.remoteStream = new MediaStream();
+          }
+
+          if (on) {
+            // Add track to stream
+            this.remoteStream.addTrack(track);
+            JanusLogger.info('Video track added to stream', logContext);
+            
+            // Notify callback with the stream
+            this.callbacks.onRemoteStream?.(this.remoteStream);
+            this.callbacks.onStateChange?.('live');
+          } else {
+            // Remove track from stream
+            this.remoteStream.removeTrack(track);
+            JanusLogger.info('Video track removed from stream', logContext);
+          }
+        },
         onremotestream: (stream: MediaStream) => {
           JanusLogger.info('Remote stream received', logContext);
+          this.remoteStream = stream;
           this.callbacks.onRemoteStream?.(stream);
           this.callbacks.onStateChange?.('live');
         },
@@ -483,54 +549,9 @@ export class JanusClient {
 
   /**
    * Handle SDP offer and create answer
+   * FIX: Use Janus.js built-in SDP handling - don't manually manage RTCPeerConnection
    */
   private async handleSDPOffer(jsep: any): Promise<void> {
-    try {
-      // Create RTCPeerConnection
-      this.pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-        ],
-      });
-
-      const sdpLogContext: LogContext = {
-        cameraId: this.metadata?.cameraId,
-        mountpointId: this.metadata?.mountpointId,
-      };
-
-      // Handle ICE candidates
-      this.pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          JanusLogger.info('ICE candidate', sdpLogContext);
-          // Janus handles ICE candidates automatically
-        }
-      };
-
-      // Handle ICE connection state
-      this.pc.oniceconnectionstatechange = () => {
-        const state = this.pc?.iceConnectionState;
-        JanusLogger.info('ICE connection state changed', { ...sdpLogContext, iceState: state });
-        
-        if (state === 'connected' || state === 'completed') {
-          this.callbacks.onStateChange?.('live');
-        } else if (state === 'failed' || state === 'disconnected') {
-          this.callbacks.onStateChange?.('offline');
-          this.callbacks.onError?.('ICE connection failed', 'ICE_FAILED');
-        }
-      };
-
-      // Set remote description
-      await this.pc.setRemoteDescription(jsep);
-
-      // Create answer (recvonly - we only receive video)
-      const answer = await this.pc.createAnswer({
-        offerToReceiveAudio: false, // Video only by default
-        offerToReceiveVideo: true,
-      });
-
-      await this.pc.setLocalDescription(answer);
-
-      // Send answer to Janus
       if (!this.pluginHandle) {
         throw new Error('Plugin handle not available');
       }
@@ -540,25 +561,43 @@ export class JanusClient {
         mountpointId: this.metadata?.mountpointId,
       };
 
+    try {
+      JanusLogger.info('Handling SDP offer', logContext);
+
+      // Use Janus.js built-in createAnswer - it handles the entire SDP exchange internally
+      // This is the correct approach - Janus.js manages the peer connection state
       this.pluginHandle.createAnswer({
-        jsep: answer,
-        media: { audio: false, video: true }, // Video only
-        success: (result: any) => {
-          JanusLogger.info('SDP answer sent', logContext);
-          // Send start request
-          this.startStream();
+        jsep: jsep, // Pass the offer from Janus
+        media: {
+          audioSend: false,
+          videoSend: false,
+          audioRecv: false,
+          videoRecv: true, // We want to receive video
+        },
+        success: (answerJsep: any) => {
+          JanusLogger.info('SDP answer created by Janus.js', logContext);
+          
+          // Send start request with the answer
+          this.pluginHandle.send({
+            message: { request: 'start' },
+            jsep: answerJsep,
+            success: () => {
+              JanusLogger.info('Start request sent with SDP answer', logContext);
+            },
+            error: (error: any) => {
+              JanusLogger.error('Start request failed', logContext, error);
+              this.callbacks.onError?.(`Start request failed: ${error.message || 'Unknown error'}`, 'START_FAILED');
+              this.callbacks.onStateChange?.('error');
+            },
+          });
         },
         error: (error: any) => {
-          JanusLogger.error('SDP answer failed', logContext, error);
+          JanusLogger.error('SDP answer creation failed', logContext, error);
           this.callbacks.onError?.(`SDP answer failed: ${error.message || 'Unknown error'}`, 'SDP_FAILED');
           this.callbacks.onStateChange?.('error');
         },
       });
     } catch (error: any) {
-      const logContext: LogContext = {
-        cameraId: this.metadata?.cameraId,
-        mountpointId: this.metadata?.mountpointId,
-      };
       JanusLogger.error('SDP handling failed', logContext, error);
       this.callbacks.onError?.(`SDP negotiation failed: ${error.message || 'Unknown error'}`, 'SDP_FAILED');
       this.callbacks.onStateChange?.('error');
@@ -656,6 +695,12 @@ export class JanusClient {
     if (this.session && !this.sessionDestroyed) {
       // Only clear reference, don't call destroy() (session is already destroyed)
       this.session = null;
+    }
+
+    // Clean up remote stream
+    if (this.remoteStream) {
+      this.remoteStream.getTracks().forEach(track => track.stop());
+      this.remoteStream = null;
     }
   }
 

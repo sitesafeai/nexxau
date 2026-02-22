@@ -16,7 +16,14 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
     "test:all": "npm run test:ci && npm run test:e2e",
-    "test:performance": "playwright test --grep @performance"
+    "test:performance": "playwright test --grep @performance",
+    "db:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
+    "db:migrate:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
+    "db:generate": "prisma generate --schema=./prisma/schema.prisma",
+    "db:cameras": "npx tsx scripts/list-cameras.ts",
+    "fix:downtown-cameras": "npx tsx scripts/fix-downtown-cameras-rtsp.ts",
+    "fix:rtsp-host": "npx tsx scripts/fix-rtsp-10-to-192.ts",
+    "fix:test-rtsp": "npx tsx scripts/fix-all-cameras-to-test-rtsp.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.9.1",

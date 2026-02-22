@@ -56,6 +56,7 @@ export function canViewWorksite(role: UserRole): boolean {
   return true;
 }
 
+
 // ============================================================================
 // USER MANAGEMENT PERMISSIONS
 // ============================================================================
@@ -118,8 +119,12 @@ export function canViewUsers(role: UserRole): boolean {
 // CAMERA PERMISSIONS
 // ============================================================================
 
+/**
+ * Only super-admins can add cameras.
+ * Backend provisions Janus automatically (DB first → mountpoint → RTP).
+ */
 export function canCreateCamera(role: UserRole): boolean {
-  return ['SUPER_ADMIN', 'COMPANY_ADMIN', 'SITE_ADMIN'].includes(role);
+  return role === 'SUPER_ADMIN';
 }
 
 export function canEditCamera(role: UserRole): boolean {

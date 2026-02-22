@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import React from 'react';
+import dynamic from 'next/dynamic';
 import { DashboardProvider, useDashboard, useSiteManagement, useNotifications } from '../lib/context/DashboardContext';
 import { useAlerts, useAnalytics } from '../lib/hooks/useApi';
 import { NotificationContainer } from '../components/NotificationToast';
@@ -14,18 +15,18 @@ import SafetyScoreCard from '../components/SafetyScoreCard';
 import { formatRoleLabel, isAdminRole, normalizeRole } from '../lib/roles';
 import DetectionFeedback from '../components/DetectionFeedback';
 import CreateWorksiteModal from '../components/modals/CreateWorksiteModal';
-import ReportsPageNew from '../components/reports/ReportsPage';
 
-// New dashboard components
-import GlobalDashboard from '../components/dashboard/GlobalDashboard';
-import UserDashboard from '../components/dashboard/UserDashboard';
-import SiteManagement from '../components/dashboard/SiteManagement';
-import AlertsAndRules from '../components/dashboard/AlertsAndRules';
-import ReportsAnalytics from '../components/dashboard/ReportsAnalytics';
-import WorkflowDashboard from '../components/dashboard/WorkflowDashboard';
-import CameraTestTab from '../components/camera/CameraTestTab';
-import CameraManagementTab from '../components/camera/CameraManagementTab';
-import WorksiteUserManagementModal from '../components/dashboard/WorksiteUserManagementModal';
+// Heavy dashboard components: load on demand to avoid ChunkLoadError (timeout)
+const ReportsPageNew = dynamic(() => import('../components/reports/ReportsPage'), { loading: () => <div className="p-8 text-slate-400">Loading reports...</div>, ssr: false });
+const GlobalDashboard = dynamic(() => import('../components/dashboard/GlobalDashboard').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
+const UserDashboard = dynamic(() => import('../components/dashboard/UserDashboard').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
+const SiteManagement = dynamic(() => import('../components/dashboard/SiteManagement').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
+const AlertsAndRules = dynamic(() => import('../components/dashboard/AlertsAndRules').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
+const ReportsAnalytics = dynamic(() => import('../components/dashboard/ReportsAnalytics').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
+const WorkflowDashboard = dynamic(() => import('../components/dashboard/WorkflowDashboard').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
+const CameraManagementTab = dynamic(() => import('../components/camera/CameraManagementTab').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading cameras...</div>, ssr: false });
+const CameraTestTab = dynamic(() => import('../components/camera/CameraTestTab').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
+const WorksiteUserManagementModal = dynamic(() => import('../components/dashboard/WorksiteUserManagementModal').then((m) => m.default), { ssr: false });
 
 // Wrapper component that provides the dashboard context
 export default function DashboardPage() {

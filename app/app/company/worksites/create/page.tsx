@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import DashboardHeader from '@/app/components/DashboardHeader';
+import { canCreateCamera, type UserRole } from '@/app/lib/permissions';
 import { ArrowLeft, ArrowRight, Check, Camera, MapPin, AlertTriangle, Users } from 'lucide-react';
 
 interface WorksiteFormData {
@@ -13,18 +14,14 @@ interface WorksiteFormData {
   address: string;
   cameraSystemType: string;
   
-  // Step 2: Cameras
+  // Step 2: Cameras (either streamUrl for RTSP or janusFeedId for existing Janus stream)
   cameras: Array<{
     name: string;
     streamUrl: string;
+    janusFeedId?: number | null;
     cameraType: string;
     location: string;
-    // Alert configuration for this camera
-    alerts: Array<{
-      name: string;
-      type: string;
-      severity: string;
-    }>;
+    alerts: Array<{ name: string; type: string; severity: string }>;
   }>;
   
   // Step 4: Team (to be invited after creation)
@@ -54,10 +51,14 @@ export default function CreateWorksitePage() {
   const [newCamera, setNewCamera] = useState({
     name: '',
     streamUrl: '',
+    sourceType: 'janus_stream' as 'janus_stream' | 'rtsp',
+    selectedJanusStreamId: '',
     cameraType: 'IP',
     location: '',
-    alerts: [] as Array<{ name: string; type: string; severity: string; }>
+    alerts: [] as Array<{ name: string; type: string; severity: string }>
   });
+  const [janusStreams, setJanusStreams] = useState<Array<{ id: number; name?: string; description?: string; type?: string }>>([]);
+  const [isLoadingStreams, setIsLoadingStreams] = useState(false);
 
   // Alert form for Step 3 (camera-specific)
   const [selectedCameraIndex, setSelectedCameraIndex] = useState<number | null>(null);
@@ -80,6 +81,26 @@ export default function CreateWorksitePage() {
     { number: 4, title: 'Team', icon: Users }
   ];
 
+  // Fetch Janus streams when Step 2 (Cameras) is shown
+  useEffect(() => {
+    if (currentStep !== 2) return;
+    setIsLoadingStreams(true);
+    fetch('/api/janus/streams')
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.success && Array.isArray(result.data)) {
+          setJanusStreams(result.data);
+          if (result.data.length > 0) {
+            setNewCamera((c) => (c.selectedJanusStreamId ? c : { ...c, selectedJanusStreamId: String(result.data[0].id) }));
+          }
+        } else {
+          setJanusStreams([]);
+        }
+      })
+      .catch(() => setJanusStreams([]))
+      .finally(() => setIsLoadingStreams(false));
+  }, [currentStep]);
+
   const handleNext = () => {
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
@@ -95,13 +116,27 @@ export default function CreateWorksitePage() {
   };
 
   const addCamera = () => {
-    if (newCamera.name && newCamera.streamUrl) {
-      setFormData({
-        ...formData,
-        cameras: [...formData.cameras, { ...newCamera, alerts: [] }]
-      });
-      setNewCamera({ name: '', streamUrl: '', cameraType: 'IP', location: '', alerts: [] });
-    }
+    const fromList = newCamera.sourceType === 'janus_stream' && newCamera.selectedJanusStreamId;
+    const fromUrl = newCamera.sourceType === 'rtsp' && newCamera.streamUrl.trim();
+    if (!newCamera.name || (!fromList && !fromUrl)) return;
+    const cam = {
+      name: newCamera.name,
+      streamUrl: fromUrl ? newCamera.streamUrl : '',
+      janusFeedId: fromList ? Number(newCamera.selectedJanusStreamId) : undefined,
+      cameraType: newCamera.cameraType,
+      location: newCamera.location,
+      alerts: [] as Array<{ name: string; type: string; severity: string }>
+    };
+    setFormData({ ...formData, cameras: [...formData.cameras, cam] });
+    setNewCamera({
+      name: '',
+      streamUrl: '',
+      sourceType: 'janus_stream',
+      selectedJanusStreamId: '',
+      cameraType: 'IP',
+      location: '',
+      alerts: []
+    });
   };
 
   const removeCamera = (index: number) => {
@@ -175,33 +210,50 @@ export default function CreateWorksitePage() {
 
       const worksiteId = worksiteData.data.id;
 
-      // Step 2: Create cameras
-      for (const camera of formData.cameras) {
-        const cameraPayload = {
-          name: camera.name,
-          type: camera.cameraType,
-          streamUrl: camera.streamUrl,
-          location: camera.location,
-          worksiteId,
-          status: 'active', // lowercase to match database
-          // Set the appropriate URL field based on stream type
-          ...(camera.streamUrl.includes('rtsp://') 
-            ? { rtspPath: camera.streamUrl }
-            : { hlsUrl: camera.streamUrl }
-          )
-        };
-
-        const cameraRes = await fetch('/api/cameras', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(cameraPayload)
-        });
-
-        const cameraData = await cameraRes.json();
-        if (!cameraData.success) {
-          console.error('Failed to create camera:', camera.name, cameraData.error);
+      // Step 2: Create cameras (super-admin only)
+      const isSuperAdmin = canCreateCamera((session?.user as any)?.role as UserRole);
+      for (const camera of isSuperAdmin ? formData.cameras : []) {
+        if (camera.janusFeedId != null) {
+          const cameraRes = await fetch(`/api/worksites/${worksiteId}/cameras`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: camera.name,
+              janusFeedId: camera.janusFeedId,
+              location: camera.location || undefined,
+              type: camera.cameraType
+            })
+          });
+          const cameraData = await cameraRes.json();
+          if (!cameraData.success) {
+            console.error('Failed to create camera (Janus):', camera.name, cameraData.error);
+          } else {
+            console.log('✅ Camera created (Janus):', camera.name);
+          }
         } else {
-          console.log('✅ Camera created:', camera.name);
+          const cameraPayload = {
+            name: camera.name,
+            type: camera.cameraType,
+            streamUrl: camera.streamUrl,
+            location: camera.location,
+            worksiteId,
+            status: 'active',
+            ...(camera.streamUrl.includes('rtsp://')
+              ? { rtspPath: camera.streamUrl }
+              : { hlsUrl: camera.streamUrl }
+            )
+          };
+          const cameraRes = await fetch('/api/cameras', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cameraPayload)
+          });
+          const cameraData = await cameraRes.json();
+          if (!cameraData.success) {
+            console.error('Failed to create camera:', camera.name, cameraData.error);
+          } else {
+            console.log('✅ Camera created:', camera.name);
+          }
         }
       }
 
@@ -366,6 +418,15 @@ export default function CreateWorksitePage() {
             {currentStep === 2 && (
               <div className="space-y-6">
                 <h2 className="text-2xl font-bold text-white mb-4">Add Cameras</h2>
+                {!canCreateCamera((session?.user as any)?.role as UserRole) ? (
+                  <div className="bg-slate-700/30 p-6 rounded-lg border border-slate-600">
+                    <p className="text-slate-300">
+                      Only super-admins can add cameras. The worksite will be created without cameras. 
+                      A super-admin can add cameras later from the worksite page.
+                    </p>
+                  </div>
+                ) : (
+                  <>
                 <p className="text-slate-400 mb-6">Add cameras to monitor this worksite (you can also add them later)</p>
 
                 {/* Add Camera Form */}
@@ -394,15 +455,51 @@ export default function CreateWorksitePage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">Stream URL</label>
-                    <input
-                      type="text"
-                      value={newCamera.streamUrl}
-                      onChange={(e) => setNewCamera({ ...newCamera, streamUrl: e.target.value })}
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Source</label>
+                    <select
+                      value={newCamera.sourceType}
+                      onChange={(e) => setNewCamera({ ...newCamera, sourceType: e.target.value as 'janus_stream' | 'rtsp' })}
                       className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
-                      placeholder="rtsp://... or http://..."
-                    />
+                    >
+                      <option value="janus_stream">Choose from Janus stream list</option>
+                      <option value="rtsp">Paste RTSP URL</option>
+                    </select>
                   </div>
+                  {newCamera.sourceType === 'janus_stream' && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Janus Stream</label>
+                      <select
+                        value={newCamera.selectedJanusStreamId}
+                        onChange={(e) => setNewCamera({ ...newCamera, selectedJanusStreamId: e.target.value })}
+                        disabled={isLoadingStreams}
+                        className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                      >
+                        <option value="">
+                          {isLoadingStreams ? 'Loading...' : janusStreams.length === 0 ? 'No streams — is Janus running?' : 'Select a stream'}
+                        </option>
+                        {janusStreams.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name ?? s.description ?? `Stream ${s.id}`} (ID: {s.id})
+                          </option>
+                        ))}
+                      </select>
+                      {janusStreams.length === 0 && !isLoadingStreams && (
+                        <p className="mt-1 text-xs text-amber-400">Start Janus and add streams in config, or use &quot;Paste RTSP URL&quot;.</p>
+                      )}
+                    </div>
+                  )}
+                  {newCamera.sourceType === 'rtsp' && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Stream URL</label>
+                      <input
+                        type="text"
+                        value={newCamera.streamUrl}
+                        onChange={(e) => setNewCamera({ ...newCamera, streamUrl: e.target.value })}
+                        className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                        placeholder="rtsp://... or http://..."
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">Camera Type</label>
@@ -433,7 +530,9 @@ export default function CreateWorksitePage() {
                       <div key={index} className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
                         <div>
                           <p className="text-white font-medium">{camera.name}</p>
-                          <p className="text-sm text-slate-400">{camera.location} • {camera.cameraType}</p>
+                          <p className="text-sm text-slate-400">
+                            {camera.janusFeedId != null ? `Janus stream ${camera.janusFeedId}` : camera.streamUrl || '—'} • {camera.cameraType}
+                          </p>
                         </div>
                         <button
                           onClick={() => removeCamera(index)}
@@ -444,6 +543,8 @@ export default function CreateWorksitePage() {
                       </div>
                     ))}
                   </div>
+                )}
+                  </>
                 )}
               </div>
             )}

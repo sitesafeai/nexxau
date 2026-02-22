@@ -224,7 +224,7 @@ npm start
 docker build -t camera-ingest-service .
 
 # Run container
-docker run -p 3000:3000 \
+docker run -p 3001:3001 \
   -v /tmp/frames:/tmp/frames \
   camera-ingest-service
 ```
@@ -242,7 +242,7 @@ sudo apt-get install ffmpeg
 
 ### Service Configuration
 - `NODE_ENV`: Environment (development, production)
-- `PORT`: Service port (default: 3000)
+- `PORT`: Service port (default: 3001; use 3001 to avoid conflict with Next.js on 3000)
 - `SERVICE_NAME`: Service name
 - `SERVICE_VERSION`: Service version
 - `LOG_LEVEL`: Logging level (trace, debug, info, warn, error, fatal)

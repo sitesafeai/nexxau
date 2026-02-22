@@ -25,6 +25,7 @@ export class RedisStreamManager {
   private redis: Redis;
   private metrics: Map<string, StreamMetrics> = new Map();
   private isConnected: boolean = false;
+  private redisErrorLogged: boolean = false;
 
   constructor(logger: Logger, redis?: Redis) {
     this.logger = logger;
@@ -34,6 +35,7 @@ export class RedisStreamManager {
 
   /**
    * Create Redis client from configuration
+   * Redis is optional - service can run without it
    */
   private createRedisClient(): Redis {
     const config = getRedisConfig();
@@ -45,10 +47,26 @@ export class RedisStreamManager {
       db: config.db,
       ...(config.tls && { tls: {} }),
       retryStrategy: (times: number) => {
-        const delay = Math.min(times * 50, 2000);
+        // Stop retrying after 5 attempts (~1s) to avoid log spam when Redis is not running
+        if (times > 5) {
+          this.logger.warn('Redis connection failed after multiple retries, continuing without Redis');
+          return null; // Stop retrying
+        }
+        const delay = Math.min(times * 50, 500);
         return delay;
       },
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: null, // Disable automatic retries on failed requests
+      lazyConnect: true, // Don't connect immediately
+      enableOfflineQueue: false, // Don't queue commands when offline
+    });
+
+    // Try to connect, but don't fail if it doesn't work
+    client.connect().catch((error: Error) => {
+      this.logger.warn('Redis connection failed, continuing without Redis', { 
+        error: error.message,
+        stack: error.stack 
+      });
+      this.isConnected = false;
     });
 
     return client;
@@ -68,16 +86,22 @@ export class RedisStreamManager {
     });
 
     this.redis.on('error', (error: Error) => {
-      this.logger.error('Redis client error', {}, error);
+      if (!this.redisErrorLogged) {
+        this.redisErrorLogged = true;
+        this.logger.warn('Redis unavailable (connection refused or failed). Service will continue without Redis.', {
+          hint: 'Start Redis (e.g. brew services start redis) for frame-stream features, or ignore if using RTP/Janus only.',
+        });
+      }
+      this.logger.debug('Redis client error', { err: error.message });
     });
 
     this.redis.on('close', () => {
       this.isConnected = false;
-      this.logger.warn('Redis client closed');
+      this.logger.debug('Redis client closed');
     });
 
     this.redis.on('reconnecting', (delay: number) => {
-      this.logger.info('Redis client reconnecting', { delay });
+      this.logger.debug('Redis client reconnecting', { delay });
     });
   }
 
@@ -192,8 +216,21 @@ export class RedisStreamManager {
    * Get stream length
    */
   async getStreamLength(tenantId: string, cameraId: string): Promise<number> {
-    const streamKey = this.getStreamKey(tenantId, cameraId);
-    return await this.redis.xlen(streamKey);
+    if (!this.isConnected) {
+      return 0;
+    }
+    try {
+      const streamKey = this.getStreamKey(tenantId, cameraId);
+      return await this.redis.xlen(streamKey);
+    } catch (error: any) {
+      this.logger.warn('Failed to get stream length', { 
+        tenantId, 
+        cameraId,
+        error: error?.message,
+        stack: error?.stack
+      });
+      return 0;
+    }
   }
 
   /**
@@ -226,9 +263,26 @@ export class RedisStreamManager {
    * Update stream length in metrics (async update)
    */
   async updateStreamLength(tenantId: string, cameraId: string): Promise<void> {
-    const streamLength = await this.getStreamLength(tenantId, cameraId);
-    const metrics = this.getMetrics(tenantId, cameraId);
-    metrics.streamLength = streamLength;
+    if (!this.isConnected) {
+      // If Redis not connected, just set stream length to 0
+      const metrics = this.getMetrics(tenantId, cameraId);
+      metrics.streamLength = 0;
+      return;
+    }
+    try {
+      const streamLength = await this.getStreamLength(tenantId, cameraId);
+      const metrics = this.getMetrics(tenantId, cameraId);
+      metrics.streamLength = streamLength;
+    } catch (error: any) {
+      this.logger.warn('Failed to update stream length', { 
+        tenantId, 
+        cameraId,
+        error: error?.message,
+        stack: error?.stack
+      });
+      const metrics = this.getMetrics(tenantId, cameraId);
+      metrics.streamLength = 0;
+    }
   }
 
   /**
@@ -243,18 +297,35 @@ export class RedisStreamManager {
    * Clear stream (for testing/cleanup)
    */
   async clearStream(tenantId: string, cameraId: string): Promise<void> {
-    const streamKey = this.getStreamKey(tenantId, cameraId);
-    await this.redis.del(streamKey);
-    this.logger.info('Stream cleared', { tenantId, cameraId, streamKey });
+    if (!this.isConnected) {
+      this.logger.warn('Redis not connected, cannot clear stream', { tenantId, cameraId });
+      return;
+    }
+    try {
+      const streamKey = this.getStreamKey(tenantId, cameraId);
+      await this.redis.del(streamKey);
+      this.logger.info('Stream cleared', { tenantId, cameraId, streamKey });
+    } catch (error: any) {
+      this.logger.error('Failed to clear stream', { tenantId, cameraId }, error);
+    }
   }
 
   /**
    * Get stream info (for debugging)
    */
   async getStreamInfo(tenantId: string, cameraId: string): Promise<any> {
-    const streamKey = this.getStreamKey(tenantId, cameraId);
-    const info = await this.redis.xinfo('STREAM', streamKey);
-    return info;
+    if (!this.isConnected) {
+      this.logger.warn('Redis not connected, cannot get stream info', { tenantId, cameraId });
+      return null;
+    }
+    try {
+      const streamKey = this.getStreamKey(tenantId, cameraId);
+      const info = await this.redis.xinfo('STREAM', streamKey);
+      return info;
+    } catch (error: any) {
+      this.logger.error('Failed to get stream info', { tenantId, cameraId }, error);
+      return null;
+    }
   }
 
   /**
@@ -262,7 +333,16 @@ export class RedisStreamManager {
    */
   async shutdown(): Promise<void> {
     this.logger.info('Shutting down Redis stream manager');
-    await this.redis.quit();
+    if (this.isConnected) {
+      try {
+        await this.redis.quit();
+      } catch (error: any) {
+        this.logger.warn('Error shutting down Redis', { 
+          error: error?.message,
+          stack: error?.stack
+        });
+      }
+    }
   }
 
   /**

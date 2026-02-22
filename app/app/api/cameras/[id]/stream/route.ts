@@ -127,7 +127,20 @@ export async function GET(
     // NEW SYSTEM: Check janusFeedId first (new Janus RTSP integration)
     // OLD SYSTEM: Fall back to metadata.mountpointId for backward compatibility
     const metadata = camera.metadata as any || {};
-    const janusServerUrl = metadata.janusServerUrl || process.env.NEXT_PUBLIC_JANUS_SERVER_URL || process.env.JANUS_SERVER_URL || 'ws://localhost:8088/janus';
+    // Prefer env var over metadata: when switching Janus (VM→Docker), env reflects current deployment.
+    // Stale metadata.janusServerUrl would otherwise connect to wrong Janus → "No such mountpoint".
+    let janusServerUrl = process.env.NEXT_PUBLIC_JANUS_SERVER_URL || process.env.JANUS_SERVER_URL || metadata.janusServerUrl || 'ws://localhost:8088/janus';
+    // Ensure WebSocket URLs have /janus path (required by canyan/Docker Janus on port 8188)
+    if (janusServerUrl.startsWith('ws://') || janusServerUrl.startsWith('wss://')) {
+      try {
+        const u = new URL(janusServerUrl);
+        if (!u.pathname || u.pathname === '/') {
+          janusServerUrl = `${u.origin}/janus`;
+        }
+      } catch {
+        // leave as-is if URL is malformed
+      }
+    }
     
     // NEW: Check janusFeedId first (preferred - new system)
     // OLD: Fall back to metadata.mountpointId (backward compatibility)

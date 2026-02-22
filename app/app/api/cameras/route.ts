@@ -3,8 +3,26 @@ import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { normalizeRole } from '@/app/lib/roles';
-import * as path from 'path';
-import * as fs from 'fs';
+import { validateRtspStream } from '@/app/lib/rtsp-validation';
+import {
+  createRtpMountpoint,
+  destroyRtspPublisher,
+  generateMountpointId,
+  startRtpForward,
+  stopRtpForward,
+} from '@/app/lib/services/janusRtspService';
+import { startRtpPush } from '@/app/lib/services/cameraIngestClient';
+
+export const runtime = 'nodejs';
+
+const resolveRtpPort = (mountpointId: number): number => {
+  const basePort = Number(process.env.JANUS_RTP_BASE_PORT || '20000');
+  const portRange = Number(process.env.JANUS_RTP_PORT_RANGE || '10000');
+  const safeBase = Number.isFinite(basePort) && basePort > 0 ? basePort : 20000;
+  const safeRange = Number.isFinite(portRange) && portRange > 0 ? portRange : 10000;
+  const offset = mountpointId % safeRange;
+  return safeBase + offset;
+};
 
 /**
  * GET /api/cameras
@@ -562,19 +580,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check permissions
+    // Only super-admins can create cameras (backend-first: DB → Janus provisioning)
     const userRole = normalizeRole(session.user.role);
-    const canCreateCamera = 
-      userRole === 'SUPER_ADMIN' ||
-      userRole === 'COMPANY_ADMIN' ||
-      userRole === 'SITE_ADMIN' ||
-      userRole === 'SAFETY_MANAGER' ||
-      userRole === 'SAFETY_ADMIN';
-
-    if (!canCreateCamera) {
-      console.log('[API /cameras] Permission denied:', { userRole, email: session.user.email });
+    if (userRole !== 'SUPER_ADMIN') {
+      console.log('[API /cameras] Permission denied: only SUPER_ADMIN can add cameras:', { userRole, email: session.user.email });
       return NextResponse.json(
-        { success: false, error: 'Insufficient permissions to create cameras' },
+        { success: false, error: 'Only super-admins can add cameras. Contact your administrator.' },
         { status: 403 }
       );
     }
@@ -643,21 +654,268 @@ export async function POST(request: NextRequest) {
     // Map camera type to database type
     const cameraType = type === 'IP Camera (RTSP)' ? 'RTSP' : type === 'ONVIF Camera' ? 'ONVIF' : 'CLOUD';
 
-    // Create camera
+    // ============================================================
+    // RTSP → Janus (RTP) FLOW
+    // ============================================================
+    if ((cameraType === 'RTSP' || cameraType === 'ONVIF') && streamUrl.trim().startsWith('rtsp://')) {
+      const validation = await validateRtspStream(streamUrl.trim());
+      if (!validation.ok) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'RTSP validation failed',
+            code: validation.error,
+            details: validation.message,
+          },
+          { status: 400 }
+        );
+      }
+
+      const janusRtpHost = process.env.JANUS_RTP_HOST || '127.0.0.1';
+      const janusRtpCodec = (process.env.JANUS_RTP_CODEC || 'h264').toLowerCase();
+      const janusPayloadType = Number(process.env.JANUS_RTP_PAYLOAD_TYPE || '96');
+      const requestedId = generateMountpointId();
+      const janusRtpPort = resolveRtpPort(requestedId);
+
+      let janusFeedId: number | null = null;
+      try {
+        janusFeedId = await createRtpMountpoint({
+          mountpointId: requestedId,
+          videoPort: janusRtpPort,
+          videoCodec: janusRtpCodec,
+          payloadType: janusPayloadType,
+        });
+      } catch (janusError: any) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Failed to create Janus RTP mount',
+            details: janusError.message,
+          },
+          { status: 500 }
+        );
+      }
+
+      let camera;
+      try {
+        camera = await prisma.camera.create({
+      data: {
+        name: name.trim(),
+        type: cameraType,
+        streamUrl: streamUrl.trim(),
+        worksiteId,
+            janusFeedId,
+            status: 'online',
+        username: username?.trim() || null,
+            password: password?.trim() || null,
+        metadata: {
+          frameRate: frameRate || null,
+          resolution: resolution || null,
+              aiEnabled: true,
+              overlayEnabled: true,
+              recording: true,
+              janusRtpHost,
+              janusRtpPort,
+              janusRtpPayloadType: janusPayloadType,
+              janusRtpCodec,
+        }
+      },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        status: true,
+        streamUrl: true,
+        worksiteId: true,
+            janusFeedId: true,
+            metadata: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+      } catch (dbError: any) {
+        if (janusFeedId !== null) {
+          try {
+            await destroyRtspPublisher(janusFeedId);
+          } catch {
+            // ignore cleanup errors
+          }
+        }
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Failed to create camera in database',
+            details: dbError.message,
+          },
+          { status: 500 }
+        );
+      }
+
+      try {
+        await startRtpPush({
+          cameraId: camera.id,
+          rtspUrl: streamUrl.trim(),
+          mountpointId: janusFeedId!,
+          rtpHost: janusRtpHost,
+          rtpPort: janusRtpPort,
+          payloadType: janusPayloadType,
+          videoCodec: janusRtpCodec,
+        });
+      } catch (workerError: any) {
+        try {
+          await prisma.camera.delete({ where: { id: camera.id } });
+        } catch {
+          // ignore cleanup errors
+        }
+        if (janusFeedId !== null) {
+          try {
+            await destroyRtspPublisher(janusFeedId);
+          } catch {
+            // ignore cleanup errors
+          }
+        }
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Failed to start streaming worker',
+            details: workerError.message,
+          },
+          { status: 500 }
+        );
+      }
+
+      // Auto-start YOLO pipeline (AI always on)
+      let rtpStreamId: number | undefined;
+      try {
+        const yoloServiceUrl = process.env.YOLO_SERVICE_URL || 'http://localhost:8765';
+        const yoloRtpHost = process.env.YOLO_RTP_HOST || '127.0.0.1';
+        const yoloBasePort = parseInt(process.env.YOLO_RTP_BASE_PORT || '5004', 10);
+        const rtpCodec = process.env.YOLO_RTP_CODEC || 'vp8';
+        const yoloPort = (camera.metadata as any)?.yoloRtpPort || (yoloBasePort + janusFeedId!);
+
+        const forwardResult = await startRtpForward({
+          mountpointId: janusFeedId!,
+          host: yoloRtpHost,
+          port: yoloPort,
+          codec: rtpCodec,
+        });
+        rtpStreamId = forwardResult.streamId;
+
+        const startUrl = `${yoloServiceUrl}/rtp/start/${janusFeedId}?rtp_port=${yoloPort}&camera_id=${camera.id}`;
+        const yoloResponse = await fetch(startUrl, { method: 'POST' });
+        if (!yoloResponse.ok) {
+          throw new Error(`YOLO service start failed: ${yoloResponse.status}`);
+        }
+
+        const updatedMetadata = {
+          ...(camera.metadata as any),
+          aiEnabled: true,
+          overlayEnabled: true,
+          yoloRtpPort: yoloPort,
+          yoloRtpStreamId: rtpStreamId,
+        };
+
+        camera = await prisma.camera.update({
+          where: { id: camera.id },
+          data: { metadata: updatedMetadata },
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            status: true,
+            streamUrl: true,
+            worksiteId: true,
+            janusFeedId: true,
+            metadata: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        });
+      } catch (aiError: any) {
+        if (janusFeedId !== null) {
+          try {
+            await stopRtpForward({ mountpointId: janusFeedId, streamId: rtpStreamId });
+          } catch {
+            // ignore cleanup errors
+          }
+        }
+        try {
+          await prisma.camera.delete({ where: { id: camera.id } });
+        } catch {
+          // ignore cleanup errors
+        }
+        if (janusFeedId !== null) {
+          try {
+            await destroyRtspPublisher(janusFeedId);
+          } catch {
+            // ignore cleanup errors
+          }
+        }
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Failed to start AI pipeline',
+            details: aiError.message,
+          },
+          { status: 500 }
+        );
+      }
+
+      console.log('[API /cameras] ✅ Camera created:', camera.id, camera.name);
+
+      if (currentUser?.id) {
+        await prisma.auditLog.create({
+              data: {
+            userId: currentUser.id,
+            action: 'CAMERA_CREATED',
+            entityType: 'Camera',
+            entityId: camera.id,
+                metadata: {
+              cameraName: camera.name,
+              cameraType: camera.type,
+              worksiteId,
+              worksiteName: worksite.name
+            }
+          }
+        }).catch(err => {
+          console.error('[API /cameras] Failed to create audit log:', err);
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+              data: {
+          id: camera.id,
+          name: camera.name,
+          type: camera.type,
+          status: camera.status,
+          streamUrl: camera.streamUrl,
+          worksiteId: camera.worksiteId,
+          janusFeedId: camera.janusFeedId,
+          createdAt: camera.createdAt.toISOString(),
+          updatedAt: camera.updatedAt.toISOString(),
+        }
+      }, { status: 201 });
+    }
+
+    // ============================================================
+    // NON-RTSP (CLOUD) FLOW
+    // ============================================================
     const camera = await prisma.camera.create({
       data: {
         name: name.trim(),
         type: cameraType,
         streamUrl: streamUrl.trim(),
         worksiteId,
-        status: 'pending', // Initial status - will be updated when stream is verified
+        status: 'pending',
         username: username?.trim() || null,
-        password: password?.trim() || null, // Note: Should be encrypted in production
+        password: password?.trim() || null,
         metadata: {
           frameRate: frameRate || null,
           resolution: resolution || null,
-          aiEnabled: false, // Default to false, can be enabled later
-          recording: true, // Default to true
+          aiEnabled: true,
+          overlayEnabled: true,
+          recording: true,
         }
       },
       select: {
@@ -674,115 +932,6 @@ export async function POST(request: NextRequest) {
 
     console.log('[API /cameras] ✅ Camera created:', camera.id, camera.name);
 
-    // ============================================================
-    // AUTOMATIC RTSP → HLS CONVERSION
-    // ============================================================
-    // CRITICAL: Start HLS conversion immediately for RTSP cameras
-    // This runs asynchronously so API response isn't blocked
-    if ((cameraType === 'RTSP' || cameraType === 'ONVIF') && streamUrl.trim().startsWith('rtsp://')) {
-      console.log(`[API /cameras] 🎬 Starting automatic RTSP → HLS conversion for camera ${camera.id}`);
-      
-      // Start conversion asynchronously (don't block API response)
-      (async () => {
-        try {
-          const { ensureHlsStream } = await import('@/app/lib/streaming/hlsManager');
-          const hlsUrl = ensureHlsStream(camera.id, streamUrl.trim());
-          
-          if (hlsUrl) {
-            // Wait for first segment to be created (up to 15 seconds)
-            const maxWaitTime = 15000; // 15 seconds
-            const checkInterval = 500; // Check every 500ms
-            const startTime = Date.now();
-            let playlistReady = false;
-            
-            // Determine stream directory path
-            const cwd = process.cwd();
-            let streamDir: string;
-            if (fs.existsSync(path.join(cwd, 'public'))) {
-              streamDir = path.join(cwd, 'public', 'streams', camera.id);
-            } else if (fs.existsSync(path.join(cwd, 'app', 'public'))) {
-              streamDir = path.join(cwd, 'app', 'public', 'streams', camera.id);
-            } else {
-              streamDir = path.join(cwd, 'public', 'streams', camera.id);
-            }
-            
-            const playlistPath = path.join(streamDir, 'index.m3u8');
-            
-            // Poll for playlist file creation
-            while (Date.now() - startTime < maxWaitTime) {
-              if (fs.existsSync(playlistPath)) {
-                try {
-                  const playlistContent = fs.readFileSync(playlistPath, 'utf8');
-                  // Check if playlist has at least one segment
-                  if (playlistContent.includes('.ts') && !playlistContent.includes('#EXT-X-ENDLIST')) {
-                    playlistReady = true;
-                    console.log(`[API /cameras] ✅ HLS playlist ready for camera ${camera.id} after ${Date.now() - startTime}ms`);
-                    break;
-                  }
-                } catch (readError) {
-                  // Playlist exists but can't read it yet - continue waiting
-                }
-              }
-              await new Promise(resolve => setTimeout(resolve, checkInterval));
-            }
-            
-            if (playlistReady) {
-              // Update camera with HLS URL and mark as online
-              await prisma.camera.update({
-                where: { id: camera.id },
-                data: {
-                  hlsUrl: hlsUrl,
-                  status: 'active', // Mark as active once HLS is ready
-                }
-              });
-              
-              console.log(`[API /cameras] ✅ HLS conversion complete for camera ${camera.id}: ${hlsUrl}`);
-            } else {
-              // Playlist not ready after timeout - mark as pending but don't fail
-              console.warn(`[API /cameras] ⚠️ HLS playlist not ready for camera ${camera.id} after ${maxWaitTime}ms - will retry on next access`);
-              // Don't update status - keep as 'pending' so frontend knows to retry
-            }
-          } else {
-            // HLS conversion failed to start
-            console.error(`[API /cameras] ❌ Failed to start HLS conversion for camera ${camera.id}`);
-            await prisma.camera.update({
-              where: { id: camera.id },
-              data: {
-                status: 'offline',
-                metadata: {
-                  ...((await prisma.camera.findUnique({ where: { id: camera.id }, select: { metadata: true } }))?.metadata as any || {}),
-                  hlsConversionError: 'Failed to start FFmpeg process',
-                  hlsConversionErrorTime: new Date().toISOString(),
-                }
-              }
-            });
-          }
-        } catch (conversionError: any) {
-          console.error(`[API /cameras] ❌ HLS conversion error for camera ${camera.id}:`, conversionError);
-          
-          // Update camera with error status
-          try {
-            await prisma.camera.update({
-              where: { id: camera.id },
-              data: {
-                status: 'offline',
-                metadata: {
-                  ...((await prisma.camera.findUnique({ where: { id: camera.id }, select: { metadata: true } }))?.metadata as any || {}),
-                  hlsConversionError: conversionError.message || 'Unknown error',
-                  hlsConversionErrorTime: new Date().toISOString(),
-                }
-              }
-            });
-          } catch (updateError) {
-            console.error(`[API /cameras] Failed to update camera error status:`, updateError);
-          }
-        }
-      })().catch(err => {
-        // Catch any unhandled errors in async conversion
-        console.error(`[API /cameras] Unhandled error in HLS conversion for camera ${camera.id}:`, err);
-      });
-    } else {
-      // Non-RTSP camera (Cloud Stream) - set HLS URL directly if provided
       if (streamUrl.trim().includes('.m3u8')) {
         await prisma.camera.update({
           where: { id: camera.id },
@@ -791,7 +940,6 @@ export async function POST(request: NextRequest) {
             status: 'active',
           }
         });
-      }
     }
 
     // Create audit log

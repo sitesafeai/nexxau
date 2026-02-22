@@ -2,16 +2,14 @@
  * useYOLOCamera - React hook for per-camera YOLO detection
  * 
  * Responsibilities:
- * - Capture frames from video element at configurable FPS
- * - Send frames to YOLO backend via WebSocket
- * - Receive detection results with bounding boxes
+ * - Receive detection results with bounding boxes over WebSocket
  * - Render bounding boxes on canvas overlay
  * - Handle errors per-camera (isolated failures)
  * - Clean cleanup on unmount
  * 
  * Constraints:
  * - Per-camera isolation (failure of one camera doesn't affect others)
- * - Throttled frame capture (~5 FPS default)
+ * - Throttled rendering (~30 FPS max)
  * - Clean cleanup (cancel frames, close WS, clear overlay)
  */
 
@@ -21,9 +19,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Detection, YOLOStatus } from '@/app/types/yolo';
 
 export interface UseYOLOCameraOptions {
-  fps?: number; // Frames per second (default: 5)
-  wsUrl?: string; // WebSocket URL (default: from env or localhost:8766)
+  wsUrl?: string; // WebSocket URL (default: from env or ws://192.168.64.4:8188)
   enabled?: boolean; // Whether YOLO is enabled (default: true)
+  feedId?: number; // Janus feed ID for filtering
 }
 
 export interface UseYOLOCameraReturn {
@@ -34,9 +32,10 @@ export interface UseYOLOCameraReturn {
 
 /**
  * Default YOLO WebSocket URL
+ * Note: If YOLO service is not running, this will fail gracefully
  */
 const DEFAULT_WS_URL = process.env.NEXT_PUBLIC_YOLO_WS_URL || 'ws://localhost:8766/ws/detections';
-const DEFAULT_FPS = 5;
+const MAX_RENDER_FPS = 30;
 
 /**
  * useYOLOCamera hook
@@ -52,7 +51,9 @@ export function useYOLOCamera(
   overlayRef: React.RefObject<HTMLCanvasElement>,
   options: UseYOLOCameraOptions = {}
 ): UseYOLOCameraReturn {
-  const { fps = DEFAULT_FPS, wsUrl = DEFAULT_WS_URL, enabled = true } = options;
+  const rawWsUrl = options.wsUrl ?? DEFAULT_WS_URL;
+  const wsUrl = typeof rawWsUrl === 'string' ? rawWsUrl.trim() : '';
+  const { enabled = true, feedId } = options;
   
   // State
   const [detections, setDetections] = useState<Detection[]>([]);
@@ -61,18 +62,23 @@ export function useYOLOCamera(
   
   // Refs for cleanup
   const wsRef = useRef<WebSocket | null>(null);
-  const frameCallbackHandleRef = useRef<number | null>(null);
-  const intervalHandleRef = useRef<NodeJS.Timeout | null>(null);
-  const lastFrameTimeRef = useRef<number>(0);
-  const frameIntervalMs = 1000 / fps; // Milliseconds between frames
-  
+  const lastRenderTimeRef = useRef<number>(0);
   // Track if hook is active
   const isActiveRef = useRef<boolean>(false);
+  // Track connection attempts to avoid spam
+  const connectionAttemptsRef = useRef<number>(0);
+  const lastErrorLogRef = useRef<number>(0);
   
   /**
    * Connect WebSocket to YOLO backend
    */
   const connectWebSocket = useCallback(() => {
+    if (!wsUrl) {
+      setStatus('failed');
+      setError('YOLO WebSocket URL is missing');
+      return;
+    }
+
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       return; // Already connected
     }
@@ -81,7 +87,10 @@ export function useYOLOCamera(
       return; // Already connecting
     }
     
-    console.log(`[useYOLOCamera ${cameraId}] Connecting to YOLO WebSocket: ${wsUrl}`);
+    // Only log connection attempts occasionally to avoid spam
+    if (connectionAttemptsRef.current === 0) {
+      console.log(`[useYOLOCamera ${cameraId}] Connecting to YOLO WebSocket: ${wsUrl}`);
+    }
     setStatus('connecting');
     setError(null);
     
@@ -89,7 +98,9 @@ export function useYOLOCamera(
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
       
+      // Reset connection attempts on successful connection
       ws.onopen = () => {
+        connectionAttemptsRef.current = 0; // Reset on success
         console.log(`[useYOLOCamera ${cameraId}] ✅ WebSocket connected`);
         setStatus('live');
         setError(null);
@@ -99,15 +110,39 @@ export function useYOLOCamera(
         try {
           const data = JSON.parse(event.data);
           
-          // Verify this detection is for this camera
+          // Verify this detection is for this camera/feed
           if (data.cameraId && data.cameraId !== cameraId) {
-            console.warn(`[useYOLOCamera ${cameraId}] Received detection for different camera: ${data.cameraId}`);
+            return;
+          }
+          if (typeof feedId === 'number' && data.feedId !== undefined && data.feedId !== feedId) {
             return;
           }
           
           // Handle detection message
           if (data.detections && Array.isArray(data.detections)) {
-            setDetections(data.detections);
+            const normalized = data.detections
+              .map((d: any) => {
+                if (d.bbox && typeof d.bbox.x === 'number') {
+                  return d;
+                }
+                if (Array.isArray(d.bbox)) {
+                  const [x1, y1, x2, y2] = d.bbox;
+                  return {
+                    class: d.label || d.class,
+                    confidence: d.confidence,
+                    bbox: {
+                      x: x1,
+                      y: y1,
+                      width: x2 - x1,
+                      height: y2 - y1,
+                    },
+                  };
+                }
+                return null;
+              })
+              .filter((item): item is Detection => Boolean(item));
+
+            setDetections(normalized);
             setStatus('live');
             setError(null);
           } else if (data.error) {
@@ -121,26 +156,46 @@ export function useYOLOCamera(
       };
       
       ws.onerror = (err) => {
-        console.error(`[useYOLOCamera ${cameraId}] WebSocket error:`, err);
-        setError('WebSocket connection error');
+        // Only log errors occasionally to avoid spam (max once per 10 seconds)
+        const now = Date.now();
+        if (now - lastErrorLogRef.current > 10000) {
+          console.warn(`[useYOLOCamera ${cameraId}] WebSocket connection failed (YOLO service may not be running)`);
+          lastErrorLogRef.current = now;
+        }
+        setError('YOLO service unavailable');
         setStatus('failed');
       };
       
       ws.onclose = (event) => {
-        console.log(`[useYOLOCamera ${cameraId}] WebSocket closed (code: ${event.code}, reason: ${event.reason})`);
+        // Only log if it's an unexpected close (not a normal close)
+        if (event.code !== 1000 && event.code !== 1001) {
+          const now = Date.now();
+          if (now - lastErrorLogRef.current > 10000) {
+            console.log(`[useYOLOCamera ${cameraId}] WebSocket closed (code: ${event.code})`);
+            lastErrorLogRef.current = now;
+          }
+        }
         
         if (isActiveRef.current && enabled) {
+          connectionAttemptsRef.current += 1;
+          
+          // Stop trying after 3 failed attempts (to avoid spam)
+          if (connectionAttemptsRef.current >= 3) {
+            setStatus('failed');
+            setError('YOLO service unavailable');
+            return; // Don't retry anymore
+          }
+          
           // Unexpected close - mark as unhealthy
           setStatus('unhealthy');
           setError('WebSocket disconnected');
           
-          // Attempt reconnect after delay (only if still enabled)
+          // Attempt reconnect after delay (only if still enabled and under retry limit)
           setTimeout(() => {
-            if (isActiveRef.current && enabled && wsRef.current?.readyState !== WebSocket.OPEN) {
-              console.log(`[useYOLOCamera ${cameraId}] Attempting WebSocket reconnect...`);
+            if (isActiveRef.current && enabled && wsRef.current?.readyState !== WebSocket.OPEN && connectionAttemptsRef.current < 3) {
               connectWebSocket();
             }
-          }, 3000);
+          }, 5000); // Increased delay to reduce spam
         } else {
           setStatus('failed');
         }
@@ -150,54 +205,8 @@ export function useYOLOCamera(
       setError(err.message || 'Failed to connect to YOLO backend');
       setStatus('failed');
     }
-  }, [cameraId, wsUrl, enabled]);
+  }, [cameraId, wsUrl, enabled, feedId]);
   
-  /**
-   * Send frame to YOLO backend
-   */
-  const sendFrame = useCallback(() => {
-    const video = videoRef.current;
-    const ws = wsRef.current;
-    
-    if (!video || !ws || ws.readyState !== WebSocket.OPEN) {
-      return; // Not ready
-    }
-    
-    // Check if video is playing and has valid dimensions
-    if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
-      return; // Video not ready
-    }
-    
-    try {
-      // Create temporary canvas to capture frame
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      
-      if (!ctx) {
-        console.warn(`[useYOLOCamera ${cameraId}] Failed to get canvas context`);
-        return;
-      }
-      
-      // Draw video frame to canvas
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      // Convert to JPEG blob (quality 0.8 for balance between size and quality)
-      canvas.toBlob((blob) => {
-        if (!blob || ws.readyState !== WebSocket.OPEN) {
-          return;
-        }
-        
-        // Send frame as binary (backend expects binary JPEG)
-        ws.send(blob);
-        
-        console.log(`[useYOLOCamera ${cameraId}] Frame sent (${blob.size} bytes)`);
-      }, 'image/jpeg', 0.8);
-    } catch (err: any) {
-      console.error(`[useYOLOCamera ${cameraId}] Failed to send frame:`, err);
-    }
-  }, [cameraId, videoRef]);
   
   /**
    * Render detections on canvas overlay
@@ -213,7 +222,15 @@ export function useYOLOCamera(
       return;
     }
     
-    // Set canvas size to match video
+    // Throttle rendering to avoid overdraw on high FPS streams
+    const now = performance.now();
+    const minInterval = 1000 / MAX_RENDER_FPS;
+    if (now - lastRenderTimeRef.current < minInterval) {
+      return;
+    }
+    lastRenderTimeRef.current = now;
+
+    // Set canvas size to match video pixel dimensions (bbox coordinates are in pixels)
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     
@@ -229,19 +246,19 @@ export function useYOLOCamera(
     detections.forEach((detection) => {
       const { bbox, class: className, confidence } = detection;
       
-      // Scale bbox to canvas dimensions (bbox is in 0-1 normalized coordinates)
-      const x = bbox.x * canvas.width;
-      const y = bbox.y * canvas.height;
-      const width = bbox.width * canvas.width;
-      const height = bbox.height * canvas.height;
+      // Bbox coordinates are already in pixel space for the video frame
+      const x = bbox.x;
+      const y = bbox.y;
+      const width = bbox.width;
+      const height = bbox.height;
       
-      // Draw bounding box
-      ctx.strokeStyle = '#00ff00'; // Green
+      // Draw bounding box (red = missing PPE)
+      ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = 2;
       ctx.strokeRect(x, y, width, height);
       
       // Draw label background
-      const label = `${className} ${(confidence * 100).toFixed(1)}%`;
+      const label = `${className || 'Person'} ${(confidence * 100).toFixed(1)}% • Missing: helmet, vest`;
       ctx.font = '14px Arial';
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
       const textMetrics = ctx.measureText(label);
@@ -253,105 +270,6 @@ export function useYOLOCamera(
     });
   }, [detections, overlayRef, videoRef]);
   
-  /**
-   * Frame capture using requestVideoFrameCallback (modern browsers)
-   */
-  const startFrameCaptureModern = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || !('requestVideoFrameCallback' in HTMLVideoElement.prototype)) {
-      return false; // Not supported, use fallback
-    }
-    
-    const captureFrame = () => {
-      if (!isActiveRef.current || !enabled) {
-        return;
-      }
-      
-      const now = performance.now();
-      const timeSinceLastFrame = now - lastFrameTimeRef.current;
-      
-      // Throttle to target FPS
-      if (timeSinceLastFrame >= frameIntervalMs) {
-        sendFrame();
-        lastFrameTimeRef.current = now;
-      }
-      
-      // Schedule next frame
-      if (isActiveRef.current && enabled) {
-        try {
-          frameCallbackHandleRef.current = (video as any).requestVideoFrameCallback(captureFrame);
-        } catch (err) {
-          console.warn(`[useYOLOCamera ${cameraId}] requestVideoFrameCallback failed, using fallback`);
-          startFrameCaptureFallback();
-        }
-      }
-    };
-    
-    try {
-      frameCallbackHandleRef.current = (video as any).requestVideoFrameCallback(captureFrame);
-      console.log(`[useYOLOCamera ${cameraId}] Using requestVideoFrameCallback for frame capture`);
-      return true;
-    } catch (err) {
-      console.warn(`[useYOLOCamera ${cameraId}] requestVideoFrameCallback not available, using fallback`);
-      return false;
-    }
-  }, [cameraId, videoRef, enabled, frameIntervalMs, sendFrame]);
-  
-  /**
-   * Frame capture fallback using setInterval
-   */
-  const startFrameCaptureFallback = useCallback(() => {
-    if (intervalHandleRef.current) {
-      clearInterval(intervalHandleRef.current);
-    }
-    
-    intervalHandleRef.current = setInterval(() => {
-      if (!isActiveRef.current || !enabled) {
-        return;
-      }
-      
-      sendFrame();
-    }, frameIntervalMs);
-    
-    console.log(`[useYOLOCamera ${cameraId}] Using setInterval for frame capture (${fps} FPS)`);
-  }, [cameraId, enabled, frameIntervalMs, fps, sendFrame]);
-  
-  /**
-   * Start frame capture
-   */
-  const startFrameCapture = useCallback(() => {
-    if (!videoRef.current || !enabled) {
-      return;
-    }
-    
-    // Try modern API first, fallback to setInterval
-    if (!startFrameCaptureModern()) {
-      startFrameCaptureFallback();
-    }
-  }, [enabled, videoRef, startFrameCaptureModern, startFrameCaptureFallback]);
-  
-  /**
-   * Stop frame capture
-   */
-  const stopFrameCapture = useCallback(() => {
-    // Cancel requestVideoFrameCallback
-    if (frameCallbackHandleRef.current !== null && videoRef.current) {
-      if ('cancelVideoFrameCallback' in HTMLVideoElement.prototype) {
-        try {
-          (videoRef.current as any).cancelVideoFrameCallback(frameCallbackHandleRef.current);
-        } catch (err) {
-          // Ignore cancellation errors
-        }
-      }
-      frameCallbackHandleRef.current = null;
-    }
-    
-    // Clear interval
-    if (intervalHandleRef.current) {
-      clearInterval(intervalHandleRef.current);
-      intervalHandleRef.current = null;
-    }
-  }, [videoRef]);
   
   /**
    * Initialize YOLO when enabled
@@ -360,39 +278,25 @@ export function useYOLOCamera(
     if (!enabled) {
       setStatus('failed');
       setError(null);
+      connectionAttemptsRef.current = 0; // Reset attempts when disabled
+      return;
+    }
+
+    if (!wsUrl) {
+      setStatus('failed');
+      setError('YOLO WebSocket URL is missing');
       return;
     }
     
-    if (!videoRef.current || !overlayRef.current) {
-      return; // Not ready yet
-    }
-    
     isActiveRef.current = true;
+    connectionAttemptsRef.current = 0; // Reset attempts when re-enabled
     
     // Connect WebSocket
     connectWebSocket();
     
-    // Start frame capture when video is ready
-    const video = videoRef.current;
-    const handleVideoReady = () => {
-      if (video.readyState >= 2 && video.videoWidth > 0) {
-        startFrameCapture();
-      }
-    };
-    
-    if (video.readyState >= 2) {
-      handleVideoReady();
-    } else {
-      video.addEventListener('loadedmetadata', handleVideoReady);
-      video.addEventListener('canplay', handleVideoReady);
-    }
-    
     // Cleanup
     return () => {
       isActiveRef.current = false;
-      
-      // Stop frame capture
-      stopFrameCapture();
       
       // Close WebSocket
       if (wsRef.current) {
@@ -408,11 +312,8 @@ export function useYOLOCamera(
         }
       }
       
-      // Remove event listeners
-      video.removeEventListener('loadedmetadata', handleVideoReady);
-      video.removeEventListener('canplay', handleVideoReady);
     };
-  }, [enabled, videoRef, overlayRef, connectWebSocket, startFrameCapture, stopFrameCapture]);
+  }, [enabled, connectWebSocket, wsUrl]);
   
   /**
    * Render detections when they change
