@@ -92,25 +92,30 @@ export async function createAlertTransactionally(data: {
         });
       }
       
-      // 3. Create audit log
+      // 3. Create audit log — explicit allowlist (AuditLog has no result, severity, entityName, worksite)
       if (data.auditLog) {
+        const worksiteId = (data.auditLog.worksite as any)?.connect?.id ?? data.auditLog.worksiteId ?? null;
         await tx.auditLog.create({
           data: {
-            ...data.auditLog,
+            action: data.auditLog.action,
+            entity: data.auditLog.entity,
+            metadata: data.auditLog.metadata ?? null,
+            changes: data.auditLog.changes ?? null,
+            ipAddress: data.auditLog.ipAddress ?? null,
+            userAgent: data.auditLog.userAgent ?? null,
             entityId: alert.id,
+            userId: data.auditLog.userId ?? null,
+            worksiteId,
           },
         });
       } else {
-        // Default audit log
+        // Default audit log (AuditLog schema: action, entity, entityId, metadata, worksiteId — no entityName/result/severity)
         await tx.auditLog.create({
           data: {
             action: 'ALERT_CREATED',
             entity: 'ALERT',
             entityId: alert.id,
-            entityName: (data.alert.title as string) || 'Alert',
-            metadata: data.alert.metadata || {},
-            result: 'SUCCESS',
-            severity: (data.alert.severity as string) || 'WARNING',
+            metadata: { ...(data.alert.metadata as object || {}), title: data.alert.title },
             worksiteId: (data.alert.worksite as any)?.connect?.id || data.alert.worksiteId,
           },
         });

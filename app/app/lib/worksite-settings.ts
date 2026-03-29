@@ -6,6 +6,8 @@ export interface WorksiteSettings {
     detectionConfidence: number;
     alertThreshold: number;
     frameRate: number;
+    personDetectionAlertsEnabled: boolean;
+    personDetectionCooldownMinutes: number;
   };
   notifications: {
     emailEnabled: boolean;
@@ -28,9 +30,11 @@ export interface WorksiteSettings {
 const defaultSettings: WorksiteSettings = {
   camera: {
     autoDetect: true,
-    detectionConfidence: 0.7,
+    detectionConfidence: 0.5,
     alertThreshold: 3,
-    frameRate: 30
+    frameRate: 30,
+    personDetectionAlertsEnabled: true,
+    personDetectionCooldownMinutes: 5
   },
   notifications: {
     emailEnabled: true,
@@ -130,8 +134,8 @@ export function filterDetectionsByConfidence(
   detections: any[],
   confidenceThreshold: number
 ): any[] {
-  return detections.filter(d => 
-    (d.confidence || d.conf || 0) >= confidenceThreshold
+  return detections.filter(d =>
+    (d.confidence ?? d.conf ?? d.score ?? 0) >= confidenceThreshold
   );
 }
 
@@ -195,6 +199,9 @@ export async function shouldSendNotification(
   return shouldSend;
 }
 
+/** Cooldown so we do not run safetyViolation.count on every detection */
+const rateLimitCache = new Map<string, { count: number; checkedAt: number }>();
+
 /**
  * Check if violation count exceeds hourly limit
  */
@@ -203,8 +210,14 @@ export async function checkViolationRateLimit(
   maxViolationsPerHour: number
 ): Promise<boolean> {
   try {
+    const cacheKey = `${worksiteId}:${maxViolationsPerHour}`;
+    const cached = rateLimitCache.get(cacheKey);
+    if (cached && Date.now() - cached.checkedAt < 30_000) {
+      return cached.count < maxViolationsPerHour;
+    }
+
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    
+
     const violationCount = await prisma.safetyViolation.count({
       where: {
         worksiteId,
@@ -213,6 +226,8 @@ export async function checkViolationRateLimit(
         }
       }
     });
+
+    rateLimitCache.set(cacheKey, { count: violationCount, checkedAt: Date.now() });
 
     return violationCount < maxViolationsPerHour;
   } catch (error) {

@@ -15,6 +15,7 @@ interface Alert {
   assignedUserName?: string;
   createdAt: string;
   imageUrl?: string;
+  detectionSnapshot?: string | null;
 }
 
 interface AlertRule {
@@ -50,6 +51,8 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
   const [severityFilter, setSeverityFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'acknowledged' | 'snoozed'>('all');
   const [siteFilterAlert, setSiteFilterAlert] = useState<string>(siteFilter || 'all');
+  const [alertsPage, setAlertsPage] = useState(1);
+  const [alertsPerPage, setAlertsPerPage] = useState(25);
 
   // Rule filters
   const [ruleSearch, setRuleSearch] = useState('');
@@ -64,6 +67,13 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
   useEffect(() => {
     fetchData();
   }, [siteFilter]);
+
+  // Poll for new alerts every 15 seconds when on alerts tab
+  useEffect(() => {
+    if (activeTab !== 'alerts') return;
+    const interval = setInterval(fetchData, 15000);
+    return () => clearInterval(interval);
+  }, [activeTab, siteFilter]);
 
   const fetchData = async () => {
     try {
@@ -83,8 +93,22 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
       ]);
 
       if (alertsRes.ok) {
-        const data = await alertsRes.json();
-        setAlerts(data.data || []);
+        const raw = await alertsRes.json();
+        const rawAlerts = raw.data || raw.alerts || [];
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[AlertsAndRules] Raw alerts from API:', rawAlerts.length, rawAlerts.slice(0, 2));
+        }
+        const transformedAlerts = rawAlerts.map((a: any) => ({
+          ...a,
+          siteId: a.worksiteId,
+          siteName: a.worksite?.name || a.worksite?.worksiteName || 'Unknown Site',
+          cameraName: a.camera?.name || 'Unknown Camera',
+          alertType: a.title || a.metadata?.type || 'Alert',
+          status: (a.status || 'ACTIVE').toLowerCase(),
+          severity: (a.severity || 'MEDIUM').toLowerCase(),
+          detectionSnapshot: a.detectionSnapshot ?? a.metadata?.detectionSnapshot ?? undefined,
+        }));
+        setAlerts(transformedAlerts);
       } else {
         console.error('[AlertsAndRules] Failed to fetch alerts:', alertsRes.status);
       }
@@ -185,6 +209,22 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
 
     return result;
   }, [rules, ruleSearch, ruleStatusFilter]);
+
+  const totalAlertPages = Math.max(1, Math.ceil(filteredAlerts.length / alertsPerPage));
+  const paginatedAlerts = useMemo(() => {
+    const start = (alertsPage - 1) * alertsPerPage;
+    return filteredAlerts.slice(start, start + alertsPerPage);
+  }, [filteredAlerts, alertsPage, alertsPerPage]);
+
+  useEffect(() => {
+    setAlertsPage(1);
+  }, [alertSearch, severityFilter, statusFilter, siteFilterAlert, alertsPerPage]);
+
+  useEffect(() => {
+    if (alertsPage > totalAlertPages) {
+      setAlertsPage(totalAlertPages);
+    }
+  }, [alertsPage, totalAlertPages]);
 
   const getSeverityBadge = (severity: string) => {
     switch (severity) {
@@ -404,6 +444,17 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
                 />
               </div>
               <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => fetchData()}
+                  disabled={loading}
+                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                  title="Refresh alerts"
+                >
+                  <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
                 <select
                   value={severityFilter}
                   onChange={(e) => setSeverityFilter(e.target.value as any)}
@@ -430,6 +481,48 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
 
           {/* Alerts Table */}
           <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 overflow-hidden">
+            {filteredAlerts.length > 0 && (
+              <div className="px-4 py-3 border-b border-slate-700/40 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-800/40">
+                <div className="text-xs text-slate-400">
+                  Showing {(alertsPage - 1) * alertsPerPage + 1}
+                  {' - '}
+                  {Math.min(alertsPage * alertsPerPage, filteredAlerts.length)}
+                  {' of '}
+                  {filteredAlerts.length} alerts
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={alertsPerPage}
+                    onChange={(e) => setAlertsPerPage(Number(e.target.value))}
+                    className="px-2 py-1 bg-slate-800/50 border border-slate-700/50 rounded text-xs text-white focus:outline-none"
+                  >
+                    <option value={10}>10 / page</option>
+                    <option value={25}>25 / page</option>
+                    <option value={50}>50 / page</option>
+                    <option value={100}>100 / page</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setAlertsPage((p) => Math.max(1, p - 1))}
+                    disabled={alertsPage === 1}
+                    className="px-3 py-1.5 text-xs rounded border border-slate-700/60 text-slate-200 hover:bg-slate-700/40 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-xs text-slate-300 min-w-[72px] text-center">
+                    Page {alertsPage} / {totalAlertPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAlertsPage((p) => Math.min(totalAlertPages, p + 1))}
+                    disabled={alertsPage === totalAlertPages}
+                    className="px-3 py-1.5 text-xs rounded border border-slate-700/60 text-slate-200 hover:bg-slate-700/40 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -459,7 +552,7 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
                       </td>
                     </tr>
                   ) : (
-                    filteredAlerts.map((alert) => (
+                    paginatedAlerts.map((alert) => (
                       <tr key={alert.id} className="hover:bg-slate-700/20 transition-colors">
                         <td className="px-4 py-4">
                           <span className="text-sm font-medium text-white">{alert.siteName}</span>
@@ -488,6 +581,15 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center justify-end space-x-1">
+                            {alert.detectionSnapshot && (
+                              <img
+                                src={alert.detectionSnapshot}
+                                alt="Violation snapshot"
+                                className="w-10 h-8 object-cover rounded border border-slate-700/50 cursor-pointer"
+                                onClick={() => window.open(alert.detectionSnapshot!, '_blank')}
+                                title="Violation snapshot"
+                              />
+                            )}
                             {alert.status === 'active' && (
                               <button
                                 onClick={() => handleAcknowledge(alert.id)}
@@ -698,9 +800,15 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
               </button>
             </div>
             <div className="p-6">
-              {selectedAlert.imageUrl && (
-                <div className="aspect-video bg-slate-900 rounded-lg mb-4 flex items-center justify-center">
-                  <p className="text-slate-400">Evidence image</p>
+              {selectedAlert.detectionSnapshot && (
+                <div className="bg-slate-900 rounded-lg mb-4 overflow-hidden">
+                  <img
+                    src={selectedAlert.detectionSnapshot}
+                    alt="Violation snapshot"
+                    className="w-full h-56 object-cover cursor-pointer"
+                    onClick={() => window.open(selectedAlert.detectionSnapshot!, '_blank')}
+                    title="Click to view full size"
+                  />
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">

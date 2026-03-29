@@ -6,7 +6,6 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import DashboardHeader from '@/app/components/DashboardHeader';
 import CameraGrid from '@/app/components/cameras/CameraGrid';
-import AddCameraModal from '@/app/components/cameras/AddCameraModal';
 import { canCreateCamera, type UserRole } from '@/app/lib/permissions';
 
 interface Camera {
@@ -97,9 +96,9 @@ export default function WorksiteDetailPage() {
     role: 'WORKER'
   });
   
-  // Camera state
+  // Camera state (for CameraGrid initial data)
   const [cameras, setCameras] = useState<Camera[]>([]);
-  const [isAddCameraModalOpen, setIsAddCameraModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'cameras'>('overview');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -146,6 +145,8 @@ export default function WorksiteDetailPage() {
     }
   };
 
+  const canAdd = canCreateCamera((session?.user as any)?.role as UserRole);
+
   const handleInviteUser = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -191,60 +192,6 @@ export default function WorksiteDetailPage() {
       alert('Failed to remove user');
     }
   };
-  
-  /**
-   * Handle camera added
-   */
-  const handleCameraAdded = useCallback((camera: Camera) => {
-    // Add to cameras state (triggers CameraTile mount, which registers with manager)
-    setCameras(prev => [...prev, camera]);
-  }, []);
-  
-  /**
-   * Handle camera removal
-   * 
-   * IMPORTANT: Remove from state FIRST (triggers CameraTile unmount),
-   * THEN call API (after UI updates)
-   */
-  const handleRemoveCamera = useCallback(async (cameraId: string) => {
-    // Remove from state immediately (triggers unmount and cleanup)
-    setCameras(prev => prev.filter(c => c.id !== cameraId));
-    
-    // CameraTile will unmount and cleanup via manager.removeCamera()
-    // After UI updates, call API to delete from backend
-    try {
-      const response = await fetch(`/api/cameras/${cameraId}`, {
-        method: 'DELETE'
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        console.error('[WorksitePage] Failed to delete camera:', data.error);
-        // Camera already removed from UI, so just log error
-        // TODO: Could show toast notification
-      }
-    } catch (err) {
-      console.error('[WorksitePage] Error deleting camera:', err);
-      // Camera already removed from UI, so just log error
-    }
-  }, []);
-  
-  /**
-   * Handle overlay toggle (client-only)
-   */
-  const handleToggleOverlay = useCallback(async (cameraId: string, enabled: boolean) => {
-    setCameras(prev =>
-      prev.map(c =>
-        c.id === cameraId
-          ? { ...c, metadata: { ...c.metadata, overlayEnabled: enabled } }
-          : c
-      )
-    );
-
-    const prefs = loadOverlayPrefs();
-    prefs[cameraId] = enabled;
-    saveOverlayPrefs(prefs);
-  }, []);
 
   if (loading) {
     return (
@@ -305,6 +252,32 @@ export default function WorksiteDetailPage() {
           </div>
         </div>
 
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'overview'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700/50'
+            }`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('cameras')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'cameras'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700/50'
+            }`}
+          >
+            Cameras
+          </button>
+        </div>
+
+        {activeTab === 'overview' && (
+          <>
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-slate-800/50 backdrop-blur rounded-xl p-6 border border-slate-700">
@@ -416,47 +389,28 @@ export default function WorksiteDetailPage() {
             </div>
           )}
         </div>
+          </>
+        )}
 
-        {/* Cameras */}
-        <div className="bg-slate-800/50 backdrop-blur rounded-xl border border-slate-700 overflow-hidden">
-          <div className="p-6 border-b border-slate-700 flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-white">Cameras</h2>
-            {canCreateCamera((session?.user as any)?.role as UserRole) && (
-              <button
-                onClick={() => setIsAddCameraModalOpen(true)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-              >
-                Add Camera
-              </button>
-            )}
-          </div>
-
-          <div className="p-6">
+        {activeTab === 'cameras' && (
+          <div className="bg-slate-800/50 backdrop-blur rounded-xl border border-slate-700 overflow-hidden p-6">
             <CameraGrid
-              cameras={cameras.map(c => ({
+              worksiteId={worksiteId}
+              initialCameras={cameras.map((c: any) => ({
                 id: c.id,
                 name: c.name,
-                janusFeedId: c.janusFeedId,
-                rtspUrl: c.streamUrl,
-                metadata: c.metadata
+                zone: c.zone ?? c.location,
+                location: c.location,
+                status: c.status,
+                streamUrl: c.streamUrl,
+                rules: c.rules ?? [],
               }))}
-              onToggleOverlay={handleToggleOverlay}
-              onRemoveCamera={handleRemoveCamera}
+              canAddCamera={canAdd}
             />
-            </div>
-        </div>
+          </div>
+        )}
       </div>
       </div>
-
-      {/* Add Camera Modal (super-admin only) */}
-      {canCreateCamera((session?.user as any)?.role as UserRole) && (
-        <AddCameraModal
-          worksiteId={worksiteId}
-          isOpen={isAddCameraModalOpen}
-          onClose={() => setIsAddCameraModalOpen(false)}
-          onCameraAdded={handleCameraAdded}
-        />
-      )}
 
       {/* Invite User Modal */}
       {showInviteModal && (

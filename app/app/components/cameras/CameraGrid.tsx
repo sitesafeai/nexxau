@@ -1,108 +1,123 @@
-/**
- * CameraGrid - Responsive grid container for camera tiles
- * 
- * Responsibilities:
- * - Render responsive grid of CameraTile components
- * - Pass actions down
- * - NOTHING else
- * 
- * Constraints:
- * - No WebRTC logic
- * - No state management
- * - Memoized to prevent unnecessary re-renders
- */
-
 'use client';
 
-import React, { useCallback, useMemo } from 'react';
-import CameraTile, { CameraTileProps } from './CameraTile';
+import { useState } from 'react';
+import CameraTile from './CameraTile';
+import AddCameraWizard from './AddCameraWizard';
 
-export interface CameraGridProps {
-  cameras: Array<{
-    id: string;
-    name: string;
-    janusFeedId: number | null;
-    rtspUrl: string | null;
-    metadata: {
-      aiEnabled?: boolean;
-      overlayEnabled?: boolean;
-      [key: string]: any;
-    } | null;
-  }>;
-  onToggleOverlay: (cameraId: string, enabled: boolean) => Promise<void>;
-  onRemoveCamera: (cameraId: string) => void;
-  onOpenSettings?: (cameraId: string) => void;
-  onOpenFullscreen?: (cameraId: string) => void;
+interface Camera {
+  id: string;
+  name: string;
+  zone?: string | null;
+  location?: string | null;
+  status?: string;
+  streamUrl?: string | null;
+  rules?: any[];
 }
 
-/**
- * CameraGrid component
- * 
- * Grid Layout Rules:
- * - 1-4 cameras → 2x2 grid
- * - 5-9 cameras → 3x3 grid
- * - 9+ cameras → scrollable grid
- */
-const CameraGrid: React.FC<CameraGridProps> = ({
-  cameras,
-  onToggleOverlay,
-  onRemoveCamera,
-  onOpenSettings,
-  onOpenFullscreen
-}) => {
-  /**
-   * Determine grid columns based on camera count
-   */
-  const gridCols = useMemo(() => {
-    if (cameras.length <= 4) {
-      return 'grid-cols-2';
-    } else if (cameras.length <= 9) {
-      return 'grid-cols-3';
-    } else {
-      return 'grid-cols-3'; // Scrollable grid
-    }
-  }, [cameras.length]);
-  
-  /**
-   * Stable callback for toggle AI
-   */
-  const handleToggleOverlay = useCallback(async (cameraId: string, enabled: boolean) => {
-    await onToggleOverlay(cameraId, enabled);
-  }, [onToggleOverlay]);
-  
-  /**
-   * Stable callback for remove camera
-   */
-  const handleRemoveCamera = useCallback((cameraId: string) => {
-    onRemoveCamera(cameraId);
-  }, [onRemoveCamera]);
-  
-  if (cameras.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64 bg-gray-100 rounded-lg">
-        <div className="text-gray-500 text-center">
-          <p className="text-lg font-medium mb-2">No cameras configured</p>
-          <p className="text-sm">Add a camera to get started</p>
-        </div>
-      </div>
+interface CameraGridProps {
+  worksiteId: string;
+  initialCameras: Camera[];
+  canAddCamera?: boolean;
+}
+
+export default function CameraGrid({
+  worksiteId,
+  initialCameras,
+  canAddCamera = true,
+}: CameraGridProps) {
+  const [cameras, setCameras] = useState<Camera[]>(initialCameras);
+  const [showWizard, setShowWizard] = useState(false);
+
+  function onCameraAdded(camera: any) {
+    setCameras((prev) => [
+      ...prev,
+      {
+        id: camera.id,
+        name: camera.name,
+        status: camera.status,
+        streamUrl: camera.streamUrl,
+        zone: camera.location,
+        location: camera.location,
+        rules: [],
+      },
+    ]);
+    setShowWizard(false);
+  }
+
+  function onCameraDeleted(id: string) {
+    setCameras((prev) => prev.filter((c) => c.id !== id));
+  }
+
+  function onCameraUpdated(updated: { id: string; name: string; zone?: string | null; location?: string | null }) {
+    setCameras((prev) =>
+      prev.map((c) =>
+        c.id === updated.id
+          ? {
+              ...c,
+              name: updated.name,
+              zone: updated.zone ?? c.zone,
+              location: updated.location ?? updated.zone ?? c.location,
+            }
+          : c
+      )
     );
   }
-  
+
   return (
-    <div className={`grid ${gridCols} gap-4 ${cameras.length > 9 ? 'max-h-[calc(100vh-200px)] overflow-y-auto' : ''}`}>
-      {cameras.map((camera) => (
-        <CameraTile
-          key={camera.id}
-          camera={camera}
-          onToggleOverlay={handleToggleOverlay}
-          onRemove={handleRemoveCamera}
-          onOpenSettings={onOpenSettings}
-          onOpenFullscreen={onOpenFullscreen}
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+            Cameras
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {cameras.length} camera{cameras.length !== 1 ? 's' : ''} connected
+          </p>
+        </div>
+        {canAddCamera && (
+          <button
+            onClick={() => setShowWizard(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+          >
+            + Add Camera
+          </button>
+        )}
+      </div>
+
+      {cameras.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+          <p className="text-slate-400 dark:text-slate-500 text-sm">
+            No cameras connected yet
+          </p>
+          {canAddCamera && (
+            <button
+              onClick={() => setShowWizard(true)}
+              className="mt-3 text-blue-600 dark:text-blue-400 text-sm font-medium hover:underline"
+            >
+              Add your first camera
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {cameras.map((camera) => (
+            <CameraTile
+              key={camera.id}
+              camera={camera}
+              onDeleted={() => onCameraDeleted(camera.id)}
+              onUpdated={onCameraUpdated}
+            />
+          ))}
+        </div>
+      )}
+
+      {showWizard && (
+        <AddCameraWizard
+          worksiteId={worksiteId}
+          onSuccess={onCameraAdded}
+          onClose={() => setShowWizard(false)}
         />
-      ))}
+      )}
     </div>
   );
-};
-
-export default CameraGrid;
-
+}

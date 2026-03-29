@@ -1,0 +1,6 @@
+opencv-python-headless>=4.8.0
+ultralytics-opencv-headless>=8.0.0
+numpy>=1.24.0
+requests>=2.31.0
+flask>=3.0.0
+twilio>=8.0.0

@@ -1,42 +1,28 @@
 /**
- * Backend Streaming Service - API Endpoint
- * 
- * This endpoint provides live video streaming metadata for a camera.
- * 
- * Responsibilities:
- * - Fetch camera from database
- * - Return stream metadata (WebRTC or HLS)
- * - Support Janus WebRTC streaming
- * 
- * Response format:
- * - WebRTC: { streamType: "webrtc", janusServerUrl, mountpointId, cameraId }
- * - HLS: { streamType: "hls", hlsUrl, cameraId }
+ * GET /api/cameras/:id/stream
+ *
+ * Returns stream URLs for camera playback via go2rtc.
+ * Replaces Janus-based streaming with go2rtc WebRTC/HLS.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
+import { prisma } from '@/app/lib/prisma';
 import { normalizeRole } from '@/app/lib/roles';
+import { addStreamToGo2RTC } from '@/app/lib/services/go2rtcClient';
 
 /**
  * GET /api/cameras/:id/stream
  * 
- * Returns stream metadata for a camera.
+ * Returns stream metadata for a camera via go2rtc.
  * 
- * Required response format for WebRTC:
+ * Response format:
  * {
  *   "cameraId": "...",
- *   "streamType": "webrtc",
- *   "janusServerUrl": "ws://192.168.64.4:8188",
- *   "mountpointId": 10
- * }
- * 
- * Required response format for HLS:
- * {
- *   "cameraId": "...",
- *   "streamType": "hls",
- *   "hlsUrl": "http://..."
+ *   "streamType": "go2rtc_webrtc" | "go2rtc_hls",
+ *   "webrtcUrl": "http://go2rtc:1984/api/webrtc?src=cameraId",
+ *   "hlsUrl": "http://go2rtc:1984/api/stream.m3u8?src=cameraId"
  * }
  */
 export async function GET(
@@ -69,12 +55,8 @@ export async function GET(
         id: true,
         name: true,
         status: true,
-        streamUrl: true,
-        hlsUrl: true,
-        mediamtxPath: true,
-        janusFeedId: true, // NEW: Support new Janus system
-        metadata: true,
         worksiteId: true,
+        streamUrl: true,
       },
     });
 
@@ -123,75 +105,31 @@ export async function GET(
       }
     }
 
-    // Determine stream type: WebRTC (preferred) or HLS (fallback)
-    // NEW SYSTEM: Check janusFeedId first (new Janus RTSP integration)
-    // OLD SYSTEM: Fall back to metadata.mountpointId for backward compatibility
-    const metadata = camera.metadata as any || {};
-    // Prefer env var over metadata: when switching Janus (VM→Docker), env reflects current deployment.
-    // Stale metadata.janusServerUrl would otherwise connect to wrong Janus → "No such mountpoint".
-    let janusServerUrl = process.env.NEXT_PUBLIC_JANUS_SERVER_URL || process.env.JANUS_SERVER_URL || metadata.janusServerUrl || 'ws://localhost:8088/janus';
-    // Ensure WebSocket URLs have /janus path (required by canyan/Docker Janus on port 8188)
-    if (janusServerUrl.startsWith('ws://') || janusServerUrl.startsWith('wss://')) {
-      try {
-        const u = new URL(janusServerUrl);
-        if (!u.pathname || u.pathname === '/') {
-          janusServerUrl = `${u.origin}/janus`;
-        }
-      } catch {
-        // leave as-is if URL is malformed
-      }
-    }
-    
-    // NEW: Check janusFeedId first (preferred - new system)
-    // OLD: Fall back to metadata.mountpointId (backward compatibility)
-    const feedId = camera.janusFeedId ?? metadata.mountpointId ?? metadata.mountpoint_id;
+    const go2rtcServerUrl = process.env.GO2RTC_URL || 'http://localhost:1984';
+    const go2rtcBrowserUrl = process.env.NEXT_PUBLIC_GO2RTC_URL || 'http://localhost:1984';
 
-    // If feedId exists (either janusFeedId or mountpointId), validate and return WebRTC
-    if (feedId !== undefined && feedId !== null) {
-      // Parse feedId to number
-      const parsedFeedId = typeof feedId === 'number' ? feedId : parseInt(feedId, 10);
-      
-      // Validate feedId is a valid number > 0
-      if (isNaN(parsedFeedId) || parsedFeedId <= 0) {
-        console.error(`[API /cameras/[id]/stream] Invalid feedId for camera ${camera.id}: ${feedId}`);
-        return NextResponse.json(
-          { 
-            error: 'Camera is not configured for WebRTC (invalid feedId)',
-            cameraId: camera.id,
-          },
-          { status: 503 }
-        );
-      }
-
-      // Return WebRTC response with feedId (maps to mountpointId in Janus VideoRoom)
-      return NextResponse.json({
-        cameraId: camera.id,
-        streamType: 'webrtc',
-        janusServerUrl,
-        mountpointId: parsedFeedId, // Use feedId as mountpointId for Janus VideoRoom
-      });
+    const rtspUrl = camera.streamUrl?.trim();
+    if (!rtspUrl || !rtspUrl.startsWith('rtsp://')) {
+      return NextResponse.json(
+        { error: 'No RTSP stream configured', cameraId: camera.id, hint: 'Add an RTSP URL for this camera.' },
+        { status: 503 }
+      );
     }
 
-    // No feedId (neither janusFeedId nor mountpointId) - camera is not configured for WebRTC
-    console.warn(`[API /cameras/[id]/stream] Camera ${camera.id} is not configured for WebRTC (missing janusFeedId or mountpointId)`);
-    
-    // Fallback to HLS if available
-    if (camera.hlsUrl) {
-      return NextResponse.json({
-        cameraId: camera.id,
-        streamType: 'hls',
-        hlsUrl: camera.hlsUrl,
-      });
+    const added = await addStreamToGo2RTC(go2rtcServerUrl, camera.id, rtspUrl);
+    if (!added) {
+      return NextResponse.json(
+        { error: 'Stream gateway unavailable', cameraId: camera.id, hint: 'Is go2rtc running? ./start-nexxau.sh' },
+        { status: 503 }
+      );
     }
 
-    // If no stream available, return explicit error
-    return NextResponse.json(
-      { 
-        error: 'Camera is not configured for WebRTC (missing janusFeedId or mountpointId)',
-        cameraId: camera.id,
-      },
-      { status: 503 }
-    );
+    return NextResponse.json({
+      cameraId: camera.id,
+      streamType: 'go2rtc_webrtc',
+      webrtcUrl: `${go2rtcBrowserUrl}/api/webrtc?src=${camera.id}`,
+      hlsUrl: `${go2rtcBrowserUrl}/api/stream.m3u8?src=${camera.id}`,
+    });
     
   } catch (error: any) {
     console.error('[API /cameras/[id]/stream] Error:', error);
@@ -201,4 +139,3 @@ export async function GET(
     );
   }
 }
-

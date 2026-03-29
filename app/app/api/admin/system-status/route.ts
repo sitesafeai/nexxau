@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getWebSocketManager } from '@/app/lib/websocket';
+import { getCachedSession } from '@/app/lib/session-cache';
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await getCachedSession(request);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // Check database health
     const dbHealth = await checkDatabaseHealth();
     

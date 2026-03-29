@@ -1,5 +1,4 @@
 import nodemailer from 'nodemailer';
-import twilio from 'twilio';
 
 interface EmailConfig {
   host: string;
@@ -33,7 +32,7 @@ interface NotificationData {
 
 class NotificationService {
   private emailTransporter: nodemailer.Transporter | null = null;
-  private smsClient: twilio.Twilio | null = null;
+  private smsClient: null = null;
   private emailConfig: EmailConfig | null = null;
   private smsConfig: SMSConfig | null = null;
 
@@ -55,23 +54,14 @@ class NotificationService {
 
     if (emailConfig.auth.user && emailConfig.auth.pass) {
       this.emailConfig = emailConfig;
-      this.emailTransporter = nodemailer.createTransporter(emailConfig);
+      this.emailTransporter = nodemailer.createTransport(emailConfig);
     }
   }
 
   private initializeSMS() {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const fromNumber = process.env.TWILIO_FROM_NUMBER;
-
-    if (accountSid && authToken && fromNumber) {
-      this.smsConfig = {
-        accountSid,
-        authToken,
-        fromNumber
-      };
-      this.smsClient = twilio(accountSid, authToken);
-    }
+    // Twilio SMS notifications have been removed in favor of Resend email alerts.
+    this.smsConfig = null;
+    this.smsClient = null;
   }
 
   private getTemplate(templateName: string, data: Record<string, any>): NotificationTemplate {

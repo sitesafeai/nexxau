@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Shield, AlertTriangle, CheckCircle, Camera, Users } from 'lucide-react';
 import MarketingNavbar from '../components/MarketingNavbar';
 

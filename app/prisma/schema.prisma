@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider     = "postgresql"
   url          = env("DATABASE_URL")
+  directUrl    = env("DIRECT_URL")
   relationMode = "prisma"
 }
 
@@ -176,6 +177,8 @@ model Worksite {
   status                   String                    @default("ACTIVE")
   company                  Company                   @relation(fields: [companyId], references: [id])
   cameraSystemConfig       CameraSystemConfig?
+  alertContacts            AlertContact[]
+  detectionLogs            DetectionLog[]
   workers                  Worker[]
   users                    User[]
   cameras                  Camera[]
@@ -324,6 +327,7 @@ model Camera {
   status           String                @default("active")
   streamUrl        String?
   location         String?
+  zone             String?
   ipAddress        String?
   port             Int?
   username         String?
@@ -337,7 +341,9 @@ model Camera {
   metadata         Json?
   janusFeedId      Int?
   worksite         Worksite              @relation(fields: [worksiteId], references: [id])
+  rules            CameraRule[]
   detections       Detection[]
+  detectionLogs    DetectionLog[]
   health           CameraHealth[]
   safetyViolations SafetyViolation[]
   smsNotifications SMSNotification[]
@@ -521,6 +527,8 @@ model SafetyViolation {
   description   String
   worksiteId    String?
   cameraId      String?
+  ruleId        String?
+  confidence    Float?
   detectedAt    DateTime
   smsSent       Boolean   @default(false)
   smsSentAt     DateTime?
@@ -532,6 +540,51 @@ model SafetyViolation {
   updatedAt     DateTime  @updatedAt
   worksite      Worksite? @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
   camera        Camera?   @relation(fields: [cameraId], references: [id], onDelete: SetNull)
+}
+
+model CameraRule {
+  id             String   @id @default(cuid())
+  cameraId       String
+  camera         Camera   @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+  ifCondition    String
+  ifObject       String?
+  andCondition   String?
+  andObject      String?
+  thenAction     String
+  name           String
+  isPredefined   Boolean  @default(false)
+  enabled        Boolean  @default(true)
+  disabledReason String?
+  createdAt      DateTime @default(now())
+
+  @@index([cameraId])
+}
+
+model DetectionLog {
+  id          String   @id @default(cuid())
+  cameraId    String
+  camera      Camera   @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+  worksiteId  String
+  worksite    Worksite @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  type        String
+  confidence  Float
+  bbox        Json
+  frameData   String?
+  timestamp   DateTime @default(now())
+
+  @@index([cameraId, timestamp])
+  @@index([worksiteId, timestamp])
+}
+
+model AlertContact {
+  id          String   @id @default(cuid())
+  worksiteId  String
+  worksite    Worksite @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  name        String
+  email       String?
+  phone       String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
 }
 
 model SMSNotification {

@@ -51,6 +51,7 @@ import {
   Zap
 } from 'lucide-react';
 import CameraStreamViewer from '@/app/components/camera/CameraStreamViewer';
+import OverviewCameraThumb from '@/app/components/cameras/OverviewCameraThumb';
 
 // ============================================================
 // TYPES & INTERFACES
@@ -426,87 +427,6 @@ const AlertRow = ({
   );
 };
 
-// Camera Card Component (Dark Theme)
-const CameraCard = ({ 
-  camera,
-  onViewLive,
-  onConfigure,
-  userRole
-}: {
-  camera: SiteCamera;
-  onViewLive: () => void;
-  onConfigure?: () => void;
-  userRole?: UserRole;
-}) => {
-  return (
-    <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg overflow-hidden hover:border-slate-600 transition-colors">
-      {/* Thumbnail Area */}
-      <div 
-        className="relative h-28 bg-slate-900 flex items-center justify-center cursor-pointer"
-        onClick={onViewLive}
-      >
-        {camera.thumbnailUrl ? (
-          <img src={camera.thumbnailUrl} alt={camera.name} className="w-full h-full object-cover" />
-        ) : (
-          <Camera className="w-8 h-8 text-slate-600" />
-        )}
-        
-        {/* Status Badge */}
-        <div className="absolute top-2 left-2 flex items-center space-x-1">
-          <span className={`w-2 h-2 rounded-full ${camera.status === 'online' ? 'bg-emerald-500' : 'bg-red-500'}`} />
-          <span className="text-xs text-white bg-black/60 px-1.5 py-0.5 rounded font-medium">
-            {camera.status === 'online' ? 'LIVE' : 'OFFLINE'}
-          </span>
-        </div>
-
-        {/* AI Badge */}
-        {camera.aiEnabled && (
-          <div className="absolute top-2 right-2">
-            <span className="text-xs text-white bg-blue-600 px-1.5 py-0.5 rounded font-medium">
-              AI
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="p-3">
-        <div className="flex items-start justify-between mb-2">
-          <div className="min-w-0 flex-1">
-            <h4 className="font-medium text-white text-sm truncate">{camera.name}</h4>
-            {camera.zone && (
-              <p className="text-xs text-slate-400 truncate">{camera.zone}</p>
-            )}
-          </div>
-          {camera.recentViolations > 0 && (
-            <span className="text-xs font-medium text-red-400 bg-red-500/10 px-2 py-0.5 rounded flex-shrink-0 ml-2">
-              {camera.recentViolations}
-            </span>
-          )}
-        </div>
-
-        <div className="flex gap-2">
-          <button 
-            onClick={onViewLive}
-            className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
-          >
-            View Live
-          </button>
-          {onConfigure && (
-            <button 
-              onClick={onConfigure}
-              className="px-3 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded transition-colors"
-              title="Configure Camera"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // Modal Component (Dark Theme)
 const Modal = ({ 
   isOpen, 
@@ -551,6 +471,9 @@ const Modal = ({
     </div>
   );
 };
+
+/** Overview tab: fewer alerts on first load (full list on Alerts tab) */
+const OVERVIEW_ALERTS_LIMIT = 40;
 
 // ============================================================
 // MAIN COMPONENT
@@ -719,101 +642,160 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
     return null;
   };
 
-  // Data Fetching - isBackground flag prevents showing loading state on auto-refresh
+  // Data Fetching — prefer one round-trip (site-summary); fallback: metrics first then alerts + cameras
   const fetchSiteData = useCallback(async (isBackground = false) => {
     if (!selectedSite?.id) return;
-    
+    const siteId = selectedSite.id;
+
+    const applyMetrics = (data: any) => {
+      setMetrics({
+        activeCameras: data.activeCameras ?? 0,
+        offlineCameras: data.offlineCameras ?? 0,
+        aiEnabledCameras: data.aiEnabledCameras ?? 0,
+        totalAlerts: data.totalAlerts ?? 0,
+        highAlerts: data.highAlerts ?? 0,
+        mediumAlerts: data.mediumAlerts ?? 0,
+        lowAlerts: data.lowAlerts ?? 0,
+        safetyScore: data.safetyScore ?? null,
+        safetyScoreChange: data.safetyScoreChange ?? 0,
+        lastActivity: data.lastActivity ?? null,
+        avgResponseTime: data.avgResponseTime ?? null,
+        violations24h: data.violations24h ?? 0,
+        cameraUptime7d: data.cameraUptime7d ?? 99.5,
+        lastSync: new Date().toISOString(),
+      });
+    };
+
+    const applyAlertsFromRawList = (alertsList: any[]) => {
+      const activeAlerts = alertsList.filter(
+        (a: any) =>
+          a.status?.toUpperCase() === 'ACTIVE' ||
+          a.status?.toLowerCase() === 'active'
+      );
+      const formattedAlerts = activeAlerts.map((a: any) => ({
+        id: a.id,
+        camera:
+          a.camera?.name || a.worksite?.name || a.camera || 'Unknown Camera',
+        cameraId: a.cameraId || a.camera?.id || '',
+        alertType: a.title || a.alertType || 'Alert',
+        severity: (a.severity?.toLowerCase() || 'low') as AlertSeverity,
+        time: a.createdAt || a.time || new Date().toISOString(),
+        status: (a.status?.toLowerCase() || 'active') as AlertStatus,
+        evidence: a.evidence,
+        videoClip: a.videoClipUrl || a.metadata?.videoClipUrl,
+      }));
+      setAlerts(formattedAlerts);
+    };
+
+    const applyCamerasFromRawList = (camerasList: any[]) => {
+      const formattedCameras = camerasList.map((c: any) => ({
+        id: c.id,
+        name: c.name || 'Unnamed Camera',
+        zone: c.zone || c.location,
+        location: c.location || c.zone,
+        status: (c.status?.toLowerCase() === 'online' ||
+        c.status?.toLowerCase() === 'active'
+          ? 'online'
+          : 'offline') as CameraStatus,
+        aiEnabled: c.aiEnabled ?? c.aiDetection ?? false,
+        recording: c.recording ?? true,
+        recentViolations: c.recentViolations ?? 0,
+        lastDetection: c.lastDetection,
+        uptime24h: c.uptime24h ?? 99,
+        thumbnailUrl: c.thumbnailUrl,
+        streamUrl: c.streamUrl || null,
+        hlsUrl: c.hlsUrl || null,
+        mediamtxPath: c.mediamtxPath || null,
+        rtspPath: c.rtspPath || null,
+        janusFeedId: c.janusFeedId ?? null,
+      }));
+      setCameras(formattedCameras);
+    };
+
+    const applyRecentActivity = () => {
+      setRecentActivity([
+        {
+          id: '1',
+          type: 'alert',
+          description: 'New alert triggered',
+          timestamp: new Date().toISOString(),
+        },
+        {
+          id: '2',
+          type: 'acknowledgement',
+          description: 'Alert acknowledged',
+          user: currentUser?.name,
+          timestamp: new Date(Date.now() - 300000).toISOString(),
+        },
+      ]);
+    };
+
     try {
-      // Only show loading on initial load, not background refreshes
       if (!isBackground) {
         setLoading(true);
       }
-      
-      const [metricsRes, alertsRes, camerasRes] = await Promise.all([
-        fetch(`/api/worksites/${selectedSite.id}/metrics`).catch(() => null),
-        fetch(`/api/alerts?worksiteId=${selectedSite.id}&limit=100`, { cache: 'no-store' }).catch(() => null),
-        fetch(`/api/cameras?worksiteId=${selectedSite.id}`, { cache: 'no-store' }).catch(() => null)
-      ]);
 
+      const summaryRes = await fetch(
+        `/api/dashboard/site-summary?worksiteId=${encodeURIComponent(siteId)}`
+      ).catch(() => null);
+
+      if (summaryRes?.ok) {
+        const body = await summaryRes.json();
+        if (body.success && body.metrics) {
+          applyMetrics(body.metrics);
+          if (Array.isArray(body.alerts)) {
+            applyAlertsFromRawList(body.alerts);
+          }
+          if (Array.isArray(body.cameras)) {
+            applyCamerasFromRawList(body.cameras);
+          }
+          applyRecentActivity();
+          return;
+        }
+      }
+
+      const metricsRes = await fetch(
+        `/api/worksites/${siteId}/metrics`
+      ).catch(() => null);
       if (metricsRes?.ok) {
         const data = await metricsRes.json();
-        setMetrics({
-          activeCameras: data.activeCameras ?? 0,
-          offlineCameras: data.offlineCameras ?? 0,
-          aiEnabledCameras: data.aiEnabledCameras ?? 0,
-          totalAlerts: data.totalAlerts ?? 0,
-          highAlerts: data.highAlerts ?? 0,
-          mediumAlerts: data.mediumAlerts ?? 0,
-          lowAlerts: data.lowAlerts ?? 0,
-          safetyScore: data.safetyScore ?? null,
-          safetyScoreChange: data.safetyScoreChange ?? 0,
-          lastActivity: data.lastActivity ?? null,
-          avgResponseTime: data.avgResponseTime ?? null,
-          violations24h: data.violations24h ?? 0,
-          cameraUptime7d: data.cameraUptime7d ?? 99.5,
-          lastSync: new Date().toISOString()
-        });
+        applyMetrics(data);
       }
+    } catch (error) {
+      console.error('Error fetching site metrics:', error);
+    } finally {
+      if (!isBackground) {
+        setLoading(false);
+      }
+    }
+
+    try {
+      const [alertsRes, camerasRes] = await Promise.all([
+        fetch(
+          `/api/alerts?worksiteId=${siteId}&limit=${OVERVIEW_ALERTS_LIMIT}`
+        ).catch(() => null),
+        fetch(`/api/cameras?worksiteId=${siteId}`).catch(() => null),
+      ]);
 
       if (alertsRes?.ok) {
         const data = await alertsRes.json();
-        // Handle different response formats
-        const alertsList = Array.isArray(data) ? data : (data.data || data.alerts || []);
-        
-        // Filter for ACTIVE status only (matching admin dashboard behavior)
-        const activeAlerts = alertsList.filter((a: any) => 
-          (a.status?.toUpperCase() === 'ACTIVE' || a.status?.toLowerCase() === 'active')
-        );
-        
-        const formattedAlerts = activeAlerts.map((a: any) => ({
-          id: a.id,
-          camera: a.camera?.name || a.worksite?.name || a.camera || 'Unknown Camera',
-          cameraId: a.cameraId || a.camera?.id || '',
-          alertType: a.title || a.alertType || 'Alert',
-          severity: (a.severity?.toLowerCase() || 'low') as AlertSeverity,
-          time: a.createdAt || a.time || new Date().toISOString(),
-          status: (a.status?.toLowerCase() || 'active') as AlertStatus,
-          evidence: a.evidence,
-          videoClip: a.videoClipUrl || a.metadata?.videoClipUrl,
-        }));
-        setAlerts(formattedAlerts);
+        const alertsList = Array.isArray(data)
+          ? data
+          : data.data || data.alerts || [];
+        applyAlertsFromRawList(alertsList);
       }
 
       if (camerasRes?.ok) {
         const data = await camerasRes.json();
-        // Handle different response formats (matching admin dashboard behavior)
-        const camerasList = Array.isArray(data) ? data : (data.cameras || data.data || []);
-        
-        const formattedCameras = camerasList.map((c: any) => ({
-          id: c.id,
-          name: c.name || 'Unnamed Camera',
-          zone: c.zone || c.location,
-          location: c.location || c.zone,
-          status: (c.status?.toLowerCase() === 'online' || c.status?.toLowerCase() === 'active' ? 'online' : 'offline') as CameraStatus,
-          aiEnabled: c.aiEnabled ?? c.aiDetection ?? false,
-          recording: c.recording ?? true,
-          recentViolations: c.recentViolations ?? 0,
-          lastDetection: c.lastDetection,
-          uptime24h: c.uptime24h ?? 99,
-          thumbnailUrl: c.thumbnailUrl,
-          streamUrl: c.streamUrl || null,
-          hlsUrl: c.hlsUrl || null,
-          mediamtxPath: c.mediamtxPath || null,
-          rtspPath: c.rtspPath || null,
-          janusFeedId: c.janusFeedId ?? null,
-        }));
-        setCameras(formattedCameras);
+        const camerasList = Array.isArray(data)
+          ? data
+          : data.cameras || data.data || [];
+        applyCamerasFromRawList(camerasList);
       }
 
-      // Mock recent activity
-      setRecentActivity([
-        { id: '1', type: 'alert', description: 'New alert triggered', timestamp: new Date().toISOString() },
-        { id: '2', type: 'acknowledgement', description: 'Alert acknowledged', user: currentUser?.name, timestamp: new Date(Date.now() - 300000).toISOString() },
-      ]);
+      applyRecentActivity();
     } catch (error) {
-      console.error('Error fetching site data:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error fetching alerts/cameras:', error);
     }
   }, [selectedSite?.id, currentUser?.name]);
 
@@ -959,8 +941,8 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
     );
   }
 
-  // Loading state
-  if (loading && !metrics) {
+  // Loading state — only until metrics resolve (alerts/cameras fill in after)
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
@@ -1096,7 +1078,13 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
 
           {filteredAlerts.length > 10 && (
             <div className="px-5 py-3 border-t border-slate-700/50">
-              <button className="text-sm text-blue-400 hover:text-blue-300 font-medium">
+              <button
+                type="button"
+                onClick={() =>
+                  window.dispatchEvent(new CustomEvent('switchTab', { detail: 'alerts' }))
+                }
+                className="text-sm text-blue-400 hover:text-blue-300 font-medium"
+              >
                 View all {filteredAlerts.length} alerts →
               </button>
             </div>
@@ -1159,7 +1147,10 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
       {/* Cameras Section */}
       <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg backdrop-blur-sm">
         <div className="px-5 py-4 border-b border-slate-700/50 flex items-center justify-between">
-          <h3 className="font-semibold text-white">Camera Monitoring</h3>
+          <div>
+            <h3 className="font-semibold text-white">Camera Monitoring</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Live camera previews (go2rtc)</p>
+          </div>
           <div className="flex items-center gap-3">
           <span className="text-sm text-slate-400">
             {cameras.filter(c => c.status === 'online').length} / {cameras.length} online
@@ -1204,73 +1195,33 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
               <p className="text-slate-400">No cameras configured for this site</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {cameras.slice(0, 8).map((camera) => (
-                <CameraCard
-                  key={camera.id}
-                  camera={camera}
-                  onViewLive={async () => {
-                    setSelectedCameraForLive(camera);
-                    setShowLiveFeedModal(true);
-                    // Fetch HLS URL when opening live feed
-                    setCurrentLiveLoading(true);
-                    setCurrentLiveError(null);
-                    setCurrentLiveHlsUrl(null);
-                    
-                    try {
-                      const url = await getCameraStreamUrl(camera);
-                      if (url) {
-                        setCurrentLiveHlsUrl(url);
-                        setCurrentLiveLoading(false);
-                      } else {
-                        setCurrentLiveError('Failed to get stream URL. Check camera configuration.');
-                        setCurrentLiveLoading(false);
-                      }
-                    } catch (error: any) {
-                      console.error('[UserDashboard] Error getting stream URL:', error);
-                      setCurrentLiveError(error.message || 'Failed to get stream URL');
-                      setCurrentLiveLoading(false);
-                    }
-                  }}
-                  onConfigure={async () => {
-                    // Fetch full camera details to show in popup
-                    try {
-                      const response = await fetch(`/api/cameras/${camera.id}`);
-                      if (response.ok) {
-                        const data = await response.json();
-                        const fullCamera = data.camera || data.data || data;
-                        setSelectedCameraForInfo({
-                          ...camera,
-                          ...fullCamera,
-                          zone: fullCamera.zone || fullCamera.location || camera.zone,
-                          location: fullCamera.location || fullCamera.zone || camera.zone,
-                          hlsUrl: fullCamera.hlsUrl || camera.hlsUrl,
-                          streamUrl: fullCamera.streamUrl || camera.streamUrl,
-                          mediamtxPath: fullCamera.mediamtxPath || camera.mediamtxPath,
-                          rtspPath: fullCamera.rtspPath || camera.rtspPath,
-                          aiEnabled: fullCamera.aiEnabled ?? fullCamera.aiDetection ?? camera.aiEnabled,
-                          status: fullCamera.status || camera.status
-                        });
-                      } else {
-                        // Fallback to existing camera data
-                        setSelectedCameraForInfo(camera);
-                      }
-                    } catch (error) {
-                      console.error('Error fetching camera details:', error);
-                      // Fallback to existing camera data
-                      setSelectedCameraForInfo(camera);
-                    }
-                    setShowCameraInfoPopup(true);
-                  }}
-                  userRole={currentUser?.role}
-                />
-              ))}
-            </div>
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-slate-300">Live Cameras</h4>
+                <span className="text-xs text-slate-500">
+                  {cameras.length} camera{cameras.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {cameras.slice(0, 8).map((camera) => (
+                  <OverviewCameraThumb
+                    key={camera.id}
+                    camera={{ id: camera.id, name: camera.name }}
+                  />
+                ))}
+              </div>
+            </>
           )}
           
           {cameras.length > 8 && (
             <div className="mt-4 text-center">
-              <button className="text-sm text-blue-400 hover:text-blue-300 font-medium">
+              <button
+                type="button"
+                onClick={() =>
+                  window.dispatchEvent(new CustomEvent('switchTab', { detail: 'cameras' }))
+                }
+                className="text-sm text-blue-400 hover:text-blue-300 font-medium"
+              >
                 View all {cameras.length} cameras →
               </button>
             </div>

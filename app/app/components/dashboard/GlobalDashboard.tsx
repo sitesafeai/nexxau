@@ -85,26 +85,26 @@ export default function GlobalDashboard({ currentUser }: GlobalDashboardProps) {
   const fetchGlobalData = async () => {
     try {
       setLoading(true);
-      
-      // Fetch all data in parallel
-      const [
-        statsRes,
-        alertsRes,
-        camerasRes,
-        systemStatusRes
-      ] = await Promise.all([
-        fetch('/api/admin/global-stats'),
-        fetch('/api/alerts?limit=10&severity=HIGH&status=ACTIVE'),
-        fetch('/api/cameras?includeHealth=true'),
-        fetch('/api/admin/system-status')
-      ]);
 
+      const statsRes = await fetch('/api/admin/global-stats');
       if (statsRes.ok) {
         const statsData = await statsRes.json();
         if (statsData.success) {
           setStats(statsData.data);
         }
       }
+    } catch (error) {
+      console.error('Error fetching global stats:', error);
+    } finally {
+      setLoading(false);
+    }
+
+    try {
+      const [alertsRes, camerasRes, systemStatusRes] = await Promise.all([
+        fetch('/api/alerts?limit=10&severity=HIGH&status=ACTIVE'),
+        fetch('/api/cameras?includeHealth=true'),
+        fetch('/api/admin/system-status'),
+      ]);
 
       if (alertsRes.ok) {
         const alertsData = await alertsRes.json();
@@ -127,14 +127,11 @@ export default function GlobalDashboard({ currentUser }: GlobalDashboardProps) {
           falsePositives: systemData.falsePositives || 12,
           falseNegatives: systemData.falseNegatives || 3,
           totalDetections: systemData.totalDetections || 15420,
-          lastUpdated: new Date().toISOString()
+          lastUpdated: new Date().toISOString(),
         });
       }
-
     } catch (error) {
-      console.error('Error fetching global data:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error fetching global dashboard secondary data:', error);
     }
   };
 

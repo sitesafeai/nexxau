@@ -65,3 +65,8 @@ htmlcov/
 tmp/
 temp/
 *.tmp
+.vercel
+
+# Local / sensitive (do not commit)
+cookies.txt
+dump.rdb

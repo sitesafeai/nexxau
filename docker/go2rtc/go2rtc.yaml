@@ -1,0 +1,97 @@
+api:
+    listen: :1984
+    origin: '*'
+rtsp:
+    listen: :8554
+streams:
+    cmldj33fm0001p9i8h3mm3pjd:
+        - rtsp://host.docker.internal:8554/stream
+    cmm9nuj6z0001p9hlx05qrxbr:
+      - rtsp://tUqTomA2pHYjlFjLv4MQoBpXGBfJ8256:qDEZ6q-JXjPVD2qOCdCgN@test.rtsp.stream/people
+    cmm9nysiw0003p9hld7x7cr2t:
+        - rtsp://host.docker.internal:8554/stream
+    cmm9yvavl0001p9i05pm5vm48:
+        - rtsp://host.docker.internal:8554/stream
+    cmm9zeznh0003p9i0tm32hhqj:
+        - rtsp://host.docker.internal:8554/stream
+    cmma2wbsa0005p9i0piflkjdf:
+      - rtsp://host.docker.internal:8554/stream
+    cmmargys00001p9ps5xeblx64:
+      - rtsp://tUqTomA2pHYjlFjLv4MQoBpXGBfJ8256:qDEZ6q-JXjPVD2qOCdCgN@test.rtsp.stream/people
+    cmmas1ons0003p9psvji37awu:
+      - rtsp://tUqTomA2pHYjlFjLv4MQoBpXGBfJ8256:qDEZ6q-JXjPVD2qOCdCgN@test.rtsp.stream/people
+    cmmat23ll0005p9psub4hdm4z:
+      - rtsp://tUqTomA2pHYjlFjLv4MQoBpXGBfJ8256:qDEZ6q-JXjPVD2qOCdCgN@test.rtsp.stream/people
+    cmmbhtaa50001p93bylsenn21:
+      - rtsp://tUqTomA2pHYjlFjLv4MQoBpXGBfJ8256:qDEZ6q-JXjPVD2qOCdCgN@test.rtsp.stream/people
+    cmmdy9vyw0001p992a7va0rv1:
+      - rtsp://HDFKrq18GeYxqjCr0PCyBfRD1eskH7rW:NvBh0E4Eg5EpI-GG3g8ey@test.rtsp.stream/people
+    cmmdya9s50003p992r41atfsn:
+      - rtsp://HDFKrq18GeYxqjCr0PCyBfRD1eskH7rW:NvBh0E4Eg5EpI-GG3g8ey@test.rtsp.stream/people
+    cmmdylrsl0005p992gesd9lv6:
+      - rtsp://ZAQ3H7lVdxHvR5G5jrxm6LTbH1O0RIfe:eExmoJQ2QwuuJyBYDWtLo@test.rtsp.stream/people
+    cmmdz85lx0007p9922sh27pv1:
+      - rtsp://ZAQ3H7lVdxHvR5G5jrxm6LTbH1O0RIfe:eExmoJQ2QwuuJyBYDWtLo@test.rtsp.stream/people
+    cmmfazvwj0001p9l5rka66745:
+      - rtsp://ZAQ3H7lVdxHvR5G5jrxm6LTbH1O0RIfe:eExmoJQ2QwuuJyBYDWtLo@test.rtsp.stream/people
+    cmmfb0mox0003p9l5xjgqby2y:
+      - rtsp://ZAQ3H7lVdxHvR5G5jrxm6LTbH1O0RIfe:eExmoJQ2QwuuJyBYDWtLo@test.rtsp.stream/people
+    cmmkpm3e00001p941mmwg9hg5:
+      - rtsp://tUqTomA2pHYjlFjLv4MQoBpXGBfJ8256:qDEZ6q-JXjPVD2qOCdCgN@test.rtsp.stream/people
+    cmmkpwpe80005p941i5211eus:
+      - rtsp://tUqTomA2pHYjlFjLv4MQoBpXGBfJ8256:qDEZ6q-JXjPVD2qOCdCgN@test.rtsp.stream/people
+    cmmm7g2fz0001p9jm3o8mii13:
+      - rtsp://172.20.10.1:8554/stream
+    cmmmxg7vx0005p9jm6t6hayqj:
+      - rtsp://10.0.0.245:8554/stream
+    cmmnsbque0001p96kt6u727hn:
+      - rtsp://172.20.10.1:8554/stream
+    cmmozujsg0001p947ybm7d12n:
+      - rtsp://172.20.10.1:8554/stream
+    cmmp28wwi000dp947ia04yz9g:
+      - rtsp://HDFKrq18GeYxqjCr0PCyBfRD1eskH7rW:NvBh0E4Eg5EpI-GG3g8ey@test.rtsp.stream/people
+    cmmp564as000hp9478r86ltrc:
+      - rtsp://172.20.10.1:8554/stream
+    cmmp59hyc000lp947i96v1223:
+      - rtsp://172.20.10.1:8554/stream
+    cmmpn6ow50001p9844xhjbn17:
+      - rtsp://HDFKrq18GeYxqjCr0PCyBfRD1eskH7rW:NvBh0E4Eg5EpI-GG3g8ey@test.rtsp.stream/people
+    cmmpo28a700qqp984qb1zwuqr:
+      - rtsp://10.0.0.245:8554/stream
+    cmmqtnjtw0001p98905ll457m:
+      - rtsp://10.0.0.245:8554/stream
+    cmmqtygdx000rp989icqhm385:
+      - rtsp://10.0.0.245:8554/stream
+    cmmsm8iyj0001p95fdxu6qc6o:
+      - rtsp://10.0.0.245:8554/stream
+    cmmsmkfxx0014p95fi0ubdh41:
+      - rtsp://10.0.0.245:8554/stream
+    cmmt909qq0001p9vq2s53c2gu:
+      - rtsp://172.20.10.1:8554/stream
+    cmmtv3i25003np9vq9om0cct7:
+      - rtsp://HDFKrq18GeYxqjCr0PCyBfRD1eskH7rW:NvBh0E4Eg5EpI-GG3g8ey@test.rtsp.stream/people
+    cmmu0zbgp0001p95lti3rnp81:
+      - rtsp://10.0.0.245:8554/stream
+    cmmu2c9qf0001p9e7wz0ki63j:
+      - rtsp://10.0.0.245:8554/stream
+    cmmu2efbl0005p9e7c3bkaty3:
+      - rtsp://tUqTomA2pHYjlFjLv4MQoBpXGBfJ8256:qDEZ6q-JXjPVD2qOCdCgN@test.rtsp.stream/people
+    cmmvdsx870001p9ckvs5q0ils:
+      - rtsp://tUqTomA2pHYjlFjLv4MQoBpXGBfJ8256:qDEZ6q-JXjPVD2qOCdCgN@test.rtsp.stream/people
+    cmmvghtux0001p9m7j5y5l5cq:
+      - rtsp://HDFKrq18GeYxqjCr0PCyBfRD1eskH7rW:NvBh0E4Eg5EpI-GG3g8ey@test.rtsp.stream/people
+    cmmw3nlax0001p908n5i0v5a0:
+      - rtsp://ZAQ3H7lVdxHvR5G5jrxm6LTbH1O0RIfe:eExmoJQ2QwuuJyBYDWtLo@test.rtsp.stream/people
+    cmmwhtxru000dp9ryyqo8kyeq:
+      - rtsp://EMlvLD5hOBOAMJgHYvIMzXqopI4RWs30:VZHDINPkcEvdvNmgTJXFt@test.rtsp.stream/people
+    cmn2gy4650001p98s015ujyb2:
+      - rtsp://EMlvLD5hOBOAMJgHYvIMzXqopI4RWs30:VZHDINPkcEvdvNmgTJXFt@test.rtsp.stream/people
+    cmn86blq60001p9a2im1unbj8:
+      - rtsp://172.20.10.1:8554/stream
+webrtc:
+    candidates:
+        - 10.1.10.212:8555
+    ice_servers:
+        - urls:
+            - stun:stun.l.google.com:19302
+    listen: :8555

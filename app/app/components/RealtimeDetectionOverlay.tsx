@@ -76,7 +76,9 @@ export default function RealtimeDetectionOverlay({
   const errorCountRef = useRef<number>(0);
   const lastErrorTimeRef = useRef<number>(0);
   const lastDetectionSendRef = useRef<number>(0);
-  const detectionSendInterval = 2000; // Send detections to backend every 2 seconds
+  const detectionSendInterval = 10_000; // Send detections to backend every 10 seconds (reduces DB load)
+  const cameraIdRef = useRef<string | null>(cameraId);
+  cameraIdRef.current = cameraId;
 
   // Get color for a specific class - use useCallback to stabilize reference
   const getClassColor = useCallback((className: string) => {
@@ -156,45 +158,104 @@ export default function RealtimeDetectionOverlay({
     };
   }, []);
 
-  // Send detections to backend API for alert checking
-  const sendDetectionsToBackend = useCallback(async (detections: Detection[]) => {
-    if (!cameraId || detections.length === 0) return;
-    
+  // Send detections to backend — fire-and-forget via sendBeacon (non-blocking, never hangs)
+  // COCO-SSD returns bbox as [x, y, width, height]; backend expects [x1, y1, x2, y2]
+  const captureSnapshot = useCallback(async (video: HTMLVideoElement): Promise<string | null> => {
     try {
-      const detectionData = {
-        camera_id: cameraId,
-        timestamp: new Date().toISOString(),
-        detections: detections.map(d => ({
-          class_name: d.class,
-          class: d.class,
-          confidence: d.score,
-          score: d.score,
-          bbox: d.bbox,
-          x: d.bbox[0],
-          y: d.bbox[1],
-          width: d.bbox[2],
-          height: d.bbox[3]
-        })),
-        frame_width: videoElement?.videoWidth || 1920,
-        frame_height: videoElement?.videoHeight || 1080
-      };
+      // Make sure video has valid dimensions
+      if (!video?.videoWidth || !video?.videoHeight) return null;
+      if (video.readyState < 2) return null; // HAVE_CURRENT_DATA
 
-      const response = await fetch('/api/yolo/detections', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(detectionData),
-      });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.min(video.videoWidth, 640);
+      canvas.height = Math.min(video.videoHeight, 480);
 
-      if (!response.ok) {
-        console.warn('Failed to send detections to backend:', response.status);
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return null;
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Verify the canvas isn't blank/corrupted by checking a pixel
+      const pixel = ctx.getImageData(0, 0, 1, 1).data;
+      if (pixel[0] === 0 && pixel[1] === 255 && pixel[2] === 0) {
+        console.warn('[Snapshot] Corrupted frame detected, skipping');
+        return null;
       }
-    } catch (error) {
-      // Silently fail - don't spam console with network errors
-      console.debug('Error sending detections to backend:', error);
+
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+      return dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+    } catch (err) {
+      console.error('[Snapshot] Capture failed:', err);
+      return null;
     }
-  }, [cameraId, videoElement]);
+  }, []);
+
+  const uploadSnapshotAsync = useCallback(async (videoEl: HTMLVideoElement, cid: string) => {
+    try {
+      const snapshotBase64 = await captureSnapshot(videoEl);
+      if (!snapshotBase64) return;
+
+      // Fire-and-forget: do not await so detection loop stays non-blocking
+      fetch('/api/cameras/snapshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ camera_id: cid, snapshot: snapshotBase64 }),
+      }).catch((err) => console.error('[Snapshot] fetch error:', err));
+    } catch (err) {
+      console.error('[Snapshot] Upload failed:', err);
+    }
+  }, [captureSnapshot]);
+
+  const sendDetectionsToBackend = useCallback((predictions: Detection[]) => {
+    const cid = cameraIdRef.current;
+    if (!predictions?.length || !cid) return;
+
+    const personDetections = predictions.filter((p) => p.class === 'person');
+    if (personDetections.length === 0) return;
+
+    const single = personDetections[0];
+    if (!Array.isArray(single.bbox) || single.bbox.length < 4) return;
+
+    const [x, y, w, h] = single.bbox;
+
+    const payloadObj: any = {
+      camera_id: cid,
+      timestamp: new Date().toISOString(), // always fresh at send time (avoids validator drift rejection)
+      detections: [{
+        class: 'person',  // validator expects string; COCO-SSD sends class index as number
+        class_name: 'person',
+        confidence: single.score,
+        score: single.score,
+        bbox: [
+          Math.round(x),
+          Math.round(y),
+          Math.round(x + w),
+          Math.round(y + h),
+        ],
+      }],
+      frame_width: videoElement?.videoWidth ?? 1920,
+      frame_height: videoElement?.videoHeight ?? 1080,
+    };
+
+    const payload = JSON.stringify(payloadObj);
+
+    const sent = navigator.sendBeacon('/api/yolo/detections', new Blob([payload], { type: 'application/json' }));
+    console.log('[RealtimeDetectionOverlay] sendBeacon result:', sent, 'camera:', cid);
+
+    // Upload snapshot separately (avoid sendBeacon payload bloat).
+    if (!sent) {
+      fetch('/api/yolo/detections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {});
+      return;
+    }
+    if (videoElement) {
+      uploadSnapshotAsync(videoElement, cid).catch(() => {});
+    }
+  }, [videoElement, uploadSnapshotAsync]);
 
   // Map COCO-SSD classes to safety-relevant names
   const mapToSafetyClass = (className: string): string => {
@@ -373,14 +434,13 @@ export default function RealtimeDetectionOverlay({
       const filteredPredictions = predictions.filter((p: Detection) => p.score > 0.5);
       
       setDetections(filteredPredictions);
-      
-      // Send detections to backend for alert checking (throttled to every 2 seconds)
+
+      // Send to backend only when a person is detected, throttled to every 10 seconds
+      const personDetections = filteredPredictions.filter((p) => p.class === 'person');
       const now = Date.now();
-      if (now - lastDetectionSendRef.current >= detectionSendInterval && filteredPredictions.length > 0) {
+      if (personDetections.length > 0 && now - lastDetectionSendRef.current >= detectionSendInterval) {
         lastDetectionSendRef.current = now;
-        sendDetectionsToBackend(filteredPredictions).catch(err => {
-          console.error('Failed to send detections to backend:', err);
-        });
+        sendDetectionsToBackend(filteredPredictions);
       }
       
       // Clear error on successful detection (use functional update to avoid dependency)
@@ -497,42 +557,6 @@ export default function RealtimeDetectionOverlay({
         className="absolute inset-0 w-full h-full"
         style={{ zIndex: 10 }}
       />
-
-      {/* Enhanced Detection Legend - Bottom Left */}
-      {isDetecting && detections.length > 0 && (
-        <div className="absolute bottom-3 left-3 bg-gradient-to-br from-black/90 to-gray-900/90 backdrop-blur-md text-white px-4 py-3 rounded-xl text-xs border-2 border-purple-500/30 shadow-2xl shadow-purple-500/20 max-w-xs">
-          <div className="font-bold mb-2 text-sm tracking-wider text-purple-300 flex items-center gap-2">
-            <span className="text-purple-400">▶</span> DETECTED
-          </div>
-          <div className="space-y-1.5 max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
-            {detections.slice(0, 8).map((det, idx) => {
-              const colors = CLASS_COLORS[det.class] || CLASS_COLORS['default'];
-              return (
-                <div key={idx} className="flex items-center gap-2 group hover:bg-white/5 p-1 rounded transition-colors">
-                  <div 
-                    className="w-3 h-3 rounded-full shadow-lg animate-pulse" 
-                    style={{ 
-                      backgroundColor: colors.box,
-                      boxShadow: `0 0 8px ${colors.glow}`
-                    }}
-                  ></div>
-                  <span className="font-mono text-[11px] flex-1" style={{ color: colors.label }}>
-                    #{idx + 1} {det.class.toUpperCase()}
-                  </span>
-                  <span className="text-gray-400 font-mono text-[10px]">
-                    {Math.round(det.score * 100)}%
-                  </span>
-                </div>
-              );
-            })}
-            {detections.length > 8 && (
-              <div className="text-gray-500 text-center pt-1 border-t border-gray-700 font-mono text-[10px]">
-                +{detections.length - 8} MORE OBJECTS
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

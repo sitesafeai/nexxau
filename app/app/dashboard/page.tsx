@@ -24,9 +24,8 @@ const SiteManagement = dynamic(() => import('../components/dashboard/SiteManagem
 const AlertsAndRules = dynamic(() => import('../components/dashboard/AlertsAndRules').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
 const ReportsAnalytics = dynamic(() => import('../components/dashboard/ReportsAnalytics').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
 const WorkflowDashboard = dynamic(() => import('../components/dashboard/WorkflowDashboard').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
-const CameraManagementTab = dynamic(() => import('../components/camera/CameraManagementTab').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading cameras...</div>, ssr: false });
-const CameraTestTab = dynamic(() => import('../components/camera/CameraTestTab').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
 const WorksiteUserManagementModal = dynamic(() => import('../components/dashboard/WorksiteUserManagementModal').then((m) => m.default), { ssr: false });
+const CamerasTab = dynamic(() => import('../components/dashboard/CamerasTab').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading cameras...</div>, ssr: false });
 
 // Wrapper component that provides the dashboard context
 export default function DashboardPage() {
@@ -45,6 +44,7 @@ function DashboardContent() {
   const [selected, setSelected] = useState('overview');
   const [mounted, setMounted] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(['overview']));
   
   // Load from localStorage after mount (client-only)
   useEffect(() => {
@@ -52,7 +52,23 @@ function DashboardContent() {
     const saved = localStorage.getItem('dashboard_selected_tab');
     if (saved) {
       setSelected(saved);
+      setVisitedTabs((prev) => new Set([...prev, saved]));
     }
+  }, []);
+
+  // Overview camera thumbnails can request navigation to the Cameras tab
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      if (typeof detail !== 'string' || !detail) return;
+      setSelected(detail);
+      setVisitedTabs((prev) => new Set([...prev, detail]));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('dashboard_selected_tab', detail);
+      }
+    };
+    window.addEventListener('switchTab', handler as EventListener);
+    return () => window.removeEventListener('switchTab', handler as EventListener);
   }, []);
   const { state, selectSite, hasPermission, addNotification } = useDashboard();
   const { selectedSiteId, selectedSite, accessibleSites } = useSiteManagement();
@@ -99,6 +115,15 @@ function DashboardContent() {
         ),
       },
       {
+        key: 'cameras',
+        name: 'Cameras',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        ),
+      },
+      {
         key: 'sites',
         name: 'Site Management',
         icon: (
@@ -125,15 +150,6 @@ function DashboardContent() {
           </svg>
         ),
       }] : []),
-      {
-        key: 'cameras',
-        name: 'Cameras',
-        icon: (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-        ),
-      },
       {
         key: 'reports',
         name: 'Reports',
@@ -283,7 +299,7 @@ function DashboardContent() {
                     key={item.key}
                     onClick={() => {
                       setSelected(item.key);
-                      // Persist to localStorage
+                      setVisitedTabs((prev) => new Set([...prev, item.key]));
                       if (typeof window !== 'undefined') {
                         localStorage.setItem('dashboard_selected_tab', item.key);
                       }
@@ -390,6 +406,7 @@ function DashboardContent() {
                   key={item.key}
                       onClick={() => {
                         setSelected(item.key);
+                        setVisitedTabs((prev) => new Set([...prev, item.key]));
                         setIsMobileMenuOpen(false);
                       }}
                       className={`group flex w-full items-center px-3.5 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${
@@ -424,6 +441,11 @@ function DashboardContent() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
             {selected === 'overview' && (
               <UserDashboard currentUser={state.currentUser} selectedSite={selectedSite} />
+            )}
+            {visitedTabs.has('cameras') && (
+              <div className={selected === 'cameras' ? 'block' : 'hidden'}>
+                <CamerasTab selectedSite={selectedSite} currentUser={state.currentUser} />
+              </div>
             )}
             {selected === 'sites' && (
               selectedSite
@@ -463,9 +485,6 @@ function DashboardContent() {
             )}
             {selected === 'alert-rules' && (
               <AlertRulesPage currentSite={selectedSite} />
-            )}
-            {selected === 'cameras' && (
-              <CameraManagementTab />
             )}
             {selected === 'ai-training' && (
               <AITrainingPage currentSite={selectedSite} />
@@ -507,19 +526,28 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
     }
     return 'overview';
   });
+  const [mountedTabs, setMountedTabs] = useState<Set<string>>(() => new Set(['overview']));
+
+  const handleTabChange = useCallback((tab: string) => {
+    setMountedTabs((prev) => {
+      if (prev.has(tab)) return prev;
+      return new Set([...prev, tab]);
+    });
+    setActiveTab(tab);
+  }, []);
 
   // Check if we should auto-switch to a specific tab (e.g., from alert builder)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const tab = urlParams.get('tab');
     if (tab && ['overview', 'monitoring', 'alerts', 'reports', 'sites'].includes(tab)) {
-      setActiveTab(tab);
+      handleTabChange(tab);
       // Persist to localStorage
       if (typeof window !== 'undefined') {
         localStorage.setItem('overview_active_tab', tab);
       }
     }
-  }, []);
+  }, [handleTabChange]);
 
   // Persist tab changes to localStorage
   useEffect(() => {
@@ -628,7 +656,7 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
             <button
               key={tab.id}
               onClick={() => {
-                setActiveTab(tab.id);
+                handleTabChange(tab.id);
                 // Persist to localStorage
                 if (typeof window !== 'undefined') {
                   localStorage.setItem('overview_active_tab', tab.id);
@@ -649,11 +677,31 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
 
       {/* Tab Content */}
       <div className="mt-6">
-        {activeTab === 'overview' && <OverviewTab key="overview" currentSite={currentSite} />}
-        {activeTab === 'alerts' && <AlertsTab key="alerts" currentSite={currentSite} />}
-        {activeTab === 'monitoring' && <MonitoringTab key="monitoring" currentSite={currentSite} />}
-        {activeTab === 'reports' && <ReportsTab key="reports" currentSite={currentSite} />}
-        {activeTab === 'sites' && <SitesTab key="sites" currentSite={currentSite} />}
+        {mountedTabs.has('overview') && (
+          <div className={activeTab === 'overview' ? 'block' : 'hidden'}>
+            <OverviewTab key="overview" currentSite={currentSite} />
+          </div>
+        )}
+        {mountedTabs.has('alerts') && (
+          <div className={activeTab === 'alerts' ? 'block' : 'hidden'}>
+            <AlertsTab key="alerts" currentSite={currentSite} />
+          </div>
+        )}
+        {mountedTabs.has('monitoring') && (
+          <div className={activeTab === 'monitoring' ? 'block' : 'hidden'}>
+            <MonitoringTab key="monitoring" currentSite={currentSite} />
+          </div>
+        )}
+        {mountedTabs.has('reports') && (
+          <div className={activeTab === 'reports' ? 'block' : 'hidden'}>
+            <ReportsTab key="reports" currentSite={currentSite} />
+          </div>
+        )}
+        {mountedTabs.has('sites') && (
+          <div className={activeTab === 'sites' ? 'block' : 'hidden'}>
+            <SitesTab key="sites" currentSite={currentSite} />
+          </div>
+        )}
       </div>
     </div>
   );

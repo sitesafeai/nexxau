@@ -1,6 +1,21 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+
+function formatAlertTime(createdAt: string | Date): string {
+  const d = new Date(createdAt);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60_000);
+  const diffHours = Math.floor(diffMs / 3_600_000);
+  const diffDays = Math.floor(diffMs / 86_400_000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined, hour: '2-digit', minute: '2-digit' });
+}
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Plus } from 'lucide-react';
 import AcknowledgeAlertModal from '../../components/AcknowledgeAlertModal';
@@ -209,8 +224,8 @@ export default function AlertsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                         {alert.location || alert.worksite?.name || 'N/A'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                        {new Date(alert.createdAt).toLocaleString()}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400" title={new Date(alert.createdAt).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'long' })}>
+                        {formatAlertTime(alert.createdAt)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">

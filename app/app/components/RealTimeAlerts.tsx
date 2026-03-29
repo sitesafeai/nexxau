@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useWebSocket } from '../hooks/useWebSocket';
+import { useEffect, useState, useRef } from 'react';
 import { useToast } from './Toast';
 import { AlertTriangle, Bell } from 'lucide-react';
 
@@ -11,81 +10,77 @@ interface Alert {
   description: string;
   severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   worksiteId: string;
-  worksite?: {
-    name: string;
-  };
+  worksite?: { name: string };
 }
 
 export default function RealTimeAlerts({ userId, worksiteIds }: { userId: string; worksiteIds: string[] }) {
-  const { lastMessage, isConnected, subscribe } = useWebSocket({
-    url: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3000/ws',
-    onConnect: () => {
-      console.log('🔌 Connected to real-time alerts');
-    }
-  });
-
-  const { success, warning, error: showError } = useToast();
+  const [isConnected, setIsConnected] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
+  const seenIds = useRef<Set<string>>(new Set());
+  const { success, warning, error: showError } = useToast();
 
-  // Subscribe to worksite alerts
   useEffect(() => {
-    if (isConnected && worksiteIds.length > 0) {
-      const topics = worksiteIds.map(id => `worksite:${id}:alerts`);
-      subscribe(topics, userId);
-    }
-  }, [isConnected, worksiteIds, userId, subscribe]);
+    const base = typeof window !== 'undefined' ? window.location.origin : '';
+    const url =
+      worksiteIds.length > 0
+        ? `${base}/api/alerts/stream?worksiteId=${worksiteIds[0]}`
+        : `${base}/api/alerts/stream`;
+    const es = new EventSource(url);
 
-  // Handle incoming messages
-  useEffect(() => {
-    if (!lastMessage) return;
+    es.onopen = () => setIsConnected(true);
+    es.onerror = () => setIsConnected(false);
 
-    if (lastMessage.type === 'alert') {
-      const alert = lastMessage.data as Alert;
-      
-      // Show toast notification
-      if (alert.severity === 'CRITICAL') {
-        showError(
-          `🚨 Critical Alert: ${alert.title}`,
-          `${alert.worksite?.name || 'Worksite'}: ${alert.description}`
-        );
-        
-        // Play sound for critical alerts (optional)
-        playAlertSound();
-      } else if (alert.severity === 'HIGH') {
-        warning(
-          `⚠️ High Priority: ${alert.title}`,
-          `${alert.worksite?.name || 'Worksite'}: ${alert.description}`
-        );
-      } else {
-        success(
-          `Alert: ${alert.title}`,
-          `${alert.worksite?.name || 'Worksite'}: ${alert.description}`
-        );
+    es.onmessage = (e) => {
+      try {
+        const raw = JSON.parse(e.data);
+        if (raw.ready) return;
+        const alert = raw as Alert;
+        if (!alert.id || seenIds.current.has(alert.id)) return;
+        seenIds.current.add(alert.id);
+
+        const sev = (alert.severity || 'MEDIUM').toUpperCase() as Alert['severity'];
+        if (sev === 'CRITICAL') {
+          showError(
+            `🚨 Critical Alert: ${alert.title}`,
+            `${alert.worksite?.name || 'Worksite'}: ${alert.description}`
+          );
+          try {
+            new Audio('/sounds/alert.mp3').play().catch(() => {});
+          } catch {}
+        } else if (sev === 'HIGH') {
+          warning(
+            `⚠️ High Priority: ${alert.title}`,
+            `${alert.worksite?.name || 'Worksite'}: ${alert.description}`
+          );
+        } else {
+          success(
+            `Alert: ${alert.title}`,
+            `${alert.worksite?.name || 'Worksite'}: ${alert.description}`
+          );
+        }
+        setAlertCount((prev) => prev + 1);
+      } catch {
+        // ignore parse errors
       }
+    };
 
-      setAlertCount(prev => prev + 1);
-    }
-  }, [lastMessage, showError, warning, success]);
-
-  const playAlertSound = () => {
-    // Optional: Play alert sound
-    try {
-      const audio = new Audio('/sounds/alert.mp3');
-      audio.play().catch(e => console.log('Could not play sound:', e));
-    } catch (e) {
-      // Silently fail if sound not available
-    }
-  };
+    return () => {
+      es.close();
+      setIsConnected(false);
+    };
+  }, [worksiteIds, showError, warning, success]);
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
       {isConnected && alertCount > 0 && (
         <div className="bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 animate-pulse">
           <Bell className="h-4 w-4" />
-          <span className="text-sm font-semibold">{alertCount} new {alertCount === 1 ? 'alert' : 'alerts'}</span>
+          <span className="text-sm font-semibold">
+            {alertCount} new {alertCount === 1 ? 'alert' : 'alerts'}
+          </span>
         </div>
       )}
-      
+
       {!isConnected && (
         <div className="bg-yellow-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-xs">
           <AlertTriangle className="h-3 w-3" />
@@ -95,4 +90,3 @@ export default function RealTimeAlerts({ userId, worksiteIds }: { userId: string
     </div>
   );
 }
-

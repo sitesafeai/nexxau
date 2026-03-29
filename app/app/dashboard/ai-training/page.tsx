@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Image, Download, Tag, Check, X, Loader2, Upload, AlertTriangle, Video, FileText, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../lib/use-auth';
@@ -64,7 +64,7 @@ interface TruePositiveReport {
   createdAt: string;
 }
 
-export default function AITrainingPage() {
+function AITrainingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const worksiteParam = searchParams.get('worksite');
@@ -1444,6 +1444,20 @@ function TruePositivesSection({
         </div>
       )}
     </div>
+  );
+}
+
+export default function AITrainingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        </div>
+      }
+    >
+      <AITrainingPageContent />
+    </Suspense>
   );
 }
 

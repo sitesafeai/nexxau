@@ -9,17 +9,22 @@ class DatabasePoolManager {
   private isHealthy = true;
 
   private constructor() {
+    // Apply connection pool limit to avoid exhaustion (detections every 2s × many cameras = many queued connections).
+    // If DATABASE_URL already has connection_limit, leave it; otherwise append one.
+    let dbUrl = process.env.DATABASE_URL ?? '';
+    if (dbUrl && !dbUrl.includes('connection_limit')) {
+      dbUrl += dbUrl.includes('?') ? '&' : '?';
+      dbUrl += 'connection_limit=5&pool_timeout=10';
+    }
     this.prisma = new PrismaClient({
       datasources: {
-        db: {
-          url: process.env.DATABASE_URL,
-        },
+        db: { url: dbUrl || process.env.DATABASE_URL },
       },
       log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     });
 
-    // Health check interval
-    setInterval(() => this.healthCheck(), 30000); // Every 30 seconds
+    // Health check interval — keep rare to avoid consuming pool connections
+    setInterval(() => this.healthCheck(), 300_000); // Every 5 minutes
   }
 
   public static getInstance(): DatabasePoolManager {

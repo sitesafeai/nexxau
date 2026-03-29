@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
-import { getSession } from '@/app/lib/auth';
+import { getCachedSession } from '@/app/lib/session-cache';
 import { logCreate } from '@/app/lib/audit-logger';
 import { createWorksiteSchema } from '@/app/lib/validation/worksites';
 import { validateQuery, validateBody } from '@/app/lib/validation/common';
@@ -11,8 +11,8 @@ import { validateQuery, validateBody } from '@/app/lib/validation/common';
  */
 export async function GET(request: NextRequest) {
   try {
-    // Get current user session
-    const session = await getSession();
+    // Get current user session (cached by cookie to reduce DB load)
+    const session = await getCachedSession(request);
     const user = session?.user;
 
     if (!user) {
@@ -278,7 +278,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Check permissions
-    const session = await getSession();
+    const session = await getCachedSession(request);
     const user = session?.user;
 
     if (!user) {

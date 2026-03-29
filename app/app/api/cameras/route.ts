@@ -1,28 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
+import { getCachedSession } from '@/app/lib/session-cache';
 import { normalizeRole } from '@/app/lib/roles';
 import { validateRtspStream } from '@/app/lib/rtsp-validation';
-import {
-  createRtpMountpoint,
-  destroyRtspPublisher,
-  generateMountpointId,
-  startRtpForward,
-  stopRtpForward,
-} from '@/app/lib/services/janusRtspService';
-import { startRtpPush } from '@/app/lib/services/cameraIngestClient';
+import { addStreamToGo2RTC } from '@/app/lib/services/go2rtcClient';
 
 export const runtime = 'nodejs';
-
-const resolveRtpPort = (mountpointId: number): number => {
-  const basePort = Number(process.env.JANUS_RTP_BASE_PORT || '20000');
-  const portRange = Number(process.env.JANUS_RTP_PORT_RANGE || '10000');
-  const safeBase = Number.isFinite(basePort) && basePort > 0 ? basePort : 20000;
-  const safeRange = Number.isFinite(portRange) && portRange > 0 ? portRange : 10000;
-  const offset = mountpointId % safeRange;
-  return safeBase + offset;
-};
 
 /**
  * GET /api/cameras
@@ -71,46 +54,7 @@ export async function GET(request: NextRequest) {
     
     // 1. Validate authenticated user exists
     console.log(`[API /cameras] [${requestId}] Step 1: Validating session...`);
-    let session;
-    try {
-      const sessionStart = Date.now();
-      // Add timeout to session lookup (5 seconds)
-      session = await Promise.race([
-        getServerSession(authOptions),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session lookup timeout after 5s')), 5000)
-        )
-      ]) as any;
-      const sessionDuration = Date.now() - sessionStart;
-      console.log(`[API /cameras] [${requestId}] Session lookup took ${sessionDuration}ms`);
-    } catch (sessionError: any) {
-      console.error(`[API /cameras] [${requestId}] ❌ Session lookup failed:`, sessionError);
-      console.error(`[API /cameras] [${requestId}] Session error name:`, sessionError.name);
-      console.error(`[API /cameras] [${requestId}] Session error message:`, sessionError.message);
-      console.error(`[API /cameras] [${requestId}] Session error stack:`, sessionError.stack);
-      
-      // Check if it's a timeout
-      if (sessionError.message?.includes('timeout')) {
-        return NextResponse.json(
-          { 
-            error: 'Request timeout',
-            code: 'TIMEOUT',
-            message: 'Session lookup timed out'
-          },
-          { status: 504 }
-        );
-      }
-      
-      return NextResponse.json(
-        { 
-          error: 'Unauthorized',
-          code: 'SESSION_ERROR',
-          message: 'Failed to validate session'
-        },
-        { status: 401 }
-      );
-    }
-    
+    const session = await getCachedSession(request);
     if (!session?.user) {
       console.log(`[API /cameras] [${requestId}] ❌ Unauthorized: No session`);
       return NextResponse.json(
@@ -572,7 +516,7 @@ export async function POST(request: NextRequest) {
   try {
     console.log('[API /cameras] POST request received at:', new Date().toISOString());
     
-    const session = await getServerSession(authOptions);
+    const session = await getCachedSession(request);
     if (!session?.user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
@@ -655,7 +599,7 @@ export async function POST(request: NextRequest) {
     const cameraType = type === 'IP Camera (RTSP)' ? 'RTSP' : type === 'ONVIF Camera' ? 'ONVIF' : 'CLOUD';
 
     // ============================================================
-    // RTSP → Janus (RTP) FLOW
+    // RTSP → go2rtc FLOW
     // ============================================================
     if ((cameraType === 'RTSP' || cameraType === 'ONVIF') && streamUrl.trim().startsWith('rtsp://')) {
       const validation = await validateRtspStream(streamUrl.trim());
@@ -671,76 +615,38 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const janusRtpHost = process.env.JANUS_RTP_HOST || '127.0.0.1';
-      const janusRtpCodec = (process.env.JANUS_RTP_CODEC || 'h264').toLowerCase();
-      const janusPayloadType = Number(process.env.JANUS_RTP_PAYLOAD_TYPE || '96');
-      const requestedId = generateMountpointId();
-      const janusRtpPort = resolveRtpPort(requestedId);
-
-      let janusFeedId: number | null = null;
-      try {
-        janusFeedId = await createRtpMountpoint({
-          mountpointId: requestedId,
-          videoPort: janusRtpPort,
-          videoCodec: janusRtpCodec,
-          payloadType: janusPayloadType,
-        });
-      } catch (janusError: any) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Failed to create Janus RTP mount',
-            details: janusError.message,
-          },
-          { status: 500 }
-        );
-      }
-
       let camera;
       try {
         camera = await prisma.camera.create({
-      data: {
-        name: name.trim(),
-        type: cameraType,
-        streamUrl: streamUrl.trim(),
-        worksiteId,
-            janusFeedId,
+          data: {
+            name: name.trim(),
+            type: cameraType,
+            streamUrl: streamUrl.trim(),
+            worksiteId,
             status: 'online',
-        username: username?.trim() || null,
+            username: username?.trim() || null,
             password: password?.trim() || null,
-        metadata: {
-          frameRate: frameRate || null,
-          resolution: resolution || null,
+            metadata: {
+              frameRate: frameRate || null,
+              resolution: resolution || null,
               aiEnabled: true,
               overlayEnabled: true,
               recording: true,
-              janusRtpHost,
-              janusRtpPort,
-              janusRtpPayloadType: janusPayloadType,
-              janusRtpCodec,
-        }
-      },
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        status: true,
-        streamUrl: true,
-        worksiteId: true,
-            janusFeedId: true,
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            status: true,
+            streamUrl: true,
+            worksiteId: true,
             metadata: true,
-        createdAt: true,
-        updatedAt: true
-      }
-    });
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
       } catch (dbError: any) {
-        if (janusFeedId !== null) {
-          try {
-            await destroyRtspPublisher(janusFeedId);
-          } catch {
-            // ignore cleanup errors
-          }
-        }
         return NextResponse.json(
           {
             success: false,
@@ -751,111 +657,15 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      try {
-        await startRtpPush({
-          cameraId: camera.id,
-          rtspUrl: streamUrl.trim(),
-          mountpointId: janusFeedId!,
-          rtpHost: janusRtpHost,
-          rtpPort: janusRtpPort,
-          payloadType: janusPayloadType,
-          videoCodec: janusRtpCodec,
-        });
-      } catch (workerError: any) {
-        try {
-          await prisma.camera.delete({ where: { id: camera.id } });
-        } catch {
-          // ignore cleanup errors
-        }
-        if (janusFeedId !== null) {
-          try {
-            await destroyRtspPublisher(janusFeedId);
-          } catch {
-            // ignore cleanup errors
-          }
-        }
+      const go2rtcUrl = process.env.GO2RTC_URL || 'http://localhost:1984';
+      const streamAdded = await addStreamToGo2RTC(go2rtcUrl, camera.id, streamUrl.trim());
+      if (!streamAdded) {
+        await prisma.camera.delete({ where: { id: camera.id } }).catch(() => {});
         return NextResponse.json(
           {
             success: false,
-            error: 'Failed to start streaming worker',
-            details: workerError.message,
-          },
-          { status: 500 }
-        );
-      }
-
-      // Auto-start YOLO pipeline (AI always on)
-      let rtpStreamId: number | undefined;
-      try {
-        const yoloServiceUrl = process.env.YOLO_SERVICE_URL || 'http://localhost:8765';
-        const yoloRtpHost = process.env.YOLO_RTP_HOST || '127.0.0.1';
-        const yoloBasePort = parseInt(process.env.YOLO_RTP_BASE_PORT || '5004', 10);
-        const rtpCodec = process.env.YOLO_RTP_CODEC || 'vp8';
-        const yoloPort = (camera.metadata as any)?.yoloRtpPort || (yoloBasePort + janusFeedId!);
-
-        const forwardResult = await startRtpForward({
-          mountpointId: janusFeedId!,
-          host: yoloRtpHost,
-          port: yoloPort,
-          codec: rtpCodec,
-        });
-        rtpStreamId = forwardResult.streamId;
-
-        const startUrl = `${yoloServiceUrl}/rtp/start/${janusFeedId}?rtp_port=${yoloPort}&camera_id=${camera.id}`;
-        const yoloResponse = await fetch(startUrl, { method: 'POST' });
-        if (!yoloResponse.ok) {
-          throw new Error(`YOLO service start failed: ${yoloResponse.status}`);
-        }
-
-        const updatedMetadata = {
-          ...(camera.metadata as any),
-          aiEnabled: true,
-          overlayEnabled: true,
-          yoloRtpPort: yoloPort,
-          yoloRtpStreamId: rtpStreamId,
-        };
-
-        camera = await prisma.camera.update({
-          where: { id: camera.id },
-          data: { metadata: updatedMetadata },
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            status: true,
-            streamUrl: true,
-            worksiteId: true,
-            janusFeedId: true,
-            metadata: true,
-            createdAt: true,
-            updatedAt: true
-          }
-        });
-      } catch (aiError: any) {
-        if (janusFeedId !== null) {
-          try {
-            await stopRtpForward({ mountpointId: janusFeedId, streamId: rtpStreamId });
-          } catch {
-            // ignore cleanup errors
-          }
-        }
-        try {
-          await prisma.camera.delete({ where: { id: camera.id } });
-        } catch {
-          // ignore cleanup errors
-        }
-        if (janusFeedId !== null) {
-          try {
-            await destroyRtspPublisher(janusFeedId);
-          } catch {
-            // ignore cleanup errors
-          }
-        }
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Failed to start AI pipeline',
-            details: aiError.message,
+            error: 'Failed to add stream to go2rtc',
+            details: 'Streaming gateway unavailable. Is go2rtc running?',
           },
           { status: 500 }
         );
@@ -865,37 +675,39 @@ export async function POST(request: NextRequest) {
 
       if (currentUser?.id) {
         await prisma.auditLog.create({
-              data: {
+          data: {
             userId: currentUser.id,
             action: 'CAMERA_CREATED',
             entityType: 'Camera',
             entityId: camera.id,
-                metadata: {
+            metadata: {
               cameraName: camera.name,
               cameraType: camera.type,
               worksiteId,
-              worksiteName: worksite.name
-            }
-          }
-        }).catch(err => {
+              worksiteName: worksite.name,
+            },
+          },
+        }).catch((err) => {
           console.error('[API /cameras] Failed to create audit log:', err);
         });
       }
 
-      return NextResponse.json({
-        success: true,
-              data: {
-          id: camera.id,
-          name: camera.name,
-          type: camera.type,
-          status: camera.status,
-          streamUrl: camera.streamUrl,
-          worksiteId: camera.worksiteId,
-          janusFeedId: camera.janusFeedId,
-          createdAt: camera.createdAt.toISOString(),
-          updatedAt: camera.updatedAt.toISOString(),
-        }
-      }, { status: 201 });
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            id: camera.id,
+            name: camera.name,
+            type: camera.type,
+            status: camera.status,
+            streamUrl: camera.streamUrl,
+            worksiteId: camera.worksiteId,
+            createdAt: camera.createdAt.toISOString(),
+            updatedAt: camera.updatedAt.toISOString(),
+          },
+        },
+        { status: 201 }
+      );
     }
 
     // ============================================================

@@ -1,4 +1,3 @@
-import twilio from 'twilio';
 import { prisma } from './prisma';
 import { broadcastNotification } from './websocket';
 import { ADMIN_ROLES } from './roles';
@@ -34,7 +33,7 @@ export interface SMSDeliveryStatus {
 
 export class SafetySMSService {
   private static instance: SafetySMSService;
-  private smsClient: twilio.Twilio | null = null;
+  private smsClient: null = null;
   private config: SMSConfig | null = null;
   private deliveryStatus: Map<string, SMSDeliveryStatus> = new Map();
 
@@ -50,28 +49,16 @@ export class SafetySMSService {
   }
 
   private initializeSMS() {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const fromNumber = process.env.TWILIO_FROM_NUMBER;
-
-    if (accountSid && authToken && fromNumber) {
-      this.config = {
-        accountSid,
-        authToken,
-        fromNumber,
-        isEnabled: true
-      };
-      this.smsClient = twilio(accountSid, authToken);
-      console.log('SMS service initialized successfully');
-    } else {
-      console.warn('SMS service not configured - missing Twilio credentials');
-      this.config = {
-        accountSid: '',
-        authToken: '',
-        fromNumber: '',
-        isEnabled: false
-      };
-    }
+    // Twilio/MessageBird SMS providers have been removed in favor of Resend email alerts.
+    // Keep this service as a disabled no-op so legacy imports don't break the server build.
+    this.config = {
+      accountSid: '',
+      authToken: '',
+      fromNumber: '',
+      isEnabled: false,
+    };
+    this.smsClient = null;
+    console.warn('[sms-service] SMS providers not configured (disabled)');
   }
 
   public async sendSafetyViolationAlert(violation: SafetyViolationSMS): Promise<boolean> {
@@ -172,7 +159,8 @@ Reply STOP to unsubscribe from safety alerts.`;
         messageOptions.from = this.config!.fromNumber;
       }
 
-      const twilioMessage = await this.smsClient.messages.create(messageOptions);
+      // SMS provider removed; keep code path unreachable while disabled.
+      const twilioMessage = await (this.smsClient as any).messages.create(messageOptions);
 
       // Track delivery status
       const messageId = twilioMessage.sid;

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
+import { getCachedSession } from '@/app/lib/session-cache';
 import { prisma } from '@/app/lib/prisma';
 import { createAlertSchema, alertQuerySchema } from '@/app/lib/validation/alerts';
 import { validateBody, validateQuery } from '@/app/lib/validation/common';
@@ -37,8 +36,8 @@ export async function GET(request: NextRequest) {
     console.log(`[Alerts API] [${requestId}] Step 1: Starting authentication check...`);
     let session;
     try {
-      session = await getServerSession(authOptions);
-      console.log(`[Alerts API] [${requestId}] Step 1.1: getServerSession completed`);
+      session = await getCachedSession(request);
+      console.log(`[Alerts API] [${requestId}] Step 1.1: getCachedSession completed`);
       console.log(`[Alerts API] [${requestId}] Session exists:`, !!session);
       console.log(`[Alerts API] [${requestId}] Session user:`, session?.user ? {
         id: session.user.id,
@@ -245,12 +244,16 @@ export async function GET(request: NextRequest) {
             ruleId: true,
             worksiteId: true,
             cameraId: true,
+            detectionSnapshot: true,
             // Explicitly exclude overrideStatus and related fields that don't exist in DB
             rule: {
               select: { name: true, description: true, severity: true }
             },
             worksite: {
               select: { id: true, name: true, worksiteName: true }
+            },
+            camera: {
+              select: { id: true, name: true, location: true }
             }
           }
         };
@@ -302,6 +305,7 @@ export async function GET(request: NextRequest) {
             resolvedAt: true,
             ruleId: true,
             worksiteId: true,
+            detectionSnapshot: true,
             // Don't select overrideStatus - it doesn't exist in the schema
           }
         };
@@ -424,7 +428,7 @@ export async function POST(request: NextRequest) {
   
   try {
     console.log(`[Alerts API POST] [${requestId}] Step 1: Checking authentication...`);
-    const session = await getServerSession(authOptions);
+    const session = await getCachedSession(request);
     console.log(`[Alerts API POST] [${requestId}] Session:`, session?.user ? {
       id: session.user.id,
       email: session.user.email

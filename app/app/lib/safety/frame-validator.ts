@@ -17,6 +17,7 @@ export interface FrameData {
   timestamp: number | string | Date;
   detections?: any[];
   frame_data?: string; // base64 encoded
+  snapshot?: string; // base64 encoded JPEG (no data URL prefix)
   frame_width?: number;
   frame_height?: number;
   [key: string]: any;
@@ -30,6 +31,7 @@ export class FrameValidator {
   private static readonly MAX_DETECTIONS = 1000; // Prevent DoS
   private static readonly MAX_TIMESTAMP_DRIFT_MS = 60000; // 1 minute
   private static readonly MAX_BASE64_SIZE = 50 * 1024 * 1024; // 50MB
+  private static readonly MAX_SNAPSHOT_BASE64_SIZE = 8 * 1024 * 1024; // 8MB (compressed JPEG/base64)
 
   /**
    * Validate frame data with strict checks
@@ -148,6 +150,23 @@ export class FrameValidator {
           } else {
             sanitized.frame_data = data.frame_data;
           }
+        }
+      }
+    }
+
+    // 6b. Validate optional snapshot (base64 encoded JPEG)
+    if (data.snapshot !== undefined) {
+      if (typeof data.snapshot !== 'string') {
+        warnings.push('snapshot must be a base64 string');
+      } else {
+        const snapshotBase64 = data.snapshot.includes(',') ? data.snapshot.split(',')[1] : data.snapshot;
+        const sizeBytes = (snapshotBase64.length * 3) / 4; // Approximate base64 size
+        if (sizeBytes > this.MAX_SNAPSHOT_BASE64_SIZE) {
+          warnings.push(`snapshot too large: ${(sizeBytes / 1024 / 1024).toFixed(2)}MB (max: ${this.MAX_SNAPSHOT_BASE64_SIZE / 1024 / 1024}MB)`);
+        } else if (!/^[A-Za-z0-9+/=]+$/.test(snapshotBase64)) {
+          warnings.push('snapshot contains invalid base64 characters');
+        } else {
+          sanitized.snapshot = snapshotBase64;
         }
       }
     }

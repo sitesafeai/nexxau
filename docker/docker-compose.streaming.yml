@@ -1,0 +1,57 @@
+services:
+  # go2rtc streaming gateway
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: go2rtc
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "1984:1984"   # API and web interface
+      - "8554:8554"   # RTSP server
+      - "8555:8555"   # WebRTC (TCP)
+      - "8555:8555/udp" # WebRTC (UDP)
+    volumes:
+      - ./go2rtc/go2rtc.yaml:/config/go2rtc.yaml
+    environment:
+      - TZ=UTC
+    networks:
+      - nexxau-network
+
+  # YOLO detection service
+  yolo-detection:
+    build:
+      context: ../services/yolo-detection-service
+      dockerfile: Dockerfile
+    container_name: yolo-detection-service
+    restart: unless-stopped
+    ports:
+      - "5001:5000"   # Health endpoint (5001 to avoid macOS AirPlay on 5000)
+    environment:
+      - NEXXAU_API_URL=http://app:3000
+      - GO2RTC_RESTREAM_BASE=rtsp://go2rtc:8554
+      - DETECTION_FPS=3.0
+      - YOLO_MODEL=yolov8n.pt
+      - PYTHONUNBUFFERED=1
+      - INTERNAL_SERVICE_TOKEN=db62c007bb4c32f972709890e1da397dede0db1df6c4a570aa8fd8ba72977128
+      # Twilio for person-detection SMS alerts (optional)
+      # - TWILIO_ACCOUNT_SID=
+      # - TWILIO_AUTH_TOKEN=
+      # - NOTIFY_PHONE=
+      # - TWILIO_PHONE_SMS=
+    depends_on:
+      - go2rtc
+    networks:
+      - nexxau-network
+    # Optional: GPU support for faster inference
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+networks:
+  nexxau-network:
+    external: true

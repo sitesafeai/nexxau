@@ -5,7 +5,7 @@ import { authOptions } from '@/app/lib/auth';
 import { normalizeRole } from '@/app/lib/roles';
 import { stopHlsStream } from '@/app/lib/streaming/hlsManager';
 import { stopRtpPush } from '@/app/lib/services/cameraIngestClient';
-import { destroyRtspPublisher, listStreamingStreams } from '@/app/lib/services/janusRtspService';
+import { removeStreamFromGo2RTC } from '@/app/lib/services/go2rtcClient';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -280,28 +280,18 @@ export async function DELETE(
       console.log(`[API /cameras/[id] DELETE] [${requestId}] ℹ️ No janusFeedId, skipping RTP worker stop`);
     }
 
-    // Step 2: Destroy Janus mountpoint
-    if (camera.janusFeedId) {
-      console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 1b: Destroying Janus mountpoint ${camera.janusFeedId}...`);
-      try {
-        // Wrap in timeout to prevent hanging
-        await Promise.race([
-          destroyRtspPublisher(Number(camera.janusFeedId)),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Janus mountpoint destruction timeout after 5s')), 5000)
-          )
-        ]);
-        console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Janus mountpoint ${camera.janusFeedId} destroyed`);
-      } catch (janusError: any) {
-        console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Error destroying Janus mountpoint (continuing with deletion):`, {
-          name: janusError.name,
-          message: janusError.message,
-          stack: janusError.stack,
-        });
-        // Continue with deletion even if Janus cleanup fails
+    // Step 2: Remove stream from go2rtc (camera ID is stream name)
+    console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 1b: Removing stream from go2rtc...`);
+    try {
+      const go2rtcUrl = process.env.GO2RTC_URL || 'http://localhost:1984';
+      const removed = await removeStreamFromGo2RTC(go2rtcUrl, trimmedCameraId);
+      if (removed) {
+        console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Stream removed from go2rtc`);
+      } else {
+        console.log(`[API /cameras/[id] DELETE] [${requestId}] ℹ️ Stream not found in go2rtc or already removed`);
       }
-    } else {
-      console.log(`[API /cameras/[id] DELETE] [${requestId}] ℹ️ No janusFeedId, skipping Janus mountpoint destruction`);
+    } catch (go2rtcError: any) {
+      console.warn(`[API /cameras/[id] DELETE] [${requestId}] ⚠️ Error removing from go2rtc (continuing):`, go2rtcError?.message);
     }
 
     // Step 3: Stop HLS stream (if exists)
@@ -547,9 +537,71 @@ export async function DELETE(
 }
 
 /**
+ * GET /api/cameras/[id]
+ * Returns full camera details for settings/info display.
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id: cameraId } = await params;
+    if (!cameraId?.trim()) {
+      return NextResponse.json({ error: 'Camera ID is required' }, { status: 400 });
+    }
+
+    const camera = await prisma.camera.findUnique({
+      where: { id: cameraId.trim() },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        status: true,
+        streamUrl: true,
+        location: true,
+        zone: true,
+        ipAddress: true,
+        port: true,
+        username: true,
+        password: true,
+        rtspPath: true,
+        hlsUrl: true,
+        mediamtxPath: true,
+        janusFeedId: true,
+        metadata: true,
+        worksiteId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!camera) {
+      return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
+    }
+
+    // Mask password in response
+    const safe = { ...camera };
+    if ((safe as any).password) (safe as any).password = '••••••••';
+
+    return NextResponse.json(safe);
+  } catch (error: any) {
+    console.error('[API /cameras/[id] GET] Error:', error?.message);
+    return NextResponse.json(
+      { error: error?.message || 'Failed to fetch camera' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * PATCH /api/cameras/[id]
- * Update camera (e.g. switch to a different Janus stream).
- * Body: { janusFeedId?: number }
+ * Update camera (name, streamUrl, location, metadata).
+ * Janus streams (janusFeedId) are deprecated; use go2rtc.
  */
 export async function PATCH(
   request: NextRequest,
@@ -572,57 +624,47 @@ export async function PATCH(
     }
 
     const body = await request.json().catch(() => ({}));
-    const janusFeedId = body.janusFeedId;
-
-    if (janusFeedId === undefined || janusFeedId === null) {
+    if (body.janusFeedId !== undefined && body.janusFeedId !== null) {
       return NextResponse.json(
-        { error: 'Body must include janusFeedId (number) to switch stream' },
-        { status: 400 }
-      );
-    }
-
-    const feedId = Number(janusFeedId);
-    if (!Number.isInteger(feedId) || feedId <= 0) {
-      return NextResponse.json({ error: 'Invalid janusFeedId' }, { status: 400 });
-    }
-
-    const streams = await listStreamingStreams();
-    const stream = streams.find((s) => s.id === feedId);
-    if (!stream) {
-      return NextResponse.json(
-        { error: `Janus stream ${feedId} not found. Choose a stream from the list.` },
-        { status: 400 }
+        { error: 'Janus streams deprecated. Add cameras with RTSP URL for go2rtc streaming.' },
+        { status: 410 }
       );
     }
 
     const camera = await prisma.camera.findUnique({
       where: { id: cameraId.trim() },
-      select: { id: true, worksiteId: true, metadata: true },
+      select: { id: true, metadata: true },
     });
     if (!camera) {
       return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
     }
 
+    const data: Record<string, unknown> = {};
+    if (typeof body.name === 'string' && body.name.trim()) data.name = body.name.trim();
+    if (typeof body.streamUrl === 'string') data.streamUrl = body.streamUrl.trim() || null;
+    if (typeof body.location === 'string') data.location = body.location.trim() || null;
+    if (typeof body.zone === 'string') data.zone = body.zone.trim() || null;
+    if (body.metadata && typeof body.metadata === 'object') {
+      data.metadata = { ...(camera.metadata as object || {}), ...body.metadata };
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json(
+        { error: 'No valid fields to update (name, streamUrl, location, metadata)' },
+        { status: 400 }
+      );
+    }
+
     const updated = await prisma.camera.update({
       where: { id: cameraId.trim() },
-      data: {
-        janusFeedId: feedId,
-        streamUrl: null,
-        type: 'Janus Stream',
-        metadata: {
-          ...(camera.metadata as any || {}),
-          staticMountpoint: true,
-          janusStreamName: stream.name,
-          janusStreamDescription: stream.description,
-        },
-      },
+      data,
       select: {
         id: true,
         name: true,
-        janusFeedId: true,
-        status: true,
         streamUrl: true,
-        type: true,
+        status: true,
+        location: true,
+        zone: true,
         metadata: true,
       },
     });
