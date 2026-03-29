@@ -70,3 +70,4 @@ temp/
 # Local / sensitive (do not commit)
 cookies.txt
 dump.rdb
+app/public/streams/
