@@ -77,7 +77,7 @@
     "lowlight": "^3.3.0",
     "lucide-react": "^0.513.0",
     "mediasoup": "^3.16.6",
-    "next": "^15.2.6",
+    "next": "15.2.6",
     "next-auth": "^4.24.11",
     "next-cloudinary": "^6.16.0",
     "node-media-server": "^2.7.4",
