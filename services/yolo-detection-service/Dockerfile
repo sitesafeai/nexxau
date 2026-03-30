@@ -1,4 +1,4 @@
-FROM python:3.11-slim-bookworm
+FROM python:3.11.9-slim-bookworm
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir \
     "requests>=2.31.0" \
     "flask>=3.0.0" \
     "twilio>=8.0.0" && \
-    pip uninstall -y opencv-python opencv-python-headless && \
+    pip uninstall -y opencv-python && \
     pip install --no-cache-dir "opencv-python-headless==4.9.0.80"
 
 COPY src/ ./src/
