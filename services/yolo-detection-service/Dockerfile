@@ -3,19 +3,18 @@ FROM python:3.11-slim-bookworm
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libglib2.0-0 libgomp1 libgl1-mesa-glx \
+    libglib2.0-0 libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
     --extra-index-url https://download.pytorch.org/whl/cpu \
-    opencv-python-headless==4.9.0.80 \
+    "opencv-python-headless==4.9.0.80" \
     "ultralytics==8.3.0" \
-    numpy \
-    requests \
-    flask \
-    twilio
+    "numpy>=1.24.0" \
+    "requests>=2.31.0" \
+    "flask>=3.0.0" \
+    "twilio>=8.0.0"
 
 COPY src/ ./src/
 
