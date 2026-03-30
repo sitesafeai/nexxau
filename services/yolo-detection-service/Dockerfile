@@ -12,9 +12,10 @@ RUN pip install --no-cache-dir \
     "numpy>=1.24.0" \
     "requests>=2.31.0" \
     "flask>=3.0.0" \
-    "twilio>=8.0.0" && \
-    pip uninstall -y opencv-python && \
-    pip install --no-cache-dir "opencv-python-headless==4.9.0.80"
+    "twilio>=8.0.0"
+
+RUN pip uninstall -y opencv-python opencv-python-headless opencv-contrib-python opencv-contrib-python-headless 2>/dev/null || true && \
+    pip install --no-cache-dir --force-reinstall "opencv-python-headless==4.9.0.80"
 
 COPY src/ ./src/
 
