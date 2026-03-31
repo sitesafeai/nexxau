@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import DashboardHeader from '@/app/components/DashboardHeader';
+import DashboardHeader from '@/components/DashboardHeader';
 import { TrendingUp, TrendingDown, AlertTriangle, Camera, Users, Building2 } from 'lucide-react';
 
 interface CompanyAnalytics {

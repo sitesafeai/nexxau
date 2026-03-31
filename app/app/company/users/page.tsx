@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import DashboardHeader from '@/app/components/DashboardHeader';
-import RoleBadge from '@/app/components/RoleBadge';
+import DashboardHeader from '@/components/DashboardHeader';
+import RoleBadge from '@/components/RoleBadge';
 import { UserRole } from '@/app/lib/permissions';
 import { UserPlus, Search } from 'lucide-react';
 

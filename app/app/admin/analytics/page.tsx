@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import AdminLayout from '@/app/components/AdminLayout';
+import AdminLayout from '@/components/AdminLayout';
 import { 
   ChartBarIcon,
   ExclamationTriangleIcon,

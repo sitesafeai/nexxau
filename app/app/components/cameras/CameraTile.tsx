@@ -5,7 +5,7 @@ import { Maximize2, Settings, Eye, EyeOff } from 'lucide-react';
 import { useGo2RTCStream } from '@/app/lib/hooks/useGo2RTCStream';
 import CameraFullscreenModal from './CameraFullscreenModal';
 import CameraSettingsPanel from './CameraSettingsPanel';
-import RealtimeDetectionOverlay from '@/app/components/RealtimeDetectionOverlay';
+import RealtimeDetectionOverlay from '@/components/RealtimeDetectionOverlay';
 
 interface CameraTileProps {
   camera: {

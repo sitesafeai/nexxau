@@ -11,7 +11,7 @@ import {
   getClassesByCategory,
   DetectionClass
 } from '@/app/lib/detection-classes';
-import ZoneDrawingTool from '@/app/components/ZoneDrawingTool';
+import ZoneDrawingTool from '@/components/ZoneDrawingTool';
 
 export default function AlertBuilderPage() {
   const router = useRouter();

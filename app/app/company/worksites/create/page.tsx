@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import DashboardHeader from '@/app/components/DashboardHeader';
+import DashboardHeader from '@/components/DashboardHeader';
 import { canCreateCamera, type UserRole } from '@/app/lib/permissions';
 import { ArrowLeft, ArrowRight, Check, Camera, MapPin, AlertTriangle, Users } from 'lucide-react';
 

@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { canCreateWorksite, canDeleteWorksite, canInviteUser, UserRole } from '@/app/lib/permissions';
-import DashboardHeader from '@/app/components/DashboardHeader';
+import DashboardHeader from '@/components/DashboardHeader';
 
 interface Worksite {
   id: string;

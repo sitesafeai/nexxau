@@ -62,10 +62,10 @@ import {
   RotateCcw,
   Activity as ActivityIcon
 } from 'lucide-react';
-import { useAuth } from '@/app/lib/use-auth';
-import ContactInquiriesTab from '@/app/components/admin/ContactInquiriesTab';
-import FalsePositivesTab from '@/app/components/FalsePositivesTab';
-import PilotProgramsSection from '@/app/components/super-admin/PilotProgramsSection';
+import { useAuth } from '@/lib/use-auth';
+import ContactInquiriesTab from '@/components/admin/ContactInquiriesTab';
+import FalsePositivesTab from '@/components/FalsePositivesTab';
+import PilotProgramsSection from '@/components/super-admin/PilotProgramsSection';
 type ClassValue = string | false | null | undefined;
 const classNames = (...classes: ClassValue[]) => classes.filter(Boolean).join(' ');
 
@@ -271,6 +271,8 @@ interface BillingCompanySummary {
     id: string;
     name: string;
     address?: string | null;
+    email?: string | null;
+    phone?: string | null;
   };
   latestRecord: BillingRecordSummary | null;
   worksites: Array<{
@@ -1344,7 +1346,7 @@ export default function SuperAdminDashboardPage() {
   useEffect(() => {
     (window as any).__setActiveTab = (tab: string) => {
       const validTabs = NAVIGATION.map((n) => n.key);
-      if (validTabs.includes(tab)) {
+      if (validTabs.includes(tab as typeof NAVIGATION[number]['key'])) {
         setActiveSection(tab as typeof NAVIGATION[number]['key']);
       }
     };
