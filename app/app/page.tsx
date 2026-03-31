@@ -20,6 +20,40 @@ export const metadata: Metadata = {
   },
 };
 
+/** Hero mock detection overlays — positions are % of the image card */
+const heroDetectionBoxes: {
+  key: string;
+  left: string;
+  bottom: string;
+  label: string;
+  tone: 'alert' | 'ok';
+  /** Optional; default min(14%, 4.5rem) */
+  height?: string;
+  /** Extra classes on the label (e.g. nudge position) */
+  labelClassName?: string;
+}[] = [
+  {
+    key: 'vest',
+    left: '84%',
+    bottom: '12%',
+    label: 'NO VEST',
+    tone: 'alert',
+    /* Extra height so top clears head (was ~nose); extends upward */
+    height: 'min(36%, 11.5rem)',
+  },
+  { key: 'clear-center', left: '53%', bottom: '17%', label: 'NO ALERTS', tone: 'ok', height: 'min(16%, 5.25rem)' },
+  {
+    key: 'compliant-a',
+    left: '4%',
+    bottom: '20%',
+    label: 'NO ALERTS',
+    tone: 'ok',
+    height: 'min(24%, 7.5rem)',
+    labelClassName: '-translate-x-1',
+  },
+  { key: 'compliant-b', left: '36%', bottom: '19%', label: 'NO ALERTS', tone: 'ok', height: 'min(20%, 6.25rem)' },
+];
+
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#0a1628]">
@@ -63,21 +97,58 @@ export default function HomePage() {
               </div>
 
               <div className="relative">
-                <div className="relative aspect-[4/3] bg-[#1e3a5f] rounded-lg overflow-hidden border border-white/20">
-                  <div className="absolute inset-0 bg-gradient-to-br from-[#1e3a5f] to-[#0a1628]">
+                <div className="relative aspect-[4/3] bg-[#1e3a5f] rounded-lg overflow-visible border border-white/20">
+                  <div className="absolute inset-0 rounded-lg overflow-hidden bg-gradient-to-br from-[#1e3a5f] to-[#0a1628]">
                     <div className="absolute inset-0 opacity-30">
-                      <Image src="https://images.unsplash.com/photo-1636790921342-cbdc4b783de6?w=800" alt="Construction site safety monitoring" fill className="object-cover blur-sm" />
+                      <Image src="https://images.unsplash.com/photo-1636790921342-cbdc4b783de6?w=800" alt="Construction site safety monitoring" fill className="object-cover" />
                     </div>
                   </div>
-                  <div className="absolute inset-0 p-4 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="w-16 h-16 border-2 border-[#fbbf24] rounded mx-auto mb-4">
-                        <div className="absolute -top-5 left-0 text-xs text-[#fbbf24] whitespace-nowrap font-mono">
-                          NO HARDHAT
-                        </div>
+                  {/* Camera recording indicator (top-right) */}
+                  <div
+                    className="absolute top-3 right-3 z-[7] flex items-center gap-1.5 pointer-events-none select-none"
+                    aria-hidden
+                  >
+                    <span className="relative flex h-3 w-3 shrink-0">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/40" />
+                      <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500 animate-rec-led ring-1 ring-red-400/90" />
+                    </span>
+                    <span className="text-[10px] font-mono font-semibold uppercase tracking-widest text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]">
+                      Rec
+                    </span>
+                  </div>
+                  {heroDetectionBoxes.map((box) => {
+                    const isAlert = box.tone === 'alert';
+                    return (
+                      <div
+                        key={box.key}
+                        className={`absolute z-[5] pointer-events-none rounded-sm border-2 border-dashed shadow-[0_0_0_1px_rgba(0,0,0,0.35)] ${
+                          isAlert ? 'border-red-500' : 'border-emerald-400'
+                        }`}
+                        style={{
+                          left: box.left,
+                          bottom: box.bottom,
+                          width: 'min(8%, 3.5rem)',
+                          height: box.height ?? 'min(14%, 4.5rem)',
+                          transform: 'translateX(-50%)',
+                        }}
+                        aria-hidden
+                      >
+                        <span
+                          className={`absolute top-full left-1/2 mt-1 -translate-x-1/2 text-[9px] font-mono px-1 py-0.5 rounded whitespace-nowrap max-w-[90vw] text-center leading-tight bg-black/80 ${
+                            isAlert
+                              ? 'text-red-300 border border-red-500/70'
+                              : 'text-emerald-300 border border-emerald-500/70'
+                          } ${box.labelClassName ?? ''}`}
+                        >
+                          {box.label}
+                        </span>
                       </div>
-                      <p className="text-white text-sm font-mono">Live Detection Active</p>
-                    </div>
+                    );
+                  })}
+                  <div className="absolute inset-0 z-[6] flex items-center justify-center pointer-events-none">
+                    <p className="text-white text-sm font-mono tracking-wide drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)]">
+                      Live Detection Active
+                    </p>
                   </div>
                 </div>
               </div>

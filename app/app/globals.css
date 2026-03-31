@@ -91,6 +91,31 @@
   animation: slide-in-right 0.3s ease-out;
 }
 
+/* Hero camera “recording” LED */
+@keyframes rec-led-blink {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 6px 2px rgba(239, 68, 68, 0.85);
+  }
+  50% {
+    opacity: 0.25;
+    box-shadow: 0 0 2px 0 rgba(239, 68, 68, 0.3);
+  }
+}
+
+.animate-rec-led {
+  animation: rec-led-blink 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rec-led {
+    animation: none;
+    opacity: 1;
+    box-shadow: 0 0 4px 1px rgba(239, 68, 68, 0.6);
+  }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

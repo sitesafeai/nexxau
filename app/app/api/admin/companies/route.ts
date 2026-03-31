@@ -82,6 +82,8 @@ export async function GET(request: NextRequest) {
           email: true,
           phone: true,
           address: true,
+          pilotStartedAt: true,
+          pilotEndsAt: true,
           createdAt: true,
           updatedAt: true,
           _count: {
@@ -182,6 +184,8 @@ export async function GET(request: NextRequest) {
       email: company.email || '',
       phone: company.phone || null,
       address: company.address || null,
+      pilotStartedAt: (company as any).pilotStartedAt ? (company as any).pilotStartedAt.toISOString() : null,
+      pilotEndsAt: (company as any).pilotEndsAt ? (company as any).pilotEndsAt.toISOString() : null,
       worksiteCount: company._count.worksites,
       userCount: company._count.users,
       cameraCount: cameraCountsMap.get(company.id) || 0,
@@ -233,7 +237,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, email, phone, address, companyUsername } = body;
+    const { name, email, phone, address, companyUsername, pilotEndsAt, pilotDurationDays, pilotStartedAt } = body;
 
     if (!name) {
       return NextResponse.json({
@@ -299,6 +303,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let resolvedPilotEndsAt: Date | null = null;
+    if (typeof pilotDurationDays === 'number' && Number.isFinite(pilotDurationDays)) {
+      const now = new Date();
+      resolvedPilotEndsAt = new Date(now.getTime() + pilotDurationDays * 24 * 60 * 60 * 1000);
+    } else if (typeof pilotEndsAt === 'string' && pilotEndsAt) {
+      const parsed = new Date(pilotEndsAt);
+      if (!Number.isNaN(parsed.getTime())) {
+        resolvedPilotEndsAt = parsed;
+      }
+    }
+
+    const resolvedPilotStartedAt =
+      typeof pilotStartedAt === 'string' && pilotStartedAt
+        ? new Date(pilotStartedAt)
+        : null;
+
     const company = await prisma.company.create({
       data: {
         name,
@@ -306,6 +326,8 @@ export async function POST(request: NextRequest) {
         email: email || null,
         phone: phone || null,
         address: address || null,
+        pilotStartedAt: resolvedPilotStartedAt && !Number.isNaN(resolvedPilotStartedAt.getTime()) ? resolvedPilotStartedAt : null,
+        pilotEndsAt: resolvedPilotEndsAt,
       },
       select: {
         id: true,
@@ -313,6 +335,8 @@ export async function POST(request: NextRequest) {
         email: true,
         phone: true,
         address: true,
+        pilotStartedAt: true,
+        pilotEndsAt: true,
         createdAt: true,
         updatedAt: true,
       }

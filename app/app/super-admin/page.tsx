@@ -11,6 +11,7 @@ import {
   type FormEvent,
 } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
   RefreshCw,
@@ -64,6 +65,7 @@ import {
 import { useAuth } from '@/app/lib/use-auth';
 import ContactInquiriesTab from '@/app/components/admin/ContactInquiriesTab';
 import FalsePositivesTab from '@/app/components/FalsePositivesTab';
+import PilotProgramsSection from '@/app/components/super-admin/PilotProgramsSection';
 type ClassValue = string | false | null | undefined;
 const classNames = (...classes: ClassValue[]) => classes.filter(Boolean).join(' ');
 
@@ -1199,6 +1201,7 @@ const NAVIGATION = [
   { key: 'companies', label: 'Companies', icon: Factory },
   { key: 'worksites', label: 'Worksites', icon: Building2 },
   { key: 'onboarding', label: 'Onboarding', icon: Plug },
+  { key: 'pilot', label: 'Pilot programs', icon: CalendarClock },
   { key: 'cameras', label: 'Cameras', icon: Activity },
   { key: 'integrations', label: 'Integrations', icon: Handshake },
   { key: 'billing', label: 'Billing & Collections', icon: DollarSign },
@@ -1225,6 +1228,7 @@ export default function SuperAdminDashboardPage() {
   });
 
   const [activeSection, setActiveSection] = useState<typeof NAVIGATION[number]['key']>('overview');
+  const searchParams = useSearchParams();
   const [timeRange, setTimeRange] = useState<TimeRangeOption>('30d');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1326,10 +1330,20 @@ export default function SuperAdminDashboardPage() {
     fetchMetrics();
   }, []);
 
+  // Optional deep-linking: /super-admin?section=pilot
+  useEffect(() => {
+    const section = searchParams?.get('section');
+    if (!section) return;
+    const validTabs = NAVIGATION.map((n) => n.key);
+    if (validTabs.includes(section as any)) {
+      setActiveSection(section as typeof NAVIGATION[number]['key']);
+    }
+  }, [searchParams]);
+
   // Expose setActiveSection to window for clickable cards in OverviewSection
   useEffect(() => {
     (window as any).__setActiveTab = (tab: string) => {
-      const validTabs = ['overview', 'companies', 'worksites', 'cameras', 'integrations', 'billing', 'onboarding', 'users', 'reports', 'settings', 'support'];
+      const validTabs = NAVIGATION.map((n) => n.key);
       if (validTabs.includes(tab)) {
         setActiveSection(tab as typeof NAVIGATION[number]['key']);
       }
@@ -1914,6 +1928,17 @@ export default function SuperAdminDashboardPage() {
             onRefresh={() => {
               fetchCompanies().catch(() => undefined);
               fetchWorksites(undefined).catch(() => undefined);
+            }}
+          />
+        );
+      case 'pilot':
+        return (
+          <PilotProgramsSection
+            companies={companiesData as any}
+            loading={companiesLoading}
+            error={companiesError}
+            onRefresh={() => {
+              fetchCompanies().catch(() => undefined);
             }}
           />
         );

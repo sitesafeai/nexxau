@@ -37,6 +37,13 @@ const aiTrainingNav = {
   icon: PhotoIcon,
 };
 
+const pilotProgramsNav = {
+  key: 'pilot-programs',
+  name: 'Pilot programs',
+  href: '/super-admin?section=pilot',
+  icon: ChartBarIcon,
+};
+
 function classNames(...classes: string[]) {
   return classes.filter(Boolean).join(' ');
 }
@@ -64,6 +71,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return item;
     });
     if (userRole === 'SUPER_ADMIN') {
+      items.splice(1, 0, pilotProgramsNav);
       items.splice(5, 0, aiTrainingNav);
     }
     return items;

@@ -13,6 +13,17 @@ export default withAuth(
 
     const userRole = token.role as string;
 
+    // Tenant pilot enforcement (block access after pilotEndsAt)
+    const pilotEndsAt = (token as any).pilotEndsAt as string | null | undefined;
+    if (pilotEndsAt) {
+      const expiresAt = new Date(pilotEndsAt).getTime();
+      if (!Number.isNaN(expiresAt) && Date.now() > expiresAt) {
+        const url = new URL("/login", req.url);
+        url.searchParams.set("reason", "pilot_expired");
+        return NextResponse.redirect(url);
+      }
+    }
+
     // SUPER_ADMIN: Only access /admin routes (platform management)
     if (userRole === "SUPER_ADMIN") {
       if (path.startsWith("/company")) {

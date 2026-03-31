@@ -35,6 +35,8 @@ declare module "next-auth/jwt" {
     role: string;
     companyId?: string;
     worksiteId?: string;
+    pilotEndsAt?: string | null;
+    pilotEndsAtCheckedAt?: number;
   }
 }
 
@@ -82,6 +84,21 @@ export const authOptions: NextAuthOptions = {
 
         console.info('[auth] Login success for', credentials.email);
 
+        // Pilot enforcement (tenant-level access control)
+        const normalizedRole = (user.role || '').toUpperCase();
+        if (normalizedRole !== 'SUPER_ADMIN' && normalizedRole !== 'SUPERADMIN' && user.companyId) {
+          const company = await prisma.company.findUnique({
+            where: { id: user.companyId },
+            // Use `any` select to avoid Prisma type drift across workspaces.
+            select: { pilotEndsAt: true } as any,
+          });
+          const pilotEndsAt = (company as any)?.pilotEndsAt as Date | string | null | undefined;
+          if (pilotEndsAt && new Date(pilotEndsAt) < new Date()) {
+            console.warn('[auth] Pilot expired for company', user.companyId, 'user', credentials.email);
+            return null;
+          }
+        }
+
         return {
           id: user.id,
           email: user.email || "",
@@ -103,6 +120,22 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.companyId = user.companyId;
         token.worksiteId = user.worksiteId;
+      }
+
+      // Keep pilot end date reasonably fresh for middleware gating.
+      const normalizedRole = (token.role || '').toUpperCase();
+      if (normalizedRole !== 'SUPER_ADMIN' && normalizedRole !== 'SUPERADMIN' && token.companyId) {
+        const now = Date.now();
+        const lastChecked = token.pilotEndsAtCheckedAt ?? 0;
+        if (!token.pilotEndsAtCheckedAt || now - lastChecked > 10 * 60 * 1000) {
+          const company = await prisma.company.findUnique({
+            where: { id: token.companyId },
+            select: { pilotEndsAt: true } as any,
+          });
+          const pilotEndsAt = (company as any)?.pilotEndsAt as Date | string | null | undefined;
+          token.pilotEndsAt = pilotEndsAt ? new Date(pilotEndsAt).toISOString() : null;
+          token.pilotEndsAtCheckedAt = now;
+        }
       }
       return token;
     },

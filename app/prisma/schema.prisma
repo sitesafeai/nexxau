@@ -158,6 +158,8 @@ model Company {
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
   contactEmail    String?
+  pilotStartedAt  DateTime?
+  pilotEndsAt     DateTime?
   worksites       Worksite[]
   users           User[]
   companyUsers    CompanyUser[]

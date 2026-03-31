@@ -123,6 +123,12 @@ export async function PATCH(
     if (body.phone !== undefined) updateData.phone = body.phone;
     if (body.address !== undefined) updateData.address = body.address;
     if (body.contactEmail !== undefined) updateData.contactEmail = body.contactEmail;
+    if (body.pilotStartedAt !== undefined) {
+      updateData.pilotStartedAt = body.pilotStartedAt ? new Date(body.pilotStartedAt) : null;
+    }
+    if (body.pilotEndsAt !== undefined) {
+      updateData.pilotEndsAt = body.pilotEndsAt ? new Date(body.pilotEndsAt) : null;
+    }
 
     const company = await prisma.company.update({
       where: { id },

@@ -50,6 +50,14 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingUser) {
+      // Enforce one-email-one-company. If the email already belongs to a different company, reject.
+      if (existingUser.companyId && existingUser.companyId !== companyId) {
+        return NextResponse.json(
+          { success: false, error: 'This email address is already registered to a different company.' },
+          { status: 409 }
+        );
+      }
+
       // If user exists and is activated
       if (existingUser.isActivated) {
         return NextResponse.json(
