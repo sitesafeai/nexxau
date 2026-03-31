@@ -35,7 +35,8 @@ const nextConfig = {
     if (!isServer) {
       config.resolve.fallback = { fs: false, net: false, tls: false };
     }
-    config.resolve.alias['@'] = path.resolve(__dirname);
+    // Keep webpack alias aligned with tsconfig "@/*" => "./app/*"
+    config.resolve.alias['@'] = path.resolve(__dirname, 'app');
     return config;
   },
   experimental: {
