@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   MessageSquare, 
@@ -881,4 +881,16 @@ const SMSNotificationDashboard: React.FC = () => {
   );
 };
 
-export default SMSNotificationDashboard;
+export default function SmsNotificationsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-slate-400" />
+        </div>
+      }
+    >
+      <SMSNotificationDashboard />
+    </Suspense>
+  );
+}

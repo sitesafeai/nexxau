@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { canAcknowledgeAlerts, UserRole } from '@/app/lib/permissions';
+import { canAcknowledgeAlerts, UserRole } from '../../lib/permissions';
 
 interface Alert {
   id: string;

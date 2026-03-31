@@ -1,4 +1,4 @@
-import { getRoleName, getRoleBadgeColor, UserRole } from '@/app/lib/permissions';
+import { getRoleName, getRoleBadgeColor, UserRole } from '../lib/permissions';
 
 interface RoleBadgeProps {
   role: UserRole;

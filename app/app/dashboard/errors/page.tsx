@@ -1,9 +1,10 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 
-export default function ErrorsPage() {
+function ErrorsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const worksiteParam = searchParams.get('worksite');
@@ -96,5 +97,19 @@ export default function ErrorsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ErrorsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-slate-400" />
+        </div>
+      }
+    >
+      <ErrorsPageContent />
+    </Suspense>
   );
 }

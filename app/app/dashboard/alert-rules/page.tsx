@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Plus, Edit, Trash2, AlertTriangle, Bell, Clock, MapPin } from 'lucide-react';
 
-export default function AlertRulesPage() {
+function AlertRulesPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const worksiteParam = searchParams.get('worksite');
@@ -270,6 +270,20 @@ export default function AlertRulesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AlertRulesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-slate-400" />
+        </div>
+      }
+    >
+      <AlertRulesPageContent />
+    </Suspense>
   );
 }
 

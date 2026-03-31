@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import CameraGrid from '../cameras/CameraGrid';
-import { canCreateCamera } from '@/app/lib/permissions';
+import { canCreateCamera } from '../../lib/permissions';
 
 interface CamerasTabProps {
   selectedSite: { id: string; name: string; cameras?: any[] } | null;

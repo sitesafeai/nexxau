@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 type TriggerType = 
@@ -61,7 +61,7 @@ const ACTIONS = [
   { value: 'generate_report', label: 'Auto-Generate Report', hasConfig: false },
 ];
 
-export default function WorkflowBuilderPage() {
+function WorkflowBuilderPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const worksiteId = searchParams.get('worksite');
@@ -240,6 +240,20 @@ export default function WorkflowBuilderPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function WorkflowBuilderPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-slate-400" />
+        </div>
+      }
+    >
+      <WorkflowBuilderPageContent />
+    </Suspense>
   );
 }
 

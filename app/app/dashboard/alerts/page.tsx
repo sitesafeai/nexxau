@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 
 function formatAlertTime(createdAt: string | Date): string {
   const d = new Date(createdAt);
@@ -20,7 +20,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Plus } from 'lucide-react';
 import AcknowledgeAlertModal from '../../components/AcknowledgeAlertModal';
 
-export default function AlertsPage() {
+function AlertsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const worksiteParam = searchParams.get('worksite');
@@ -263,4 +263,18 @@ export default function AlertsPage() {
       )}
     </div>
   );
-} 
+}
+
+export default function AlertsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-slate-400" />
+        </div>
+      }
+    >
+      <AlertsPageContent />
+    </Suspense>
+  );
+}

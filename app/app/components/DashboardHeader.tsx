@@ -4,7 +4,7 @@ import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import RoleBadge from './RoleBadge';
-import { UserRole } from '@/app/lib/permissions';
+import { UserRole } from '../lib/permissions';
 import { Home, Building2, LayoutDashboard, Settings, LogOut, User } from 'lucide-react';
 import { useState } from 'react';
 

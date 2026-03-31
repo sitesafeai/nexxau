@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Plus, Edit, Trash2, Power, PowerOff, Info, RefreshCw } from 'lucide-react';
 
@@ -36,7 +36,7 @@ interface CustomRule {
   updatedAt: string;
 }
 
-export default function CustomRulesPage() {
+function CustomRulesPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const worksiteParam = searchParams.get('worksite');
@@ -393,5 +393,19 @@ export default function CustomRulesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CustomRulesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-slate-400" />
+        </div>
+      }
+    >
+      <CustomRulesPageContent />
+    </Suspense>
   );
 }

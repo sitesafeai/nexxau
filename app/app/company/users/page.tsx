@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import DashboardHeader from '@/components/DashboardHeader';
-import RoleBadge from '@/components/RoleBadge';
-import { UserRole } from '@/app/lib/permissions';
+import DashboardHeader from '../../components/DashboardHeader';
+import RoleBadge from '../../components/RoleBadge';
+import { UserRole } from '../../lib/permissions';
 import { UserPlus, Search } from 'lucide-react';
 
 interface User {

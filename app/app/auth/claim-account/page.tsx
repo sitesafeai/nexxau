@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircle, AlertTriangle, User, Lock, Phone, MapPin, Mail, Building2, Shield, ChevronRight, Check } from 'lucide-react';
 
-export default function ClaimAccountPage() {
+function ClaimAccountPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
@@ -542,5 +542,19 @@ export default function ClaimAccountPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ClaimAccountPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-slate-400" />
+        </div>
+      }
+    >
+      <ClaimAccountPageContent />
+    </Suspense>
   );
 }

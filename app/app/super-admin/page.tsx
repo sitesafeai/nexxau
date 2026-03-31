@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Suspense,
   useState,
   useEffect,
   useMemo,
@@ -1223,7 +1224,7 @@ const TIME_RANGE_OPTIONS: { value: TimeRangeOption; label: string }[] = [
   { value: 'year', label: 'Year to date' },
 ];
 
-export default function SuperAdminDashboardPage() {
+function SuperAdminDashboardPageContent() {
   const { isLoading: authLoading, isAuthenticated, userRole, user } = useAuth({
     requiredRole: 'SUPER_ADMIN',
     redirectTo: '/login',
@@ -9410,5 +9411,19 @@ function formatDateString(value?: string | null) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return 'Unknown';
   return parsed.toLocaleDateString();
+}
+
+export default function SuperAdminDashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-slate-400" />
+        </div>
+      }
+    >
+      <SuperAdminDashboardPageContent />
+    </Suspense>
+  );
 }
 
