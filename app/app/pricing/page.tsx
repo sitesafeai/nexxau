@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { CheckCircle } from 'lucide-react';
 import MarketingNavbar from '../components/MarketingNavbar';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Simple, Transparent Pricing | Nexxau',

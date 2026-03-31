@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { ChartBarIcon, DocumentCheckIcon, ShieldCheckIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
 import MarketingNavbar from '../../components/MarketingNavbar';
 
 export default function InsurancePage() {

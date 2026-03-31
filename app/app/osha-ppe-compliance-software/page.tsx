@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Shield, AlertTriangle, CheckCircle, FileText, Clock, Building2 } from 'lucide-react';
 import MarketingNavbar from '../components/MarketingNavbar';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'OSHA PPE Compliance Software for Construction & Industry | Nexxau',

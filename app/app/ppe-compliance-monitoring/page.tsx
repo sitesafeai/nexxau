@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Shield, AlertTriangle, CheckCircle, Camera, Clock, FileText } from 'lucide-react';
 import MarketingNavbar from '../components/MarketingNavbar';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Automated PPE Compliance Monitoring for Active Worksites | Nexxau',

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { HardHat, AlertTriangle, CheckCircle, Camera, Clock, FileText } from 'lucide-react';
+import Link from 'next/link';
 import MarketingNavbar from '../components/MarketingNavbar';
 
 export const metadata: Metadata = {

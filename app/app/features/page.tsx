@@ -10,6 +10,7 @@ import {
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
 import MarketingNavbar from '../components/MarketingNavbar';
+import Link from 'next/link';
 
 export default function FeaturesPage() {
   return (

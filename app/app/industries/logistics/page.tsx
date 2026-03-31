@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { TruckIcon, ShieldCheckIcon, ChartBarIcon, BellAlertIcon, ExclamationTriangleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import MarketingNavbar from '../../components/MarketingNavbar';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Logistics & Warehouse Safety Monitoring | Nexxau',

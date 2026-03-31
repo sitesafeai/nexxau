@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { FireIcon, ShieldCheckIcon, ChartBarIcon, BellAlertIcon, ExclamationTriangleIcon, BeakerIcon } from '@heroicons/react/24/outline';
 import MarketingNavbar from '../../components/MarketingNavbar';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Oil & Gas Safety Monitoring with AI Detection | Nexxau',

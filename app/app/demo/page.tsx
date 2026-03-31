@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { VideoCameraIcon, ExclamationTriangleIcon, ChartBarIcon } from '@heroicons/react/24/outline';
 import MarketingNavbar from '../components/MarketingNavbar';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'See Nexxau in Action | Demo',

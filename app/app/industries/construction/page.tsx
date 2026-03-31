@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { BuildingOfficeIcon, ShieldCheckIcon, ChartBarIcon, ClockIcon, VideoCameraIcon, WrenchScrewdriverIcon, BellAlertIcon, BanknotesIcon } from '@heroicons/react/24/outline';
 import MarketingNavbar from '../../components/MarketingNavbar';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'AI Safety Monitoring Built for Construction Sites | Nexxau',

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { Suspense, useState, useRef, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, AlertTriangle, CheckCircle, Info, MapPin } from 'lucide-react';
 import { 
@@ -13,7 +13,7 @@ import {
 } from '@/app/lib/detection-classes';
 import ZoneDrawingTool from '@/components/ZoneDrawingTool';
 
-export default function AlertBuilderPage() {
+function AlertBuilderPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const worksiteParam = searchParams.get('worksite');
@@ -912,6 +912,20 @@ export default function AlertBuilderPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AlertBuilderPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-slate-400" />
+        </div>
+      }
+    >
+      <AlertBuilderPageContent />
+    </Suspense>
   );
 }
 

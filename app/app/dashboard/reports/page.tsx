@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Download, FileText, TrendingUp, TrendingDown, AlertTriangle, Shield, CheckCircle, XCircle, Camera, Users, Clock, BarChart3 } from 'lucide-react';
 
-export default function ReportsPage() {
+function ReportsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const worksiteParam = searchParams.get('worksite');
@@ -657,4 +657,18 @@ export default function ReportsPage() {
       </div>
     </div>
   );
-} 
+}
+
+export default function ReportsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-slate-400" />
+        </div>
+      }
+    >
+      <ReportsPageContent />
+    </Suspense>
+  );
+}
