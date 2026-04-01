@@ -88,10 +88,12 @@ streams:
       - rtsp://EMlvLD5hOBOAMJgHYvIMzXqopI4RWs30:VZHDINPkcEvdvNmgTJXFt@test.rtsp.stream/people
     cmn86blq60001p9a2im1unbj8:
       - rtsp://172.20.10.1:8554/stream
+    cmndaqdc0001gp9tngmypc34h:
+      - rtsp://172.20.10.1:8554/stream
+    cmndarv4s001kp9tnzbufv662:
+      - rtsp://172.20.10.1:8554/stream
 webrtc:
     candidates:
         - 10.1.10.212:8555
     ice_servers:
-        - urls:
-            - stun:stun.l.google.com:19302
-    listen: :8555
+       
