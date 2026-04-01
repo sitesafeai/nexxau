@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import ExportService from '@/lib/export-service';
+import ExportService from '@/app/lib/export-service';
 
 interface ExportButtonProps {
   siteId?: string;
