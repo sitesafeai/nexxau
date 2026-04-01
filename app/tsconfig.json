@@ -18,9 +18,7 @@
     "paths": {
       "@/*": ["./*"],
       "@/app/*": ["./app/*"],
-      "@/components/*": ["./app/components/*"],
-      "@/lib/*": ["./lib/*", "./app/lib/*"],
-      "@/src/*": ["./src/*"]
+      "@/lib/*": ["./lib/*", "./app/lib/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
