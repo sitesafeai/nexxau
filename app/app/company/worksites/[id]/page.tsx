@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import DashboardHeader from '../../../components/DashboardHeader';
-import CameraGrid from '@/app/components/cameras/CameraGrid';
+import CameraGrid from '../../../components/cameras/CameraGrid';
 import { canCreateCamera, type UserRole } from '../../../lib/permissions';
 
 interface Camera {

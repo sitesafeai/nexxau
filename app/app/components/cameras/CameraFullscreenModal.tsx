@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { X, Search } from 'lucide-react';
-import { useGo2RTCStream } from '@/app/lib/hooks/useGo2RTCStream';
+import { useGo2RTCStream } from '../../lib/hooks/useGo2RTCStream';
 
 const VIOLATION_LABELS: Record<string, string> = {
   no_helmet: 'No Helmet',
