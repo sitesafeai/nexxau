@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit';
+import { authOptions } from '@/app/lib/auth';
+import { createAuditLog, AUDIT_ACTIONS } from '@/app/lib/audit';
 
 // POST /api/alerts/[id]/reopen - Reopen a resolved/acknowledged alert
 export async function POST(

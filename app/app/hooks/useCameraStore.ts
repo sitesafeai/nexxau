@@ -11,8 +11,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { cameraStore, CameraState } from '@/lib/camera/camera-store';
-import { Camera } from '@/lib/camera/types';
+import { cameraStore, CameraState } from '@/app/lib/camera/camera-store';
+import { Camera } from '@/app/lib/camera/types';
 
 /**
  * Hook to access camera store state

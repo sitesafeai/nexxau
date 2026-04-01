@@ -11,7 +11,7 @@
  * This ensures metrics reflect real camera health, not potentially stale status strings.
  */
 
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/app/lib/prisma';
 
 export interface CameraWithHealth {
   id: string;

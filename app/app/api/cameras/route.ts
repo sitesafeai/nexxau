@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { getCachedSession } from '@/lib/session-cache';
-import { normalizeRole } from '@/lib/roles';
-import { validateRtspStream } from '@/lib/rtsp-validation';
-import { addStreamToGo2RTC } from '@/lib/services/go2rtcClient';
+import { prisma } from '@/app/lib/prisma';
+import { getCachedSession } from '@/app/lib/session-cache';
+import { normalizeRole } from '@/app/lib/roles';
+import { validateRtspStream } from '@/app/lib/rtsp-validation';
+import { addStreamToGo2RTC } from '@/app/lib/services/go2rtcClient';
 
 export const runtime = 'nodejs';
 

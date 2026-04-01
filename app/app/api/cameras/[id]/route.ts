@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { normalizeRole } from '@/lib/roles';
-import { stopHlsStream } from '@/lib/streaming/hlsManager';
-import { stopRtpPush } from '@/lib/services/cameraIngestClient';
-import { removeStreamFromGo2RTC } from '@/lib/services/go2rtcClient';
+import { authOptions } from '@/app/lib/auth';
+import { normalizeRole } from '@/app/lib/roles';
+import { stopHlsStream } from '@/app/lib/streaming/hlsManager';
+import { stopRtpPush } from '@/app/lib/services/cameraIngestClient';
+import { removeStreamFromGo2RTC } from '@/app/lib/services/go2rtcClient';
 import * as path from 'path';
 import * as fs from 'fs';
 

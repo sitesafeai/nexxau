@@ -10,12 +10,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { normalizeRole } from '@/lib/roles';
+import { authOptions } from '@/app/lib/auth';
+import { normalizeRole } from '@/app/lib/roles';
 // Legacy Janus - archived
-// import { startRtpForward, stopRtpForward } from '@/lib/services/janusRtspService';
+// import { startRtpForward, stopRtpForward } from '@/app/lib/services/janusRtspService';
 
 export async function POST(
   request: NextRequest,

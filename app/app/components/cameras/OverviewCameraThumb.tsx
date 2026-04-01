@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useGo2RTCStream } from '@/lib/hooks/useGo2RTCStream';
+import { useGo2RTCStream } from '@/app/lib/hooks/useGo2RTCStream';
 
 type OverviewCameraThumbProps = {
   camera: { id: string; name: string };

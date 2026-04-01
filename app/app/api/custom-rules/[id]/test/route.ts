@@ -1,8 +1,8 @@
 // API endpoint for testing custom rules
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { errorHandler } from '@/lib/error-handler';
-import { customRuleEngine } from '@/lib/custom-rule-engine';
+import { prisma } from '@/app/lib/prisma';
+import { errorHandler } from '@/app/lib/error-handler';
+import { customRuleEngine } from '@/app/lib/custom-rule-engine';
 
 export async function POST(
   req: NextRequest,

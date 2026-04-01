@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { sendInvitationEmail } from '@/lib/email-service';
+import { prisma } from '@/app/lib/prisma';
+import { sendInvitationEmail } from '@/app/lib/email-service';
 import crypto from 'crypto';
 
 /**

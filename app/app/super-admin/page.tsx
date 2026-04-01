@@ -63,7 +63,7 @@ import {
   RotateCcw,
   Activity as ActivityIcon
 } from 'lucide-react';
-import { useAuth } from '@/lib/use-auth';
+import { useAuth } from '@/app/lib/use-auth';
 import ContactInquiriesTab from '@/app/components/admin/ContactInquiriesTab';
 import FalsePositivesTab from '@/app/components/FalsePositivesTab';
 import PilotProgramsSection from '@/app/components/super-admin/PilotProgramsSection';

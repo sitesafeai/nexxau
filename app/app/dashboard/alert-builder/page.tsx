@@ -10,7 +10,7 @@ import {
   SEVERITY_LEVELS,
   getClassesByCategory,
   DetectionClass
-} from '@/lib/detection-classes';
+} from '@/app/lib/detection-classes';
 import ZoneDrawingTool from '@/app/components/ZoneDrawingTool';
 
 function AlertBuilderPageContent() {

@@ -7,12 +7,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { normalizeRole } from '@/lib/roles';
-import { generateInviteToken, getTokenExpiry } from '@/lib/token-utils';
-import { sendInvitationEmail } from '@/lib/email-service';
+import { authOptions } from '@/app/lib/auth';
+import { normalizeRole } from '@/app/lib/roles';
+import { generateInviteToken, getTokenExpiry } from '@/app/lib/token-utils';
+import { sendInvitationEmail } from '@/app/lib/email-service';
 
 export async function POST(
   request: NextRequest,

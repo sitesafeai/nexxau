@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { acknowledgeAlertSchema } from '@/lib/validation/alerts';
-import { validateBody } from '@/lib/validation/common';
+import { authOptions } from '@/app/lib/auth';
+import { acknowledgeAlertSchema } from '@/app/lib/validation/alerts';
+import { validateBody } from '@/app/lib/validation/common';
 
 /**
  * POST /api/alerts/[id]/acknowledge

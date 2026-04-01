@@ -6,10 +6,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { getRtpStreamStatus } from '@/lib/services/cameraIngestClient';
+import { authOptions } from '@/app/lib/auth';
+import { getRtpStreamStatus } from '@/app/lib/services/cameraIngestClient';
 
 export const runtime = 'nodejs';
 

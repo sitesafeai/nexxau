@@ -14,10 +14,10 @@
 'use client';
 
 import { useCameras } from '@/app/hooks/useCameraStore';
-import { testCamera, monitorCameraStatus, removeCamera } from '@/lib/camera/camera-service';
-import { Camera } from '@/lib/camera/types';
+import { testCamera, monitorCameraStatus, removeCamera } from '@/app/lib/camera/camera-service';
+import { Camera } from '@/app/lib/camera/types';
 import { useEffect, useState } from 'react';
-import { cameraStore } from '@/lib/camera/camera-store';
+import { cameraStore } from '@/app/lib/camera/camera-store';
 
 interface CameraListProps {
   onSelectCamera?: (cameraId: string) => void;

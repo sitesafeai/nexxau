@@ -5,8 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { setCurrentRtspUrl } from '@/lib/stream-state';
+import { authOptions } from '@/app/lib/auth';
+import { setCurrentRtspUrl } from '@/app/lib/stream-state';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
-import { formatRoleLabel } from '@/lib/roles';
+import { formatRoleLabel } from '@/app/lib/roles';
 
 interface Notification {
   id: string;

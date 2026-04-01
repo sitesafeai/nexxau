@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendAlertNotificationEmail } from '@/lib/email-service';
+import { sendAlertNotificationEmail } from '@/app/lib/email-service';
 
 /**
  * POST /api/send-alert-email

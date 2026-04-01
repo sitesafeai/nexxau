@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { enforceWorksiteAccess } from '@/lib/worksite-access';
-import { getWorksiteMetricsPayload } from '@/lib/worksite-metrics-payload';
+import { prisma } from '@/app/lib/prisma';
+import { enforceWorksiteAccess } from '@/app/lib/worksite-access';
+import { getWorksiteMetricsPayload } from '@/app/lib/worksite-metrics-payload';
 
 /** Keep aligned with UserDashboard overview alerts slice */
 const OVERVIEW_ALERTS_LIMIT = 40;

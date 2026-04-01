@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { prisma } from '@/lib/prisma';
-import { uploadTrainingImage, captureCameraSnapshot } from '@/lib/cloud-storage';
-import { authOptions } from '@/lib/auth';
-import { normalizeRole } from '@/lib/roles';
+import { prisma } from '@/app/lib/prisma';
+import { uploadTrainingImage, captureCameraSnapshot } from '@/app/lib/cloud-storage';
+import { authOptions } from '@/app/lib/auth';
+import { normalizeRole } from '@/app/lib/roles';
 
 /**
  * POST /api/training/snapshots

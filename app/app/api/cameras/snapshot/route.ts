@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { uploadViolationSnapshot } from '@/lib/storage';
-import { sendAlerts } from '@/lib/notifications';
+import { prisma } from '@/app/lib/prisma';
+import { uploadViolationSnapshot } from '@/app/lib/storage';
+import { sendAlerts } from '@/app/lib/notifications';
 
 export const runtime = 'nodejs';
 

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCachedSession } from '@/lib/session-cache';
-import { prisma } from '@/lib/prisma';
-import { createAlertSchema, alertQuerySchema } from '@/lib/validation/alerts';
-import { validateBody, validateQuery } from '@/lib/validation/common';
+import { getCachedSession } from '@/app/lib/session-cache';
+import { prisma } from '@/app/lib/prisma';
+import { createAlertSchema, alertQuerySchema } from '@/app/lib/validation/alerts';
+import { validateBody, validateQuery } from '@/app/lib/validation/common';
 import { AlertSeverity } from '@prisma/client';
 
 // Map severity values to AlertSeverity enum

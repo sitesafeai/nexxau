@@ -1,8 +1,8 @@
 // API endpoint for AI Detection Service Integration
 import { NextRequest, NextResponse } from 'next/server';
-import { errorHandler } from '@/lib/error-handler';
-import { aiDetectionIntegration } from '@/lib/ai-detection-integration';
-import logger from '@/lib/logger';
+import { errorHandler } from '@/app/lib/error-handler';
+import { aiDetectionIntegration } from '@/app/lib/ai-detection-integration';
+import logger from '@/app/lib/logger';
 
 export async function POST(req: NextRequest) {
   try {

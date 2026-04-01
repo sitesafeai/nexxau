@@ -4,8 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { isValidTokenFormat, isTokenExpired } from '@/lib/token-utils';
+import { prisma } from '@/app/lib/prisma';
+import { isValidTokenFormat, isTokenExpired } from '@/app/lib/token-utils';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {

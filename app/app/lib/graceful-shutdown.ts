@@ -257,7 +257,7 @@ export default gracefulShutdown;
 
 // Example usage in Next.js:
 /*
-import { gracefulShutdown, shutdownHandlers } from '@/lib/graceful-shutdown';
+import { gracefulShutdown, shutdownHandlers } from '@/app/lib/graceful-shutdown';
 
 // Register custom shutdown handlers
 gracefulShutdown.register(async () => {

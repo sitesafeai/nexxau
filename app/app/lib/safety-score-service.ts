@@ -11,7 +11,7 @@
  * - Configurable parameters
  */
 
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/app/lib/prisma';
 
 // ============================================
 // TYPES

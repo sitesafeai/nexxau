@@ -4,9 +4,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { generateInviteToken, getTokenExpiry } from '@/lib/token-utils';
-import { sendPasswordResetEmail } from '@/lib/email-service';
+import { prisma } from '@/app/lib/prisma';
+import { generateInviteToken, getTokenExpiry } from '@/app/lib/token-utils';
+import { sendPasswordResetEmail } from '@/app/lib/email-service';
 
 export async function POST(request: NextRequest) {
   try {

@@ -5,8 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { getCurrentRtspUrl } from '@/lib/stream-state';
+import { authOptions } from '@/app/lib/auth';
+import { getCurrentRtspUrl } from '@/app/lib/stream-state';
 import { spawn } from 'child_process';
 import { Readable } from 'stream';
 

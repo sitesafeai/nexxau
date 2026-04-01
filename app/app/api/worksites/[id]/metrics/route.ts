@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { enforceWorksiteAccess } from '@/lib/worksite-access';
-import { getWorksiteMetricsPayload } from '@/lib/worksite-metrics-payload';
+import { enforceWorksiteAccess } from '@/app/lib/worksite-access';
+import { getWorksiteMetricsPayload } from '@/app/lib/worksite-metrics-payload';
 
 /**
  * GET /api/worksites/[id]/metrics

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbMonitor } from '@/lib/database-monitor';
-import { dbPool } from '@/lib/database-pool';
+import { dbMonitor } from '@/app/lib/database-monitor';
+import { dbPool } from '@/app/lib/database-pool';
 
 export async function GET(request: NextRequest) {
   try {

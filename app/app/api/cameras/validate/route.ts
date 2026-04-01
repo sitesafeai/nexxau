@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { normalizeRole } from '@/lib/roles';
-import { validateRtspStream } from '@/lib/rtsp-validation';
+import { authOptions } from '@/app/lib/auth';
+import { normalizeRole } from '@/app/lib/roles';
+import { validateRtspStream } from '@/app/lib/rtsp-validation';
 
 export const runtime = 'nodejs';
 

@@ -1,6 +1,6 @@
 'use server';
 
-import type { Camera } from '@/lib/camera-store';
+import type { Camera } from '@/app/lib/camera-store';
 
 const FALLBACK_CLIP_URL =
   process.env.DEFAULT_CLIP_SOURCE ||

@@ -16,8 +16,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { ensureHlsStream, stopHlsStream, isStreamActive } from '@/lib/streaming/hlsManager';
-import { prisma } from '@/lib/prisma';
+import { ensureHlsStream, stopHlsStream, isStreamActive } from '@/app/lib/streaming/hlsManager';
+import { prisma } from '@/app/lib/prisma';
 import { spawn } from 'child_process';
 
 const execAsync = promisify(exec);
