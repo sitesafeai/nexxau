@@ -8,7 +8,7 @@ import { NotificationContainer } from '../components/NotificationToast';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import AcknowledgeAlertModal from '../components/AcknowledgeAlertModal';
-import ActiveAlerts from '@/components/dashboard/ActiveAlerts';
+import ActiveAlerts from '@/app/components/dashboard/ActiveAlerts';
 import RealtimeDetectionOverlay from '../components/RealtimeDetectionOverlay';
 import ExportButton from '../components/ExportButton';
 import SafetyScoreCard from '../components/SafetyScoreCard';

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 /**
  * GET /api/analytics?worksiteId=xxx&timeRange=7d

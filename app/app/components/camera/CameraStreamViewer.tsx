@@ -18,8 +18,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
 import { Brain, Power } from 'lucide-react';
-import { streamHealthManager, StreamHealthState } from '@/app/lib/streaming/streamHealthManager';
-import { fetchWithExplicitTimeout, isTimeoutError, isUserAbortError, isNetworkError } from '@/app/lib/streaming/timeoutUtils';
+import { streamHealthManager, StreamHealthState } from '@/lib/streaming/streamHealthManager';
+import { fetchWithExplicitTimeout, isTimeoutError, isUserAbortError, isNetworkError } from '@/lib/streaming/timeoutUtils';
 
 // Dynamic import for TensorFlow.js to avoid SSR issues
 let cocoSsd: any = null;

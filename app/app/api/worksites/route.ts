@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
-import { getCachedSession } from '@/app/lib/session-cache';
-import { logCreate } from '@/app/lib/audit-logger';
-import { createWorksiteSchema } from '@/app/lib/validation/worksites';
-import { validateQuery, validateBody } from '@/app/lib/validation/common';
+import { prisma } from '@/lib/prisma';
+import { getCachedSession } from '@/lib/session-cache';
+import { logCreate } from '@/lib/audit-logger';
+import { createWorksiteSchema } from '@/lib/validation/worksites';
+import { validateQuery, validateBody } from '@/lib/validation/common';
 
 /**
  * GET /api/worksites

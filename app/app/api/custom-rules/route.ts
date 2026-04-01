@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
-import { logger } from '@/app/lib/logger';
-import { retryDatabaseOperation } from '@/app/lib/retry';
+import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
+import { retryDatabaseOperation } from '@/lib/retry';
 
 // GET /api/custom-rules - Get all custom rules
 export async function GET(request: NextRequest) {

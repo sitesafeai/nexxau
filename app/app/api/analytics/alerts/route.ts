@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma, dbPool } from '@/app/lib/database-pool';
+import { prisma, dbPool } from '@/lib/database-pool';
 
 export async function GET(request: NextRequest) {
   try {

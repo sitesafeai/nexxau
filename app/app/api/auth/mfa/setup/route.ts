@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { mfaManager } from '@/app/lib/mfa';
-import { jwtManager } from '@/app/lib/jwt';
-import { rateLimitMiddleware, authRateLimit } from '@/app/lib/rate-limit';
-import { securityMiddleware, addSecurityHeaders } from '@/app/lib/security';
+import { mfaManager } from '@/lib/mfa';
+import { jwtManager } from '@/lib/jwt';
+import { rateLimitMiddleware, authRateLimit } from '@/lib/rate-limit';
+import { securityMiddleware, addSecurityHeaders } from '@/lib/security';
 
 export async function POST(request: NextRequest) {
   // Apply security middleware

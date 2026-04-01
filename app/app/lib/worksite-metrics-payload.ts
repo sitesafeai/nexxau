@@ -1,6 +1,6 @@
-import { prisma } from '@/app/lib/prisma';
-import { Cache, CacheKeys } from '@/app/lib/cache';
-import { isCameraOnline } from '@/app/lib/camera-status';
+import { prisma } from '@/lib/prisma';
+import { Cache, CacheKeys } from '@/lib/cache';
+import { isCameraOnline } from '@/lib/camera-status';
 
 function getAlertMetrics(alerts: any[]): {
   totalAlerts: number;

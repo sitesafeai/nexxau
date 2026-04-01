@@ -3,7 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import WorkflowBuilder from '@/components/workflow/WorkflowBuilder';
+import WorkflowBuilder from '@/app/components/workflow/WorkflowBuilder';
 
 export default function WorkflowPage() {
   const { data: session, status } = useSession();

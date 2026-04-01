@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
-import { normalizeRole } from '@/app/lib/roles';
+import { authOptions } from '@/lib/auth';
+import { normalizeRole } from '@/lib/roles';
 
 /**
  * GET /api/admin/roles/permissions

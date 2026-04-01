@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { metricsCollector } from '@/app/lib/metrics';
-import { securityMiddleware, addSecurityHeaders } from '@/app/lib/security';
+import { metricsCollector } from '@/lib/metrics';
+import { securityMiddleware, addSecurityHeaders } from '@/lib/security';
 
 export async function GET(request: NextRequest) {
   // Apply security middleware

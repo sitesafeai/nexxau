@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
-import { getSession } from '@/app/lib/auth';
-import { falsePositiveHandler } from '@/app/lib/workflows/false-positive-handler';
+import { prisma } from '@/lib/prisma';
+import { getSession } from '@/lib/auth';
+import { falsePositiveHandler } from '@/lib/workflows/false-positive-handler';
 
 /**
  * POST /api/alerts/[id]/mark-false-positive

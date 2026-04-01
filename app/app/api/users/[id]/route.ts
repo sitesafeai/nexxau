@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
-import { getSession } from '@/app/lib/auth';
-import { logUpdate, logDelete } from '@/app/lib/audit-logger';
+import { prisma } from '@/lib/prisma';
+import { getSession } from '@/lib/auth';
+import { logUpdate, logDelete } from '@/lib/audit-logger';
 
 /**
  * PATCH /api/users/[id]

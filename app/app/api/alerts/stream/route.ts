@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { onAlertCreated } from '@/app/lib/alert-events';
+import { onAlertCreated } from '@/lib/alert-events';
 
 export const runtime = 'nodejs';
 

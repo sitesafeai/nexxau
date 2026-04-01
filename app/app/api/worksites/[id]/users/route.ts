@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
-import { normalizeRole } from '@/app/lib/roles';
-import { Cache, CacheKeys } from '@/app/lib/cache';
-import { generateInviteToken, getTokenExpiry } from '@/app/lib/token-utils';
-import { sendInvitationEmail } from '@/app/lib/email-service';
+import { authOptions } from '@/lib/auth';
+import { normalizeRole } from '@/lib/roles';
+import { Cache, CacheKeys } from '@/lib/cache';
+import { generateInviteToken, getTokenExpiry } from '@/lib/token-utils';
+import { sendInvitationEmail } from '@/lib/email-service';
 
 /**
  * GET /api/worksites/:id/users

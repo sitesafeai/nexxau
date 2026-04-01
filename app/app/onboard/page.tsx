@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { COUNTRY_CODES } from '@/app/lib/country-codes';
+import { COUNTRY_CODES } from '@/lib/country-codes';
 
 function OnboardPageContent() {
   const router = useRouter();

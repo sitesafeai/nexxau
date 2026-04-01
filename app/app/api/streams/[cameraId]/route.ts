@@ -16,9 +16,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { ensureHlsStream, getHlsUrl, isStreamActive, stopHlsStream } from '@/app/lib/streaming/hlsManager';
-import { prisma } from '@/app/lib/prisma';
-import { ffmpegManager } from '@/app/lib/streaming/ffmpeg';
+import { ensureHlsStream, getHlsUrl, isStreamActive, stopHlsStream } from '@/lib/streaming/hlsManager';
+import { prisma } from '@/lib/prisma';
+import { ffmpegManager } from '@/lib/streaming/ffmpeg';
 import { kill } from 'process';
 
 /**

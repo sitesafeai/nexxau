@@ -50,8 +50,8 @@ import {
   Copy,
   Zap
 } from 'lucide-react';
-import CameraStreamViewer from '@/components/camera/CameraStreamViewer';
-import OverviewCameraThumb from '@/components/cameras/OverviewCameraThumb';
+import CameraStreamViewer from '@/app/components/camera/CameraStreamViewer';
+import OverviewCameraThumb from '@/app/components/cameras/OverviewCameraThumb';
 
 // ============================================================
 // TYPES & INTERFACES

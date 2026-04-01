@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
-import { prisma } from '@/app/lib/prisma';
-import { uploadFile } from '@/app/lib/cloud-storage';
-import { logCreate, logUpdate } from '@/app/lib/audit-logger';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { uploadFile } from '@/lib/cloud-storage';
+import { logCreate, logUpdate } from '@/lib/audit-logger';
 
 type DiagnosticsEntry = {
   scope: string;

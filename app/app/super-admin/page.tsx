@@ -64,9 +64,9 @@ import {
   Activity as ActivityIcon
 } from 'lucide-react';
 import { useAuth } from '@/lib/use-auth';
-import ContactInquiriesTab from '@/components/admin/ContactInquiriesTab';
-import FalsePositivesTab from '@/components/FalsePositivesTab';
-import PilotProgramsSection from '@/components/super-admin/PilotProgramsSection';
+import ContactInquiriesTab from '@/app/components/admin/ContactInquiriesTab';
+import FalsePositivesTab from '@/app/components/FalsePositivesTab';
+import PilotProgramsSection from '@/app/components/super-admin/PilotProgramsSection';
 type ClassValue = string | false | null | undefined;
 const classNames = (...classes: ClassValue[]) => classes.filter(Boolean).join(' ');
 

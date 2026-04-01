@@ -8,12 +8,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
-import { normalizeRole } from '@/app/lib/roles';
-import { addStreamToGo2RTC } from '@/app/lib/services/go2rtcClient';
-import { seedDefaultRules } from '@/app/lib/defaultRules';
+import { authOptions } from '@/lib/auth';
+import { normalizeRole } from '@/lib/roles';
+import { addStreamToGo2RTC } from '@/lib/services/go2rtcClient';
+import { seedDefaultRules } from '@/lib/defaultRules';
 
 export const runtime = 'nodejs';
 

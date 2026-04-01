@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { CameraProtocol } from '@/app/lib/camera/types';
+import { CameraProtocol } from '@/lib/camera/types';
 
 interface TestCameraRequest {
   streamUrl: string;

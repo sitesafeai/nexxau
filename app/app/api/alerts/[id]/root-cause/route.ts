@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
-import { getSession } from '@/app/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { getSession } from '@/lib/auth';
 
 /**
  * PATCH /api/alerts/[id]/root-cause

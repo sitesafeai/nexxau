@@ -4,8 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
-import { isTokenExpired, isValidTokenFormat } from '@/app/lib/token-utils';
+import { prisma } from '@/lib/prisma';
+import { isTokenExpired, isValidTokenFormat } from '@/lib/token-utils';
 import bcrypt from 'bcryptjs';
 
 /**

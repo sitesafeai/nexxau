@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
-import { prisma } from '@/app/lib/prisma';
-import { checkRole } from '@/app/lib/api-helpers';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { checkRole } from '@/lib/api-helpers';
 
 // GET /api/admin/inquiries - Get all contact inquiries
 export async function GET(request: NextRequest) {

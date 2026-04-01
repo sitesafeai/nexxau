@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
-import { prisma } from '@/app/lib/prisma';
-import { detectionFeedbackSchema } from '@/app/lib/validation/detection';
-import { logAudit } from '@/app/lib/audit-logger';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { detectionFeedbackSchema } from '@/lib/validation/detection';
+import { logAudit } from '@/lib/audit-logger';
 
 /**
  * POST /api/detections/[id]/feedback

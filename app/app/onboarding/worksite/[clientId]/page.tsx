@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
-import WorksiteForm from '@/components/onboarding/WorksiteForm';
-import { prisma } from '@/app/lib/prisma';
+import WorksiteForm from '@/app/components/onboarding/WorksiteForm';
+import { prisma } from '@/lib/prisma';
 
 interface PageProps {
   params: Promise<{

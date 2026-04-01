@@ -6,14 +6,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
-import { isOnCooldown, setCooldown } from '@/app/lib/cooldown';
+import { prisma } from '@/lib/prisma';
+import { isOnCooldown, setCooldown } from '@/lib/cooldown';
 import {
   sendBothAlerts,
   sendSMSAlert,
   sendWhatsAppAlert,
   type AlertPayload,
-} from '@/app/lib/twilio';
+} from '@/lib/twilio';
 
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN ?? '';
 

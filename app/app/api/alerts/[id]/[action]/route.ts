@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 // POST /api/alerts/[id]/[action] - Perform state transition on alert
 export async function POST(

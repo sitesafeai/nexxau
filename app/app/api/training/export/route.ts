@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { prisma } from '@/app/lib/prisma';
-import { authOptions } from '@/app/lib/auth';
-import { normalizeRole } from '@/app/lib/roles';
+import { prisma } from '@/lib/prisma';
+import { authOptions } from '@/lib/auth';
+import { normalizeRole } from '@/lib/roles';
 
 /**
  * GET /api/training/export

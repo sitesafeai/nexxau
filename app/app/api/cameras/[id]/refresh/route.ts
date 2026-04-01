@@ -6,15 +6,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
-import { prisma } from '@/app/lib/prisma';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 import {
   removeStreamFromGo2RTC,
   addStreamToGo2RTC,
   healthCheckGo2RTC,
   listGo2RTCStreams,
-} from '@/app/lib/services/go2rtcClient';
-import { normalizeRole } from '@/app/lib/roles';
+} from '@/lib/services/go2rtcClient';
+import { normalizeRole } from '@/lib/roles';
 
 export async function POST(
   request: NextRequest,

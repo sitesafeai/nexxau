@@ -8,9 +8,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
-import { normalizeRole } from '@/app/lib/roles';
-import { sendInvitationEmail } from '@/app/lib/email-service';
+import { authOptions } from '@/lib/auth';
+import { normalizeRole } from '@/lib/roles';
+import { sendInvitationEmail } from '@/lib/email-service';
 
 // Hardcoded developer email for testing
 const TEST_EMAIL = process.env.DEBUG_TEST_EMAIL || 'test@example.com';

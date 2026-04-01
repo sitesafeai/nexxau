@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
-import { Cache, CacheKeys } from '@/app/lib/cache';
+import { prisma } from '@/lib/prisma';
+import { Cache, CacheKeys } from '@/lib/cache';
 
 /**
  * GET /api/safety-score?worksiteId=xxx&date=2025-10-27

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
-import ExportService from '@/app/lib/export-service';
+import { authOptions } from '@/lib/auth';
+import ExportService from '@/lib/export-service';
 
 export async function POST(request: NextRequest) {
   try {

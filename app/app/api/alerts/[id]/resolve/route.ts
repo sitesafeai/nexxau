@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
+import { authOptions } from '@/lib/auth';
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit';
-import { falsePositiveHandler } from '@/app/lib/workflows/false-positive-handler';
+import { falsePositiveHandler } from '@/lib/workflows/false-positive-handler';
 
 // POST /api/alerts/[id]/resolve - Resolve an alert with full workflow
 export async function POST(

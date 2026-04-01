@@ -10,8 +10,8 @@ import {
   SEVERITY_LEVELS,
   getClassesByCategory,
   DetectionClass
-} from '@/app/lib/detection-classes';
-import ZoneDrawingTool from '@/components/ZoneDrawingTool';
+} from '@/lib/detection-classes';
+import ZoneDrawingTool from '@/app/components/ZoneDrawingTool';
 
 function AlertBuilderPageContent() {
   const router = useRouter();

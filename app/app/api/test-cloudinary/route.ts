@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { uploadFile } from '@/app/lib/cloud-storage';
+import { uploadFile } from '@/lib/cloud-storage';
 
 /**
  * GET /api/test-cloudinary

@@ -7,9 +7,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
-import { prisma } from '@/app/lib/prisma';
-import { normalizeRole } from '@/app/lib/roles';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { normalizeRole } from '@/lib/roles';
 import { spawn } from 'child_process';
 import { Readable } from 'stream';
 

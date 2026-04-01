@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
-import { clearWorksiteSettingsCache } from '@/app/lib/worksite-settings';
+import { prisma } from '@/lib/prisma';
+import { clearWorksiteSettingsCache } from '@/lib/worksite-settings';
 
 /**
  * GET /api/worksites/:id

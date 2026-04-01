@@ -11,8 +11,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ffmpegManager } from '@/app/lib/streaming/ffmpeg';
-import { streamRegistry } from '@/app/lib/streaming/streamRegistry';
+import { ffmpegManager } from '@/lib/streaming/ffmpeg';
+import { streamRegistry } from '@/lib/streaming/streamRegistry';
 
 export async function GET(
   request: NextRequest,

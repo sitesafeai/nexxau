@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
-import { logger } from '@/app/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 
 interface HealthCheckResult {
   service: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { useToast } from '@/components/Toast';
+import { useToast } from '@/app/components/Toast';
 import { X, Search, Plus, Edit2, Power, Trash2, Loader2, CheckCircle } from 'lucide-react';
 
 interface WorksiteUser {

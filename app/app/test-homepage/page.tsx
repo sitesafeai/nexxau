@@ -1,11 +1,11 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import Navbar from '@/components/Navbar';
-import HowItWorks from '@/components/home/HowItWorks';
-import Industries from '@/components/home/Industries';
-import Stats from '@/components/home/Stats';
-import FAQ from '@/components/home/FAQ';
+import Navbar from '@/app/components/Navbar';
+import HowItWorks from '@/app/components/home/HowItWorks';
+import Industries from '@/app/components/home/Industries';
+import Stats from '@/app/components/home/Stats';
+import FAQ from '@/app/components/home/FAQ';
 import { ShieldCheckIcon, ChartBarIcon, BellIcon, CameraIcon, ExclamationTriangleIcon, CheckCircleIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 import { ArrowRightIcon } from '@heroicons/react/24/outline';
 import type { Metadata } from 'next';

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
-import { getCachedSession } from '@/app/lib/session-cache';
+import { prisma } from '@/lib/prisma';
+import { getCachedSession } from '@/lib/session-cache';
 
 /**
  * GET /api/admin/global-stats
