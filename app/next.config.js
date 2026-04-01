@@ -17,7 +17,7 @@ const nextConfig = {
     if (!isServer) {
       config.resolve.fallback = { fs: false, net: false, tls: false };
     }
-    config.resolve.alias['@'] = path.resolve(__dirname, '..');
+    config.resolve.alias['@'] = path.resolve(__dirname);
     return config;
   },
   experimental: {
