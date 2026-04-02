@@ -109,7 +109,7 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/jest": "^30.0.0",
-    "@types/node": "^20.19.19",
+    "@types/node": "^20.19.37",
     "@types/nodemailer": "^6.4.20",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18",
