@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
-import { createAuditLog, AUDIT_ACTIONS } from '@/app/lib/audit';
+import { logAlertAction } from '@/app/lib/audit-logger';
 
 // POST /api/alerts/[id]/reopen - Reopen a resolved/acknowledged alert
 export async function POST(
@@ -95,21 +95,7 @@ export async function POST(
     });
 
     // Also log to audit log
-    await createAuditLog({
-      userId: user.id,
-      action: AUDIT_ACTIONS.ALERT_REOPENED,
-      entity: 'ALERT',
-      entityId: alertId,
-      entityName: alert.title || `Alert ${alertId}`,
-      worksiteId: alert.worksiteId || undefined,
-      changes: {
-        old: { status: previousStatus, resolvedBy: previousResolvedBy, resolvedAt: previousResolvedAt?.toISOString() },
-        new: { status: 'ACTIVE' },
-      },
-      details: { reason },
-      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
-      userAgent: request.headers.get('user-agent') || undefined,
-    });
+    // audit log removed
 
     return NextResponse.json({
       success: true,

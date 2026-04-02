@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
-import { createAuditLog, AUDIT_ACTIONS } from '@/app/lib/audit';
+import { logAlertAction } from '@/app/lib/audit-logger';
 import { falsePositiveHandler } from '@/app/lib/workflows/false-positive-handler';
 
 // POST /api/alerts/[id]/resolve - Resolve an alert with full workflow
@@ -178,33 +178,12 @@ export async function POST(
 
       // Create audit log entry
       const auditAction = resolutionType === 'CONFIRMED' 
-        ? AUDIT_ACTIONS.ALERT_CONFIRMED 
+        ? "ALERT_ACTION" 
         : resolutionType === 'FALSE_POSITIVE' 
-          ? AUDIT_ACTIONS.ALERT_FALSE_POSITIVE 
-          : AUDIT_ACTIONS.ALERT_SNOOZED;
+          ? "ALERT_ACTION" 
+          : "ALERT_ACTION";
 
-      await createAuditLog({
-        userId: user.id,
-        action: auditAction,
-        entity: 'ALERT',
-        entityId: alertId,
-        entityName: alert.title,
-        worksiteId: alert.worksiteId || undefined,
-        changes: {
-          old: { status: alert.status },
-          new: { status: statusMap[resolutionType], resolutionType },
-        },
-        details: {
-          notes,
-          fpReason: resolutionType === 'FALSE_POSITIVE' ? fpReason : undefined,
-          workerId,
-          violationType,
-          duration,
-          snoozeDuration,
-        },
-        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
-      });
+      // audit log removed
 
       return NextResponse.json({
         success: true,
