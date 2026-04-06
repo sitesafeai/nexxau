@@ -26,8 +26,9 @@ export default function CameraTile({ camera, onDeleted, onUpdated }: CameraTileP
   const [showSettings, setShowSettings] = useState(false);
   const [overlayOn, setOverlayOn] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<any>(null);
 
-  const { stream, streamState, forceReconnect } = useGo2RTCStream({
+  const { stream, hlsUrl, streamState, forceReconnect } = useGo2RTCStream({
     cameraId: camera.id,
     autoPlay: true,
   });
@@ -38,6 +39,29 @@ export default function CameraTile({ camera, onDeleted, onUpdated }: CameraTileP
     }
   }, [stream]);
 
+  useEffect(() => {
+    if (!hlsUrl || !videoRef.current) return;
+    if (videoRef.current.srcObject) videoRef.current.srcObject = null;
+
+    import('hls.js').then(({ default: Hls }) => {
+      if (Hls.isSupported()) {
+        if (hlsRef.current) hlsRef.current.destroy();
+        const hls = new Hls();
+        hlsRef.current = hls;
+        hls.loadSource(hlsUrl);
+        hls.attachMedia(videoRef.current!);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          videoRef.current?.play().catch(() => {});
+        });
+      } else if (videoRef.current!.canPlayType('application/vnd.apple.mpegurl')) {
+        videoRef.current!.src = hlsUrl;
+        videoRef.current!.play().catch(() => {});
+      }
+    });
+
+    return () => { hlsRef.current?.destroy(); hlsRef.current = null; };
+  }, [hlsUrl]);
+
   const status =
     streamState?.status === 'connected' || streamState?.status === 'live'
       ? 'online'
@@ -46,11 +70,7 @@ export default function CameraTile({ camera, onDeleted, onUpdated }: CameraTileP
         : 'offline';
 
   const statusColor =
-    status === 'online'
-      ? 'bg-green-400'
-      : status === 'error'
-        ? 'bg-red-400'
-        : 'bg-slate-400';
+    status === 'online' ? 'bg-green-400' : status === 'error' ? 'bg-red-400' : 'bg-slate-400';
 
   const rulesCount = camera.rules?.length ?? 0;
 
@@ -58,79 +78,42 @@ export default function CameraTile({ camera, onDeleted, onUpdated }: CameraTileP
     <>
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
         <div className="relative aspect-video bg-slate-900">
-          <video
-            ref={videoRef}
-            autoPlay
-            muted
-            playsInline
-            className="w-full h-full object-cover"
-          />
+          <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
           {overlayOn && (
-            <RealtimeDetectionOverlay
-              cameraId={camera.id}
-              videoElement={videoRef.current}
-              isActive={overlayOn}
-            />
+            <RealtimeDetectionOverlay cameraId={camera.id} videoElement={videoRef.current} isActive={overlayOn} />
           )}
           <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-3 py-2 bg-gradient-to-b from-black/60 to-transparent">
             <div className="flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${statusColor}`} />
               <span className="text-white text-xs font-medium">{camera.name}</span>
               {(camera.zone || camera.location) && (
-                <span className="text-white/60 text-xs">
-                  {camera.zone ?? camera.location}
-                </span>
+                <span className="text-white/60 text-xs">{camera.zone ?? camera.location}</span>
               )}
             </div>
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => setOverlayOn((v) => !v)}
-                className="p-1.5 rounded-md bg-black/30 text-white hover:bg-black/50 transition-colors"
-                title={overlayOn ? 'Hide overlay' : 'Show overlay'}
-              >
+              <button onClick={() => setOverlayOn((v) => !v)} className="p-1.5 rounded-md bg-black/30 text-white hover:bg-black/50 transition-colors" title={overlayOn ? 'Hide overlay' : 'Show overlay'}>
                 {overlayOn ? <Eye size={14} /> : <EyeOff size={14} />}
               </button>
-              <button
-                onClick={() => setShowFullscreen(true)}
-                className="p-1.5 rounded-md bg-black/30 text-white hover:bg-black/50 transition-colors"
-                title="Fullscreen"
-              >
+              <button onClick={() => setShowFullscreen(true)} className="p-1.5 rounded-md bg-black/30 text-white hover:bg-black/50 transition-colors" title="Fullscreen">
                 <Maximize2 size={14} />
               </button>
-              <button
-                onClick={() => setShowSettings(true)}
-                className="p-1.5 rounded-md bg-black/30 text-white hover:bg-black/50 transition-colors"
-                title="Settings"
-              >
+              <button onClick={() => setShowSettings(true)} className="p-1.5 rounded-md bg-black/30 text-white hover:bg-black/50 transition-colors" title="Settings">
                 <Settings size={14} />
               </button>
             </div>
           </div>
         </div>
         <div className="px-3 py-2 flex items-center justify-between">
-          <span className="text-xs text-slate-500 dark:text-slate-400 capitalize">
-            {status}
-          </span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 capitalize">{status}</span>
           <span className="text-xs text-slate-400">{rulesCount} rules</span>
         </div>
       </div>
 
       {showFullscreen && (
-        <CameraFullscreenModal
-          camera={camera}
-          onClose={() => setShowFullscreen(false)}
-          initialStream={stream}
-        />
+        <CameraFullscreenModal camera={camera} onClose={() => setShowFullscreen(false)} initialStream={stream} />
       )}
-
       {showSettings && (
-        <CameraSettingsPanel
-          camera={camera}
-          onClose={() => setShowSettings(false)}
-          onDeleted={onDeleted}
-          onUpdated={onUpdated}
-          onReconnect={forceReconnect}
-        />
+        <CameraSettingsPanel camera={camera} onClose={() => setShowSettings(false)} onDeleted={onDeleted} onUpdated={onUpdated} onReconnect={forceReconnect} />
       )}
     </>
   );
