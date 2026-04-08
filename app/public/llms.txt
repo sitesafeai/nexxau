@@ -1,0 +1,52 @@
+# Nexxau
+
+> AI-powered PPE compliance monitoring platform for construction sites and warehouse operations. Nexxau uses real-time computer vision to detect missing personal protective equipment (hard hats, vests, gloves, goggles) and delivers instant violation alerts — helping safety managers prevent OSHA fines, reduce workers' comp claims, and fill coverage gaps left by foremen.
+
+Nexxau integrates with existing on-site IP cameras via RTSP streams and runs a YOLO-based inference pipeline to continuously monitor job sites at scale. It is a SaaS product with per-worksite and per-camera subscription pricing, designed for general contractors, construction companies, and safety-conscious operations.
+
+## Key Capabilities
+
+- Real-time PPE detection via YOLO computer vision (hard hats, vests, gloves, goggles)
+- RTSP camera ingestion with WebRTC live stream delivery to dashboard
+- Instant violation alerts via email (with snapshot images attached)
+- Supabase-backed violation logs with photo evidence for OSHA audit trails
+- Multi-site, multi-camera dashboard with compliance overview
+- Zone-based detection with speaker alert support
+- Compliance PDF reports and shift summary emails (roadmap)
+- Trends dashboard and analytics (roadmap)
+
+## Target Customers
+
+- General contractors and construction companies
+- Safety managers and HSE officers
+- Warehouse and logistics operations
+- Companies subject to OSHA PPE standards (29 CFR 1926 Subpart E)
+
+## Core Value Proposition
+
+Nexxau is not just a "helmet detector." It is an OSHA fine prevention and liability reduction system. Key outcomes for customers:
+
+- Avoid OSHA PPE violations (fines up to $16,131 per willful/repeat violation)
+- Build a documented audit trail for compliance inspections
+- Reduce workers' compensation claims from preventable PPE-related injuries
+- Extend safety coverage beyond what on-site foremen can manually monitor
+
+## Technical Stack
+
+- Frontend: Next.js (React)
+- Backend: Node.js / Express
+- Inference: Python / Flask with YOLO object detection
+- Database: Supabase (PostgreSQL)
+- Storage: Supabase Storage (violation snapshots)
+- Email alerts: Resend
+- Inference hosting: Railway
+- Frontend hosting: Vercel
+- Stream ingestion: go2rtc (RTSP → WebRTC)
+
+## Business Model
+
+Subscription SaaS — per-worksite and per-camera pricing. Insurance partnership integrations planned as a compliance incentive channel.
+
+## Optional: llms-full.txt
+
+For extended technical documentation, integration guides, and API references, see: /llms-full.txt (coming soon)

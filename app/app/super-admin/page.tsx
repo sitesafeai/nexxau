@@ -61,12 +61,15 @@ import {
   Zap,
   Trash2,
   RotateCcw,
-  Activity as ActivityIcon
+  Activity as ActivityIcon,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '@/app/lib/use-auth';
 import ContactInquiriesTab from '@/app/components/admin/ContactInquiriesTab';
 import FalsePositivesTab from '@/app/components/FalsePositivesTab';
 import PilotProgramsSection from '@/app/components/super-admin/PilotProgramsSection';
+import HomePageBannerSettingsPanel from '@/app/components/admin/HomePageBannerSettingsPanel';
+import { ToastContainer, useToast } from '@/app/components/Toast';
 type ClassValue = string | false | null | undefined;
 const classNames = (...classes: ClassValue[]) => classes.filter(Boolean).join(' ');
 
@@ -91,6 +94,103 @@ const normalizeStreamUrl = (url?: string | null) => {
   }
   return url;
 };
+
+/** API returns 0–100; some UI paths multiplied again (e.g. ×100 on top of percent). Clamp for display. */
+function normalizePercentMetric(raw: number | null | undefined): number | null {
+  if (raw == null || Number.isNaN(Number(raw))) return null;
+  let x = Number(raw);
+  if (x >= 0 && x <= 1) x *= 100;
+  if (x > 100 && x <= 10000) x /= 100;
+  return Math.min(100, Math.max(0, x));
+}
+
+async function downloadSitesafeReportPdf(options: {
+  payload: Record<string, unknown>;
+  filenameBase: string;
+  reportTitle: string;
+}) {
+  const { jsPDF } = await import('jspdf');
+  const { payload, filenameBase, reportTitle } = options;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const margin = 48;
+  const pageH = doc.internal.pageSize.getHeight();
+  const pageW = doc.internal.pageSize.getWidth();
+  const maxW = pageW - margin * 2;
+  let y = margin;
+
+  const ensureSpace = (needed: number) => {
+    if (y + needed > pageH - margin) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  const addParagraph = (text: string, fontSize = 10, lineGap = 1.35) => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(fontSize);
+    const lines = doc.splitTextToSize(text, maxW);
+    const lh = fontSize * lineGap;
+    for (const line of lines) {
+      ensureSpace(lh + 2);
+      doc.text(line, margin, y);
+      y += lh;
+    }
+  };
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.text('SiteSafe', margin, y);
+  y += 26;
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100);
+  addParagraph('Super Admin — executive analytics export', 11);
+  doc.setTextColor(0);
+  y += 6;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  ensureSpace(24);
+  doc.text(reportTitle, margin, y);
+  y += 22;
+
+  const generatedAt =
+    typeof payload.generatedAt === 'string' ? payload.generatedAt : new Date().toISOString();
+  addParagraph(`Generated: ${new Date(generatedAt).toLocaleString()}`, 10);
+  y += 4;
+
+  const filters = payload.filters as Record<string, unknown> | undefined;
+  if (filters) {
+    addParagraph('Scope & filters', 11);
+    doc.setFont('helvetica', 'normal');
+    addParagraph(
+      [
+        `Time range: ${String(filters.timeRange ?? '—')}`,
+        `Company: ${filters.companyId ? String(filters.companyId) : 'All companies'}`,
+        `Worksite: ${filters.worksiteId ? String(filters.worksiteId) : 'All worksites'}`,
+      ].join('\n'),
+      10
+    );
+    y += 8;
+  }
+
+  addParagraph(
+    'Structured data below matches the JSON export. Use JSON for automation; this PDF is a shareable snapshot.',
+    9
+  );
+  y += 10;
+
+  doc.setDrawColor(200);
+  doc.line(margin, y, pageW - margin, y);
+  y += 14;
+
+  addParagraph('Report payload (JSON)', 11);
+  y += 4;
+  const jsonBody = JSON.stringify(payload, null, 2);
+  addParagraph(jsonBody, 8, 1.25);
+
+  doc.save(`${filenameBase}.pdf`);
+}
 
 interface SummaryTotals {
   companies: number;
@@ -154,12 +254,6 @@ interface CameraStatusSummary {
   other: number;
 }
 
-interface SubscriptionSummary {
-  totalCompanies: number;
-  placeholder?: boolean;
-  message?: string;
-}
-
 interface CompanyWorksiteSnapshot {
   id: string;
   name: string;
@@ -177,6 +271,8 @@ interface AdminCompanySummary {
   email?: string | null;
   phone?: string | null;
   address?: string | null;
+  /** Tenant suspended by platform admin */
+  suspended?: boolean;
   worksiteCount: number;
   userCount: number;
   cameraCount: number;
@@ -335,6 +431,522 @@ interface UsersRolesSectionProps {
   worksites: AdminWorksiteSummary[] | null;
   onRefresh: () => void;
   companiesLoading?: boolean;
+}
+
+/** Super-admin user directory row (matches GET /api/admin/users) */
+interface SuperAdminUserRow {
+  id: string;
+  name: string | null;
+  email: string | null;
+  role: string;
+  companyId: string | null;
+  worksiteId: string | null;
+  isActivated: boolean;
+  approved: boolean;
+  mfaEnabled: boolean;
+  lastLogin: string | null;
+  createdAt: string;
+  inviteExpires: string | null;
+  company: { id: string; name: string } | null;
+  worksite: { id: string; name: string; companyId: string } | null;
+  worksiteAccess: Array<{
+    id: string;
+    worksiteId: string;
+    role: string;
+    worksite: { id: string; name: string; companyId: string };
+  }>;
+  companyAccess: Array<{
+    id: string;
+    companyId: string;
+    role: string;
+    company: { id: string; name: string };
+  }>;
+}
+
+const CLIENT_USER_ROLES = ['COMPANY_ADMIN', 'SITE_ADMIN', 'SUPERVISOR', 'WORKER', 'VIEWER'] as const;
+const WORKSITE_ACCESS_ROLES = ['ADMIN', 'SUPERVISOR', 'WORKER', 'VIEWER'] as const;
+
+function mapAdminUserDetail(d: Record<string, unknown>): SuperAdminUserRow {
+  return {
+    id: String(d.id),
+    name: (d.name as string | null) ?? null,
+    email: (d.email as string | null) ?? null,
+    role: String(d.role),
+    companyId: (d.companyId as string | null) ?? null,
+    worksiteId: (d.worksiteId as string | null) ?? null,
+    isActivated: Boolean(d.isActivated),
+    approved: Boolean(d.approved),
+    mfaEnabled: Boolean(d.mfaEnabled),
+    lastLogin: (d.lastLogin as string | null) ?? null,
+    createdAt: String(d.createdAt),
+    inviteExpires: (d.inviteExpires as string | null) ?? null,
+    company: (d.company as SuperAdminUserRow['company']) ?? null,
+    worksite: (d.worksite as SuperAdminUserRow['worksite']) ?? null,
+    worksiteAccess: (d.worksiteAccess as SuperAdminUserRow['worksiteAccess']) ?? [],
+    companyAccess: (d.companyAccess as SuperAdminUserRow['companyAccess']) ?? [],
+  };
+}
+
+function SuperAdminUserManageModal({
+  user,
+  companies,
+  worksites,
+  currentUserId,
+  onClose,
+  onSaved,
+}: {
+  user: SuperAdminUserRow;
+  companies: AdminCompanySummary[] | null;
+  worksites: AdminWorksiteSummary[] | null;
+  currentUserId: string | undefined;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(user.name || '');
+  const [email, setEmail] = useState(user.email || '');
+  const [role, setRole] = useState(user.role);
+  const [companyId, setCompanyId] = useState(user.companyId || '');
+  const [worksiteId, setWorksiteId] = useState(user.worksiteId || '');
+  const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [addWsId, setAddWsId] = useState('');
+  const [addWsRole, setAddWsRole] = useState<(typeof WORKSITE_ACCESS_ROLES)[number]>('WORKER');
+  const [accessBusy, setAccessBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    setName(user.name || '');
+    setEmail(user.email || '');
+    setRole(user.role);
+    setCompanyId(user.companyId || '');
+    setWorksiteId(user.worksiteId || '');
+    setPassword('');
+    setPasswordConfirm('');
+    setFeedback(null);
+    setError(null);
+    setAddWsId('');
+  }, [user]);
+
+  const isSuper = (user.role || '').toUpperCase() === 'SUPER_ADMIN';
+
+  const platformRoleOptions = useMemo(() => {
+    const r = user.role;
+    if (CLIENT_USER_ROLES.includes(r as (typeof CLIENT_USER_ROLES)[number])) {
+      return [...CLIENT_USER_ROLES];
+    }
+    return [r, ...CLIENT_USER_ROLES];
+  }, [user.role]);
+
+  const companyWorksites = useMemo(() => {
+    if (!worksites) return [];
+    if (!companyId) return worksites;
+    return worksites.filter((w) => w.companyId === companyId);
+  }, [worksites, companyId]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    setFeedback(null);
+    try {
+      const body: Record<string, unknown> = {
+        name: name.trim() || null,
+        email: email.trim() || null,
+        role,
+        companyId: companyId || null,
+        worksiteId: worksiteId || null,
+      };
+      if (password) {
+        if (password !== passwordConfirm) {
+          setError('Passwords do not match.');
+          setSaving(false);
+          return;
+        }
+        if (password.length < 8) {
+          setError('Password must be at least 8 characters.');
+          setSaving(false);
+          return;
+        }
+        body.password = password;
+      }
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || json?.details || `Save failed (${res.status})`);
+      }
+      setFeedback('User updated.');
+      setPassword('');
+      setPasswordConfirm('');
+      onSaved();
+    } catch (e: any) {
+      setError(e?.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const sendResetLink = async () => {
+    setError(null);
+    setFeedback(null);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/reset-password`, { method: 'POST' });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || `Request failed (${res.status})`);
+      }
+      setFeedback('Password reset email sent.');
+    } catch (e: any) {
+      setError(e?.message || 'Could not send reset email');
+    }
+  };
+
+  const toggleSuspend = async (suspend: boolean) => {
+    setError(null);
+    setFeedback(null);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          suspend
+            ? { approved: false, isActivated: false }
+            : { approved: true, isActivated: true }
+        ),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || `Request failed (${res.status})`);
+      }
+      setFeedback(suspend ? 'User suspended.' : 'User reactivated.');
+      onSaved();
+    } catch (e: any) {
+      setError(e?.message || 'Action failed');
+    }
+  };
+
+  const removeUser = async () => {
+    if (!confirm(`Delete user ${user.email || user.id}? This cannot be undone.`)) return;
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || `Delete failed (${res.status})`);
+      }
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      setError(e?.message || 'Delete failed');
+    }
+  };
+
+  const addWorksiteAccess = async () => {
+    if (!addWsId) return;
+    setAccessBusy('add');
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/worksite-access`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ worksiteId: addWsId, role: addWsRole }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || json?.details || 'Failed to add access');
+      }
+      setFeedback('Worksite access updated.');
+      setAddWsId('');
+      onSaved();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to add worksite access');
+    } finally {
+      setAccessBusy(null);
+    }
+  };
+
+  const removeWorksiteAccess = async (wsId: string) => {
+    setAccessBusy(wsId);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/users/${user.id}/worksite-access?worksiteId=${encodeURIComponent(wsId)}`,
+        { method: 'DELETE' }
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || 'Failed to remove access');
+      }
+      setFeedback('Access removed.');
+      onSaved();
+    } catch (e: any) {
+      setError(e?.message || 'Remove failed');
+    } finally {
+      setAccessBusy(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-950 p-6 shadow-xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Manage user</h3>
+            <p className="text-xs text-slate-500 font-mono">{user.id}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {feedback && (
+          <div className="mt-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+            {feedback}
+          </div>
+        )}
+        {error && (
+          <div className="mt-4 rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-6 space-y-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Name</label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Platform role</label>
+            {isSuper ? (
+              <p className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                SUPER_ADMIN — change role only from database if needed; demotion is restricted when you are the last admin.
+              </p>
+            ) : (
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+              >
+                {platformRoleOptions.map((r) => (
+                  <option key={r} value={r}>
+                    {r.replace(/_/g, ' ')}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Primary company</label>
+              <select
+                value={companyId}
+                onChange={(e) => {
+                  setCompanyId(e.target.value);
+                  setWorksiteId('');
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+              >
+                <option value="">— None —</option>
+                {(companies || []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Primary worksite</label>
+              <select
+                value={worksiteId}
+                onChange={(e) => setWorksiteId(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+              >
+                <option value="">— None —</option>
+                {companyWorksites.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Set password (optional)</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Sets password immediately. Leave blank to keep the current password or use “Send reset link” instead.
+            </p>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="New password"
+                autoComplete="new-password"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+              />
+              <input
+                type="password"
+                value={passwordConfirm}
+                onChange={(e) => setPasswordConfirm(e.target.value)}
+                placeholder="Confirm"
+                autoComplete="new-password"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+              />
+            </div>
+          </div>
+
+          {!isSuper && (
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+              <p className="text-sm font-semibold text-white">Per-worksite access</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Fine-grained roles at each site (in addition to primary worksite above).
+              </p>
+              <div className="mt-3 space-y-2">
+                {user.worksiteAccess.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 px-3 py-2 text-sm"
+                  >
+                    <span className="text-slate-300">
+                      {a.worksite.name}{' '}
+                      <span className="text-slate-500">({a.role})</span>
+                    </span>
+                    <button
+                      type="button"
+                      disabled={accessBusy === a.worksiteId}
+                      onClick={() => removeWorksiteAccess(a.worksiteId)}
+                      className="text-xs font-semibold text-red-300 hover:text-red-200"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                {user.worksiteAccess.length === 0 && (
+                  <p className="text-xs text-slate-500">No extra worksite roles.</p>
+                )}
+              </div>
+              <div className="mt-4 flex flex-wrap items-end gap-2">
+                <div className="min-w-[160px] flex-1">
+                  <label className="text-[10px] uppercase text-slate-500">Add worksite</label>
+                  <select
+                    value={addWsId}
+                    onChange={(e) => setAddWsId(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-sm text-white"
+                  >
+                    <option value="">Select…</option>
+                    {companyWorksites
+                      .filter((w) => !user.worksiteAccess.some((a) => a.worksiteId === w.id))
+                      .map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div className="w-36">
+                  <label className="text-[10px] uppercase text-slate-500">Site role</label>
+                  <select
+                    value={addWsRole}
+                    onChange={(e) => setAddWsRole(e.target.value as (typeof WORKSITE_ACCESS_ROLES)[number])}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-sm text-white"
+                  >
+                    {WORKSITE_ACCESS_ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  disabled={!addWsId || accessBusy === 'add'}
+                  onClick={addWorksiteAccess}
+                  className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2 border-t border-slate-800 pt-4">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+            <button
+              type="button"
+              onClick={sendResetLink}
+              disabled={isSuper}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Mail className="h-4 w-4" />
+              Send password reset link
+            </button>
+            {user.approved ? (
+              <button
+                type="button"
+                onClick={() => toggleSuspend(true)}
+                className="inline-flex items-center gap-2 rounded-lg border border-amber-600/50 px-4 py-2 text-sm text-amber-200 hover:bg-amber-950/40"
+              >
+                <Ban className="h-4 w-4" />
+                Suspend
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => toggleSuspend(false)}
+                className="inline-flex items-center gap-2 rounded-lg border border-emerald-600/50 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-950/30"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Reactivate
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={removeUser}
+              disabled={user.id === currentUserId}
+              className="ml-auto inline-flex items-center gap-2 rounded-lg border border-red-600/50 px-4 py-2 text-sm text-red-200 hover:bg-red-950/40 disabled:opacity-40"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete user
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function OnboardingSection({
@@ -1195,7 +1807,6 @@ interface SuperAdminOverviewResponse {
       detectionTrend: TrendPoint[];
     };
     cameraStatus: CameraStatusSummary;
-    subscription: SubscriptionSummary;
   };
 }
 
@@ -1230,6 +1841,7 @@ function SuperAdminDashboardPageContent() {
     redirectTo: '/login',
   });
 
+  const toast = useToast();
   const [activeSection, setActiveSection] = useState<typeof NAVIGATION[number]['key']>('overview');
   const searchParams = useSearchParams();
   const [timeRange, setTimeRange] = useState<TimeRangeOption>('30d');
@@ -1551,6 +2163,11 @@ function SuperAdminDashboardPageContent() {
     []
   );
 
+  const loadSupportDirectory = useCallback(() => {
+    fetchCompanies().catch(() => undefined);
+    fetchWorksites(undefined).catch(() => undefined);
+  }, [fetchCompanies, fetchWorksites]);
+
   const fetchCameras = useCallback(
     async (
       companyId?: string,
@@ -1672,6 +2289,16 @@ function SuperAdminDashboardPageContent() {
     fetchCameras,
     fetchWorksites,
   ]);
+
+  useEffect(() => {
+    if (activeSection === 'users') {
+      const controller = new AbortController();
+      fetchCompanies(controller.signal).catch(() => undefined);
+      fetchWorksites(undefined, controller.signal).catch(() => undefined);
+      return () => controller.abort();
+    }
+    return undefined;
+  }, [activeSection, fetchCompanies, fetchWorksites]);
 
   useEffect(() => {
     setSelectedCamerasWorksite('ALL');
@@ -1812,13 +2439,14 @@ function SuperAdminDashboardPageContent() {
   );
 
   const complianceAverage = useMemo(() => {
-    if (!data?.summary.complianceRate) return null;
-    return Number(data.summary.complianceRate.toFixed(1));
+    const r = data?.summary.complianceRate;
+    if (r == null || Number.isNaN(Number(r))) return null;
+    return Number(Number(r).toFixed(1));
   }, [data?.summary.complianceRate]);
 
   const uptimePercentage = useMemo(() => {
     if (!data?.summary.cameraUptime && data?.summary.cameraUptime !== 0) return null;
-    return data.summary.cameraUptime;
+    return normalizePercentMetric(data.summary.cameraUptime);
   }, [data?.summary.cameraUptime]);
 
   const renderContent = () => {
@@ -1877,6 +2505,8 @@ function SuperAdminDashboardPageContent() {
             loading={companiesLoading}
             error={companiesError}
             onRefresh={() => fetchCompanies().catch(() => undefined)}
+            onSuccess={toast.success}
+            onError={toast.error}
           />
         );
       case 'worksites':
@@ -1994,9 +2624,7 @@ function SuperAdminDashboardPageContent() {
           <ComingSoon
             title="AI & Detection Settings"
             description="Roll out YOLO model updates, manage inference thresholds, and audit detection performance."
-            actions={[
-              { label: 'Open AI training workspace', href: '/dashboard/ai-training' },
-            ]}
+            actions={[]}
           />
         );
       case 'false-positives':
@@ -2027,7 +2655,13 @@ function SuperAdminDashboardPageContent() {
         );
       case 'support':
         return (
-          <SupportAuditSection onRefresh={() => fetchOverview().catch(() => undefined)} />
+          <SupportAuditSection
+            companies={companiesData}
+            worksites={worksitesData}
+            companiesLoading={companiesLoading}
+            worksitesLoading={worksitesLoading}
+            onLoadDirectory={loadSupportDirectory}
+          />
         );
       case 'extras':
         return (
@@ -2056,6 +2690,7 @@ function SuperAdminDashboardPageContent() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
+      <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
       <div className="flex min-h-screen">
         <aside className="hidden lg:flex lg:w-72 lg:flex-col overflow-y-auto border-r border-slate-800/80 bg-slate-950/70 backdrop-blur lg:sticky lg:top-0 lg:h-screen">
           <div className="flex h-20 items-center gap-3 border-b border-slate-800/60 px-6">
@@ -2198,7 +2833,7 @@ function OverviewSection({
     );
   }
 
-  const { summary, alerts, companies, worksiteActivity, charts, cameraStatus, subscription } = data;
+  const { summary, alerts, companies, worksiteActivity, charts, cameraStatus } = data;
 
   return (
     <div className="space-y-8">
@@ -2397,6 +3032,7 @@ function OverviewSection({
             valueKey="value"
             suffix="%"
             color="#38bdf8"
+            valueTooltipLabel="Avg. safety score"
           />
           <TrendPanel
             title="Detection Volume"
@@ -2405,6 +3041,7 @@ function OverviewSection({
             data={charts.detectionTrend}
             valueKey="detections"
             color="#a855f7"
+            valueTooltipLabel="Detections (day)"
           />
         </div>
       </div>
@@ -2501,21 +3138,6 @@ function OverviewSection({
         </div>
       </div>
 
-      {subscription.placeholder && (
-        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-6 text-amber-100">
-          <div className="flex items-center gap-3">
-            <DollarSign className="h-5 w-5" />
-            <div>
-              <h3 className="text-lg font-semibold text-white">Billing dashboard coming soon</h3>
-              <p className="text-sm text-amber-100/80">
-                {subscription.message ||
-                  'Revenue analytics will surface once billing integration is connected. This card tracks readiness.'}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {error && (
         <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-200">
           {error}
@@ -2536,9 +3158,11 @@ interface CompaniesSectionProps {
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
+  onSuccess: (title: string, message?: string) => void;
+  onError: (title: string, message?: string) => void;
 }
 
-function CompaniesSection({ companies, loading, error, onRefresh }: CompaniesSectionProps) {
+function CompaniesSection({ companies, loading, error, onRefresh, onSuccess, onError }: CompaniesSectionProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'created' | 'worksites' | 'users' | 'cameras'>('created');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -2867,6 +3491,9 @@ function CompaniesSection({ companies, loading, error, onRefresh }: CompaniesSec
                   <CompanyCard 
                     key={company.id} 
                     company={company}
+                    onCompanyMutated={onRefresh}
+                    onSuccess={onSuccess}
+                    onError={onError}
                   />
                 ))}
               </div>
@@ -3149,7 +3776,19 @@ function CompanyDetailDrawer({
   );
 }
 
-function CompanyCard({ company, onClick }: { company: AdminCompanySummary; onClick?: () => void }) {
+function CompanyCard({
+  company,
+  onClick,
+  onCompanyMutated,
+  onSuccess,
+  onError,
+}: {
+  company: AdminCompanySummary;
+  onClick?: () => void;
+  onCompanyMutated: () => void;
+  onSuccess: (title: string, message?: string) => void;
+  onError: (title: string, message?: string) => void;
+}) {
   const [showDetails, setShowDetails] = useState(false);
   const [companyDetails, setCompanyDetails] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -3205,9 +3844,15 @@ function CompanyCard({ company, onClick }: { company: AdminCompanySummary; onCli
   };
 
   const handleAction = async (action: string, userId?: string) => {
-    setActionLoading(action);
+    const loadingId =
+      action === 'reset-password' && userId
+        ? `reset-password-${userId}`
+        : action === 'suspend-user' && userId
+          ? `suspend-user-${userId}`
+          : action;
+    setActionLoading(loadingId);
     try {
-      let response;
+      let response: Response | undefined;
       switch (action) {
         case 'reset-password':
           if (!userId) break;
@@ -3215,38 +3860,89 @@ function CompanyCard({ company, onClick }: { company: AdminCompanySummary; onCli
             method: 'POST',
           });
           break;
-        case 'suspend':
+        case 'suspend-user':
+          if (!userId) break;
+          response = await fetch(`/api/admin/users/${userId}/suspend`, {
+            method: 'POST',
+          });
+          break;
+        case 'company-suspend':
           response = await fetch(`/api/admin/companies/${company.id}/suspend`, {
             method: 'POST',
           });
           break;
-        case 'unsuspend':
+        case 'company-unsuspend':
           response = await fetch(`/api/admin/companies/${company.id}/unsuspend`, {
             method: 'POST',
           });
           break;
         case 'impersonate':
-          // Create impersonation session
           response = await fetch(`/api/admin/companies/${company.id}/impersonate`, {
             method: 'POST',
           });
           if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.data?.token) {
-              // Store token and redirect
-              window.location.href = `/dashboard?impersonate=${data.data.token}`;
+            const data = await response.json().catch(() => null);
+            if (data?.success && data.data?.token) {
+              onSuccess('Impersonation started', `Switching into ${company.name}...`);
+              window.location.href = `/auth/impersonate?token=${encodeURIComponent(data.data.token)}`;
+              return;
             }
+            onError('Impersonation failed', data?.error || 'No token returned');
+            return;
+          }
+          break;
+        case 'delete':
+          response = await fetch(`/api/admin/companies/${company.id}`, {
+            method: 'DELETE',
+          });
+          if (response.ok) {
+            const data = await response.json().catch(() => null);
+            setShowDetails(false);
+            onSuccess('Company removed', data?.message || `${company.name} was removed.`);
+            onCompanyMutated();
+            return;
           }
           break;
         default:
           break;
       }
-      if (response && response.ok) {
+      if (response) {
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data?.success) {
+          const message =
+            data?.error ||
+            data?.details ||
+            `Request failed (${response.status})`;
+          onError('Action failed', message);
+          return;
+        }
+
+        switch (action) {
+          case 'reset-password':
+            onSuccess('Password reset triggered');
+            break;
+          case 'suspend-user':
+            onSuccess('User suspended');
+            break;
+          case 'company-suspend':
+            onSuccess('Company suspended', `${company.name} is now suspended.`);
+            onCompanyMutated();
+            break;
+          case 'company-unsuspend':
+            onSuccess('Company unsuspended', `${company.name} is now active.`);
+            onCompanyMutated();
+            break;
+          default:
+            onSuccess('Success');
+            break;
+        }
+
         await fetchCompanyDetails();
         await fetchCompanyUsers();
       }
     } catch (error) {
       console.error(`Failed to ${action}:`, error);
+      onError('Action failed', error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setActionLoading(null);
     }
@@ -3260,6 +3956,11 @@ function CompanyCard({ company, onClick }: { company: AdminCompanySummary; onCli
           <h3 className="text-xl font-semibold text-white group-hover:text-blue-300 truncate">
             {company.name}
           </h3>
+          {company.suspended && (
+            <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-amber-400/90">
+              Suspended
+            </p>
+          )}
           {company.email && (
             <p className="mt-1 text-sm text-slate-400 truncate">{company.email}</p>
           )}
@@ -3558,12 +4259,12 @@ function CompanyManagementModal({
                             )}
                           </button>
                           <button
-                            onClick={() => onAction('suspend', admin.id)}
-                            disabled={actionLoading === `suspend-${admin.id}`}
+                            onClick={() => onAction('suspend-user', admin.id)}
+                            disabled={actionLoading === `suspend-user-${admin.id}`}
                             className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:opacity-60"
                             title="Suspend user"
                           >
-                            {actionLoading === `suspend-${admin.id}` ? (
+                            {actionLoading === `suspend-user-${admin.id}` ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
                               <Ban className="h-3 w-3" />
@@ -3663,33 +4364,33 @@ function CompanyManagementModal({
                   <button
                     onClick={() => {
                       if (confirm(`Are you sure you want to suspend ${company.name}? This will prevent all users from accessing the platform.`)) {
-                        onAction('suspend');
+                        onAction('company-suspend');
                       }
                     }}
-                    disabled={actionLoading === 'suspend'}
+                    disabled={actionLoading === 'company-suspend'}
                     className="w-full rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:opacity-60 flex items-center justify-between"
                   >
                     <span className="flex items-center gap-2">
                       <Ban className="h-4 w-4" />
                       Suspend Company Account
                     </span>
-                    {actionLoading === 'suspend' && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {actionLoading === 'company-suspend' && <Loader2 className="h-4 w-4 animate-spin" />}
                   </button>
 
                   <button
                     onClick={() => {
                       if (confirm(`Are you sure you want to unsuspend ${company.name}?`)) {
-                        onAction('unsuspend');
+                        onAction('company-unsuspend');
                       }
                     }}
-                    disabled={actionLoading === 'unsuspend'}
+                    disabled={actionLoading === 'company-unsuspend'}
                     className="w-full rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:opacity-60 flex items-center justify-between"
                   >
                     <span className="flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4" />
                       Unsuspend Company Account
                     </span>
-                    {actionLoading === 'unsuspend' && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {actionLoading === 'company-unsuspend' && <Loader2 className="h-4 w-4 animate-spin" />}
                   </button>
 
                   <button
@@ -3710,11 +4411,22 @@ function CompanyManagementModal({
 
                   <button
                     onClick={() => {
-                      if (confirm(`Delete ${company.name} permanently? This will delete all worksites, cameras, users, and data. This action CANNOT be undone.`)) {
-                        if (confirm('This is your LAST WARNING. Type the company name to confirm deletion.')) {
-                          onAction('delete');
-                        }
+                      if (
+                        !confirm(
+                          `Remove ${company.name} from the platform? This soft-deletes the tenant and signs everyone out. This is intended for offboarding — confirm only if you mean it.`
+                        )
+                      ) {
+                        return;
                       }
+                      const typed = window.prompt(
+                        `Type the company name exactly as shown to confirm:\n\n${company.name}`
+                      );
+                      if (typed === null) return;
+                      if (typed !== company.name) {
+                        window.alert('Name did not match. Deletion cancelled.');
+                        return;
+                      }
+                      onAction('delete');
                     }}
                     disabled={actionLoading === 'delete'}
                     className="w-full rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/20 disabled:opacity-60 flex items-center justify-between"
@@ -4258,37 +4970,50 @@ function ReportsSection({
   );
 
   const handleExport = useCallback(
-    (datasetKey: ReportDataset['key']) => {
+    async (datasetKey: ReportDataset['key'], format: 'json' | 'pdf') => {
       setExportError(null);
-      setExportingKey(datasetKey);
+      setExportingKey(`${datasetKey}-${format}`);
       try {
-        const payload = buildReportPayload(datasetKey);
-        const blob = new Blob([JSON.stringify(payload, null, 2)], {
-          type: 'application/json',
-        });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
+        const payload = buildReportPayload(datasetKey) as Record<string, unknown>;
         const companySegment =
           selectedCompany !== 'ALL' ? `company-${selectedCompany}` : 'all-companies';
         const worksiteSegment =
           selectedWorksite !== 'ALL' ? `worksite-${selectedWorksite}` : 'all-worksites';
-        link.href = url;
-        link.download = `${datasetKey}-${companySegment}-${worksiteSegment}-${timeRange}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        const baseName = `${datasetKey}-${companySegment}-${worksiteSegment}-${timeRange}`;
+
+        if (format === 'json') {
+          const blob = new Blob([JSON.stringify(payload, null, 2)], {
+            type: 'application/json',
+          });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `${baseName}.json`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        } else {
+          const meta = datasets.find((d) => d.key === datasetKey);
+          await downloadSitesafeReportPdf({
+            payload,
+            filenameBase: baseName,
+            reportTitle: meta?.title ?? datasetKey,
+          });
+        }
       } catch (err: any) {
         setExportError(err?.message || 'Unable to export report.');
       } finally {
         setExportingKey(null);
       }
     },
-    [buildReportPayload, selectedCompany, selectedWorksite, timeRange]
+    [buildReportPayload, datasets, selectedCompany, selectedWorksite, timeRange]
   );
 
   const complianceRate = overview?.summary.complianceRate ?? null;
   const cameraUptime = overview?.summary.cameraUptime ?? null;
+  const complianceDisplayPct = normalizePercentMetric(complianceRate);
+  const cameraUptimeDisplayPct = normalizePercentMetric(cameraUptime);
 
   return (
     <div className="space-y-6">
@@ -4326,20 +5051,24 @@ function ReportsSection({
           <MetricCard
             title="Global Compliance"
             value={
-              complianceRate !== null ? `${(complianceRate * 100).toFixed(1)}%` : 'Pending'
+              complianceDisplayPct !== null ? `${complianceDisplayPct.toFixed(1)}%` : 'Pending'
             }
             subtitle="Average across all monitored worksites"
             icon={ShieldCheck}
             accent="emerald"
-            percentage={complianceRate !== null ? complianceRate * 100 : undefined}
+            percentage={complianceDisplayPct ?? undefined}
           />
           <MetricCard
             title="Camera Uptime"
-            value={cameraUptime !== null ? `${(cameraUptime * 100).toFixed(1)}%` : 'Pending'}
+            value={
+              cameraUptimeDisplayPct !== null
+                ? `${cameraUptimeDisplayPct.toFixed(1)}%`
+                : 'Pending'
+            }
             subtitle="Active cameras during selected window"
             icon={Activity}
             accent="violet"
-            percentage={cameraUptime !== null ? cameraUptime * 100 : undefined}
+            percentage={cameraUptimeDisplayPct ?? undefined}
           />
         </div>
 
@@ -4350,19 +5079,37 @@ function ReportsSection({
             <div className="flex items-end gap-1 h-16">
               {overview.charts.detectionTrend.slice(-14).map((point, i) => {
                 const pointValue = point.detections ?? point.value ?? 0;
-                const maxValue = Math.max(...overview.charts.detectionTrend.slice(-14).map(p => p.detections ?? p.value ?? 0), 1);
+                const maxValue = Math.max(
+                  ...overview.charts.detectionTrend
+                    .slice(-14)
+                    .map((p) => p.detections ?? p.value ?? 0),
+                  1
+                );
                 const height = (pointValue / maxValue) * 100;
                 return (
-                  <div 
-                    key={i} 
-                    className="flex-1 bg-blue-500/60 hover:bg-blue-500 rounded-t transition-all"
-                    style={{ height: `${Math.max(height, 5)}%` }}
-                    title={`${point.date}: ${pointValue} detections`}
-                  />
+                  <div key={i} className="group relative flex h-full flex-1 flex-col justify-end">
+                    <div
+                      className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 w-max max-w-[160px] -translate-x-1/2 rounded-lg border border-slate-600 bg-slate-900/95 px-2.5 py-1.5 text-left text-[10px] text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100"
+                      role="tooltip"
+                    >
+                      <p className="font-semibold text-slate-200">{point.date}</p>
+                      <p className="mt-0.5 text-slate-300">
+                        {pointValue.toLocaleString()}{' '}
+                        <span className="text-slate-500">detections</span>
+                      </p>
+                    </div>
+                    <div
+                      className="w-full min-h-[4px] cursor-crosshair rounded-t bg-blue-500/60 transition-all group-hover:bg-blue-400"
+                      style={{ height: `${Math.max(height, 5)}%` }}
+                    />
+                  </div>
                 );
               })}
             </div>
-            <p className="text-[10px] text-slate-500 mt-2">Last {Math.min(overview.charts.detectionTrend.length, 14)} data points</p>
+            <p className="text-[10px] text-slate-500 mt-2">
+              Last {Math.min(overview.charts.detectionTrend.length, 14)} data points — hover for
+              counts
+            </p>
           </div>
         )}
       </div>
@@ -4410,8 +5157,10 @@ function ReportsSection({
             <ReportCard
               key={dataset.key}
               dataset={dataset}
-              onExport={() => handleExport(dataset.key)}
-              exporting={exportingKey === dataset.key}
+              onExportJson={() => handleExport(dataset.key, 'json')}
+              onExportPdf={() => handleExport(dataset.key, 'pdf')}
+              exportingJson={exportingKey === `${dataset.key}-json`}
+              exportingPdf={exportingKey === `${dataset.key}-pdf`}
             />
           ))}
         </div>
@@ -6196,11 +6945,63 @@ function UsersRolesSection({
   const [permissions, setPermissions] = useState<any>(null);
   const [permissionsLoading, setPermissionsLoading] = useState(false);
 
+  const [directoryUsers, setDirectoryUsers] = useState<SuperAdminUserRow[]>([]);
+  const [directoryLoading, setDirectoryLoading] = useState(false);
+  const [directoryError, setDirectoryError] = useState<string | null>(null);
+  const [dirCompanyId, setDirCompanyId] = useState('');
+  const [dirWorksiteId, setDirWorksiteId] = useState('');
+  const [userSearch, setUserSearch] = useState('');
+  const [manageUser, setManageUser] = useState<SuperAdminUserRow | null>(null);
+
   // Filter worksites based on selected company
   const availableWorksites = useMemo(() => {
     if (!inviteForm.companyId || !worksites) return [];
     return worksites.filter((w) => w.companyId === inviteForm.companyId);
   }, [worksites, inviteForm.companyId]);
+
+  const directoryWorksites = useMemo(() => {
+    if (!worksites) return [];
+    if (!dirCompanyId) return worksites;
+    return worksites.filter((w) => w.companyId === dirCompanyId);
+  }, [worksites, dirCompanyId]);
+
+  const fetchDirectoryUsers = useCallback(async () => {
+    setDirectoryLoading(true);
+    setDirectoryError(null);
+    try {
+      const q = new URLSearchParams();
+      if (dirCompanyId) q.set('companyId', dirCompanyId);
+      if (dirWorksiteId) q.set('worksiteId', dirWorksiteId);
+      const response = await fetch(`/api/admin/users?${q.toString()}`, { cache: 'no-store' });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || result?.details || `Failed to load users (${response.status})`);
+      }
+      setDirectoryUsers(Array.isArray(result.data) ? result.data : []);
+    } catch (err: any) {
+      setDirectoryError(err?.message || 'Unable to load users');
+      setDirectoryUsers([]);
+    } finally {
+      setDirectoryLoading(false);
+    }
+  }, [dirCompanyId, dirWorksiteId]);
+
+  useEffect(() => {
+    fetchDirectoryUsers();
+  }, [fetchDirectoryUsers]);
+
+  useEffect(() => {
+    setDirWorksiteId('');
+  }, [dirCompanyId]);
+
+  const filteredDirectoryUsers = useMemo(() => {
+    const term = userSearch.trim().toLowerCase();
+    if (!term) return directoryUsers;
+    return directoryUsers.filter((u) => {
+      const hay = `${u.name || ''} ${u.email || ''} ${u.role}`.toLowerCase();
+      return hay.includes(term);
+    });
+  }, [directoryUsers, userSearch]);
 
   const companyOptions = useMemo(
     () =>
@@ -6357,6 +7158,152 @@ function UsersRolesSection({
             icon={ShieldCheck}
             accent="violet"
           />
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white">User directory</h3>
+            <p className="mt-1 text-sm text-slate-400">
+              Scope by company and/or worksite, then open a user to change roles, passwords, suspension, or per-site
+              access.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onRefresh();
+              fetchDirectoryUsers();
+            }}
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Reload users
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <div className="min-w-[200px] flex-1 space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Company</label>
+            <select
+              value={dirCompanyId}
+              onChange={(e) => setDirCompanyId(e.target.value)}
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+            >
+              <option value="">All companies</option>
+              {companyOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-[200px] flex-1 space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Worksite</label>
+            <select
+              value={dirWorksiteId}
+              onChange={(e) => setDirWorksiteId(e.target.value)}
+              disabled={directoryWorksites.length === 0}
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
+            >
+              <option value="">{dirCompanyId ? 'All worksites in company' : 'All worksites (pick a company to narrow)'}</option>
+              {directoryWorksites.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-[220px] flex-[2] space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Search</label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <input
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder="Name, email, role…"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2 pl-9 pr-3 text-sm text-white"
+              />
+            </div>
+          </div>
+        </div>
+
+        {directoryError && (
+          <div className="mt-4 rounded-lg border border-red-500/40 bg-red-950/30 px-3 py-2 text-sm text-red-200">
+            {directoryError}
+          </div>
+        )}
+
+        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800">
+          {directoryLoading ? (
+            <div className="flex items-center justify-center gap-3 p-10 text-slate-400">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              Loading users…
+            </div>
+          ) : (
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-800 bg-slate-900/80">
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">User</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Role</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Company / Worksite</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDirectoryUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                      No users match this scope or search.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredDirectoryUsers.map((u) => (
+                    <tr key={u.id} className="border-b border-slate-800/60 hover:bg-slate-900/40">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-white">{u.name || '—'}</p>
+                        <p className="text-xs text-slate-500">{u.email || 'No email'}</p>
+                      </td>
+                      <td className="px-4 py-3 text-slate-300">{u.role.replace(/_/g, ' ')}</td>
+                      <td className="px-4 py-3 text-xs text-slate-400">
+                        <div>{u.company?.name || '—'}</div>
+                        <div className="text-slate-500">{u.worksite?.name || '—'}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {!u.approved ? (
+                          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
+                            Suspended
+                          </span>
+                        ) : u.isActivated ? (
+                          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-[11px] font-semibold text-slate-300">
+                            Pending
+                          </span>
+                        )}
+                        {u.mfaEnabled && (
+                          <span className="ml-2 text-[10px] text-slate-500">MFA</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setManageUser(u)}
+                          className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-800"
+                        >
+                          Manage
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -6594,6 +7541,30 @@ function UsersRolesSection({
         </div>
       )}
 
+      {manageUser && (
+        <SuperAdminUserManageModal
+          user={manageUser}
+          companies={companies}
+          worksites={worksites}
+          currentUserId={currentUser?.id}
+          onClose={() => setManageUser(null)}
+          onSaved={async () => {
+            const uid = manageUser.id;
+            await fetchDirectoryUsers();
+            try {
+              const res = await fetch(`/api/admin/users/${uid}`);
+              const j = await res.json();
+              if (j?.success && j.data) {
+                setManageUser(mapAdminUserDetail(j.data as Record<string, unknown>));
+              }
+            } catch {
+              /* ignore refresh errors */
+            }
+            onRefresh();
+          }}
+        />
+      )}
+
       {permissionsLoading && (
         <div className="flex items-center justify-center rounded-2xl border border-slate-800/60 bg-slate-900/60 p-12">
           <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
@@ -6695,10 +7666,10 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
     try {
       const response = await fetch('/api/admin/users');
       const data = await response.json();
-      // Filter to only show SUPER_ADMIN employees (internal staff)
-      const superAdmins = Array.isArray(data) 
-        ? data.filter((u: any) => u.role === 'SUPER_ADMIN' || u.role === 'SUPERADMIN')
-        : [];
+      const rows = data.success && Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+      const superAdmins = rows.filter(
+        (u: any) => u.role === 'SUPER_ADMIN' || u.role === 'SUPERADMIN'
+      );
       setEmployees(superAdmins);
     } catch (error) {
       console.error('Failed to fetch employees:', error);
@@ -6906,6 +7877,10 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
 
       {/* General Tab */}
       {activeTab === 'general' && (
+      <>
+      <div className="mb-6">
+        <HomePageBannerSettingsPanel variant="dark" />
+      </div>
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
           <h3 className="text-lg font-semibold text-white mb-4">API Keys</h3>
@@ -7106,6 +8081,7 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
           </div>
         </div>
       </div>
+      </>
       )}
 
       {/* Employees Tab */}
@@ -7289,6 +8265,218 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
       {/* System Config Tab */}
       {activeTab === 'system' && (
         <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Observability &amp; platform safety</h3>
+                <p className="mt-1 text-sm text-slate-400">
+                  Sentry, process uptime, HTTP volume, and application rate limits. Metrics are for this Node
+                  runtime (use Sentry or your host for global CDN / multi-instance views).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchSystemHealth()}
+                disabled={healthLoading}
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {healthLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Refreshing…
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh metrics
+                  </>
+                )}
+              </button>
+            </div>
+
+            {systemHealth && (
+              <div className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Process uptime</p>
+                    <p className="mt-1 text-lg font-semibold text-white">{systemHealth.uptime ?? '—'}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {typeof systemHealth.uptimeSeconds === 'number'
+                        ? `${systemHealth.uptimeSeconds.toLocaleString()}s since process start`
+                        : null}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 font-mono">
+                      {systemHealth.processHostname ? `host: ${systemHealth.processHostname}` : null}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Resources</p>
+                    <p className="mt-1 text-sm text-slate-300">
+                      CPU ~{systemHealth.cpuUsage ?? 0}% · Mem ~{systemHealth.memoryUsage ?? 0}% · Disk ~
+                      {systemHealth.diskUsage ?? 0}%
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sentry</p>
+                    {systemHealth.sentry?.configured ? (
+                      <>
+                        <p className="mt-1 text-lg font-semibold text-emerald-400">Configured</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {systemHealth.sentry.environment} · traces{' '}
+                          {Math.round((systemHealth.sentry.tracesSampleRate ?? 0) * 100)}%
+                        </p>
+                        {systemHealth.sentry.dashboardUrl && (
+                          <a
+                            href={systemHealth.sentry.dashboardUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-400 hover:text-blue-300"
+                          >
+                            Open Sentry <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-1 text-lg font-semibold text-amber-400">Not configured</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Set SENTRY_DSN (and optional SENTRY_ORG_SLUG / SENTRY_PROJECT_SLUG for links).
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <div className="rounded-lg border border-slate-800/70 bg-slate-900/40 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Traffic load</p>
+                    {(() => {
+                      const stress = systemHealth.httpTraffic?.stress;
+                      const lvl = stress?.level || 'unknown';
+                      const cls =
+                        lvl === 'normal'
+                          ? 'text-emerald-400'
+                          : lvl === 'elevated'
+                            ? 'text-amber-400'
+                            : lvl === 'high'
+                              ? 'text-red-400'
+                              : 'text-slate-400';
+                      return (
+                        <>
+                          <p className={`mt-1 text-lg font-semibold capitalize ${cls}`}>{lvl}</p>
+                          <p className="mt-1 text-xs text-slate-500">{stress?.hint}</p>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-800/70 bg-slate-900/30 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">HTTP (this process)</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                      <p className="text-xs text-slate-500">Est. requests / min</p>
+                      <p className="text-sm font-semibold text-white">
+                        {systemHealth.httpTraffic?.rpmPendingBaseline
+                          ? '—'
+                          : systemHealth.httpTraffic?.requestsPerMinute != null
+                            ? systemHealth.httpTraffic.requestsPerMinute.toLocaleString()
+                            : '—'}
+                      </p>
+                      {systemHealth.httpTraffic?.rpmPendingBaseline && (
+                        <p className="text-xs text-slate-500">Collecting baseline… refresh shortly.</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">Total counted requests</p>
+                      <p className="text-sm font-semibold text-white">
+                        {(systemHealth.httpTraffic?.totalHttpRequests ?? 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">2xx / 4xx / 5xx</p>
+                      <p className="text-sm font-semibold text-slate-200">
+                        {(systemHealth.httpTraffic?.responses?.ok2xx ?? 0).toLocaleString()} /{' '}
+                        {(systemHealth.httpTraffic?.responses?.client4xx ?? 0).toLocaleString()} /{' '}
+                        {(systemHealth.httpTraffic?.responses?.server5xx ?? 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">App rate-limit 429s</p>
+                      <p className="text-sm font-semibold text-slate-200">
+                        {(systemHealth.httpTraffic?.rateLimitRejectionsTotal ?? 0).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-slate-500">Auth, API, detection limiters</p>
+                    </div>
+                  </div>
+                  {(systemHealth.httpTraffic?.rateLimitByLimiter?.length ?? 0) > 0 && (
+                    <div className="mt-4 border-t border-slate-800/80 pt-3">
+                      <p className="text-xs text-slate-500">429s by limiter</p>
+                      <ul className="mt-2 flex flex-wrap gap-2">
+                        {systemHealth.httpTraffic.rateLimitByLimiter.map(
+                          (row: { limiter: string; count: number }) => (
+                            <li
+                              key={row.limiter}
+                              className="rounded-md border border-slate-700 bg-slate-900/80 px-2 py-1 text-xs text-slate-300"
+                            >
+                              {row.limiter}: {row.count}
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-lg border border-slate-800/70 bg-slate-900/30 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Service health</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                    {(
+                      [
+                        ['Database', systemHealth.database],
+                        ['AI detection', systemHealth.aiDetection],
+                        ['MediaMTX', systemHealth.mediaMTX],
+                        ['WebSocket', systemHealth.websocket],
+                        ['Notifications', systemHealth.notifications],
+                      ] as const
+                    ).map(([label, status]) => (
+                      <div key={label} className="rounded-md border border-slate-800 bg-slate-900/50 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+                        <p
+                          className={`mt-0.5 text-sm font-semibold ${
+                            status === 'healthy'
+                              ? 'text-emerald-400'
+                              : status === 'degraded'
+                                ? 'text-amber-400'
+                                : 'text-red-400'
+                          }`}
+                        >
+                          {status || 'unknown'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-100/90">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
+                  <p>
+                    High request rates or many 429s can indicate abuse, runaway clients, or missing caching—not
+                    always a DDoS. Use your hosting provider or CDN dashboards for edge-level attacks; Sentry for
+                    errors and spikes.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {!systemHealth && !healthLoading && (
+              <p className="text-sm text-slate-500">Could not load observability data.</p>
+            )}
+            {healthLoading && !systemHealth && (
+              <div className="flex items-center gap-2 text-sm text-slate-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading metrics…
+              </div>
+            )}
+          </div>
+
           <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
             <h3 className="text-lg font-semibold text-white mb-4">Environment Variables</h3>
             <p className="text-sm text-slate-400 mb-4">
@@ -7754,15 +8942,27 @@ function SystemSettingsSection({ onRefresh }: SystemSettingsSectionProps) {
 }
 
 interface SupportAuditSectionProps {
-  onRefresh: () => void;
+  companies: AdminCompanySummary[] | null;
+  worksites: AdminWorksiteSummary[] | null;
+  companiesLoading: boolean;
+  worksitesLoading: boolean;
+  onLoadDirectory: () => void;
 }
 
-function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
+function SupportAuditSection({
+  companies,
+  worksites,
+  companiesLoading,
+  worksitesLoading,
+  onLoadDirectory,
+}: SupportAuditSectionProps) {
   const [activeTab, setActiveTab] = useState<'audit' | 'support' | 'timeline' | 'troubleshooting' | 'billing'>('audit');
   const [logs, setLogs] = useState<any[]>([]);
   const [billingLogs, setBillingLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [billingLoading, setBillingLoading] = useState(true);
+  const [auditLoading, setAuditLoading] = useState(true);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState<string | null>(null);
   const [filter, setFilter] = useState({
     action: 'ALL',
     entity: 'ALL',
@@ -7771,51 +8971,153 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
   });
   const [activityTimeline, setActivityTimeline] = useState<any[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [selectedWorksite, setSelectedWorksite] = useState<string>('');
   const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [timelineUsers, setTimelineUsers] = useState<Array<{ id: string; name: string | null; email: string | null }>>([]);
+  const [timelineUsersLoading, setTimelineUsersLoading] = useState(false);
   const [troubleshootingResult, setTroubleshootingResult] = useState<any>(null);
   const [troubleshootingLoading, setTroubleshootingLoading] = useState(false);
 
+  const [supportTickets, setSupportTickets] = useState<any[]>([]);
+  const [supportTicketsLoading, setSupportTicketsLoading] = useState(false);
+  const [supportTicketsError, setSupportTicketsError] = useState<string | null>(null);
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [ticketDetail, setTicketDetail] = useState<any | null>(null);
+  const [ticketDetailLoading, setTicketDetailLoading] = useState(false);
+  const [newTicket, setNewTicket] = useState({
+    subject: '',
+    description: '',
+    priority: 'NORMAL' as string,
+    companyId: '' as string,
+    worksiteId: '' as string,
+  });
+  const [replyBody, setReplyBody] = useState('');
+  const [replyInternal, setReplyInternal] = useState(false);
+  const [ticketActionLoading, setTicketActionLoading] = useState(false);
+
   useEffect(() => {
-    if (activeTab === 'audit') {
-      fetchAuditLogs();
-    } else if (activeTab === 'timeline') {
-      fetchActivityTimeline();
-    } else if (activeTab === 'billing') {
-      fetchBillingLogs();
+    onLoadDirectory();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'audit') return;
+    void fetchAuditLogs();
+  }, [activeTab, filter]);
+
+  useEffect(() => {
+    if (activeTab !== 'billing') return;
+    void fetchBillingLogs();
+  }, [activeTab, filter]);
+
+  useEffect(() => {
+    if (activeTab !== 'timeline') return;
+    void fetchActivityTimeline();
+  }, [activeTab, selectedCompany, selectedWorksite, selectedUserId]);
+
+  useEffect(() => {
+    if (activeTab !== 'timeline') return;
+    let cancelled = false;
+    (async () => {
+      setTimelineUsersLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (selectedWorksite) params.set('worksiteId', selectedWorksite);
+        else if (selectedCompany) params.set('companyId', selectedCompany);
+        const response = await fetch(`/api/admin/users?${params.toString()}`, { cache: 'no-store' });
+        const result = await response.json();
+        if (!cancelled && result.success && Array.isArray(result.data)) {
+          setTimelineUsers(
+            result.data.map((u: { id: string; name: string | null; email: string | null }) => ({
+              id: u.id,
+              name: u.name,
+              email: u.email,
+            }))
+          );
+        } else if (!cancelled) {
+          setTimelineUsers([]);
+        }
+      } catch {
+        if (!cancelled) setTimelineUsers([]);
+      } finally {
+        if (!cancelled) setTimelineUsersLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, selectedCompany, selectedWorksite]);
+
+  useEffect(() => {
+    if (activeTab !== 'support') return;
+    void fetchSupportTickets();
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!selectedTicketId || activeTab !== 'support') {
+      setTicketDetail(null);
+      return;
     }
-  }, [filter, activeTab, selectedCompany, selectedWorksite, selectedUserId]);
+    let cancelled = false;
+    (async () => {
+      setTicketDetailLoading(true);
+      try {
+        const res = await fetch(`/api/admin/support-tickets/${selectedTicketId}`);
+        const json = await res.json();
+        if (!cancelled && json.success) setTicketDetail(json.data);
+        else if (!cancelled) setTicketDetail(null);
+      } catch {
+        if (!cancelled) setTicketDetail(null);
+      } finally {
+        if (!cancelled) setTicketDetailLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTicketId, activeTab]);
 
   const fetchAuditLogs = async () => {
     try {
-      setLoading(true);
+      setAuditLoading(true);
+      setAuditError(null);
       const params = new URLSearchParams();
       if (filter.action !== 'ALL') params.append('action', filter.action);
       if (filter.entity !== 'ALL') params.append('entity', filter.entity);
       if (filter.dateFrom) params.append('from', filter.dateFrom);
       if (filter.dateTo) params.append('to', filter.dateTo);
 
-      const response = await fetch(`/api/admin/audit-logs?${params.toString()}`);
-      const data = await response.json();
+      const response = await fetch(`/api/admin/audit-logs?${params.toString()}`, {
+        cache: 'no-store',
+      });
+      const data = await response.json().catch(() => ({}));
 
-      if (data.success) {
-        setLogs(data.data || []);
+      if (!response.ok || data.success === false) {
+        setLogs([]);
+        setAuditError(data.error || data.details || `Request failed (${response.status})`);
+        return;
       }
+      setLogs(Array.isArray(data.data) ? data.data : []);
     } catch (err) {
       console.error('Error fetching audit logs:', err);
+      setAuditError(err instanceof Error ? err.message : 'Failed to load audit logs');
+      setLogs([]);
     } finally {
-      setLoading(false);
+      setAuditLoading(false);
     }
   };
 
   const fetchActivityTimeline = async () => {
     if (!selectedCompany && !selectedWorksite && !selectedUserId) {
       setActivityTimeline([]);
+      setTimelineLoading(false);
+      setTimelineError(null);
       return;
     }
 
     setTimelineLoading(true);
+    setTimelineError(null);
     try {
       const params = new URLSearchParams();
       if (selectedCompany) params.append('companyId', selectedCompany);
@@ -7823,14 +9125,21 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
       if (selectedUserId) params.append('userId', selectedUserId);
       params.append('limit', '100');
 
-      const response = await fetch(`/api/admin/support/activity-timeline?${params.toString()}`);
-      const result = await response.json();
+      const response = await fetch(`/api/admin/support/activity-timeline?${params.toString()}`, {
+        cache: 'no-store',
+      });
+      const result = await response.json().catch(() => ({}));
 
-      if (result.success) {
-        setActivityTimeline(result.data || []);
+      if (!response.ok || result.success === false) {
+        setActivityTimeline([]);
+        setTimelineError(result.error || result.details || `Request failed (${response.status})`);
+        return;
       }
+      setActivityTimeline(result.data || []);
     } catch (error) {
       console.error('Error fetching activity timeline:', error);
+      setActivityTimeline([]);
+      setTimelineError(error instanceof Error ? error.message : 'Failed to load timeline');
     } finally {
       setTimelineLoading(false);
     }
@@ -7839,24 +9148,132 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
   const fetchBillingLogs = async () => {
     try {
       setBillingLoading(true);
+      setBillingError(null);
       const params = new URLSearchParams();
       params.append('entity', 'BillingRecord');
       if (filter.action !== 'ALL') params.append('action', filter.action);
       if (filter.dateFrom) params.append('from', filter.dateFrom);
       if (filter.dateTo) params.append('to', filter.dateTo);
 
-      const response = await fetch(`/api/admin/audit-logs?${params.toString()}`);
-      const data = await response.json();
+      const response = await fetch(`/api/admin/audit-logs?${params.toString()}`, {
+        cache: 'no-store',
+      });
+      const data = await response.json().catch(() => ({}));
 
-      if (data.success) {
-        setBillingLogs(data.data || []);
+      if (!response.ok || data.success === false) {
+        setBillingLogs([]);
+        setBillingError(data.error || data.details || `Request failed (${response.status})`);
+        return;
       }
+      setBillingLogs(Array.isArray(data.data) ? data.data : []);
     } catch (err) {
       console.error('Error fetching billing audit logs:', err);
+      setBillingError(err instanceof Error ? err.message : 'Failed to load billing logs');
+      setBillingLogs([]);
     } finally {
       setBillingLoading(false);
     }
   };
+
+  const fetchSupportTickets = async () => {
+    try {
+      setSupportTicketsLoading(true);
+      setSupportTicketsError(null);
+      const res = await fetch('/api/admin/support-tickets', { cache: 'no-store' });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) {
+        setSupportTickets([]);
+        setSupportTicketsError(json.error || json.details || `Request failed (${res.status})`);
+        return;
+      }
+      setSupportTickets(json.data || []);
+    } catch (e) {
+      setSupportTicketsError(e instanceof Error ? e.message : 'Failed to load tickets');
+      setSupportTickets([]);
+    } finally {
+      setSupportTicketsLoading(false);
+    }
+  };
+
+  const handleCreateTicket = async () => {
+    if (!newTicket.subject.trim() || !newTicket.description.trim()) return;
+    setTicketActionLoading(true);
+    setSupportTicketsError(null);
+    try {
+      const res = await fetch('/api/admin/support-tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: newTicket.subject.trim(),
+          description: newTicket.description.trim(),
+          priority: newTicket.priority,
+          companyId: newTicket.companyId || undefined,
+          worksiteId: newTicket.worksiteId || undefined,
+        }),
+        cache: 'no-store',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.success) {
+        setNewTicket({ subject: '', description: '', priority: 'NORMAL', companyId: '', worksiteId: '' });
+        await fetchSupportTickets();
+        if (json.data?.id) setSelectedTicketId(json.data.id);
+      } else {
+        setSupportTicketsError(json.error || json.details || `Could not create ticket (${res.status})`);
+      }
+    } finally {
+      setTicketActionLoading(false);
+    }
+  };
+
+  const handleTicketStatus = async (ticketId: string, status: string) => {
+    setTicketActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/support-tickets/${ticketId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.success) {
+        await fetchSupportTickets();
+        if (selectedTicketId === ticketId) {
+          const detailRes = await fetch(`/api/admin/support-tickets/${ticketId}`);
+          const detailJson = await detailRes.json().catch(() => ({}));
+          if (detailJson.success) setTicketDetail(detailJson.data);
+        }
+      }
+    } finally {
+      setTicketActionLoading(false);
+    }
+  };
+
+  const handleReply = async () => {
+    if (!selectedTicketId || !replyBody.trim()) return;
+    setTicketActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/support-tickets/${selectedTicketId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: replyBody.trim(), internal: replyInternal }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.success) {
+        setReplyBody('');
+        const detailRes = await fetch(`/api/admin/support-tickets/${selectedTicketId}`);
+        const detailJson = await detailRes.json();
+        if (detailJson.success) setTicketDetail(detailJson.data);
+        await fetchSupportTickets();
+      }
+    } finally {
+      setTicketActionLoading(false);
+    }
+  };
+
+  const worksitesForCompany: AdminWorksiteSummary[] = !worksites?.length
+    ? []
+    : selectedCompany
+      ? worksites.filter((w) => w.companyId === selectedCompany)
+      : worksites;
 
   const handleTroubleshooting = async (action: string, cameraId?: string, worksiteId?: string) => {
     setTroubleshootingLoading(true);
@@ -8053,13 +9470,18 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
           </div>
 
           <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
-            {loading ? (
+            {auditError && (
+              <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {auditError}
+              </div>
+            )}
+            {auditLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
               </div>
             ) : logs.length === 0 ? (
               <div className="py-12 text-center text-slate-400">
-                No audit logs found for the selected filters.
+                {auditError ? 'Could not load audit logs.' : 'No audit logs found for the selected filters.'}
               </div>
             ) : (
               <div className="space-y-3">
@@ -8216,13 +9638,18 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
           </div>
 
           <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            {billingError && (
+              <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {billingError}
+              </div>
+            )}
             {billingLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
               </div>
             ) : billingLogs.length === 0 ? (
               <div className="py-12 text-center text-slate-400">
-                No billing audit logs found for the selected filters.
+                {billingError ? 'Could not load billing audit logs.' : 'No billing audit logs found for the selected filters.'}
               </div>
             ) : (
               <div className="space-y-3">
@@ -8314,10 +9741,240 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
 
       {/* Support Tickets Tab */}
       {activeTab === 'support' && (
-        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
-          <p className="text-slate-400 text-center py-12">
-            Support tickets system coming soon. This will integrate with Zendesk/Intercom or provide a full ticketing system.
-          </p>
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            <h3 className="text-lg font-semibold text-white mb-2">New ticket</h3>
+            <p className="text-sm text-slate-400 mb-4">
+              Internal support queue for platform issues and customer follow-ups.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  value={newTicket.subject}
+                  onChange={(e) => setNewTicket((p) => ({ ...p, subject: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  placeholder="Short summary"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Company
+                </label>
+                <select
+                  value={newTicket.companyId}
+                  onChange={(e) =>
+                    setNewTicket((p) => ({ ...p, companyId: e.target.value, worksiteId: '' }))
+                  }
+                  disabled={companiesLoading || !companies?.length}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+                >
+                  <option value="">(optional)</option>
+                  {(companies || []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Worksite
+                </label>
+                <select
+                  value={newTicket.worksiteId}
+                  onChange={(e) => setNewTicket((p) => ({ ...p, worksiteId: e.target.value }))}
+                  disabled={worksitesLoading || !worksites?.length}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+                >
+                  <option value="">(optional)</option>
+                  {(newTicket.companyId
+                    ? (worksites || []).filter((w) => w.companyId === newTicket.companyId)
+                    : worksites || []
+                  ).map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Priority
+                </label>
+                <select
+                  value={newTicket.priority}
+                  onChange={(e) => setNewTicket((p) => ({ ...p, priority: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value="LOW">Low</option>
+                  <option value="NORMAL">Normal</option>
+                  <option value="HIGH">High</option>
+                  <option value="URGENT">Urgent</option>
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={newTicket.description}
+                  onChange={(e) => setNewTicket((p) => ({ ...p, description: e.target.value }))}
+                  rows={4}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  placeholder="What happened, steps to reproduce, customer impact…"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <button
+                  type="button"
+                  onClick={() => void handleCreateTicket()}
+                  disabled={ticketActionLoading || !newTicket.subject.trim() || !newTicket.description.trim()}
+                  className="inline-flex items-center gap-2 rounded-lg border border-blue-500/50 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-200 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {ticketActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Create ticket
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-white">Open tickets</h3>
+                <button
+                  type="button"
+                  onClick={() => void fetchSupportTickets()}
+                  className="text-xs font-semibold text-blue-300 hover:text-blue-200"
+                >
+                  Refresh
+                </button>
+              </div>
+              {supportTicketsError && (
+                <div className="mb-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                  {supportTicketsError}
+                </div>
+              )}
+              {supportTicketsLoading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+                </div>
+              ) : supportTickets.length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-400">No tickets yet.</p>
+              ) : (
+                <ul className="max-h-[28rem] space-y-2 overflow-y-auto pr-1">
+                  {supportTickets.map((t) => (
+                    <li key={t.id}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTicketId(t.id)}
+                        className={`w-full rounded-xl border px-3 py-3 text-left text-sm transition ${
+                          selectedTicketId === t.id
+                            ? 'border-blue-500/60 bg-blue-500/10 text-white'
+                            : 'border-slate-800 bg-slate-900/70 text-slate-200 hover:border-slate-600'
+                        }`}
+                      >
+                        <div className="font-semibold text-white line-clamp-2">{t.subject}</div>
+                        <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-400">
+                          <span>{t.status}</span>
+                          <span>•</span>
+                          <span>{t.priority}</span>
+                          {t.company?.name && (
+                            <>
+                              <span>•</span>
+                              <span>{t.company.name}</span>
+                            </>
+                          )}
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6 min-h-[16rem]">
+              {!selectedTicketId ? (
+                <p className="py-12 text-center text-sm text-slate-400">Select a ticket to view details.</p>
+              ) : ticketDetailLoading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+                </div>
+              ) : !ticketDetail ? (
+                <p className="py-12 text-center text-sm text-slate-400">Ticket not found.</p>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">{ticketDetail.subject}</h3>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-400">
+                      <span className="rounded border border-slate-700 px-2 py-0.5">{ticketDetail.status}</span>
+                      <span className="rounded border border-slate-700 px-2 py-0.5">{ticketDetail.priority}</span>
+                      {ticketDetail.company?.name && <span>{ticketDetail.company.name}</span>}
+                      {ticketDetail.worksite?.name && <span>• {ticketDetail.worksite.name}</span>}
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-300 whitespace-pre-wrap">{ticketDetail.description}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(['OPEN', 'IN_PROGRESS', 'WAITING_ON_CUSTOMER', 'RESOLVED', 'CLOSED'] as const).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        disabled={ticketActionLoading || ticketDetail.status === s}
+                        onClick={() => void handleTicketStatus(ticketDetail.id, s)}
+                        className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300 hover:border-blue-500/50 disabled:opacity-40"
+                      >
+                        {s.replace(/_/g, ' ')}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="border-t border-slate-800 pt-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Thread</p>
+                    <ul className="max-h-48 space-y-2 overflow-y-auto text-sm">
+                      {(ticketDetail.messages || []).map((m: { id: string; body: string; internal: boolean; createdAt: string; author?: { email?: string | null } }) => (
+                        <li key={m.id} className="rounded-lg border border-slate-800/80 bg-slate-900/50 p-2">
+                          <div className="text-[11px] text-slate-500">
+                            {m.author?.email || 'System'} · {formatRelativeTime(m.createdAt)}
+                            {m.internal ? ' · internal' : ''}
+                          </div>
+                          <div className="mt-1 text-slate-300 whitespace-pre-wrap">{m.body}</div>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-3 space-y-2">
+                      <textarea
+                        value={replyBody}
+                        onChange={(e) => setReplyBody(e.target.value)}
+                        rows={3}
+                        placeholder="Reply…"
+                        className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                      />
+                      <label className="flex items-center gap-2 text-xs text-slate-400">
+                        <input
+                          type="checkbox"
+                          checked={replyInternal}
+                          onChange={(e) => setReplyInternal(e.target.checked)}
+                          className="rounded border-slate-600"
+                        />
+                        Internal note (not for customer email export)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => void handleReply()}
+                        disabled={ticketActionLoading || !replyBody.trim()}
+                        className="rounded-lg border border-blue-500/50 bg-blue-500/10 px-3 py-2 text-sm font-semibold text-blue-200 hover:bg-blue-500/20 disabled:opacity-40"
+                      >
+                        Send reply
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -8325,48 +9982,85 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
       {activeTab === 'timeline' && (
         <>
           <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Filter Timeline</h3>
+            <h3 className="text-lg font-semibold text-white mb-4">Filter timeline</h3>
+            <p className="text-sm text-slate-400 mb-4">
+              Choose at least one scope (company, worksite, or user). Worksites list filters when a company is selected.
+            </p>
             <div className="grid gap-4 md:grid-cols-3">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                  Company ID
+                  Company
                 </label>
-                <input
-                  type="text"
+                <select
                   value={selectedCompany}
-                  onChange={(e) => setSelectedCompany(e.target.value)}
-                  placeholder="Company ID (optional)"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSelectedCompany(v);
+                    setSelectedWorksite('');
+                    setSelectedUserId('');
+                  }}
+                  disabled={companiesLoading}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+                >
+                  <option value="">(any)</option>
+                  {(companies || []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                  Worksite ID
+                  Worksite
                 </label>
-                <input
-                  type="text"
+                <select
                   value={selectedWorksite}
-                  onChange={(e) => setSelectedWorksite(e.target.value)}
-                  placeholder="Worksite ID (optional)"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
+                  onChange={(e) => {
+                    setSelectedWorksite(e.target.value);
+                    setSelectedUserId('');
+                  }}
+                  disabled={worksitesLoading}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+                >
+                  <option value="">(any)</option>
+                  {worksitesForCompany.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                  User ID
+                  User
                 </label>
-                <input
-                  type="text"
+                <select
                   value={selectedUserId}
                   onChange={(e) => setSelectedUserId(e.target.value)}
-                  placeholder="User ID (optional)"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
+                  disabled={timelineUsersLoading}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+                >
+                  <option value="">(any)</option>
+                  {timelineUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name || u.email || u.id}
+                    </option>
+                  ))}
+                </select>
+                {timelineUsersLoading && (
+                  <p className="mt-1 text-[11px] text-slate-500">Loading users…</p>
+                )}
               </div>
             </div>
           </div>
 
           <div className="rounded-2xl border border-slate-800/60 bg-slate-900/60 p-6">
+            {timelineError && (
+              <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {timelineError}
+              </div>
+            )}
             {timelineLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
@@ -8374,7 +10068,9 @@ function SupportAuditSection({ onRefresh }: SupportAuditSectionProps) {
             ) : activityTimeline.length === 0 ? (
               <div className="py-12 text-center text-slate-400">
                 {selectedCompany || selectedWorksite || selectedUserId
-                  ? 'No activity found for the selected filters.'
+                  ? timelineError
+                    ? 'Could not load activity for the selected filters.'
+                    : 'No activity found for the selected filters.'
                   : 'Select a company, worksite, or user to view activity timeline.'}
               </div>
             ) : (
@@ -8622,14 +10318,19 @@ function DetailField({
 
 function ReportCard({
   dataset,
-  onExport,
-  exporting,
+  onExportJson,
+  onExportPdf,
+  exportingJson,
+  exportingPdf,
 }: {
   dataset: ReportDataset;
-  onExport: () => void;
-  exporting: boolean;
+  onExportJson: () => void;
+  onExportPdf: () => void;
+  exportingJson: boolean;
+  exportingPdf: boolean;
 }) {
   const Icon = dataset.icon;
+  const busy = exportingJson || exportingPdf;
 
   return (
     <div className="flex flex-col justify-between rounded-2xl border border-slate-800/60 bg-slate-900/60 p-5">
@@ -8642,24 +10343,44 @@ function ReportCard({
           <p className="mt-1 text-sm text-slate-400">{dataset.description}</p>
         </div>
       </div>
-      <button
-        onClick={onExport}
-        disabled={exporting}
-        className="mt-6 inline-flex items-center justify-center gap-2 rounded-lg border border-blue-500/50 bg-blue-500/10 px-4 py-2 text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-70"
-        type="button"
-      >
-        {exporting ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Preparing…
-          </>
-        ) : (
-          <>
-            <FileBarChart2 className="h-4 w-4" />
-            Export JSON
-          </>
-        )}
-      </button>
+      <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+        <button
+          onClick={onExportJson}
+          disabled={busy}
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-blue-500/50 bg-blue-500/10 px-4 py-2 text-xs font-semibold text-blue-200 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-70"
+          type="button"
+        >
+          {exportingJson ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              JSON…
+            </>
+          ) : (
+            <>
+              <FileBarChart2 className="h-4 w-4" />
+              JSON
+            </>
+          )}
+        </button>
+        <button
+          onClick={onExportPdf}
+          disabled={busy}
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-800/80 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-70"
+          type="button"
+        >
+          {exportingPdf ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              PDF…
+            </>
+          ) : (
+            <>
+              <FileText className="h-4 w-4" />
+              PDF
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
@@ -8935,9 +10656,20 @@ interface TrendPanelProps {
   valueKey: 'value' | 'detections';
   color: string;
   suffix?: string;
+  valueTooltipLabel?: string;
 }
 
-function TrendPanel({ title, description, icon: Icon, data, valueKey, color, suffix }: TrendPanelProps) {
+function TrendPanel(props: TrendPanelProps) {
+  const {
+    title,
+    description,
+    icon: Icon,
+    data,
+    valueKey,
+    color,
+    suffix,
+  } = props;
+
   const latestValue =
     data.length > 0 && data[data.length - 1][valueKey] !== undefined
       ? data[data.length - 1][valueKey]
@@ -8970,7 +10702,13 @@ function TrendPanel({ title, description, icon: Icon, data, valueKey, color, suf
             Not enough datapoints yet
           </div>
         ) : (
-          <Sparkline data={data} valueKey={valueKey} color={color} />
+          <Sparkline
+            data={data}
+            valueKey={valueKey}
+            color={color}
+            valueTooltipLabel={props.valueTooltipLabel}
+            valueSuffix={suffix}
+          />
         )}
       </div>
     </div>
@@ -8981,12 +10719,27 @@ interface SparklineProps {
   data: TrendPoint[];
   valueKey: 'value' | 'detections';
   color: string;
+  valueTooltipLabel?: string;
+  valueSuffix?: string;
 }
 
-function Sparkline({ data, valueKey, color }: SparklineProps) {
+function Sparkline(props: SparklineProps) {
+  const { data, valueKey, color } = props;
+  const tooltipCaption =
+    props.valueTooltipLabel ?? (valueKey === 'detections' ? 'Detections' : 'Value');
+  const suffix = props.valueSuffix;
+
+  const [hover, setHover] = useState<{
+    date: string;
+    value: number;
+    px: number;
+    py: number;
+  } | null>(null);
+
   const points = data
     .map((point, idx) => ({
       index: idx,
+      date: point.date,
       value: point[valueKey] ?? 0,
     }))
     .filter((point) => point.value !== null && !Number.isNaN(point.value));
@@ -9015,27 +10768,79 @@ function Sparkline({ data, valueKey, color }: SparklineProps) {
   const gradientId = `sparkline-gradient-${btoa(color).replace(/=/g, '')}`;
 
   return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-32 w-full">
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.6} />
-          <stop offset="100%" stopColor={color} stopOpacity={0.05} />
-        </linearGradient>
-      </defs>
-      <polygon
-        fill={`url(#${gradientId})`}
-        stroke="none"
-        points={`0,100 ${coords} 100,100`}
-      />
-      <polyline
-        fill="none"
-        stroke={color}
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        points={coords}
-      />
-    </svg>
+    <div className="relative h-32 w-full">
+      {hover && (
+        <div
+          className="pointer-events-none absolute z-20 w-max max-w-[200px] rounded-lg border border-slate-600 bg-slate-900/95 px-2.5 py-1.5 text-[10px] text-white shadow-xl"
+          style={{
+            left: `${hover.px}%`,
+            top: `${hover.py}%`,
+            transform: 'translate(-50%, calc(-100% - 8px))',
+          }}
+          role="tooltip"
+        >
+          <p className="font-semibold text-slate-200">{hover.date}</p>
+          <p className="mt-0.5 text-slate-300">
+            <span className="font-semibold text-white">
+              {typeof hover.value === 'number' && Number.isInteger(hover.value)
+                ? hover.value.toLocaleString()
+                : Number(hover.value).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              {suffix ?? ''}
+            </span>
+            <span className="text-slate-500"> · {tooltipCaption}</span>
+          </p>
+        </div>
+      )}
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        className="h-32 w-full"
+        onMouseLeave={() => setHover(null)}
+      >
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.6} />
+            <stop offset="100%" stopColor={color} stopOpacity={0.05} />
+          </linearGradient>
+        </defs>
+        <polygon
+          fill={`url(#${gradientId})`}
+          stroke="none"
+          points={`0,100 ${coords} 100,100`}
+        />
+        <polyline
+          fill="none"
+          stroke={color}
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          points={coords}
+        />
+        {points.map((point, idx) => {
+          const x = (idx / (points.length - 1)) * 100;
+          const normalized = (Number(point.value) - minValue) / range;
+          const y = 100 - normalized * 100;
+          return (
+            <circle
+              key={`${point.date}-${idx}`}
+              cx={x}
+              cy={y}
+              r={6}
+              fill="transparent"
+              className="cursor-crosshair"
+              onMouseEnter={() =>
+                setHover({
+                  date: point.date,
+                  value: Number(point.value),
+                  px: x,
+                  py: y,
+                })
+              }
+            />
+          );
+        })}
+      </svg>
+    </div>
   );
 }
 

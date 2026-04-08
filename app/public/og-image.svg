@@ -1,0 +1,58 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#020617"/>
+      <stop offset="1" stop-color="#0B1220"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="190" y1="135" x2="1010" y2="495" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#22C55E"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="22" result="blur"/>
+      <feColorMatrix
+        in="blur"
+        type="matrix"
+        values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.55 0"
+      />
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <g filter="url(#glow)" opacity="0.9">
+    <path d="M196 454C322 318 453 247 615 233C781 218 921 272 1004 346" stroke="url(#accent)" stroke-width="18" stroke-linecap="round"/>
+    <path d="M214 488C356 356 497 286 658 276C819 266 948 323 1022 392" stroke="url(#accent)" stroke-width="10" stroke-linecap="round" opacity="0.75"/>
+  </g>
+
+  <circle cx="950" cy="150" r="86" fill="#0EA5E9" opacity="0.10"/>
+  <circle cx="980" cy="160" r="56" fill="#22C55E" opacity="0.10"/>
+  <circle cx="220" cy="170" r="110" fill="#3B82F6" opacity="0.10"/>
+
+  <g>
+    <text x="120" y="260" fill="#E2E8F0" font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="68" font-weight="800" letter-spacing="-1">
+      Nexxau
+    </text>
+    <text x="120" y="330" fill="#93C5FD" font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="34" font-weight="700">
+      AI PPE Compliance Monitoring
+    </text>
+    <text x="120" y="392" fill="#94A3B8" font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="26" font-weight="500">
+      Real-time hard hat and vest detection via your existing site cameras.
+    </text>
+    <text x="120" y="432" fill="#94A3B8" font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="26" font-weight="500">
+      Prevent OSHA fines and reduce workers' comp claims.
+    </text>
+  </g>
+
+  <g opacity="0.85">
+    <rect x="120" y="480" width="340" height="64" rx="18" fill="#0B1220" stroke="#1E293B"/>
+    <text x="148" y="522" fill="#E2E8F0" font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="22" font-weight="600">
+      https://nexxau.com
+    </text>
+  </g>
+</svg>
+

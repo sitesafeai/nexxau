@@ -30,13 +30,6 @@ const baseNavigation = [
   { key: 'system-config', name: 'System Config', href: '/admin/settings', icon: Cog6ToothIcon },
 ];
 
-const aiTrainingNav = {
-  key: 'ai-training',
-  name: 'AI Training',
-  href: '/dashboard/ai-training',
-  icon: PhotoIcon,
-};
-
 const pilotProgramsNav = {
   key: 'pilot-programs',
   name: 'Pilot programs',
@@ -72,7 +65,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
     if (userRole === 'SUPER_ADMIN') {
       items.splice(1, 0, pilotProgramsNav);
-      items.splice(5, 0, aiTrainingNav);
     }
     return items;
   }, [userRole]);

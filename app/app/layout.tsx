@@ -8,25 +8,32 @@ import ConditionalNavigation from "./components/ConditionalNavigation";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Nexxau - AI-Powered Safety Monitoring",
-  description: "Advanced safety monitoring and compliance management for construction and industrial sites",
-  keywords: ["safety", "monitoring", "AI", "construction", "compliance", "workplace safety"],
-  authors: [{ name: "Nexxau Team" }],
-  creator: "Nexxau",
-  publisher: "Nexxau",
-  robots: "index, follow",
+  title: "Nexxau — AI PPE Compliance Monitoring",
+  description:
+    "Real-time hard hat and vest detection via your existing site cameras. Prevent OSHA fines and reduce workers' comp claims.",
+  metadataBase: new URL("https://nexxau.com"),
   openGraph: {
-    type: "website",
-    locale: "en_US",
+    title: "Nexxau — AI PPE Compliance Monitoring",
+    description:
+      "Real-time hard hat and vest detection via your existing site cameras. Prevent OSHA fines and reduce workers' comp claims.",
     url: "https://nexxau.com",
-    title: "Nexxau - AI-Powered Safety Monitoring",
-    description: "Advanced safety monitoring and compliance management for construction and industrial sites",
     siteName: "Nexxau",
+    images: [
+      {
+        url: "/og-image.svg",
+        width: 1200,
+        height: 630,
+        alt: "Nexxau PPE Compliance Monitoring",
+      },
+    ],
+    type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Nexxau - AI-Powered Safety Monitoring",
-    description: "Advanced safety monitoring and compliance management for construction and industrial sites",
+    title: "Nexxau — AI PPE Compliance Monitoring",
+    description:
+      "Real-time hard hat and vest detection via your existing site cameras. Prevent OSHA fines and reduce workers' comp claims.",
+    images: ["/og-image.svg"],
   },
 };
 

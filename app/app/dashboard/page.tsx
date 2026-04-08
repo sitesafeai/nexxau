@@ -190,27 +190,8 @@ function DashboardContent() {
       },
     ];
 
-    if (isSuperAdmin) {
-      items.splice(5, 0, {
-        key: 'ai-training',
-        name: 'AI Training',
-        icon: (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 6h6M9 10h6m-6 4h6m-9 4h12a2 2 0 002-2V6a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        ),
-      });
-    }
-
     return items;
   }, [isSuperAdmin, mounted]);
-
-
-  useEffect(() => {
-    if (!isSuperAdmin && selected === 'ai-training') {
-      setSelected('overview');
-    }
-  }, [isSuperAdmin, selected]);
 
   // Sync URL with selected site - only update URL if site is selected but URL doesn't match
   useEffect(() => {
@@ -486,12 +467,14 @@ function DashboardContent() {
             {selected === 'alert-rules' && (
               <AlertRulesPage currentSite={selectedSite} />
             )}
-            {selected === 'ai-training' && (
-              <AITrainingPage currentSite={selectedSite} />
-            )}
             {selected === 'reports' && (
               isSuperAdmin
-                ? <ReportsAnalytics currentUser={state.currentUser} siteFilter={selectedSite?.id} />
+                ? (
+                    <ReportsAnalytics
+                      currentUser={state.currentUser}
+                      siteFilter={selectedSite?.id ?? worksiteParam ?? undefined}
+                    />
+                  )
                 : <ReportsPageNew 
                     currentSite={selectedSite} 
                     worksites={accessibleSites.map((s: any) => ({ id: s.id, name: s.name }))} 
@@ -5174,78 +5157,6 @@ function AlertRulesPage({ currentSite }: { currentSite: any }) {
             )}
           </tbody>
         </table>
-      </div>
-    </div>
-  );
-}
-
-function AITrainingPage({ currentSite }: { currentSite: any }) {
-  const router = useRouter();
-
-  if (!currentSite) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold text-white">AI Training</h1>
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded p-8 text-center">
-          <p className="text-slate-400">Select a worksite to manage AI training.</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-semibold text-white">AI Training</h1>
-          <p className="text-sm text-slate-400 mt-1">{currentSite.name}</p>
-        </div>
-        <button 
-          onClick={() => router.push(`/dashboard/ai-training?worksite=${currentSite.id}`)}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
-        >
-          Advanced Training
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded p-6">
-          <p className="text-sm text-slate-400">Training Samples</p>
-          <p className="text-2xl font-bold text-white mt-1">0</p>
-          <p className="text-xs text-slate-500 mt-1">Total labeled images</p>
-        </div>
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded p-6">
-          <p className="text-sm text-slate-400">Model Accuracy</p>
-          <p className="text-2xl font-bold text-emerald-400 mt-1">—</p>
-          <p className="text-xs text-slate-500 mt-1">Current model performance</p>
-        </div>
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded p-6">
-          <p className="text-sm text-slate-400">Last Training</p>
-          <p className="text-2xl font-bold text-white mt-1">Never</p>
-          <p className="text-xs text-slate-500 mt-1">Most recent training run</p>
-        </div>
-      </div>
-
-      {/* Info */}
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded p-6">
-        <h3 className="text-lg font-semibold text-white mb-2">About AI Training</h3>
-        <p className="text-slate-400 text-sm">
-          AI Training allows you to improve detection accuracy by providing feedback on detections. 
-          Mark false positives and missed detections to help the model learn and improve over time.
-        </p>
-        <div className="mt-4 flex space-x-3">
-          <button 
-            onClick={() => router.push(`/dashboard/ai-training?worksite=${currentSite.id}`)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
-          >
-            Start Training Session
-          </button>
-          <button className="px-4 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded transition-colors">
-            View Documentation
-          </button>
-        </div>
       </div>
     </div>
   );
