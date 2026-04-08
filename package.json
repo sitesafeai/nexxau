@@ -8,7 +8,9 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
+    "build": "next build",
+    "dev": "next dev",
+    "start": "next start",
     "build:packages": "npm run build --workspace=packages/*",
     "clean": "npm run clean --workspaces || true",
     "lint": "npm run lint --workspaces || true",
@@ -20,5 +22,10 @@
   },
   "devDependencies": {
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "next": "15.2.6",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   }
 }
