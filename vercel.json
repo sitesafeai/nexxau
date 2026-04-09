@@ -1,7 +1,6 @@
 {
-  "buildCommand": "next build",
+  "buildCommand": "npx prisma generate && next build",
   "outputDirectory": ".next",
   "installCommand": "pnpm install --no-frozen-lockfile",
   "framework": "nextjs"
 }
-
