@@ -49,8 +49,12 @@ function AlertBuilderPageContent() {
     }
   });
 
-  const [smsInput, setSmsInput] = useState('');
-  const [emailInput, setEmailInput] = useState('');
+  const [smsCustomInput, setSmsCustomInput] = useState('');
+  const [emailCustomInput, setEmailCustomInput] = useState('');
+  const [worksiteWorkers, setWorksiteWorkers] = useState<
+    Array<{ id: string; name: string | null; email: string | null; phoneNumber: string | null }>
+  >([]);
+  const [rosterLoading, setRosterLoading] = useState(false);
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -86,6 +90,34 @@ function AlertBuilderPageContent() {
       loadRuleData(editId);
     }
   }, []);
+
+  useEffect(() => {
+    if (!worksiteParam) return;
+    let cancelled = false;
+    setRosterLoading(true);
+    fetch(`/api/worksites/${worksiteParam}/users`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        if (j.success && Array.isArray(j.data)) {
+          setWorksiteWorkers(
+            j.data.map((u: { id: string; name?: string | null; email?: string | null; phoneNumber?: string | null }) => ({
+              id: u.id,
+              name: u.name ?? null,
+              email: u.email ?? null,
+              phoneNumber: u.phoneNumber ?? null,
+            }))
+          );
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setRosterLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [worksiteParam]);
 
   const loadRuleData = async (ruleId: string) => {
     setLoading(true);
@@ -290,6 +322,76 @@ function AlertBuilderPageContent() {
   const selectedDetectionType = DETECTION_TYPES.find(dt => dt.id === formData.detectionType);
   const selectedClass = DETECTION_CLASSES.find(dc => dc.id === formData.objectClass);
   const selectedSeverity = SEVERITY_LEVELS.find(sl => sl.id === formData.severity);
+
+  const toggleSmsForPhone = (phone: string | null | undefined) => {
+    const p = (phone || '').trim();
+    if (!p) return;
+    setFormData((prev) => {
+      const has = prev.smsRecipients.some((x) => x.trim() === p);
+      return {
+        ...prev,
+        smsRecipients: has ? prev.smsRecipients.filter((x) => x.trim() !== p) : [...prev.smsRecipients, p],
+      };
+    });
+  };
+
+  const toggleEmailFor = (email: string | null | undefined) => {
+    const e = (email || '').trim();
+    if (!e) return;
+    const el = e.toLowerCase();
+    setFormData((prev) => {
+      const has = prev.emailRecipients.some((x) => x.trim().toLowerCase() === el);
+      return {
+        ...prev,
+        emailRecipients: has
+          ? prev.emailRecipients.filter((x) => x.trim().toLowerCase() !== el)
+          : [...prev.emailRecipients, e],
+      };
+    });
+  };
+
+  const addCustomSms = () => {
+    const v = smsCustomInput.trim();
+    if (!v) return;
+    if (formData.smsRecipients.some((x) => x.trim() === v)) return;
+    setFormData((prev) => ({ ...prev, smsRecipients: [...prev.smsRecipients, v] }));
+    setSmsCustomInput('');
+  };
+
+  const addCustomEmail = () => {
+    const v = emailCustomInput.trim();
+    if (!v) return;
+    const low = v.toLowerCase();
+    if (formData.emailRecipients.some((x) => x.trim().toLowerCase() === low)) return;
+    setFormData((prev) => ({ ...prev, emailRecipients: [...prev.emailRecipients, v] }));
+    setEmailCustomInput('');
+  };
+
+  const removeSmsValue = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      smsRecipients: prev.smsRecipients.filter((x) => x !== value),
+    }));
+  };
+
+  const removeEmailValue = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      emailRecipients: prev.emailRecipients.filter((x) => x !== value),
+    }));
+  };
+
+  const rosterPhoneSet = new Set(
+    worksiteWorkers.map((w) => w.phoneNumber?.trim()).filter(Boolean) as string[]
+  );
+  const smsRecipientsCustomOnly = formData.smsRecipients.filter((r) => !rosterPhoneSet.has(r.trim()));
+
+  const rosterEmailSet = new Set(
+    worksiteWorkers.map((w) => w.email?.trim().toLowerCase()).filter(Boolean) as string[]
+  );
+  const emailRecipientsCustomOnly = formData.emailRecipients.filter(
+    (r) => !rosterEmailSet.has(r.trim().toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
@@ -669,40 +771,82 @@ function AlertBuilderPageContent() {
               {/* SMS Recipients */}
               {formData.actions.includes('send_sms') && (
                 <div>
-                  <label className="block text-gray-300 font-medium mb-3">SMS Recipients *</label>
-                  <p className="text-gray-500 text-sm mb-3">Enter phone numbers to receive SMS alerts. Format: +1234567890</p>
-                  <div className="space-y-2">
-                    {formData.smsRecipients.map((phone, index) => (
-                      <div key={index} className="flex gap-2">
-                        <input
-                          type="tel"
-                          value={phone}
-                          onChange={(e) => {
-                            const newRecipients = [...formData.smsRecipients];
-                            newRecipients[index] = e.target.value;
-                            setFormData({...formData, smsRecipients: newRecipients});
-                          }}
-                          placeholder="+1234567890"
-                          className="flex-1 px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newRecipients = formData.smsRecipients.filter((_, i) => i !== index);
-                            setFormData({...formData, smsRecipients: newRecipients});
-                          }}
-                          className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                  <label className="block text-gray-300 font-medium mb-2">SMS recipients *</label>
+                  <p className="text-gray-500 text-sm mb-3">
+                    Select people on this worksite or add a custom number. Use E.164 format when possible (e.g. +1…).
+                  </p>
+                  {!worksiteParam && (
+                    <p className="text-amber-400 text-sm mb-3 rounded-lg border border-amber-700/50 bg-amber-900/20 px-3 py-2">
+                      Add <code className="text-amber-200">?worksite=…</code> to the URL to load team members from that
+                      site.
+                    </p>
+                  )}
+                  {rosterLoading && <p className="text-gray-400 text-sm mb-2">Loading team…</p>}
+                  <div className="space-y-2 rounded-xl border border-gray-700/60 bg-gray-900/40 p-3">
+                    {worksiteWorkers.map((w) => {
+                      const phone = w.phoneNumber?.trim();
+                      const checked = phone ? formData.smsRecipients.some((x) => x.trim() === phone) : false;
+                      return (
+                        <label
+                          key={w.id}
+                          className={`flex cursor-pointer items-start gap-3 rounded-lg p-2 transition-colors hover:bg-gray-800/80 ${
+                            phone ? '' : 'cursor-not-allowed opacity-60'
+                          }`}
                         >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
+                          <input
+                            type="checkbox"
+                            disabled={!phone}
+                            checked={checked}
+                            onChange={() => phone && toggleSmsForPhone(phone)}
+                            className="mt-1 h-4 w-4 rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium text-white">{w.name || w.email || 'User'}</div>
+                            {phone ? (
+                              <div className="text-sm text-gray-400">{phone}</div>
+                            ) : (
+                              <div className="text-sm text-gray-500">No phone on file</div>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })}
+                    {worksiteParam && !rosterLoading && worksiteWorkers.length === 0 && (
+                      <p className="text-gray-500 text-sm">No worksite users found.</p>
+                    )}
+                  </div>
+                  {smsRecipientsCustomOnly.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Custom numbers</p>
+                      {smsRecipientsCustomOnly.map((phone) => (
+                        <div key={phone} className="flex items-center gap-2 rounded-lg bg-gray-900/60 px-3 py-2">
+                          <span className="flex-1 truncate text-sm text-gray-200">{phone}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeSmsValue(phone)}
+                            className="shrink-0 rounded-md bg-red-600/80 px-2 py-1 text-xs text-white hover:bg-red-600"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      type="tel"
+                      value={smsCustomInput}
+                      onChange={(e) => setSmsCustomInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomSms())}
+                      placeholder="+1234567890"
+                      className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                     <button
                       type="button"
-                      onClick={() => setFormData({...formData, smsRecipients: [...formData.smsRecipients, '']})}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                      onClick={addCustomSms}
+                      className="rounded-lg bg-slate-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-500"
                     >
-                      + Add Phone Number
+                      Add custom
                     </button>
                   </div>
                 </div>
@@ -711,40 +855,78 @@ function AlertBuilderPageContent() {
               {/* Email Recipients */}
               {formData.actions.includes('send_email') && (
                 <div>
-                  <label className="block text-gray-300 font-medium mb-3">Email Recipients *</label>
-                  <p className="text-gray-500 text-sm mb-3">Enter email addresses to receive email alerts</p>
-                  <div className="space-y-2">
-                    {formData.emailRecipients.map((email, index) => (
-                      <div key={index} className="flex gap-2">
-                        <input
-                          type="email"
-                          value={email}
-                          onChange={(e) => {
-                            const newRecipients = [...formData.emailRecipients];
-                            newRecipients[index] = e.target.value;
-                            setFormData({...formData, emailRecipients: newRecipients});
-                          }}
-                          placeholder="supervisor@company.com"
-                          className="flex-1 px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newRecipients = formData.emailRecipients.filter((_, i) => i !== index);
-                            setFormData({...formData, emailRecipients: newRecipients});
-                          }}
-                          className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                  <label className="block text-gray-300 font-medium mb-2">Email recipients *</label>
+                  <p className="text-gray-500 text-sm mb-3">Select worksite members or add a custom address.</p>
+                  {!worksiteParam && (
+                    <p className="text-amber-400 text-sm mb-3 rounded-lg border border-amber-700/50 bg-amber-900/20 px-3 py-2">
+                      Add <code className="text-amber-200">?worksite=…</code> to the URL to load team emails.
+                    </p>
+                  )}
+                  {rosterLoading && <p className="text-gray-400 text-sm mb-2">Loading team…</p>}
+                  <div className="space-y-2 rounded-xl border border-gray-700/60 bg-gray-900/40 p-3">
+                    {worksiteWorkers.map((w) => {
+                      const em = w.email?.trim();
+                      const checked = em
+                        ? formData.emailRecipients.some((x) => x.trim().toLowerCase() === em.toLowerCase())
+                        : false;
+                      return (
+                        <label
+                          key={`e-${w.id}`}
+                          className={`flex cursor-pointer items-start gap-3 rounded-lg p-2 transition-colors hover:bg-gray-800/80 ${
+                            em ? '' : 'cursor-not-allowed opacity-60'
+                          }`}
                         >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
+                          <input
+                            type="checkbox"
+                            disabled={!em}
+                            checked={checked}
+                            onChange={() => em && toggleEmailFor(em)}
+                            className="mt-1 h-4 w-4 rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium text-white">{w.name || 'User'}</div>
+                            {em ? (
+                              <div className="truncate text-sm text-gray-400">{em}</div>
+                            ) : (
+                              <div className="text-sm text-gray-500">No email on file</div>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {emailRecipientsCustomOnly.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Custom addresses</p>
+                      {emailRecipientsCustomOnly.map((addr) => (
+                        <div key={addr} className="flex items-center gap-2 rounded-lg bg-gray-900/60 px-3 py-2">
+                          <span className="flex-1 truncate text-sm text-gray-200">{addr}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeEmailValue(addr)}
+                            className="shrink-0 rounded-md bg-red-600/80 px-2 py-1 text-xs text-white hover:bg-red-600"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      type="email"
+                      value={emailCustomInput}
+                      onChange={(e) => setEmailCustomInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomEmail())}
+                      placeholder="supervisor@company.com"
+                      className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                     <button
                       type="button"
-                      onClick={() => setFormData({...formData, emailRecipients: [...formData.emailRecipients, '']})}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                      onClick={addCustomEmail}
+                      className="rounded-lg bg-slate-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-500"
                     >
-                      + Add Email Address
+                      Add custom
                     </button>
                   </div>
                 </div>

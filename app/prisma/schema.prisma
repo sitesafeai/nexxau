@@ -85,6 +85,8 @@ model User {
   customRules        CustomRule[]
   auditLogs          AuditLog[]
   Workflow           Workflow[]
+  supportTicketsCreated SupportTicket[]      @relation("SupportTicketCreatedBy")
+  supportTicketMessages SupportTicketMessage[] @relation("SupportTicketMessageAuthor")
 }
 
 model AuditLog {
@@ -160,10 +162,18 @@ model Company {
   contactEmail    String?
   pilotStartedAt  DateTime?
   pilotEndsAt     DateTime?
+  /** Super-admin: block all tenant users when true */
+  suspended       Boolean                @default(false)
+  /** Soft-delete: hidden from listings; login blocked via suspended + user deactivation */
+  deletedAt       DateTime?
   worksites       Worksite[]
   users           User[]
   companyUsers    CompanyUser[]
   billingRecords  CompanyBillingRecord[]
+  supportTickets  SupportTicket[]
+
+  @@index([deletedAt])
+  @@index([suspended])
 }
 
 model Worksite {
@@ -194,6 +204,7 @@ model Worksite {
   ruleTriggers             CustomRuleTrigger[]
   ruleViolations           CustomRuleViolation[]
   safetyScores             SafetyScore[]
+  supportTickets           SupportTicket[]
   safetyScoreConfig        SafetyScoreConfig?
   violationClassifications ViolationClassification[]
   worksiteUsers            WorksiteUser[]
@@ -857,9 +868,68 @@ model ContactInquiry {
   assignedTo String?
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
+  supportTicket SupportTicket?
 
   @@index([status])
   @@index([isRead])
+  @@index([createdAt])
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_ON_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model SupportTicket {
+  id          String                @id @default(cuid())
+  subject     String
+  description String                @db.Text
+  status      SupportTicketStatus   @default(OPEN)
+  priority    SupportTicketPriority @default(NORMAL)
+  /** internal | web_contact | web_sales */
+  source      String                @default("internal")
+  companyId   String?
+  worksiteId  String?
+  createdById String?
+  contactInquiryId String?          @unique
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  company         Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  worksite        Worksite?        @relation(fields: [worksiteId], references: [id], onDelete: SetNull)
+  createdBy       User?            @relation("SupportTicketCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  contactInquiry  ContactInquiry?  @relation(fields: [contactInquiryId], references: [id], onDelete: SetNull)
+  messages        SupportTicketMessage[]
+
+  @@index([status])
+  @@index([companyId])
+  @@index([worksiteId])
+  @@index([createdAt])
+  @@index([source])
+}
+
+model SupportTicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  body      String   @db.Text
+  authorId  String?
+  internal  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User?         @relation("SupportTicketMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
   @@index([createdAt])
 }
 

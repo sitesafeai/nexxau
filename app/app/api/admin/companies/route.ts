@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
     let companies;
     try {
       companies = await prisma.company.findMany({
+        where: { deletedAt: null },
         select: {
           id: true,
           name: true,
@@ -84,6 +85,7 @@ export async function GET(request: NextRequest) {
           address: true,
           pilotStartedAt: true,
           pilotEndsAt: true,
+          suspended: true,
           createdAt: true,
           updatedAt: true,
           _count: {
@@ -186,6 +188,7 @@ export async function GET(request: NextRequest) {
       address: company.address || null,
       pilotStartedAt: (company as any).pilotStartedAt ? (company as any).pilotStartedAt.toISOString() : null,
       pilotEndsAt: (company as any).pilotEndsAt ? (company as any).pilotEndsAt.toISOString() : null,
+      suspended: (company as { suspended?: boolean }).suspended ?? false,
       worksiteCount: company._count.worksites,
       userCount: company._count.users,
       cameraCount: cameraCountsMap.get(company.id) || 0,

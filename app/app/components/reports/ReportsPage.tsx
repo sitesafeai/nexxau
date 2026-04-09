@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import ReportBuilder from './ReportBuilder';
+import WorksiteAnalyticsCharts from '@/app/components/dashboard/WorksiteAnalyticsCharts';
 
 // Types
 interface Report {
@@ -293,6 +294,10 @@ export default function ReportsPage({ currentSite, worksites }: ReportsPageProps
 
   return (
     <div className="space-y-6">
+      {currentSite?.id && (
+        <WorksiteAnalyticsCharts siteFilter={currentSite.id} showPdfDownload />
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>

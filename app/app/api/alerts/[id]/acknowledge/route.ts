@@ -3,7 +3,11 @@ import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { acknowledgeAlertSchema } from '@/app/lib/validation/alerts';
-import { validateBody } from '@/app/lib/validation/common';
+import {
+  sendAcknowledgmentTeamNotifications,
+  type NotificationRecipientInput,
+  type NotifyChannel,
+} from '@/app/lib/acknowledgment-team-notify';
 
 /**
  * POST /api/alerts/[id]/acknowledge
@@ -24,7 +28,7 @@ export async function POST(
       );
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     
     // Validate note if provided (other fields are optional)
     if (body.note !== undefined) {
@@ -48,7 +52,8 @@ export async function POST(
       requiresFollowUp,
       followUpDate,
       notifyOthers,
-      notificationList
+      notificationList,
+      notificationRecipients,
     } = body;
 
     // Get existing alert
@@ -122,6 +127,7 @@ export async function POST(
       await tx.auditLog.create({
         data: {
           userId: session.user.id,
+          worksiteId: existingAlert.worksiteId ?? undefined,
           action: 'ACKNOWLEDGE_ALERT',
           entity: 'Alert',
           entityId: id,
@@ -130,7 +136,9 @@ export async function POST(
             to: { status: 'ACKNOWLEDGED' },
             note,
             actionTaken,
-            requiresFollowUp
+            severityAssessment: severity,
+            requiresFollowUp,
+            followUpDate: followUpDate || null,
           },
           ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
           userAgent: request.headers.get('user-agent'),
@@ -160,28 +168,29 @@ export async function POST(
         });
       }
 
-      // Step 5: Notify other users if requested
-      if (notifyOthers && notificationList && notificationList.length > 0) {
-        for (const userId of notificationList) {
-          await tx.notification.create({
-            data: {
-              userId,
-              title: `Alert Acknowledged: ${updatedAlert.title}`,
-              message: `${session.user.name} acknowledged an alert at ${updatedAlert.location}. ${note || ''}`,
-              type: 'ALERT',
-              priority: 'MEDIUM', // Using MEDIUM instead of NORMAL
-              metadata: {
-                alertId: id,
-                acknowledgedBy: session.user.name,
-                actionTaken
-              }
-            }
-          });
-        }
-      }
-
       return updatedAlert;
     });
+
+    // Team notifications (in-app, email, SMS, WhatsApp) — run after commit; external sends must not roll back ack
+    if (notifyOthers && existingAlert.worksiteId) {
+      let recipients: NotificationRecipientInput[] = normalizeNotificationRecipients(
+        notificationRecipients,
+        notificationList
+      );
+      recipients = await filterRecipientsByWorksite(existingAlert.worksiteId, recipients);
+      if (recipients.length > 0) {
+        await sendAcknowledgmentTeamNotifications({
+          alertId: id,
+          alertTitle: result.title,
+          location: result.location,
+          worksiteName: result.worksite?.name ?? null,
+          note: note ?? null,
+          actionTaken: actionTaken ?? null,
+          acknowledgedByName: session.user.name ?? null,
+          recipients,
+        });
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -201,5 +210,61 @@ export async function POST(
       { status: 500 }
     );
   }
+}
+
+const ALLOWED_CHANNELS = new Set<NotifyChannel>(['IN_APP', 'EMAIL', 'SMS', 'WHATSAPP']);
+
+function normalizeNotificationRecipients(
+  raw: unknown,
+  legacyList: unknown
+): NotificationRecipientInput[] {
+  const out: NotificationRecipientInput[] = [];
+
+  if (Array.isArray(raw)) {
+    for (const row of raw) {
+      if (!row || typeof row !== 'object') continue;
+      const userId = (row as { userId?: string }).userId;
+      const channels = (row as { channels?: unknown }).channels;
+      if (!userId || !Array.isArray(channels) || channels.length === 0) continue;
+      const cleaned = channels.filter(
+        (c): c is NotifyChannel => typeof c === 'string' && ALLOWED_CHANNELS.has(c as NotifyChannel)
+      );
+      if (!cleaned.length) continue;
+      const phoneOverride = (row as { phoneOverride?: unknown }).phoneOverride;
+      const savePhoneToProfile = (row as { savePhoneToProfile?: unknown }).savePhoneToProfile;
+      const entry: NotificationRecipientInput = { userId, channels: cleaned };
+      if (typeof phoneOverride === 'string' && phoneOverride.trim()) {
+        entry.phoneOverride = phoneOverride.trim();
+      }
+      if (savePhoneToProfile === true) {
+        entry.savePhoneToProfile = true;
+      }
+      out.push(entry);
+    }
+  }
+
+  if (out.length === 0 && Array.isArray(legacyList) && legacyList.length > 0) {
+    for (const userId of legacyList) {
+      if (typeof userId === 'string' && userId) {
+        out.push({ userId, channels: ['IN_APP'] });
+      }
+    }
+  }
+
+  return out;
+}
+
+async function filterRecipientsByWorksite(
+  worksiteId: string,
+  recipients: NotificationRecipientInput[]
+): Promise<NotificationRecipientInput[]> {
+  if (recipients.length === 0) return [];
+  const ids = [...new Set(recipients.map((r) => r.userId))];
+  const members = await prisma.worksiteUser.findMany({
+    where: { worksiteId, userId: { in: ids } },
+    select: { userId: true },
+  });
+  const allowed = new Set(members.map((m) => m.userId));
+  return recipients.filter((r) => allowed.has(r.userId));
 }
 

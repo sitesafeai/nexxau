@@ -22,8 +22,8 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const company = await prisma.company.findUnique({
-      where: { id },
+    const company = await prisma.company.findFirst({
+      where: { id, deletedAt: null },
       include: {
         worksites: {
           include: {
@@ -107,6 +107,18 @@ export async function PATCH(
 
   try {
     const { id } = await params;
+
+    const existingPatch = await prisma.company.findUnique({
+      where: { id },
+      select: { deletedAt: true },
+    });
+    if (existingPatch?.deletedAt) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot update a deleted company' },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
 
     const updateData: any = {};
@@ -146,6 +158,71 @@ export async function PATCH(
       {
         success: false,
         error: 'Failed to update company',
+        details: error?.message || 'Unknown error',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/admin/companies/[id]
+ * Soft-delete: sets deletedAt, suspends company, deactivates all users in the tenant.
+ */
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerSession(authOptions);
+  const role = normalizeRole(session?.user?.role);
+
+  if (!session || role !== 'SUPER_ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  try {
+    const { id } = await params;
+
+    const existing = await prisma.company.findFirst({
+      where: { id },
+      select: { id: true, deletedAt: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ success: false, error: 'Company not found' }, { status: 404 });
+    }
+    if (existing.deletedAt) {
+      return NextResponse.json({ success: false, error: 'Company already deleted' }, { status: 400 });
+    }
+
+    const now = new Date();
+
+    await prisma.$transaction([
+      prisma.company.update({
+        where: { id },
+        data: {
+          deletedAt: now,
+          suspended: true,
+        },
+      }),
+      prisma.user.updateMany({
+        where: { companyId: id },
+        data: {
+          approved: false,
+          isActivated: false,
+        },
+      }),
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Company removed (soft delete). Users can no longer sign in.',
+    });
+  } catch (error: any) {
+    console.error('[admin][companies][id] DELETE:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to delete company',
         details: error?.message || 'Unknown error',
       },
       { status: 500 }

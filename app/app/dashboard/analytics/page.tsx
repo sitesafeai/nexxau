@@ -510,194 +510,23 @@ function ExportButton({ analytics, worksiteId, timeRange }: { analytics: any; wo
         link.click();
         URL.revokeObjectURL(url);
       } else if (currentFormat === 'pdf') {
-        // For PDF, generate using html2pdf.js library
+        const { buildAnalyticsReportPdf } = await import('@/app/lib/analytics-report-pdf');
+        const bytes = await buildAnalyticsReportPdf(analytics, {
+          worksiteName: worksiteName || 'Worksite',
+          worksiteId,
+          timeRange,
+          generatedAt: new Date(),
+        });
+        const blob = new Blob([Uint8Array.from(bytes)], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
         const sanitizedName = sanitizeFilename(worksiteName || 'Worksite');
         const timestamp = getTimestamp();
         const rangeLabel = getTimeRangeLabel();
-        const pdfTitle = `${sanitizedName}_${rangeLabel}_${timestamp}`;
-        
-        // Create a temporary container with the PDF content
-        const pdfContainer = document.createElement('div');
-        pdfContainer.id = 'pdf-export-container';
-        pdfContainer.style.position = 'absolute';
-        pdfContainer.style.top = '0';
-        pdfContainer.style.left = '0';
-        pdfContainer.style.width = '794px'; // A4 width in pixels (210mm at 96dpi)
-        pdfContainer.style.padding = '40px';
-        pdfContainer.style.backgroundColor = '#ffffff';
-        pdfContainer.style.color = '#000000';
-        pdfContainer.style.fontFamily = 'Arial, sans-serif';
-        pdfContainer.style.fontSize = '12px';
-        pdfContainer.style.lineHeight = '1.6';
-        pdfContainer.style.zIndex = '9999';
-        pdfContainer.style.opacity = '0';
-        pdfContainer.style.pointerEvents = 'none';
-        
-        pdfContainer.innerHTML = `
-          <div style="text-align: center; margin-bottom: 30px; border-bottom: 3px solid #000; padding-bottom: 15px;">
-            <h1 style="color: #000; margin: 0; font-size: 24px; font-weight: bold;">Analytics Report</h1>
-          </div>
-          
-          <div style="margin-bottom: 25px; padding: 15px; background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 4px;">
-            <p style="margin: 5px 0; color: #000;"><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
-            <p style="margin: 5px 0; color: #000;"><strong>Worksite:</strong> ${worksiteName || 'All Worksites'}</p>
-            <p style="margin: 5px 0; color: #000;"><strong>Time Range:</strong> ${timeRange}</p>
-          </div>
-          
-          <div style="margin-bottom: 25px;">
-            <h2 style="color: #000; font-size: 18px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px;">Safety Score</h2>
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-              <tr style="background-color: #f0f0f0;">
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Current</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.safetyScore?.current || 0}</td>
-              </tr>
-              <tr>
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Previous</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.safetyScore?.previous || 0}</td>
-              </tr>
-              <tr style="background-color: #f0f0f0;">
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Trend</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.safetyScore?.trend || 'N/A'}</td>
-              </tr>
-                </table>
-          </div>
-          
-          <div style="margin-bottom: 25px;">
-            <h2 style="color: #000; font-size: 18px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px;">Violations</h2>
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-              <tr style="background-color: #f0f0f0;">
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Total</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.violations?.total || 0}</td>
-              </tr>
-              <tr>
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Major</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.violations?.major || 0}</td>
-              </tr>
-              <tr style="background-color: #f0f0f0;">
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Minor</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.violations?.minor || 0}</td>
-              </tr>
-              <tr>
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Change</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.violations?.change || 0}%</td>
-              </tr>
-                </table>
-          </div>
-          
-          <div style="margin-bottom: 25px;">
-            <h2 style="color: #000; font-size: 18px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px;">Compliance</h2>
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-              <tr style="background-color: #f0f0f0;">
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Rate</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.compliance?.rate || 0}%</td>
-              </tr>
-              <tr>
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Change</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.compliance?.change || 0}%</td>
-              </tr>
-                </table>
-          </div>
-          
-          <div style="margin-bottom: 25px;">
-            <h2 style="color: #000; font-size: 18px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px;">Cameras</h2>
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-              <tr style="background-color: #f0f0f0;">
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Total</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.cameras?.total || 0}</td>
-              </tr>
-              <tr>
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Online</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.cameras?.online || 0}</td>
-              </tr>
-              <tr style="background-color: #f0f0f0;">
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Offline</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.cameras?.offline || 0}</td>
-              </tr>
-              <tr>
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Uptime</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.cameras?.uptime || 0}%</td>
-              </tr>
-                </table>
-          </div>
-          
-          <div style="margin-bottom: 25px;">
-            <h2 style="color: #000; font-size: 18px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px;">Alerts</h2>
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-              <tr style="background-color: #f0f0f0;">
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Total</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.alerts?.total || 0}</td>
-              </tr>
-              <tr>
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Resolved</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.alerts?.resolved || 0}</td>
-              </tr>
-              <tr style="background-color: #f0f0f0;">
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Pending</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.alerts?.pending || 0}</td>
-              </tr>
-              <tr>
-                <th style="border: 1px solid #000; padding: 10px; text-align: left; font-weight: bold; color: #000;">Avg Response Time</th>
-                <td style="border: 1px solid #000; padding: 10px; color: #000;">${analytics.alerts?.avgResponseTime || 'N/A'}</td>
-              </tr>
-                </table>
-          </div>
-        `;
-        
-        document.body.appendChild(pdfContainer);
-        
-        // Load html2pdf.js from CDN and generate PDF
-        const loadScript = (src: string): Promise<void> => {
-          return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = src;
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
-            document.head.appendChild(script);
-          });
-        };
-        
-        try {
-          // Load html2pdf.js from CDN
-          await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
-          
-          // Wait for container to be in DOM and rendered
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          // Generate PDF with proper settings
-          const opt = {
-            margin: [10, 10, 10, 10],
-            filename: `${pdfTitle}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { 
-              scale: 2, 
-              useCORS: true,
-              logging: false,
-              backgroundColor: '#ffffff',
-              windowWidth: 794, // A4 width in pixels
-              allowTaint: true
-            },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-          };
-          
-          // @ts-ignore - html2pdf is loaded dynamically
-          const html2pdf = window.html2pdf();
-          await html2pdf.set(opt).from(pdfContainer).save();
-          
-          // Clean up
-          setTimeout(() => {
-            if (document.body.contains(pdfContainer)) {
-              document.body.removeChild(pdfContainer);
-            }
-          }, 1000);
-        } catch (error) {
-          console.error('PDF generation error:', error);
-          // Clean up on error
-          if (document.body.contains(pdfContainer)) {
-            document.body.removeChild(pdfContainer);
-          }
-          alert('Failed to generate PDF. Please try again or use the print option.');
-        }
+        link.download = `${sanitizedName}_analytics_${rangeLabel}_${timestamp}.pdf`;
+        link.click();
+        URL.revokeObjectURL(url);
       }
       
       setIsOpen(false);

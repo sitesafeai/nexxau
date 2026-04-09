@@ -21,15 +21,18 @@ export default function LoginPage() {
     setError('');
 
     try {
+      const email = formData.email.trim().toLowerCase();
       const result = await signIn('credentials', {
-        email: formData.email,
+        email,
         password: formData.password,
         redirect: false,
       });
 
       if (result?.error) {
         if (result.error === 'CredentialsSignin') {
-          setError('Invalid email or password');
+          setError(
+            'Invalid email or password — or login blocked (expired pilot, suspended company, or user missing in this database). Check the dev server log for lines starting with [auth].'
+          );
         } else if (result.error.includes('inactive') || result.error.includes('disabled')) {
           setError('Your account is inactive — contact your administrator');
         } else {
@@ -71,7 +74,8 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {/* suppressHydrationWarning: browser extensions (e.g. password managers) inject attributes like fdprocessedid and cause React 19 hydration noise */}
+          <form onSubmit={handleSubmit} className="space-y-6" suppressHydrationWarning>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1.5">
                 Email
@@ -85,6 +89,8 @@ export default function LoginPage() {
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="block w-full px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 placeholder="you@company.com"
+                autoComplete="email"
+                suppressHydrationWarning
               />
             </div>
 
@@ -101,6 +107,8 @@ export default function LoginPage() {
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 className="block w-full px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-md text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 placeholder="Enter your password"
+                autoComplete="current-password"
+                suppressHydrationWarning
               />
             </div>
 
@@ -108,6 +116,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading}
+                suppressHydrationWarning
                 className={`w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md text-sm font-medium text-white ${
                   isLoading
                     ? 'bg-slate-600 cursor-not-allowed'

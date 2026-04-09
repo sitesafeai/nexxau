@@ -1,14 +1,37 @@
 import { NextResponse } from 'next/server';
-import { Resend } from 'resend';
 import { prisma } from '@/app/lib/prisma';
+import { sendResendHtml, getResendFromAddress } from '@/app/lib/resend-mail';
+import { createSupportTicketFromContactInquiry } from '@/app/lib/create-support-ticket-from-inquiry';
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, email, company, industry, message, sourcePage } = body;
+    const { name, email, company, industry, message, sourcePage, companySize } = body as {
+      name?: string;
+      email?: string;
+      company?: string;
+      industry?: string;
+      message?: string;
+      sourcePage?: string;
+      companySize?: string;
+    };
+
+    let messageBody = typeof message === 'string' ? message : '';
+    if (companySize && typeof companySize === 'string' && companySize.trim()) {
+      messageBody = `${messageBody}\n\n---\nCompany size: ${companySize.trim()}`;
+    }
 
     // Validate required fields
-    if (!name || !email || !message) {
+    if (!name || !email || !messageBody.trim()) {
       return NextResponse.json(
         { error: 'Name, email, and message are required' },
         { status: 400 }
@@ -37,7 +60,7 @@ export async function POST(request: Request) {
         email,
         company: company || null,
         industry: industry || null,
-        message,
+        message: messageBody,
         sourcePage: sourcePage || null,
         status: 'UNREAD',
         isRead: false,
@@ -62,6 +85,16 @@ export async function POST(request: Request) {
       );
     }
 
+    void createSupportTicketFromContactInquiry({
+      id: inquiry.id,
+      name,
+      email,
+      company: company || null,
+      industry: industry || null,
+      message: messageBody,
+      sourcePage: sourcePage || null,
+    });
+
     // Log the contact form submission (for debugging and monitoring)
     console.log('Contact form submission received:', {
       id: inquiry.id,
@@ -69,37 +102,79 @@ export async function POST(request: Request) {
       email,
       company,
       industry,
-      message,
+      message: messageBody,
       sourcePage,
       timestamp: new Date().toISOString()
     });
 
-    // Send email using Resend (only if API key is available)
+    const fromAddress = getResendFromAddress();
+
+    // Send emails via Resend (only if API key is available)
     if (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== 'your_resend_api_key_here') {
-      try {
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        await resend.emails.send({
-          from: 'Nexxau Contact Form <contact@nexxau.com>',
-          to: ['sitesafeai@gmail.com'],
-          subject: `New Contact Form Submission from ${name}`,
-          html: `
+      const internalHtml = `
             <h2>New Contact Form Submission</h2>
-            <p><strong>Name:</strong> ${name}</p>
-            <p><strong>Email:</strong> ${email}</p>
-            ${company ? `<p><strong>Company:</strong> ${company}</p>` : ''}
-            ${industry ? `<p><strong>Industry:</strong> ${industry}</p>` : ''}
-            ${sourcePage ? `<p><strong>Source Page:</strong> ${sourcePage}</p>` : ''}
+            <p><strong>Name:</strong> ${escapeHtml(String(name))}</p>
+            <p><strong>Email:</strong> ${escapeHtml(String(email))}</p>
+            ${company ? `<p><strong>Company:</strong> ${escapeHtml(String(company))}</p>` : ''}
+            ${industry ? `<p><strong>Industry:</strong> ${escapeHtml(String(industry))}</p>` : ''}
+            ${sourcePage ? `<p><strong>Source Page:</strong> ${escapeHtml(String(sourcePage))}</p>` : ''}
             <p><strong>Message:</strong></p>
-            <p>${message.replace(/\n/g, '<br>')}</p>
+            <p>${escapeHtml(messageBody).replace(/\n/g, '<br>')}</p>
             <hr>
             <p><em>This message was sent from the Nexxau contact form.</em></p>
-          `,
+          `;
+
+      try {
+        const internalSubject = `New Contact Form Submission from ${String(name).replace(/[\r\n]/g, ' ').slice(0, 120)}`;
+        const internalResult = await sendResendHtml({
+          from: fromAddress,
+          to: ['sitesafeai@gmail.com'],
+          subject: internalSubject,
+          html: internalHtml,
           replyTo: email,
         });
-        console.log('Email sent successfully via Resend!');
+        if (internalResult.success) {
+          console.log('[contact] Internal notification email sent via Resend');
+        } else {
+          console.error('[contact] Internal notification failed:', internalResult.error);
+        }
       } catch (emailError) {
-        console.error('Error sending email via Resend:', emailError);
-        // Continue with success response even if email fails
+        console.error('[contact] Error sending internal notification email:', emailError);
+      }
+
+      // Acknowledgement to the visitor (includes subject line + copy of their message)
+      const friendlySubject =
+        company && String(company).trim()
+          ? `Contact request — ${String(company).trim()}`
+          : `Contact request — ${String(name).trim()}`;
+
+      const confirmationHtml = `
+            <p>Hi ${escapeHtml(String(name).trim())},</p>
+            <p>Thanks for contacting Nexxau. We've received your message and will get back to you as soon as we can — typically within 24 hours.</p>
+            <p><strong>Subject:</strong> ${escapeHtml(friendlySubject)}</p>
+            ${sourcePage ? `<p><strong>Form:</strong> ${escapeHtml(String(sourcePage))}</p>` : ''}
+            <p><strong>Your message:</strong></p>
+            <blockquote style="margin:16px 0;padding:12px 16px;border-left:4px solid #2563eb;background:#f8fafc;color:#0f172a;border-radius:0 8px 8px 0;font-size:14px;line-height:1.5;">
+              ${escapeHtml(messageBody).replace(/\n/g, '<br>')}
+            </blockquote>
+            <p style="color:#64748b;font-size:13px;margin-top:24px;">If you didn't submit this form, you can ignore this email.</p>
+            <p style="color:#64748b;font-size:13px;">— The Nexxau team</p>
+          `;
+
+      try {
+        const confirmResult = await sendResendHtml({
+          from: fromAddress,
+          to: [email],
+          subject: "We've received your message — Nexxau",
+          html: confirmationHtml,
+        });
+        if (confirmResult.success) {
+          console.log('[contact] Confirmation email sent to submitter via Resend');
+        } else {
+          console.error('[contact] Confirmation email failed:', confirmResult.error);
+        }
+      } catch (confirmError) {
+        console.error('[contact] Error sending confirmation email to submitter:', confirmError);
       }
     } else {
       console.log('RESEND_API_KEY not set or invalid, skipping email send');

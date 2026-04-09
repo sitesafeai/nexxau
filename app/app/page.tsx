@@ -3,6 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { AlertTriangle, Eye, Shield, Camera, CheckCircle, ArrowRight } from 'lucide-react';
 import MarketingNavbar from './components/MarketingNavbar';
+import HomePageBanner from './components/HomePageBanner';
 
 export const metadata: Metadata = {
   title: 'AI-Powered PPE Compliance Monitoring for Construction Sites | Nexxau',
@@ -58,6 +59,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#0a1628]">
       <MarketingNavbar variant="dark" />
+      <HomePageBanner />
 
       <main>
         {/* Hero Section */}

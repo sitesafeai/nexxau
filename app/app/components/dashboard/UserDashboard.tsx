@@ -93,6 +93,9 @@ interface SiteAlert {
   acknowledgedBy?: string;
   acknowledgedAt?: string;
   notes?: string;
+  description?: string;
+  detectionSnapshot?: string | null;
+  siteName?: string;
 }
 
 interface SiteCamera {
@@ -502,6 +505,8 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
   const [rawCameraData, setRawCameraData] = useState<any>(null);
   const [showCameraInfoPopup, setShowCameraInfoPopup] = useState(false);
   const [selectedCameraForInfo, setSelectedCameraForInfo] = useState<SiteCamera | null>(null);
+  const [alertDetailOpen, setAlertDetailOpen] = useState(false);
+  const [selectedAlertDetail, setSelectedAlertDetail] = useState<SiteAlert | null>(null);
 
   // Handle camera configuration
   const handleSaveConfiguration = async (formData: any) => {
@@ -683,6 +688,9 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
         status: (a.status?.toLowerCase() || 'active') as AlertStatus,
         evidence: a.evidence,
         videoClip: a.videoClipUrl || a.metadata?.videoClipUrl,
+        description: typeof a.description === 'string' ? a.description : '',
+        detectionSnapshot: a.detectionSnapshot ?? null,
+        siteName: a.worksite?.name || a.worksite?.worksiteName || undefined,
       }));
       setAlerts(formattedAlerts);
     };
@@ -846,12 +854,22 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
       
       if (res.ok) {
         const data = await res.json();
+        const nextScore =
+          data?.data?.score ??
+          data?.safetyScore ??
+          data?.score ??
+          null;
         // Update only the safety score, not full page refresh
-        setMetrics(prev => prev ? {
-          ...prev,
-          safetyScore: data.safetyScore ?? prev.safetyScore,
-          lastSync: new Date().toISOString()
-        } : prev);
+        setMetrics((prev) =>
+          prev
+            ? {
+                ...prev,
+                safetyScore:
+                  typeof nextScore === 'number' ? nextScore : prev.safetyScore,
+                lastSync: new Date().toISOString(),
+              }
+            : prev
+        );
       }
     } catch (error) {
       console.error('Error recalculating safety score:', error);
@@ -991,10 +1009,20 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <KPICard
           title="Safety Score"
-          value={metrics?.safetyScore?.toFixed(0) ?? '—'}
+          value={
+            metrics?.safetyScore != null
+              ? Math.round(metrics.safetyScore).toString()
+              : '—'
+          }
           subValue="/ 100"
-          change={metrics?.safetyScoreChange}
-          changeDirection={metrics?.safetyScoreChange && metrics.safetyScoreChange > 0 ? 'up' : 'down'}
+          change={
+            metrics?.safetyScoreChange
+              ? Math.abs(metrics.safetyScoreChange)
+              : undefined
+          }
+          changeDirection={
+            (metrics?.safetyScoreChange ?? 0) >= 0 ? 'up' : 'down'
+          }
           icon={ShieldCheck}
           color={metrics?.safetyScore && metrics.safetyScore >= 80 ? 'green' : metrics?.safetyScore && metrics.safetyScore >= 60 ? 'yellow' : 'red'}
           onClick={handleRecalculateSafetyScore}
@@ -1069,7 +1097,10 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
                   key={alert.id}
                   alert={alert}
                   onAcknowledge={() => handleAcknowledgeAlert(alert.id)}
-                  onViewDetails={() => router.push(`/dashboard/alerts/${alert.id}`)}
+                  onViewDetails={() => {
+                    setSelectedAlertDetail(alert);
+                    setAlertDetailOpen(true);
+                  }}
                   userRole={currentUser?.role}
                 />
               ))
@@ -1259,6 +1290,107 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
           </button>
         </div>
       </Modal>
+
+      {/* Alert detail (same pattern as Alerts & Rules tab) */}
+      {alertDetailOpen && selectedAlertDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-2xl border border-slate-700 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-slate-700 shrink-0">
+              <div className="min-w-0 pr-2">
+                <h3 className="text-lg font-bold text-white truncate">
+                  {selectedAlertDetail.alertType}
+                </h3>
+                <p className="text-sm text-slate-400 truncate">
+                  {selectedAlertDetail.siteName || selectedSite.name} •{' '}
+                  {selectedAlertDetail.camera}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAlertDetailOpen(false);
+                  setSelectedAlertDetail(null);
+                }}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors shrink-0"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              {selectedAlertDetail.detectionSnapshot && (
+                <div className="bg-slate-900 rounded-lg mb-4 overflow-hidden">
+                  <img
+                    src={selectedAlertDetail.detectionSnapshot}
+                    alt="Detection snapshot"
+                    className="w-full h-56 object-cover cursor-pointer"
+                    onClick={() =>
+                      window.open(selectedAlertDetail.detectionSnapshot!, '_blank')
+                    }
+                  />
+                </div>
+              )}
+              {selectedAlertDetail.description ? (
+                <p className="text-sm text-slate-300 mb-4">{selectedAlertDetail.description}</p>
+              ) : null}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-slate-400 mb-1">Severity</p>
+                  <span
+                    className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
+                      getSeverityConfig(selectedAlertDetail.severity).bg
+                    } ${getSeverityConfig(selectedAlertDetail.severity).text}`}
+                  >
+                    {getSeverityConfig(selectedAlertDetail.severity).label}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 mb-1">Status</p>
+                  <span
+                    className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${
+                      getStatusConfig(selectedAlertDetail.status).bg
+                    } ${getStatusConfig(selectedAlertDetail.status).text}`}
+                  >
+                    {selectedAlertDetail.status}
+                  </span>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-slate-400 mb-1">Time</p>
+                  <p className="text-sm text-white">
+                    {formatDateTime(selectedAlertDetail.time)}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-700 flex justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setAlertDetailOpen(false);
+                  setSelectedAlertDetail(null);
+                }}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+              >
+                Close
+              </button>
+              {selectedAlertDetail.status === 'active' &&
+                hasPermission(currentUser?.role, 'acknowledge') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleAcknowledgeAlert(selectedAlertDetail.id);
+                      setAlertDetailOpen(false);
+                      setSelectedAlertDetail(null);
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
+                  >
+                    Acknowledge
+                  </button>
+                )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Diagnostics Modal */}
       <Modal

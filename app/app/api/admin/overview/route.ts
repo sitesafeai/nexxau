@@ -488,12 +488,6 @@ export async function GET(request: NextRequest) {
           error: cameraStatusTotals.error,
           other: cameraStatusTotals.other,
         },
-        subscription: {
-          totalCompanies: companyCount,
-          placeholder: true,
-          message:
-            'Subscription analytics pending billing integration. Displaying placeholder values.',
-        },
         diagnostics,
       },
     };

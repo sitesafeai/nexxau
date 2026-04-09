@@ -116,8 +116,25 @@ const SiteAdministrationPanel: React.FC = () => {
     try {
       const res = await fetch('/api/admin/users', { cache: 'no-store' });
       if (res.ok) {
-        const data = await res.json();
-        setUsers(data);
+        const payload = await res.json();
+        const rows =
+          payload.success && Array.isArray(payload.data)
+            ? payload.data
+            : Array.isArray(payload)
+              ? payload
+              : [];
+        setUsers(
+          rows.map((u: any) => ({
+            id: u.id,
+            name: u.name || 'Unknown',
+            email: u.email || '',
+            role: u.role,
+            status:
+              u.isActivated && u.approved ? 'active' : !u.approved ? 'suspended' : 'inactive',
+            lastLogin: u.lastLogin || 'Never',
+            createdAt: typeof u.createdAt === 'string' ? u.createdAt : u.createdAt?.toString?.() || '',
+          }))
+        );
       }
     } catch (error) {
       console.error('Failed to load users:', error);

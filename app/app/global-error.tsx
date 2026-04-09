@@ -1,9 +1,8 @@
 'use client';
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { AlertTriangle, ArrowLeft, Home, RefreshCcw } from 'lucide-react';
-
+/**
+ * Required when errors bubble past the root layout. Must define html/body.
+ */
 export default function GlobalError({
   error,
   reset,
@@ -11,54 +10,34 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const router = useRouter();
-
   return (
     <html lang="en">
-      <body className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-6">
-        <div className="max-w-md w-full">
-          <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-8 border border-slate-700 text-center">
-            <div className="mb-6 flex justify-center">
-              <div className="bg-yellow-500/20 p-4 rounded-full">
-                <AlertTriangle className="h-16 w-16 text-yellow-500" />
-              </div>
-            </div>
-
-            <h1 className="text-6xl font-bold text-white mb-4">500</h1>
-            <h2 className="text-2xl font-bold text-white mb-4">Server Error</h2>
-
-            <p className="text-slate-300 mb-8">
-              Something went wrong on our end. We're working to fix it. Please try again in a moment.
+      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased">
+        <div className="flex min-h-screen flex-col items-center justify-center px-6 py-16 text-center">
+          <div className="max-w-md rounded-2xl border border-slate-700 bg-slate-900 px-8 py-10 shadow-xl">
+            <h1 className="text-xl font-semibold text-white">Something went wrong</h1>
+            <p className="mt-3 text-sm text-slate-400">
+              The application hit a critical error. Please try again or return home.
             </p>
-
-            {error?.digest ? (
-              <p className="mb-6 text-xs text-slate-500">Reference: {error.digest}</p>
-            ) : null}
-
-            <div className="flex flex-col gap-3">
+            {process.env.NODE_ENV === 'development' && error?.message && (
+              <p className="mt-4 rounded-lg bg-slate-800 p-3 text-left font-mono text-xs text-amber-200 break-words">
+                {error.message}
+              </p>
+            )}
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <button
-                onClick={reset}
-                className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                type="button"
+                onClick={() => reset()}
+                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500"
               >
-                <RefreshCcw className="h-4 w-4" />
-                Try Again
+                Try again
               </button>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => router.back()}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Go Back
-                </button>
-                <Link
-                  href="/dashboard"
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-                >
-                  <Home className="h-4 w-4" />
-                  Dashboard
-                </Link>
-              </div>
+              <a
+                href="/"
+                className="rounded-lg border border-slate-600 px-5 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-slate-800"
+              >
+                Home
+              </a>
             </div>
           </div>
         </div>

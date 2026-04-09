@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getWebSocketManager } from '@/app/lib/websocket';
 import { getCachedSession } from '@/app/lib/session-cache';
+import {
+  getHostname,
+  getHttpTrafficSnapshot,
+  getSentryPublicInfo,
+  getTrafficStress,
+} from '@/app/lib/observability-status';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,12 +31,21 @@ export async function GET(request: NextRequest) {
     // Check notification service
     const notificationHealth = await checkNotificationHealth();
     
-    // Get system metrics
-    const metrics = await getSystemMetrics();
+    // Get system metrics (counts from DB)
+    const usageMetrics = await getSystemMetrics();
 
     const uptimeSeconds = process.uptime();
     const uptimeFormatted = formatUptime(uptimeSeconds);
     const memUsage = (process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100;
+
+    const httpTrafficRaw = getHttpTrafficSnapshot();
+    const trafficStress = getTrafficStress(
+      httpTrafficRaw.requestsPerMinute,
+      httpTrafficRaw.rpmPendingBaseline,
+      httpTrafficRaw.rateLimitRejectionsTotal,
+      httpTrafficRaw.responses.server5xx,
+      httpTrafficRaw.totalHttpRequests
+    );
 
     const systemStatus = {
       database: dbHealth,
@@ -39,10 +54,17 @@ export async function GET(request: NextRequest) {
       websocket: wsHealth,
       notifications: notificationHealth,
       uptime: uptimeFormatted,
+      uptimeSeconds: Math.floor(uptimeSeconds),
+      processHostname: getHostname(),
       memoryUsage: Math.round(memUsage),
       cpuUsage: await getCPUUsage(),
       diskUsage: await getDiskUsage(),
-      ...metrics
+      sentry: getSentryPublicInfo(),
+      httpTraffic: {
+        ...httpTrafficRaw,
+        stress: trafficStress,
+      },
+      ...usageMetrics,
     };
 
     return NextResponse.json(systemStatus);

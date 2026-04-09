@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import AdminLayout from '../../components/AdminLayout';
+import HomePageBannerSettingsPanel from '../../components/admin/HomePageBannerSettingsPanel';
 import { 
   CogIcon,
   BellIcon,
@@ -126,6 +127,8 @@ function GeneralSettings({ onSave }: { onSave: () => void }) {
           </div>
         </div>
       </div>
+
+      <HomePageBannerSettingsPanel variant="light" onSaved={onSave} />
       
       <div className="pt-4">
         <button

@@ -8,7 +8,8 @@ function ReportsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const worksiteParam = searchParams.get('worksite');
-  
+  const typeParam = searchParams.get('type');
+
   const [selectedReportType, setSelectedReportType] = useState('safety');
   const [dateRange, setDateRange] = useState('7d');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -54,6 +55,24 @@ function ReportsPageContent() {
     { id: '90d', name: 'Last 90 Days' },
     { id: 'custom', name: 'Custom Range' }
   ];
+
+  /** Presets from dashboard Reports tab (?type=daily|weekly|monthly|incident|compliance|custom) */
+  useEffect(() => {
+    if (!typeParam) return;
+    const presets: Record<string, { dr: string; rt: string }> = {
+      daily: { dr: '1d', rt: 'safety' },
+      weekly: { dr: '7d', rt: 'safety' },
+      monthly: { dr: '30d', rt: 'safety' },
+      incident: { dr: '30d', rt: 'alerts' },
+      compliance: { dr: '30d', rt: 'compliance' },
+      custom: { dr: '30d', rt: 'safety' },
+    };
+    const p = presets[typeParam];
+    if (p) {
+      setDateRange(p.dr);
+      setSelectedReportType(p.rt);
+    }
+  }, [typeParam]);
 
   // Load worksite data
   useEffect(() => {
@@ -255,19 +274,48 @@ function ReportsPageContent() {
   }
 
   if (!worksiteParam) {
+    const goToDashboardWithStoredSite = () => {
+      try {
+        const raw = typeof window !== 'undefined' ? localStorage.getItem('currentSite') : null;
+        const site = raw ? JSON.parse(raw) : null;
+        if (site?.id && typeof site.id === 'string') {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('dashboard_selected_tab', 'reports');
+          }
+          router.push(`/dashboard?worksite=${encodeURIComponent(site.id)}`);
+          return;
+        }
+      } catch {
+        /* ignore */
+      }
+      router.push('/dashboard');
+    };
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="bg-gray-800 rounded-xl p-12 text-center border border-gray-700">
             <FileText className="w-16 h-16 mx-auto text-gray-600 mb-4" />
             <h2 className="text-2xl font-semibold text-white mb-2">No Worksite Selected</h2>
-            <p className="text-gray-400 mb-6">Please select a worksite to generate reports</p>
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              Go to Dashboard
-            </button>
+            <p className="text-gray-400 mb-6">
+              Open reports from the dashboard with a worksite selected, or pick a site below.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="px-6 py-3 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors w-full sm:w-auto"
+              >
+                Go back
+              </button>
+              <button
+                type="button"
+                onClick={goToDashboardWithStoredSite}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors w-full sm:w-auto"
+              >
+                Go to Dashboard
+              </button>
+            </div>
           </div>
         </div>
       </div>

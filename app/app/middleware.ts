@@ -24,6 +24,13 @@ export default withAuth(
       }
     }
 
+    const companySuspended = (token as any).companySuspended as boolean | undefined;
+    if (companySuspended && userRole !== "SUPER_ADMIN") {
+      const url = new URL("/login", req.url);
+      url.searchParams.set("reason", "company_suspended");
+      return NextResponse.redirect(url);
+    }
+
     // SUPER_ADMIN: Only access /admin routes (platform management)
     if (userRole === "SUPER_ADMIN") {
       if (path.startsWith("/company")) {

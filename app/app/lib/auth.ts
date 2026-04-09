@@ -37,6 +37,7 @@ declare module "next-auth/jwt" {
     worksiteId?: string;
     pilotEndsAt?: string | null;
     pilotEndsAtCheckedAt?: number;
+    companySuspended?: boolean;
   }
 }
 
@@ -51,24 +52,71 @@ export const authOptions: NextAuthOptions = {
       name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
+        impersonationToken: { label: "Impersonation", type: "text" },
       },
       async authorize(credentials) {
+        const { verifyImpersonationToken } = await import('@/app/lib/impersonation-token');
+
+        if (credentials?.impersonationToken && typeof credentials.impersonationToken === 'string') {
+          const payload = verifyImpersonationToken(credentials.impersonationToken);
+          if (!payload) {
+            console.warn('[auth] Invalid impersonation token');
+            return null;
+          }
+
+          const user = await prisma.user.findUnique({
+            where: { id: payload.sub },
+          });
+
+          if (!user || user.companyId !== payload.companyId) {
+            console.warn('[auth] Impersonation target mismatch');
+            return null;
+          }
+
+          const company = await prisma.company.findUnique({
+            where: { id: user.companyId },
+            select: { suspended: true, deletedAt: true, pilotEndsAt: true } as any,
+          });
+          const c = company as { suspended?: boolean; deletedAt?: Date | null; pilotEndsAt?: Date | null } | null;
+          if (!c || c.deletedAt || c.suspended) {
+            console.warn('[auth] Impersonation blocked: company inactive');
+            return null;
+          }
+
+          const normalizedRole = (user.role || '').toUpperCase();
+          if (normalizedRole !== 'SUPER_ADMIN' && normalizedRole !== 'SUPERADMIN' && c.pilotEndsAt && new Date(c.pilotEndsAt) < new Date()) {
+            return null;
+          }
+
+          console.info('[auth] Impersonation session for', user.email);
+
+          return {
+            id: user.id,
+            email: user.email || '',
+            name: user.name || '',
+            role: user.role || 'VIEWER',
+            companyId: user.companyId || undefined,
+            worksiteId: user.worksiteId || undefined,
+          };
+        }
+
         if (!credentials?.email || !credentials?.password) {
           console.warn('[auth] Missing credentials');
           return null;
         }
 
-        console.info('[auth] Attempting login for', credentials.email);
+        const emailNormalized = credentials.email.trim().toLowerCase();
+        console.info('[auth] Attempting login for', emailNormalized);
 
-        const user = await prisma.user.findUnique({
+        const user = await prisma.user.findFirst({
           where: {
-            email: credentials.email
-          }
+            email: { equals: emailNormalized, mode: 'insensitive' },
+          },
         });
 
         if (!user || !user.password) {
-          console.warn('[auth] User not found or missing password', credentials.email);
+          console.warn('[auth] User not found or missing password', emailNormalized);
           return null;
         }
 
@@ -78,23 +126,33 @@ export const authOptions: NextAuthOptions = {
         );
 
         if (!isPasswordValid) {
-          console.warn('[auth] Invalid password for', credentials.email);
+          console.warn('[auth] Invalid password for', emailNormalized);
           return null;
         }
 
-        console.info('[auth] Login success for', credentials.email);
+        console.info('[auth] Login success for', emailNormalized);
 
         // Pilot enforcement (tenant-level access control)
         const normalizedRole = (user.role || '').toUpperCase();
         if (normalizedRole !== 'SUPER_ADMIN' && normalizedRole !== 'SUPERADMIN' && user.companyId) {
           const company = await prisma.company.findUnique({
             where: { id: user.companyId },
-            // Use `any` select to avoid Prisma type drift across workspaces.
-            select: { pilotEndsAt: true } as any,
+            select: { pilotEndsAt: true, suspended: true, deletedAt: true } as any,
           });
-          const pilotEndsAt = (company as any)?.pilotEndsAt as Date | string | null | undefined;
+          const co = company as { pilotEndsAt?: Date | string | null; suspended?: boolean; deletedAt?: Date | null } | null;
+          if (co?.deletedAt || co?.suspended) {
+            console.warn('[auth] Company suspended or removed', user.companyId);
+            return null;
+          }
+          const pilotEndsAt = co?.pilotEndsAt as Date | string | null | undefined;
           if (pilotEndsAt && new Date(pilotEndsAt) < new Date()) {
-            console.warn('[auth] Pilot expired for company', user.companyId, 'user', credentials.email);
+            console.warn(
+              '[auth] Pilot expired for company',
+              user.companyId,
+              'user',
+              emailNormalized,
+              '- set Company.pilotEndsAt to NULL or a future date to allow login'
+            );
             return null;
           }
         }
@@ -130,10 +188,12 @@ export const authOptions: NextAuthOptions = {
         if (!token.pilotEndsAtCheckedAt || now - lastChecked > 10 * 60 * 1000) {
           const company = await prisma.company.findUnique({
             where: { id: token.companyId },
-            select: { pilotEndsAt: true } as any,
+            select: { pilotEndsAt: true, suspended: true, deletedAt: true } as any,
           });
-          const pilotEndsAt = (company as any)?.pilotEndsAt as Date | string | null | undefined;
+          const co = company as { pilotEndsAt?: Date | string | null; suspended?: boolean; deletedAt?: Date | null } | null;
+          const pilotEndsAt = co?.pilotEndsAt;
           token.pilotEndsAt = pilotEndsAt ? new Date(pilotEndsAt).toISOString() : null;
+          token.companySuspended = Boolean(co?.suspended || co?.deletedAt);
           token.pilotEndsAtCheckedAt = now;
         }
       }

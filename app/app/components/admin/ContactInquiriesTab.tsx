@@ -35,6 +35,44 @@ interface ContactInquiry {
   updatedAt: string;
 }
 
+type InquiryStatus = ContactInquiry['status'];
+
+const INQUIRY_STATUS_LABEL: Record<InquiryStatus, string> = {
+  UNREAD: 'Unread',
+  READ: 'Read',
+  REPLIED: 'Replied',
+  RESOLVED: 'Resolved',
+  ARCHIVED: 'Archived',
+};
+
+/** Badge (pill) styles per workflow state */
+const INQUIRY_STATUS_BADGE: Record<InquiryStatus, string> = {
+  UNREAD: 'bg-sky-500/20 text-sky-100 border border-sky-500/40',
+  READ: 'bg-slate-600/50 text-slate-200 border border-slate-500/45',
+  REPLIED: 'bg-emerald-500/15 text-emerald-200 border border-emerald-500/40',
+  RESOLVED: 'bg-violet-500/15 text-violet-200 border border-violet-500/40',
+  ARCHIVED: 'bg-zinc-700/90 text-zinc-300 border border-zinc-600',
+};
+
+/** Left accent on list cards */
+const INQUIRY_STATUS_ACCENT: Record<InquiryStatus, string> = {
+  UNREAD: 'border-l-sky-500',
+  READ: 'border-l-slate-500',
+  REPLIED: 'border-l-emerald-500',
+  RESOLVED: 'border-l-violet-500',
+  ARCHIVED: 'border-l-zinc-600',
+};
+
+function StatusBadge({ status }: { status: InquiryStatus }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wide ${INQUIRY_STATUS_BADGE[status]}`}
+    >
+      {INQUIRY_STATUS_LABEL[status]}
+    </span>
+  );
+}
+
 export default function ContactInquiriesTab() {
   const [inquiries, setInquiries] = useState<ContactInquiry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -180,18 +218,18 @@ export default function ContactInquiriesTab() {
           </div>
           <div className="flex gap-2">
             {[
-              { key: 'all', label: 'All', count: inquiries.length },
-              { key: 'UNREAD', label: 'Unread', count: statusCounts.UNREAD },
-              { key: 'REPLIED', label: 'Replied', count: statusCounts.REPLIED },
-              { key: 'RESOLVED', label: 'Resolved', count: statusCounts.RESOLVED },
+              { key: 'all', label: 'All', count: inquiries.length, active: 'bg-blue-600 text-white', idle: 'bg-gray-700 text-gray-300 hover:bg-gray-600' },
+              { key: 'UNREAD', label: 'Unread', count: statusCounts.UNREAD, active: 'bg-sky-600 text-white ring-1 ring-sky-400/50', idle: 'bg-sky-950/50 text-sky-200 border border-sky-700/60 hover:bg-sky-900/60' },
+              { key: 'READ', label: 'Read', count: statusCounts.READ, active: 'bg-slate-600 text-white', idle: 'bg-slate-800 text-slate-300 border border-slate-600 hover:bg-slate-700' },
+              { key: 'REPLIED', label: 'Replied', count: statusCounts.REPLIED, active: 'bg-emerald-600 text-white ring-1 ring-emerald-400/40', idle: 'bg-emerald-950/40 text-emerald-200 border border-emerald-800/60 hover:bg-emerald-900/50' },
+              { key: 'RESOLVED', label: 'Resolved', count: statusCounts.RESOLVED, active: 'bg-violet-600 text-white ring-1 ring-violet-400/40', idle: 'bg-violet-950/40 text-violet-200 border border-violet-800/50 hover:bg-violet-900/50' },
+              { key: 'ARCHIVED', label: 'Archived', count: statusCounts.ARCHIVED, active: 'bg-zinc-600 text-white', idle: 'bg-zinc-900 text-zinc-400 border border-zinc-700 hover:bg-zinc-800' },
             ].map((f) => (
               <button
                 key={f.key}
-                onClick={() => setFilter(f.key as any)}
+                onClick={() => setFilter(f.key as typeof filter)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  filter === f.key
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  filter === f.key ? f.active : f.idle
                 }`}
               >
                 {f.label} {f.count > 0 && `(${f.count})`}
@@ -231,9 +269,7 @@ export default function ContactInquiriesTab() {
           {filteredInquiries.map((inquiry) => (
             <div
               key={inquiry.id}
-              className={`bg-gray-800 rounded-xl p-6 border ${
-                !inquiry.isRead ? 'border-blue-500' : 'border-gray-700'
-              } hover:border-gray-600 transition-all cursor-pointer`}
+              className={`bg-gray-800 rounded-xl p-6 border border-gray-700 border-l-4 ${INQUIRY_STATUS_ACCENT[inquiry.status]} hover:border-gray-600 transition-all cursor-pointer`}
               onClick={() => {
                 setSelectedInquiry(inquiry);
                 setNotes(inquiry.notes || '');
@@ -249,9 +285,7 @@ export default function ContactInquiriesTab() {
                       <div className="w-2 h-2 bg-blue-500 rounded-full" />
                     )}
                     <h3 className="text-lg font-semibold text-white">{inquiry.name}</h3>
-                    <span className="px-2 py-1 bg-gray-700 text-gray-300 rounded text-xs">
-                      {inquiry.status}
-                    </span>
+                    <StatusBadge status={inquiry.status} />
                     {inquiry.sourcePage && (
                       <span className="px-2 py-1 bg-purple-600/20 text-purple-300 rounded text-xs">
                         {inquiry.sourcePage}
@@ -334,7 +368,7 @@ export default function ContactInquiriesTab() {
                 </div>
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">Status</label>
-                  <p className="text-white">{selectedInquiry.status}</p>
+                  <StatusBadge status={selectedInquiry.status} />
                 </div>
               </div>
 

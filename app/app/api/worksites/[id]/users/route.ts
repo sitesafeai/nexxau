@@ -58,6 +58,7 @@ export async function GET(
             id: true,
             name: true,
             email: true,
+            phoneNumber: true,
             role: true,
             isActivated: true, // Use isActivated for status
             lastLogin: true,
@@ -102,6 +103,7 @@ export async function GET(
       id: wu.user.id,
       name: wu.user.name,
       email: wu.user.email,
+      phoneNumber: wu.user.phoneNumber,
       role: wu.role, // WorksiteRole from WorksiteUser
       status: wu.user.isActivated ? 'ACTIVE' : 'INACTIVE' as 'ACTIVE' | 'INACTIVE',
       worksiteUserId: wu.id, // For updates

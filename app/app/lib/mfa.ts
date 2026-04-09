@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from './prisma';
 import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
-import nodemailer from 'nodemailer';
+import { sendResendHtml, getResendFromAddress } from './resend-mail';
 
 export interface MFASetup {
   secret: string;
@@ -20,20 +20,8 @@ export interface MFAMethod {
 
 export class MFAManager {
   private static instance: MFAManager;
-  private emailTransporter: nodemailer.Transporter;
 
-  private constructor() {
-    // Initialize email transporter
-    this.emailTransporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: false,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
-  }
+  private constructor() {}
 
   public static getInstance(): MFAManager {
     if (!MFAManager.instance) {
@@ -150,9 +138,8 @@ export class MFAManager {
       }
     });
 
-    // Send email
-    await this.emailTransporter.sendMail({
-      from: process.env.SMTP_FROM,
+    const sendResult = await sendResendHtml({
+      from: getResendFromAddress(),
       to: email,
       subject: 'Nexxau - Verification Code',
       html: `
@@ -160,8 +147,11 @@ export class MFAManager {
         <p>Your verification code is: <strong>${code}</strong></p>
         <p>This code will expire in 10 minutes.</p>
         <p>If you didn't request this code, please ignore this email.</p>
-      `
+      `,
     });
+    if (!sendResult.success) {
+      throw new Error(sendResult.error || 'Failed to send verification email');
+    }
 
     return code;
   }

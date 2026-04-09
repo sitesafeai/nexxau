@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { metrics } from './metrics';
 
 interface RateLimitConfig {
   windowMs: number;
   max: number;
   message?: string;
   skipSuccessfulRequests?: boolean;
+  /** Prometheus label for rate_limit_rejections_total */
+  name: string;
 }
 
 class RateLimiter {
@@ -76,18 +79,21 @@ class RateLimiter {
 
 // Create rate limiter instances
 export const apiRateLimit = new RateLimiter({
+  name: 'api',
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // 100 requests per window
   message: 'Too many requests from this IP, please try again later.'
 });
 
 export const authRateLimit = new RateLimiter({
+  name: 'auth',
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // 5 login attempts per window
   message: 'Too many authentication attempts, please try again later.'
 });
 
 export const detectionRateLimit = new RateLimiter({
+  name: 'detection',
   windowMs: 60 * 1000, // 1 minute
   max: 10, // 10 detection requests per minute
   message: 'Too many detection requests, please slow down.'
@@ -100,7 +106,12 @@ export function rateLimitMiddleware(
 ): NextResponse | null {
   const result = rateLimiter.check(request);
   
-  if (!result.allowed) {
+    if (!result.allowed) {
+    try {
+      metrics.rateLimitRejections.inc({ limiter: rateLimiter['config'].name });
+    } catch {
+      /* ignore metrics errors */
+    }
     return new NextResponse(
       JSON.stringify({
         error: 'Rate limit exceeded',

@@ -145,7 +145,14 @@ export const metrics = {
     name: 'feature_usage_total',
     help: 'Total number of feature usage',
     labelNames: ['feature', 'user_role']
-  })
+  }),
+
+  /** Application-level 429 responses from built-in rate limiters (auth, API, detection, etc.) */
+  rateLimitRejections: new Counter({
+    name: 'rate_limit_rejections_total',
+    help: 'Total 429 responses emitted by application rate limiters',
+    labelNames: ['limiter'],
+  }),
 };
 
 // Metrics collection functions

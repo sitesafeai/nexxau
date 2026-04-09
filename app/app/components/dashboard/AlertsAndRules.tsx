@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import AcknowledgeAlertModal from '@/app/components/AcknowledgeAlertModal';
+import AlertDetailModal from '@/app/components/dashboard/AlertDetailModal';
 
 interface Alert {
   id: string;
@@ -39,6 +41,21 @@ interface AlertsAndRulesProps {
   siteFilter?: string;
 }
 
+/** Shape expected by AcknowledgeAlertModal (maps from list Alert) */
+function toWizardAlert(alert: Alert) {
+  const raw = (alert.severity || 'medium').toLowerCase();
+  const severity =
+    raw === 'high' ? 'HIGH' : raw === 'low' ? 'LOW' : 'MEDIUM';
+  return {
+    id: alert.id,
+    title: alert.alertType,
+    description: `${alert.siteName} · ${alert.cameraName}`,
+    location: alert.siteName,
+    severity,
+    worksiteId: alert.siteId || undefined,
+  };
+}
+
 export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRulesProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'alerts' | 'rules'>('alerts');
@@ -63,6 +80,8 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
   const [showAlertDetails, setShowAlertDetails] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [selectedRule, setSelectedRule] = useState<AlertRule | null>(null);
+  const [showAckWizard, setShowAckWizard] = useState(false);
+  const [ackWizardAlert, setAckWizardAlert] = useState<Alert | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -245,13 +264,9 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
     }
   };
 
-  const handleAcknowledge = async (alertId: string) => {
-    try {
-      await fetch(`/api/alerts/${alertId}/acknowledge`, { method: 'POST' });
-      fetchData();
-    } catch (error) {
-      console.error('Error acknowledging alert:', error);
-    }
+  const openAcknowledgeWizard = (alert: Alert) => {
+    setAckWizardAlert(alert);
+    setShowAckWizard(true);
   };
 
   const handleSnooze = async (alertId: string) => {
@@ -259,7 +274,7 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
       await fetch(`/api/alerts/${alertId}/snooze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ duration: 3600000 }) // 1 hour
+        body: JSON.stringify({ duration: 60 }),
       });
       fetchData();
     } catch (error) {
@@ -592,28 +607,34 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
                             )}
                             {alert.status === 'active' && (
                               <button
-                                onClick={() => handleAcknowledge(alert.id)}
+                                type="button"
+                                onClick={() => openAcknowledgeWizard(alert)}
                                 className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
-                                title="Acknowledge"
+                                title="Acknowledgment wizard: record what happened, your assessment, and any follow-up. Submitted details are written to the audit log."
+                                aria-label="Open acknowledgment wizard. Your notes and actions are saved to the audit log."
                               >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
                               </button>
                             )}
                             <button
+                              type="button"
                               onClick={() => handleSnooze(alert.id)}
                               className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
-                              title="Snooze"
+                              title="Snooze: pause this alert for one hour. It will reappear for review when the snooze ends."
+                              aria-label="Snooze alert for one hour"
                             >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
                             </button>
                             <button
+                              type="button"
                               onClick={() => { setSelectedAlert(alert); setShowAlertDetails(true); }}
                               className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
-                              title="View Details"
+                              title="View details: tabs for overview, acknowledgment, follow-up, and activity (responses & logs)."
+                              aria-label="View alert details with tabs for overview, acknowledgment, follow-up, and activity"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -781,77 +802,30 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
         </div>
       )}
 
-      {/* Alert Details Modal */}
-      {showAlertDetails && selectedAlert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-800 rounded-2xl w-full max-w-2xl border border-slate-700 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-slate-700">
-              <div>
-                <h3 className="text-lg font-bold text-white">{selectedAlert.alertType}</h3>
-                <p className="text-sm text-slate-400">{selectedAlert.siteName} • {selectedAlert.cameraName}</p>
-              </div>
-              <button
-                onClick={() => setShowAlertDetails(false)}
-                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-6">
-              {selectedAlert.detectionSnapshot && (
-                <div className="bg-slate-900 rounded-lg mb-4 overflow-hidden">
-                  <img
-                    src={selectedAlert.detectionSnapshot}
-                    alt="Violation snapshot"
-                    className="w-full h-56 object-cover cursor-pointer"
-                    onClick={() => window.open(selectedAlert.detectionSnapshot!, '_blank')}
-                    title="Click to view full size"
-                  />
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Severity</p>
-                  <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full border ${getSeverityBadge(selectedAlert.severity)}`}>
-                    {selectedAlert.severity.toUpperCase()}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Status</p>
-                  <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusBadge(selectedAlert.status)}`}>
-                    {selectedAlert.status}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Time</p>
-                  <p className="text-sm text-white">{selectedAlert.createdAt}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Assigned To</p>
-                  <p className="text-sm text-white">{selectedAlert.assignedUserName || 'Unassigned'}</p>
-                </div>
-              </div>
-            </div>
-            <div className="p-4 border-t border-slate-700 flex justify-end space-x-3">
-              <button
-                onClick={() => setShowAlertDetails(false)}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-              >
-                Close
-              </button>
-              {selectedAlert.status === 'active' && (
-                <button
-                  onClick={() => { handleAcknowledge(selectedAlert.id); setShowAlertDetails(false); }}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
-                >
-                  Acknowledge
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+      <AlertDetailModal
+        open={showAlertDetails && !!selectedAlert}
+        onClose={() => {
+          setShowAlertDetails(false);
+          setSelectedAlert(null);
+        }}
+        listAlert={selectedAlert}
+        onOpenAckWizard={openAcknowledgeWizard}
+        getSeverityBadge={getSeverityBadge}
+        getStatusBadge={getStatusBadge}
+      />
+
+      {showAckWizard && ackWizardAlert && (
+        <AcknowledgeAlertModal
+          key={ackWizardAlert.id}
+          alert={toWizardAlert(ackWizardAlert)}
+          onClose={() => {
+            setShowAckWizard(false);
+            setAckWizardAlert(null);
+          }}
+          onSuccess={() => {
+            fetchData();
+          }}
+        />
       )}
     </div>
   );

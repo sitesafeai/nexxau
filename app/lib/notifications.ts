@@ -1,17 +1,4 @@
-import { Resend } from 'resend';
-
-let _client: Resend | null = null;
-
-function getClient(): Resend | null {
-  if (_client) return _client;
-  const key = process.env.RESEND_API_KEY;
-  if (!key) {
-    console.warn('[Notifications] Missing RESEND_API_KEY');
-    return null;
-  }
-  _client = new Resend(key);
-  return _client;
-}
+import { sendResendHtml, getResendFromAddress } from '@/app/lib/resend-mail';
 
 export interface AlertPayload {
   cameraName: string;
@@ -151,31 +138,22 @@ function buildHTMLEmail(p: AlertPayload): string {
 }
 
 export async function sendEmailAlert(to: string, payload: AlertPayload): Promise<boolean> {
-  const client = getClient();
-  if (!client) return false;
+  const result = await sendResendHtml({
+    from: getResendFromAddress(),
+    to,
+    subject: `🚨 ${payload.type} Detected — ${payload.worksiteName}`,
+    html: buildHTMLEmail(payload),
+  });
 
-  try {
-    const { data, error } = await client.emails.send({
-      from: process.env.ALERT_FROM_EMAIL ?? 'onboarding@resend.dev',
-      to: [to],
-      subject: `🚨 ${payload.type} Detected — ${payload.worksiteName}`,
-      html: buildHTMLEmail(payload),
-    });
-
-    if (error) {
-      console.error('[Notifications] Email error:', error);
-      return false;
-    }
-
-    console.log('[Notifications] Email sent, id:', data?.id);
-    return true;
-  } catch (err) {
-    console.error('[Notifications] Email failed:', err);
+  if (!result.success) {
+    console.error('[Notifications] Email error:', result.error);
     return false;
   }
+
+  console.log('[Notifications] Email sent, id:', result.id);
+  return true;
 }
 
 export async function sendAlerts(to: string, payload: AlertPayload): Promise<void> {
   await sendEmailAlert(to, payload);
 }
-

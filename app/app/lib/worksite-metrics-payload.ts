@@ -30,13 +30,39 @@ function getAlertMetrics(alerts: any[]): {
   };
 }
 
+/** Scores are stored 0–100; tolerate legacy 0–1 fractions. */
+export function normalizeSafetyScoreDisplay(raw: number | null | undefined): number | null {
+  if (raw == null || Number.isNaN(Number(raw))) return null;
+  const n = Number(raw);
+  if (n > 0 && n <= 1) return Math.round(n * 1000) / 10;
+  return Math.round(n * 10) / 10;
+}
+
 function getSafetyScoreMetrics(safetyScores: any[]): {
   safetyScore: number | null;
+  safetyScoreChange: number;
 } {
-  const latestScore = safetyScores?.[0]?.safetyScore ?? null;
-  return {
-    safetyScore: latestScore,
-  };
+  if (!safetyScores?.length) {
+    return { safetyScore: null, safetyScoreChange: 0 };
+  }
+  const latest = safetyScores[0];
+  const prev = safetyScores[1];
+  const score = normalizeSafetyScoreDisplay(latest?.safetyScore ?? null);
+
+  let safetyScoreChange = 0;
+  if (score != null) {
+    const y = normalizeSafetyScoreDisplay(latest?.yesterdayScore ?? null);
+    if (y != null) {
+      safetyScoreChange = Math.round((score - y) * 10) / 10;
+    } else if (prev?.safetyScore != null) {
+      const prevN = normalizeSafetyScoreDisplay(prev.safetyScore);
+      if (prevN != null) {
+        safetyScoreChange = Math.round((score - prevN) * 10) / 10;
+      }
+    }
+  }
+
+  return { safetyScore: score, safetyScoreChange };
 }
 
 async function getLastActivity(
@@ -91,6 +117,10 @@ export type WorksiteMetricsPayload = {
   mediumAlerts: number;
   lowAlerts: number;
   safetyScore: number | null;
+  /** vs prior day when available (from SafetyScore.yesterdayScore or previous row) */
+  safetyScoreChange: number;
+  /** Detections in the last 24h for this worksite */
+  violations24h: number;
   lastActivity: string | null;
 };
 
@@ -122,16 +152,6 @@ export async function getWorksiteMetricsPayload(
             createdAt: true,
           },
         },
-        safetyScores: {
-          orderBy: {
-            date: 'desc',
-          },
-          take: 1,
-          select: {
-            safetyScore: true,
-            date: true,
-          },
-        },
       },
     });
   } catch (dbError: any) {
@@ -142,7 +162,6 @@ export async function getWorksiteMetricsPayload(
     if (worksite) {
       (worksite as any).cameras = [];
       (worksite as any).alerts = [];
-      (worksite as any).safetyScores = [];
     }
   }
 
@@ -199,7 +218,7 @@ export async function getWorksiteMetricsPayload(
     { ttl: 60 }
   );
 
-  const [alertMetrics, safetyScoreMetrics, lastActivityTimestamp] =
+  const [alertMetrics, safetyScoreMetrics, lastActivityTimestamp, violations24h] =
     await Promise.all([
       Cache.wrap(
         CacheKeys.alertMetrics(worksiteId),
@@ -210,26 +229,44 @@ export async function getWorksiteMetricsPayload(
         { ttl: 10 }
       ),
 
-      Cache.wrap(
-        CacheKeys.safetyScoreMetrics(worksiteId),
-        () =>
-          Promise.resolve(
-            getSafetyScoreMetrics((worksite as any).safetyScores || [])
-          ),
-        { ttl: 60 * 5 }
-      ),
+      // Always read latest scores from DB — avoids stale 5m cache showing N/A while reports still chart history
+      (async () => {
+        const latestScores = await prisma.safetyScore.findMany({
+          where: { worksiteId },
+          orderBy: { date: 'desc' },
+          take: 2,
+          select: {
+            safetyScore: true,
+            yesterdayScore: true,
+            date: true,
+          },
+        });
+        return getSafetyScoreMetrics(latestScores);
+      })(),
 
       Cache.wrap(
         CacheKeys.lastActivity(worksiteId),
         () => getLastActivity(worksiteId, worksite.updatedAt),
         { ttl: 30 }
       ),
+
+      prisma.detection
+        .count({
+          where: {
+            camera: { worksiteId },
+            timestamp: {
+              gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
+            },
+          },
+        })
+        .catch(() => 0),
     ]);
 
   return {
     ...cameraMetricsData,
     ...alertMetrics,
     ...safetyScoreMetrics,
+    violations24h,
     lastActivity: lastActivityTimestamp
       ? new Date(lastActivityTimestamp).toISOString()
       : null,

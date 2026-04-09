@@ -137,7 +137,14 @@ jest.mock('./app/lib/metrics', () => ({
     getMetrics: jest.fn().mockResolvedValue('# HELP test_metric Test metric\n# TYPE test_metric counter\ntest_metric 1\n'),
   },
   metrics: {
-    httpRequestsTotal: { inc: jest.fn() },
+    httpRequestsTotal: {
+      inc: jest.fn(),
+      get: jest.fn().mockReturnValue({ values: [] }),
+    },
+    rateLimitRejections: {
+      inc: jest.fn(),
+      get: jest.fn().mockReturnValue({ values: [] }),
+    },
     httpRequestDuration: { observe: jest.fn() },
     databaseConnections: { set: jest.fn() },
     databaseQueryDuration: { observe: jest.fn() },

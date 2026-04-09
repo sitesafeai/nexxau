@@ -62,6 +62,31 @@ export async function sendSMSAlert(
 }
 
 /** WhatsApp via Twilio (from must be a WhatsApp-enabled Twilio number). */
+/** Plain-text WhatsApp (same Twilio WhatsApp sandbox / sender as template alerts). */
+export async function sendWhatsAppText(to: string, body: string): Promise<boolean> {
+  const client = getClient();
+  if (!client) return false;
+  const from = process.env.TWILIO_WHATSAPP_FROM;
+  if (!from) {
+    console.warn('[Twilio] TWILIO_WHATSAPP_FROM not set');
+    return false;
+  }
+  const toAddr = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
+  const fromAddr = from.startsWith('whatsapp:') ? from : `whatsapp:${from}`;
+  try {
+    const msg = await client.messages.create({
+      to: toAddr,
+      from: fromAddr,
+      body,
+    });
+    console.log(`[Twilio] WhatsApp (text) sent to ${toAddr} — SID: ${msg.sid}`);
+    return true;
+  } catch (err) {
+    console.error(`[Twilio] WhatsApp (text) failed to ${toAddr}:`, err);
+    return false;
+  }
+}
+
 export async function sendWhatsAppAlert(
   to: string,
   payload: AlertPayload

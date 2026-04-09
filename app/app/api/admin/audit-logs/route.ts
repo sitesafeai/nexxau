@@ -1,23 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
-import { getSession } from '@/app/lib/auth';
+import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 
 /**
  * GET /api/admin/audit-logs
  * Get audit logs (SUPER_ADMIN only)
  */
 export async function GET(request: NextRequest) {
+  const auth = await requireSuperAdmin();
+  if (!auth.ok) return auth.response;
+
   try {
-    const session = await getSession();
-    const user = session?.user;
-
-    if (!user || user.role !== 'SUPER_ADMIN') {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 403 }
-      );
-    }
-
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
     const entity = searchParams.get('entity');

@@ -1,14 +1,4 @@
-import nodemailer from 'nodemailer';
-
-interface EmailConfig {
-  host: string;
-  port: number;
-  secure: boolean;
-  auth: {
-    user: string;
-    pass: string;
-  };
-}
+import { sendResendHtml, getResendFromAddress, isResendConfigured } from './resend-mail';
 
 interface SMSConfig {
   accountSid: string;
@@ -31,31 +21,11 @@ interface NotificationData {
 }
 
 class NotificationService {
-  private emailTransporter: nodemailer.Transporter | null = null;
   private smsClient: null = null;
-  private emailConfig: EmailConfig | null = null;
   private smsConfig: SMSConfig | null = null;
 
   constructor() {
-    this.initializeEmail();
     this.initializeSMS();
-  }
-
-  private initializeEmail() {
-    const emailConfig = {
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER || '',
-        pass: process.env.SMTP_PASS || ''
-      }
-    };
-
-    if (emailConfig.auth.user && emailConfig.auth.pass) {
-      this.emailConfig = emailConfig;
-      this.emailTransporter = nodemailer.createTransport(emailConfig);
-    }
   }
 
   private initializeSMS() {
@@ -187,8 +157,8 @@ ${data.metrics ? `System Metrics:\n${Object.entries(data.metrics).map(([key, val
   }
 
   public async sendEmail(notification: NotificationData): Promise<boolean> {
-    if (!this.emailTransporter || !this.emailConfig) {
-      console.warn('Email service not configured');
+    if (!isResendConfigured()) {
+      console.warn('Email service not configured (RESEND_API_KEY)');
       return false;
     }
 
@@ -197,14 +167,17 @@ ${data.metrics ? `System Metrics:\n${Object.entries(data.metrics).map(([key, val
       const recipients = Array.isArray(notification.to) ? notification.to : [notification.to];
 
       for (const recipient of recipients) {
-        await this.emailTransporter.sendMail({
-          from: `"Nexxau Safety System" <${this.emailConfig.auth.user}>`,
+        const result = await sendResendHtml({
+          from: getResendFromAddress(),
           to: recipient,
           subject: template.subject,
           text: template.text,
           html: template.html,
-          priority: notification.priority === 'urgent' ? 'high' : 'normal'
         });
+        if (!result.success) {
+          console.error('Failed to send email notification:', result.error);
+          return false;
+        }
       }
 
       console.log(`Email notification sent to ${recipients.length} recipient(s)`);
@@ -270,7 +243,7 @@ ${data.metrics ? `System Metrics:\n${Object.entries(data.metrics).map(([key, val
   }
 
   public isEmailConfigured(): boolean {
-    return this.emailTransporter !== null && this.emailConfig !== null;
+    return isResendConfigured();
   }
 
   public isSMSConfigured(): boolean {

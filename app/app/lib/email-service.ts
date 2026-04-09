@@ -1,98 +1,20 @@
 /**
  * Email Service
- * Handles all email sending functionality for the application
+ * All outbound mail uses Resend (see app/lib/resend-mail.ts).
  */
 
-import nodemailer from 'nodemailer';
+import { sendResendHtml, getResendFromAddress, isResendConfigured } from './resend-mail';
 
-// Email configuration from environment variables
-const EMAIL_CONFIG = {
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD,
-  },
-};
-
-const FROM_EMAIL = process.env.FROM_EMAIL || 'sitesafeai@gmail.com';
 const FROM_NAME = process.env.FROM_NAME || 'SiteSafe';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-// Create reusable transporter
-let transporter: nodemailer.Transporter | null = null;
-let configValidated = false;
-
-/**
- * Validate email environment configuration at runtime
- * Logs presence (not values) of required environment variables
- */
-function validateEmailConfig(): void {
-  if (configValidated) return;
-  
-  console.log('[EMAIL CONFIG] Validating email environment configuration...');
-  
-  const requiredVars = {
-    'SMTP_HOST': process.env.SMTP_HOST,
-    'SMTP_PORT': process.env.SMTP_PORT,
-    'SMTP_USER': process.env.SMTP_USER,
-    'SMTP_PASSWORD': process.env.SMTP_PASSWORD,
-    'FROM_EMAIL': process.env.FROM_EMAIL,
-  };
-
-  let allPresent = true;
-  
-  for (const [varName, varValue] of Object.entries(requiredVars)) {
-    const status = varValue ? 'SET' : 'MISSING';
-    console.log(`[EMAIL CONFIG] ${varName}: ${status}`);
-    
-    if (!varValue) {
-      allPresent = false;
-    }
-  }
-
-  if (!allPresent) {
-    const missing = Object.entries(requiredVars)
-      .filter(([_, value]) => !value)
-      .map(([name]) => name)
-      .join(', ');
-    
-    console.error(`[EMAIL CONFIG] ⚠️  WARNING: Missing required environment variables: ${missing}`);
-    console.error('[EMAIL CONFIG] Email sending will fail until these are configured.');
-    // Don't throw here - let it fail at send time with better error
-  } else {
-    console.log('[EMAIL CONFIG] ✅ All required email configuration variables are present');
-  }
-
-  configValidated = true;
+let resendConfigLogged = false;
+function logResendConfigOnce(): void {
+  if (resendConfigLogged) return;
+  resendConfigLogged = true;
+  console.log('[EMAIL CONFIG] Resend:', isResendConfigured() ? 'RESEND_API_KEY set' : 'RESEND_API_KEY missing');
+  console.log('[EMAIL CONFIG] From:', getResendFromAddress());
 }
-
-const getTransporter = () => {
-  // Validate config on first access
-  validateEmailConfig();
-  
-  if (!transporter) {
-    // Log configuration (without password) for debugging
-    console.log('[EMAIL] Initializing transporter with:', {
-      host: EMAIL_CONFIG.host,
-      port: EMAIL_CONFIG.port,
-      secure: EMAIL_CONFIG.secure,
-      user: EMAIL_CONFIG.auth.user,
-      hasPassword: !!EMAIL_CONFIG.auth.pass,
-    });
-
-    if (!EMAIL_CONFIG.auth.user || !EMAIL_CONFIG.auth.pass) {
-      console.error('[EMAIL] ❌ Missing SMTP credentials!');
-      console.error('[EMAIL] SMTP_USER:', EMAIL_CONFIG.auth.user ? 'Set' : 'MISSING');
-      console.error('[EMAIL] SMTP_PASSWORD:', EMAIL_CONFIG.auth.pass ? 'Set' : 'MISSING');
-      throw new Error('SMTP credentials not configured. Please set SMTP_USER and SMTP_PASSWORD in .env');
-    }
-
-    transporter = nodemailer.createTransport(EMAIL_CONFIG);
-  }
-  return transporter;
-};
 
 // Email Templates
 const getEmailTemplate = (title: string, content: string, buttonText?: string, buttonUrl?: string) => `
@@ -221,8 +143,9 @@ export async function sendInvitationEmail(
     console.log('[EMAIL] Worksite ID:', worksiteId || 'N/A');
     console.log('[EMAIL] Worksite Name:', worksiteName);
     console.log('[EMAIL] Role:', role);
-    console.log('[EMAIL] From:', FROM_EMAIL);
+    console.log('[EMAIL] From:', getResendFromAddress());
     console.log('[EMAIL] Timestamp:', new Date().toISOString());
+    logResendConfigOnce();
     
     const inviteUrl = `${APP_URL}/onboard?token=${token}`;
     
@@ -242,8 +165,9 @@ export async function sendInvitationEmail(
       </ul>
     `;
 
-    const mailOptions = {
-      from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+    console.log('[EMAIL] Attempting to send via Resend...');
+    const result = await sendResendHtml({
+      from: getResendFromAddress(),
       to,
       subject: `You've been added to ${worksiteName} – Complete Your Account`,
       html: getEmailTemplate(
@@ -252,26 +176,17 @@ export async function sendInvitationEmail(
         'Complete Account Setup',
         inviteUrl
       ),
-    };
-
-    console.log('[EMAIL] Mail options prepared:', {
-      from: mailOptions.from,
-      to: mailOptions.to,
-      subject: mailOptions.subject,
-      hasHtml: !!mailOptions.html,
     });
 
-    console.log('[EMAIL] Attempting to send email via SMTP...');
-    const result = await getTransporter().sendMail(mailOptions);
-    
-    // Hard logging after successful send
+    if (!result.success) {
+      console.error('[EMAIL] Resend error:', result.error);
+      return { success: false, error: result.error };
+    }
+
     console.log('[EMAIL] ========================================');
     console.log('[EMAIL] ✅ EMAIL SENT SUCCESSFULLY');
     console.log('[EMAIL] ========================================');
-    console.log('[EMAIL] MessageId:', result.messageId);
-    console.log('[EMAIL] Response:', result.response || 'N/A');
-    console.log('[EMAIL] Accepted recipients:', result.accepted);
-    console.log('[EMAIL] Rejected recipients:', result.rejected);
+    console.log('[EMAIL] Resend id:', result.id);
     console.log('[EMAIL] Timestamp:', new Date().toISOString());
 
     return { success: true };
@@ -331,9 +246,9 @@ export async function sendAlertNotificationEmail(
       <p>Please review this alert and take appropriate action immediately.</p>
     `;
 
-    await getTransporter().sendMail({
-      from: `"${FROM_NAME} Alerts" <${FROM_EMAIL}>`,
-      to: to.join(', '),
+    const sendResult = await sendResendHtml({
+      from: getResendFromAddress(),
+      to,
       subject: `🚨 ${severity} Safety Alert: ${alertType}`,
       html: getEmailTemplate(
         'Safety Alert Notification',
@@ -341,9 +256,11 @@ export async function sendAlertNotificationEmail(
         'View Alert Details',
         detailsUrl
       ),
-      priority: severity === 'CRITICAL' ? 'high' : 'normal',
     });
 
+    if (!sendResult.success) {
+      return { success: false, error: sendResult.error };
+    }
     return { success: true };
   } catch (error: any) {
     console.error('Error sending alert notification email:', error);
@@ -378,8 +295,9 @@ export async function sendPasswordResetEmail(
       <p>To reset your password, click the button below. This link will expire in 1 hour.</p>
     `;
 
-    const mailOptions = {
-      from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+    console.log('[EMAIL] Attempting to send password reset via Resend...');
+    const result = await sendResendHtml({
+      from: getResendFromAddress(),
       to,
       subject: 'Reset Your SiteSafe Password',
       html: getEmailTemplate(
@@ -388,15 +306,16 @@ export async function sendPasswordResetEmail(
         'Reset Password',
         resetUrl
       ),
-    };
+    });
 
-    console.log('[EMAIL] Attempting to send password reset email via SMTP...');
-    const result = await getTransporter().sendMail(mailOptions);
-    
+    if (!result.success) {
+      return { success: false, error: result.error, errorDetails: { message: result.error } };
+    }
+
     console.log('[EMAIL] ========================================');
     console.log('[EMAIL] ✅ PASSWORD RESET EMAIL SENT SUCCESSFULLY');
     console.log('[EMAIL] ========================================');
-    console.log('[EMAIL] MessageId:', result.messageId);
+    console.log('[EMAIL] Resend id:', result.id);
     console.log('[EMAIL] Timestamp:', new Date().toISOString());
 
     return { success: true };
@@ -446,8 +365,8 @@ export async function sendWelcomeEmail(
       <p>Our AI-powered safety monitoring system is ready to help you maintain a safer worksite.</p>
     `;
 
-    await getTransporter().sendMail({
-      from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+    const welcomeResult = await sendResendHtml({
+      from: getResendFromAddress(),
       to,
       subject: `Welcome to SiteSafe - ${companyName}`,
       html: getEmailTemplate(
@@ -458,6 +377,9 @@ export async function sendWelcomeEmail(
       ),
     });
 
+    if (!welcomeResult.success) {
+      return { success: false, error: welcomeResult.error };
+    }
     return { success: true };
   } catch (error: any) {
     console.error('Error sending welcome email:', error);
@@ -500,9 +422,9 @@ export async function sendComplianceReportEmail(
       </ul>
     `;
 
-    await getTransporter().sendMail({
-      from: `"${FROM_NAME} Reports" <${FROM_EMAIL}>`,
-      to: to.join(', '),
+    const reportResult = await sendResendHtml({
+      from: getResendFromAddress(),
+      to,
       subject: `Daily Safety Report - ${companyName} - ${date.toLocaleDateString()}`,
       html: getEmailTemplate(
         'Daily Compliance Report',
@@ -512,6 +434,9 @@ export async function sendComplianceReportEmail(
       ),
     });
 
+    if (!reportResult.success) {
+      return { success: false, error: reportResult.error };
+    }
     return { success: true };
   } catch (error: any) {
     console.error('Error sending compliance report email:', error);
@@ -523,12 +448,181 @@ export async function sendComplianceReportEmail(
  * Test email configuration
  */
 export async function testEmailConfiguration(): Promise<{ success: boolean; error?: string }> {
+  if (!isResendConfigured()) {
+    return { success: false, error: 'RESEND_API_KEY is not configured' };
+  }
+  return { success: true };
+}
+
+function escapeHtmlEmail(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Super Admin updated a user — detailed change list.
+ */
+export async function sendSuperAdminAccountChangeEmail(options: {
+  to: string;
+  recipientName: string | null;
+  rows: { label: string; before: string; after: string }[];
+}): Promise<{ success: boolean; error?: string }> {
+  const { to, recipientName, rows } = options;
+  if (!to?.trim()) {
+    return { success: false, error: 'No recipient' };
+  }
   try {
-    await getTransporter().verify();
+    const greeting = recipientName?.trim()
+      ? `<p>Hello ${escapeHtmlEmail(recipientName.trim())},</p>`
+      : '<p>Hello,</p>';
+    const tableRows = rows
+      .map(
+        (r) => `
+      <tr>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:600;">${escapeHtmlEmail(r.label)}</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;">${escapeHtmlEmail(r.before)}</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;">${escapeHtmlEmail(r.after)}</td>
+      </tr>`
+      )
+      .join('');
+    const content = `
+      ${greeting}
+      <p>Your Nexxau account was updated by a platform administrator. Here are the details:</p>
+      <table style="border-collapse:collapse;width:100%;max-width:560px;margin:16px 0;font-size:14px;">
+        <thead>
+          <tr style="background:#f9fafb;">
+            <th style="padding:8px 12px;border:1px solid #e5e7eb;text-align:left;">Field</th>
+            <th style="padding:8px 12px;border:1px solid #e5e7eb;text-align:left;">Before</th>
+            <th style="padding:8px 12px;border:1px solid #e5e7eb;text-align:left;">After</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+      <div class="info-box">
+        <p style="margin:0;"><strong>Didn’t expect this?</strong> Contact your administrator or Nexxau support if these changes look wrong.</p>
+      </div>
+    `;
+
+    const r = await sendResendHtml({
+      from: getResendFromAddress(),
+      to,
+      subject: 'Your account was updated',
+      html: getEmailTemplate('Account updated', content, 'Sign in', `${APP_URL}/login`),
+    });
+    if (!r.success) return { success: false, error: r.error };
     return { success: true };
-  } catch (error: any) {
-    console.error('Email configuration test failed:', error);
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[EMAIL] Super Admin account change email failed:', message);
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Sent to the *previous* address when login email is changed (security).
+ */
+export async function sendSuperAdminEmailChangedAlertToOldAddress(options: {
+  to: string;
+  newEmail: string;
+  recipientName: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  const { to, newEmail, recipientName } = options;
+  if (!to?.trim()) return { success: false, error: 'No recipient' };
+  try {
+    const greeting = recipientName?.trim()
+      ? `<p>Hello ${escapeHtmlEmail(recipientName.trim())},</p>`
+      : '<p>Hello,</p>';
+    const content = `
+      ${greeting}
+      <p><strong>The login email address on your Nexxau account was changed.</strong></p>
+      <div class="info-box">
+        <p style="margin:0 0 8px 0;"><strong>New email:</strong> ${escapeHtmlEmail(newEmail)}</p>
+        <p style="margin:0;">If you did not request this change, contact support immediately.</p>
+      </div>
+    `;
+    const r = await sendResendHtml({
+      from: getResendFromAddress(),
+      to,
+      subject: 'Security notice: your login email was changed',
+      html: getEmailTemplate('Email address changed', content, 'Sign in', `${APP_URL}/login`),
+    });
+    if (!r.success) return { success: false, error: r.error };
+    return { success: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[EMAIL] Old-address email change alert failed:', message);
+    return { success: false, error: message };
+  }
+}
+
+export async function sendSuperAdminAccountRemovedEmail(options: {
+  to: string;
+  recipientName: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  const { to, recipientName } = options;
+  if (!to?.trim()) return { success: false, error: 'No recipient' };
+  try {
+    const greeting = recipientName?.trim()
+      ? `<p>Hello ${escapeHtmlEmail(recipientName.trim())},</p>`
+      : '<p>Hello,</p>';
+    const content = `
+      ${greeting}
+      <p>Your Nexxau account has been <strong>removed</strong> by a platform administrator.</p>
+      <p>You will no longer be able to sign in with this account.</p>
+      <div class="info-box">
+        <p style="margin:0;">If you believe this was a mistake, contact your organization or Nexxau support.</p>
+      </div>
+    `;
+    const r = await sendResendHtml({
+      from: getResendFromAddress(),
+      to,
+      subject: 'Your account has been removed',
+      html: getEmailTemplate('Account removed', content, 'Visit Nexxau', APP_URL),
+    });
+    if (!r.success) return { success: false, error: r.error };
+    return { success: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[EMAIL] Account removed email failed:', message);
+    return { success: false, error: message };
+  }
+}
+
+export async function sendSuperAdminWorksiteAccessEmail(options: {
+  to: string;
+  recipientName: string | null;
+  summaryLines: string[];
+}): Promise<{ success: boolean; error?: string }> {
+  const { to, recipientName, summaryLines } = options;
+  if (!to?.trim()) return { success: false, error: 'No recipient' };
+  try {
+    const greeting = recipientName?.trim()
+      ? `<p>Hello ${escapeHtmlEmail(recipientName.trim())},</p>`
+      : '<p>Hello,</p>';
+    const list = summaryLines.map((line) => `<li>${escapeHtmlEmail(line)}</li>`).join('');
+    const content = `
+      ${greeting}
+      <p>A platform administrator updated your worksite access:</p>
+      <ul style="margin:12px 0;padding-left:20px;">${list}</ul>
+      <div class="info-box">
+        <p style="margin:0;">If this doesn’t look right, contact your administrator.</p>
+      </div>
+    `;
+    const r = await sendResendHtml({
+      from: getResendFromAddress(),
+      to,
+      subject: 'Your worksite access was updated',
+      html: getEmailTemplate('Worksite access updated', content, 'Sign in', `${APP_URL}/login`),
+    });
+    if (!r.success) return { success: false, error: r.error };
+    return { success: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[EMAIL] Worksite access email failed:', message);
+    return { success: false, error: message };
   }
 }
 
