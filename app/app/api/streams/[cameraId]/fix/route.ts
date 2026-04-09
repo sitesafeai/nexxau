@@ -30,10 +30,10 @@ interface DiagnosticStep {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { cameraId: string } }
+  { params }: { params: Promise<{ cameraId: string }> }
 ): Promise<NextResponse> {
   const diagnostics: DiagnosticStep[] = [];
-  const cameraId = params.cameraId;
+  const { cameraId } = await params;
   const projectRoot = process.cwd();
 
   console.log('\n🔥 [HLS Fixer] Starting auto-fix for camera:', cameraId);

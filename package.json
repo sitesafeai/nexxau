@@ -21,7 +21,14 @@
     "npm": ">=9.0.0"
   },
   "devDependencies": {
+    "eslint": "8.57.1",
+    "eslint-config-next": "15.2.6",
     "typescript": "^5.3.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "eslint": "8.57.1"
+    }
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.9.1",

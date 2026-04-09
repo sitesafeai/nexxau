@@ -24,7 +24,7 @@ const resolveRtpPort = (mountpointId: number): number => {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -35,7 +35,7 @@ export async function GET(
       );
     }
 
-    const { id: cameraId } = params;
+    const { id: cameraId } = await params;
 
     // Fetch camera
     const camera = await prisma.camera.findUnique({
