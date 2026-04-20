@@ -1,0 +1,7 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "ai-detection/Dockerfile"
+
+[deploy]
+startCommand = "python railway_service.py"
+restartPolicyType = "always"
