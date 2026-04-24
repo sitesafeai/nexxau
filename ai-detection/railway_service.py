@@ -22,15 +22,85 @@ CAMERA_POLL_SEC    = int(os.environ.get('CAMERA_POLL_SEC', '60'))
 FRAME_SKIP         = int(os.environ.get('FRAME_SKIP', '5'))
 CONFIDENCE         = float(os.environ.get('YOLO_CONFIDENCE', '0.5'))
 VIOLATION_COOLDOWN = int(os.environ.get('VIOLATION_COOLDOWN_SEC', '30'))
+MAX_READ_FAILURES  = int(os.environ.get('MAX_READ_FAILURES', '10'))
+RECONNECT_DELAY_SEC = int(os.environ.get('RECONNECT_DELAY_SEC', '3'))
+HLS_OPEN_TIMEOUT_SEC = int(os.environ.get('HLS_OPEN_TIMEOUT_SEC', '10'))
+INGEST_TRANSPORT   = os.environ.get('INGEST_TRANSPORT', 'auto').lower()
 
 HEADERS = {'Authorization': f'Bearer {SERVICE_TOKEN}'}
 
 VIOLATION_MAP = {
-    0: 'person_detected',
+    0: 'helmet',       # class: Hardhat
+    1: 'no_helmet',    # class: NO-Hardhat
+    2: 'no_vest',      # class: NO-Safety Vest
+    3: 'person_detected',  # class: Person
+    4: 'vest',         # class: Safety Vest
+    5: 'person_detected',  # class: Worker (some model variants)
+}
+
+VIOLATION_LABELS = {
+    'helmet':          ('Helmet ✓',     'compliant'),
+    'no_helmet':       ('No Helmet',    'violation'),
+    'vest':            ('Vest ✓',       'compliant'),
+    'no_vest':         ('No Vest',      'violation'),
+    'person_detected': ('Person',       'info'),
 }
 
 cooldowns = {}
 cooldown_lock = threading.Lock()
+
+if INGEST_TRANSPORT in ('tcp', 'udp'):
+    os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = f'rtsp_transport;{INGEST_TRANSPORT}'
+
+def ensure_model(path: str) -> str:
+    """
+    If path is a local filename that doesn't exist yet,
+    check for MODEL_DOWNLOAD_URL env var and download it.
+    Returns the path to use.
+    """
+    if os.path.exists(path):
+        return path
+    download_url = os.environ.get('MODEL_DOWNLOAD_URL', '')
+    if not download_url:
+        logger.warning(f'Model not found at {path} and MODEL_DOWNLOAD_URL not set. Falling back to yolov8n.pt')
+        return 'yolov8n.pt'
+    logger.info(f'Downloading model from {download_url} to {path}...')
+    try:
+        r = requests.get(download_url, timeout=120)
+        r.raise_for_status()
+        with open(path, 'wb') as f:
+            f.write(r.content)
+        logger.info(f'Model downloaded: {path} ({len(r.content)//1024}KB)')
+        return path
+    except Exception as e:
+        logger.error(f'Model download failed: {e}. Falling back to yolov8n.pt')
+        return 'yolov8n.pt'
+
+def resolve_ingest_url(camera):
+    return (
+        camera.get('ingestUrl') or
+        camera.get('rtspUrl') or
+        camera.get('hlsUrl') or
+        camera.get('streamUrl') or
+        ''
+    )
+
+def classify_stream_protocol(url):
+    lower = (url or '').lower()
+    if lower.startswith('rtsp://'):
+        return 'rtsp'
+    if lower.startswith('rtmp://'):
+        return 'rtmp'
+    if lower.startswith('http://') or lower.startswith('https://'):
+        if '.m3u8' in lower:
+            return 'hls'
+        return 'http'
+    return 'unknown'
+
+def open_capture(url, protocol):
+    if protocol in ('rtsp', 'hls', 'rtmp', 'http'):
+        return cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+    return None
 
 def is_on_cooldown(camera_id, vtype):
     key = f'{camera_id}:{vtype}'
@@ -78,32 +148,48 @@ def post_violations(camera_id, violations):
 
 def run_camera(camera, model, stop_event):
     camera_id = camera['id']
-    rtsp_url  = camera.get('rtspUrl', '')
+    ingest_url = resolve_ingest_url(camera)
     name      = camera.get('name', camera_id)
+    protocol  = classify_stream_protocol(ingest_url)
 
-    if not rtsp_url or not rtsp_url.startswith('rtsp://'):
-        logger.warning(f'[{name}] No valid RTSP URL, skipping')
+    if not ingest_url:
+        logger.warning(f'[{name}] No ingest URL, skipping')
+        return
+    if protocol == 'unknown':
+        logger.warning(f'[{name}] Unsupported ingest URL protocol: {ingest_url}')
         return
 
-    logger.info(f'[{name}] Opening stream: {rtsp_url}')
-    cap = cv2.VideoCapture(rtsp_url)
+    logger.info(f'[{name}] Opening {protocol} stream: {ingest_url}')
+    cap = open_capture(ingest_url, protocol)
 
-    if not cap.isOpened():
-        logger.error(f'[{name}] Could not open stream')
+    if cap is None or not cap.isOpened():
+        logger.error(f'[{name}] Could not open stream ({protocol})')
         return
 
     frame_count = 0
     consecutive_failures = 0
+    open_started_at = time.time()
 
     while not stop_event.is_set():
         ret, frame = cap.read()
         if not ret:
             consecutive_failures += 1
             logger.warning(f'[{name}] Frame read failed ({consecutive_failures})')
-            if consecutive_failures >= 10:
-                logger.error(f'[{name}] Too many failures, stopping thread')
-                break
-            time.sleep(2)
+            if protocol == 'hls' and (time.time() - open_started_at) < HLS_OPEN_TIMEOUT_SEC:
+                time.sleep(1)
+                continue
+            if consecutive_failures >= MAX_READ_FAILURES:
+                logger.warning(f'[{name}] Reopening stream after {consecutive_failures} failures')
+                cap.release()
+                time.sleep(RECONNECT_DELAY_SEC)
+                cap = open_capture(ingest_url, protocol)
+                if cap is None or not cap.isOpened():
+                    logger.error(f'[{name}] Reconnect failed, stopping thread')
+                    break
+                consecutive_failures = 0
+                open_started_at = time.time()
+                continue
+            time.sleep(RECONNECT_DELAY_SEC)
             continue
 
         consecutive_failures = 0
@@ -157,7 +243,8 @@ def main():
         return
 
     logger.info('Loading YOLO model...')
-    model = YOLO(MODEL_PATH)
+    resolved_path = ensure_model(MODEL_PATH)
+    model = YOLO(resolved_path)
     logger.info('YOLO model loaded')
 
     active_threads = {}
