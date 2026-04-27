@@ -19,7 +19,7 @@ const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN ?? '';
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get('authorization');
-  if (auth !== `Bearer ${INTERNAL_TOKEN}`) {
+  if (!INTERNAL_TOKEN || auth !== `Bearer ${INTERNAL_TOKEN}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

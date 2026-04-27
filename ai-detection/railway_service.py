@@ -29,13 +29,36 @@ INGEST_TRANSPORT   = os.environ.get('INGEST_TRANSPORT', 'auto').lower()
 
 HEADERS = {'Authorization': f'Bearer {SERVICE_TOKEN}'}
 
-VIOLATION_MAP = {
+LEGACY_VIOLATION_MAP = {
     0: 'helmet',       # class: Hardhat
     1: 'no_helmet',    # class: NO-Hardhat
     2: 'no_vest',      # class: NO-Safety Vest
     3: 'person_detected',  # class: Person
     4: 'vest',         # class: Safety Vest
     5: 'person_detected',  # class: Worker (some model variants)
+}
+
+MODEL_NAME_VIOLATION_MAP = {
+    'hardhat': 'helmet',
+    'hard_hat': 'helmet',
+    'helmet': 'helmet',
+    'nohardhat': 'no_helmet',
+    'no_hardhat': 'no_helmet',
+    'nohard_hat': 'no_helmet',
+    'no_hard_hat': 'no_helmet',
+    'nohelmet': 'no_helmet',
+    'no_helmet': 'no_helmet',
+    'safetyvest': 'vest',
+    'safety_vest': 'vest',
+    'vest': 'vest',
+    'nosafetyvest': 'no_vest',
+    'no_safety_vest': 'no_vest',
+    'novest': 'no_vest',
+    'no_vest': 'no_vest',
+    'person': 'person_detected',
+    'worker': 'person_detected',
+    'unauthorizedperson': 'person_detected',
+    'unauthorized_person': 'person_detected',
 }
 
 VIOLATION_LABELS = {
@@ -51,6 +74,27 @@ cooldown_lock = threading.Lock()
 
 if INGEST_TRANSPORT in ('tcp', 'udp'):
     os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = f'rtsp_transport;{INGEST_TRANSPORT}'
+
+def normalize_model_class_name(name: str) -> str:
+    return ''.join(ch for ch in name.lower() if ch.isalnum() or ch == '_')
+
+def map_detection_type(class_id: int, model_names=None):
+    """
+    Map model class IDs to ingest types using the loaded model's class names.
+    This keeps the default COCO model's class 0 as person_detected instead of
+    treating every class-0 detection as a PPE hardhat.
+    """
+    if model_names is not None:
+        class_name = None
+        if isinstance(model_names, dict):
+            class_name = model_names.get(class_id)
+        elif isinstance(model_names, (list, tuple)) and 0 <= class_id < len(model_names):
+            class_name = model_names[class_id]
+
+        if class_name is not None:
+            return MODEL_NAME_VIOLATION_MAP.get(normalize_model_class_name(str(class_name)))
+
+    return LEGACY_VIOLATION_MAP.get(class_id)
 
 def ensure_model(path: str) -> str:
     """
@@ -209,7 +253,7 @@ def run_camera(camera, model, stop_event):
                 for box in boxes:
                     class_id   = int(box.cls[0].cpu().numpy())
                     confidence = float(box.conf[0].cpu().numpy())
-                    vtype      = VIOLATION_MAP.get(class_id)
+                    vtype      = map_detection_type(class_id, getattr(model, 'names', None))
 
                     if vtype is None:
                         continue
