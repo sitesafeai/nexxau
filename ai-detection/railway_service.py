@@ -10,6 +10,7 @@ import logging
 import threading
 import requests
 import os
+import re
 from ultralytics import YOLO
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
@@ -38,6 +39,28 @@ VIOLATION_MAP = {
     5: 'person_detected',  # class: Worker (some model variants)
 }
 
+CLASS_NAME_MAP = {
+    'hardhat': 'helmet',
+    'hard_hat': 'helmet',
+    'helmet': 'helmet',
+    'safety_helmet': 'helmet',
+    'no_hardhat': 'no_helmet',
+    'no_hard_hat': 'no_helmet',
+    'no_helmet': 'no_helmet',
+    'without_helmet': 'no_helmet',
+    'no_safety_helmet': 'no_helmet',
+    'safety_vest': 'vest',
+    'vest': 'vest',
+    'person_with_safety_vest': 'vest',
+    'no_safety_vest': 'no_vest',
+    'no_vest': 'no_vest',
+    'without_vest': 'no_vest',
+    'person_without_safety_vest': 'no_vest',
+    'person': 'person_detected',
+    'worker': 'person_detected',
+    'person_detected': 'person_detected',
+}
+
 VIOLATION_LABELS = {
     'helmet':          ('Helmet ✓',     'compliant'),
     'no_helmet':       ('No Helmet',    'violation'),
@@ -51,6 +74,33 @@ cooldown_lock = threading.Lock()
 
 if INGEST_TRANSPORT in ('tcp', 'udp'):
     os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = f'rtsp_transport;{INGEST_TRANSPORT}'
+
+def normalize_class_name(name):
+    return re.sub(r'[^a-z0-9]+', '_', str(name).lower()).strip('_')
+
+def get_model_class_name(model_names, class_id):
+    if model_names is None:
+        return None
+    if isinstance(model_names, dict):
+        return model_names.get(class_id) or model_names.get(str(class_id))
+    if isinstance(model_names, (list, tuple)) and 0 <= class_id < len(model_names):
+        return model_names[class_id]
+    return None
+
+def map_detection_type(class_id, model_names):
+    class_name = get_model_class_name(model_names, class_id)
+    if class_name is not None:
+        normalized = normalize_class_name(class_name)
+        mapped = CLASS_NAME_MAP.get(normalized)
+        if mapped:
+            return mapped
+
+        # When a loaded model exposes real class names, trust them. Otherwise a
+        # stock COCO class like "car" would be interpreted as "no_vest".
+        if normalized and normalized not in (str(class_id), f'class_{class_id}'):
+            return None
+
+    return VIOLATION_MAP.get(class_id)
 
 def ensure_model(path: str) -> str:
     """
@@ -209,7 +259,7 @@ def run_camera(camera, model, stop_event):
                 for box in boxes:
                     class_id   = int(box.cls[0].cpu().numpy())
                     confidence = float(box.conf[0].cpu().numpy())
-                    vtype      = VIOLATION_MAP.get(class_id)
+                    vtype      = map_detection_type(class_id, getattr(model, 'names', None))
 
                     if vtype is None:
                         continue
