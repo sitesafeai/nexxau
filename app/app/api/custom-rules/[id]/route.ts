@@ -2,6 +2,44 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { logger } from '@/app/lib/logger';
 import { retryDatabaseOperation } from '@/app/lib/retry';
+import {
+  enforceWorksiteAccess,
+  enforceWorksiteAdminAccess,
+} from '@/app/lib/worksite-access';
+
+async function getRuleWorksiteId(ruleId: string) {
+  const rule = await prisma.customRule.findUnique({
+    where: { id: ruleId },
+    select: {
+      worksiteId: true,
+      camera: {
+        select: { worksiteId: true },
+      },
+    },
+  });
+
+  return rule ? rule.worksiteId || rule.camera?.worksiteId || null : undefined;
+}
+
+async function enforceRuleAccess(request: NextRequest, ruleId: string, adminOnly = false) {
+  const worksiteId = await getRuleWorksiteId(ruleId);
+  if (worksiteId === undefined) {
+    return NextResponse.json(
+      { success: false, error: 'Rule not found' },
+      { status: 404 }
+    );
+  }
+  if (!worksiteId) {
+    return NextResponse.json(
+      { success: false, error: 'Rule is not associated with a worksite' },
+      { status: 403 }
+    );
+  }
+
+  return adminOnly
+    ? enforceWorksiteAdminAccess(request, worksiteId)
+    : enforceWorksiteAccess(request, worksiteId);
+}
 
 // GET /api/custom-rules/[id] - Get a specific rule
 export async function GET(
@@ -10,6 +48,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const denied = await enforceRuleAccess(request, id);
+    if (denied) return denied;
 
     const rule = await prisma.customRule.findUnique({
       where: { id },
@@ -81,6 +121,9 @@ export async function PATCH(
 ) {
   const { id } = await params;
   try {
+    const denied = await enforceRuleAccess(request, id, true);
+    if (denied) return denied;
+
     const body = await request.json();
 
     console.log(`[Custom Rules API] PATCH request for rule ${id}:`, body);
@@ -164,6 +207,8 @@ export async function DELETE(
 ) {
   const { id } = await params;
   try {
+    const denied = await enforceRuleAccess(request, id, true);
+    if (denied) return denied;
 
     await retryDatabaseOperation(async () => {
       return await prisma.customRule.delete({

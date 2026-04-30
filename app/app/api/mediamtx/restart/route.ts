@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { requireSuperAdminOrInternalToken } from '@/app/lib/internal-route-auth';
 
 const execAsync = promisify(exec);
 
 // POST /api/mediamtx/restart - Restart MediaMTX to apply config changes
-export async function POST() {
+export async function POST(request: Request) {
   try {
+    const denied = await requireSuperAdminOrInternalToken(request);
+    if (denied) return denied;
+
     console.log('Restarting MediaMTX...');
     
     // Stop and remove existing container
