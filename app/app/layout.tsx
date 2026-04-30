@@ -12,6 +12,10 @@ export const metadata: Metadata = {
   description:
     "Real-time hard hat and vest detection via your existing site cameras. Prevent OSHA fines and reduce workers' comp claims.",
   metadataBase: new URL("https://nexxau.com"),
+  icons: {
+    icon: "/nexxau-logo.png",
+    apple: "/nexxau-logo.png",
+  },
   openGraph: {
     title: "Nexxau — AI PPE Compliance Monitoring",
     description:
