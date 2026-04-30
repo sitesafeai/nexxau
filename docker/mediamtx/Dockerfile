@@ -1,2 +1,2 @@
 FROM bluenviron/mediamtx:latest
-COPY mediamtx.yml /mediamtx.yml
+COPY docker/mediamtx/mediamtx.yml /mediamtx.yml
