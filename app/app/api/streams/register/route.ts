@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { requireSuperAdminOrInternalToken } from '@/app/lib/internal-route-auth';
 
 const execAsync = promisify(exec);
 
@@ -29,6 +30,9 @@ async function regenerateMediaMTXConfig() {
 
 export async function POST(request: NextRequest) {
   try {
+    const denied = await requireSuperAdminOrInternalToken(request);
+    if (denied) return denied;
+
     const { name, streamUrl, mediamtxPath, worksiteId } = await request.json();
     if (!name || !streamUrl || !mediamtxPath) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });

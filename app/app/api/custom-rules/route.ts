@@ -2,6 +2,82 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { logger } from '@/app/lib/logger';
 import { retryDatabaseOperation } from '@/app/lib/retry';
+import {
+  enforceWorksiteAccess,
+  enforceWorksiteAdminAccess,
+} from '@/app/lib/worksite-access';
+import { getCachedSession } from '@/app/lib/session-cache';
+import { normalizeRole } from '@/app/lib/roles';
+
+async function getWorksiteIdForCamera(cameraId: string) {
+  const camera = await prisma.camera.findUnique({
+    where: { id: cameraId },
+    select: { worksiteId: true },
+  });
+
+  return camera?.worksiteId || null;
+}
+
+async function getCustomRuleListScope(request: NextRequest) {
+  const session = await getCachedSession(request);
+  if (!session?.user) {
+    return {
+      denied: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    };
+  }
+
+  const role = normalizeRole(session.user.role);
+  if (role === 'SUPER_ADMIN') {
+    return { where: {} };
+  }
+
+  const userEmail = session.user.email;
+  const sessionUserId = (session.user as { id?: string }).id;
+  const select = {
+    id: true,
+    companyId: true,
+    worksiteAccess: {
+      select: { worksiteId: true },
+    },
+  } as const;
+
+  let user = userEmail
+    ? await prisma.user.findUnique({
+        where: { email: userEmail },
+        select,
+      })
+    : null;
+
+  if (!user && sessionUserId) {
+    user = await prisma.user.findUnique({
+      where: { id: sessionUserId },
+      select,
+    });
+  }
+
+  if (!user) {
+    return {
+      denied: NextResponse.json({ error: 'User not found' }, { status: 404 }),
+    };
+  }
+
+  const accessibleWorksiteIds = user.worksiteAccess.map(access => access.worksiteId);
+  const orFilters: any[] = [];
+
+  if (accessibleWorksiteIds.length > 0) {
+    orFilters.push({ worksiteId: { in: accessibleWorksiteIds } });
+  }
+
+  if (user.companyId) {
+    orFilters.push({ worksite: { companyId: user.companyId } });
+  }
+
+  if (orFilters.length === 0) {
+    return { where: { id: '__no_access__' } };
+  }
+
+  return { where: { OR: orFilters } };
+}
 
 // GET /api/custom-rules - Get all custom rules
 export async function GET(request: NextRequest) {
@@ -15,6 +91,27 @@ export async function GET(request: NextRequest) {
     const worksiteId = searchParams.get('worksiteId');
 
     console.log('[API /custom-rules] Query params:', { activeOnly, worksiteId, cameraId });
+
+    let authorizedWorksiteId = worksiteId;
+    let accessScopeWhere: any = null;
+    if (!authorizedWorksiteId && cameraId) {
+      authorizedWorksiteId = await getWorksiteIdForCamera(cameraId);
+      if (!authorizedWorksiteId) {
+        return NextResponse.json(
+          { success: false, error: 'Camera not found' },
+          { status: 404 }
+        );
+      }
+    }
+
+    if (!authorizedWorksiteId) {
+      const scope = await getCustomRuleListScope(request);
+      if ('denied' in scope) return scope.denied;
+      accessScopeWhere = scope.where;
+    } else {
+      const denied = await enforceWorksiteAccess(request, authorizedWorksiteId);
+      if (denied) return denied;
+    }
     
     const rules = await retryDatabaseOperation(async () => {
       const whereClause: any = {};
@@ -23,10 +120,8 @@ export async function GET(request: NextRequest) {
         whereClause.isActive = true;
       }
       
-      if (worksiteId) {
-        whereClause.worksiteId = worksiteId;
-        console.log('[Custom Rules API] Filtering by worksiteId:', worksiteId);
-      }
+      Object.assign(whereClause, accessScopeWhere || { worksiteId: authorizedWorksiteId });
+      console.log('[Custom Rules API] Filtering custom rules:', whereClause);
       
       if (cameraId) {
         whereClause.OR = [
@@ -187,6 +282,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const cameraWorksiteId = cameraId ? await getWorksiteIdForCamera(cameraId) : null;
+    if (cameraId && !cameraWorksiteId) {
+      return NextResponse.json(
+        { success: false, error: 'Camera not found' },
+        { status: 404 }
+      );
+    }
+
+    const targetWorksiteId = worksiteId || cameraWorksiteId;
+    if (!targetWorksiteId) {
+      return NextResponse.json(
+        { success: false, error: 'Valid worksiteId or cameraId is required' },
+        { status: 400 }
+      );
+    }
+
+    if (cameraWorksiteId && cameraWorksiteId !== targetWorksiteId) {
+      return NextResponse.json(
+        { success: false, error: 'Camera does not belong to the selected worksite' },
+        { status: 400 }
+      );
+    }
+
+    const denied = await enforceWorksiteAdminAccess(request, targetWorksiteId);
+    if (denied) return denied;
+
     // Extract notification settings
     const smsRecipients = body.smsRecipients || [];
     const emailRecipients = body.emailRecipients || [];
@@ -196,15 +317,6 @@ export async function POST(request: NextRequest) {
     // Create rule with transaction
     const rule = await retryDatabaseOperation(async () => {
       return await prisma.$transaction(async (tx) => {
-        // Get default worksite if not provided
-        let targetWorksiteId = worksiteId;
-        if (!targetWorksiteId && !cameraId) {
-          const defaultWorksite = await tx.worksite.findFirst({
-            orderBy: { createdAt: 'asc' }
-          });
-          targetWorksiteId = defaultWorksite?.id;
-        }
-
         // Create the rule using the actual schema fields
         const newRule = await tx.customRule.create({
           data: {
