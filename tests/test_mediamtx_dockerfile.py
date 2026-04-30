@@ -1,23 +1,28 @@
 from pathlib import Path
+import unittest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_mediamtx_dockerfile_copies_railway_config_from_repo_root():
-    dockerfile = REPO_ROOT / "docker" / "mediamtx" / "Dockerfile"
-    config = REPO_ROOT / "docker" / "mediamtx" / "mediamtx.yml"
+class MediaMTXDockerfileTest(unittest.TestCase):
+    def test_copies_railway_config_from_repo_root(self):
+        dockerfile = REPO_ROOT / "docker" / "mediamtx" / "Dockerfile"
+        config = REPO_ROOT / "docker" / "mediamtx" / "mediamtx.yml"
 
-    assert config.exists()
-    assert (
-        "COPY docker/mediamtx/mediamtx.yml /mediamtx.yml"
-        in dockerfile.read_text()
-    )
+        self.assertTrue(config.exists())
+        self.assertIn(
+            "COPY docker/mediamtx/mediamtx.yml /mediamtx.yml",
+            dockerfile.read_text(),
+        )
+
+    def test_railway_config_enables_internal_auth(self):
+        config_text = (REPO_ROOT / "docker" / "mediamtx" / "mediamtx.yml").read_text()
+
+        self.assertIn('authMethod: "internal"', config_text)
+        self.assertIn("authInternalUsers:", config_text)
+        self.assertIn("- action: api", config_text)
 
 
-def test_railway_mediamtx_config_enables_internal_auth():
-    config_text = (REPO_ROOT / "docker" / "mediamtx" / "mediamtx.yml").read_text()
-
-    assert 'authMethod: "internal"' in config_text
-    assert "authInternalUsers:" in config_text
-    assert "- action: api" in config_text
+if __name__ == "__main__":
+    unittest.main()
