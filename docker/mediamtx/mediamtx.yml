@@ -1,0 +1,38 @@
+# MediaMTX Configuration
+logLevel: info
+logDestinations: [stdout]
+logFile: ""
+
+# API server
+api: yes
+apiAddress: :9000
+
+# Metrics
+metrics: yes
+metricsAddress: :9001
+
+# RTSP server
+rtspAddress: :8554
+
+# HLS server
+hlsAddress: :8888
+hlsAlwaysRemux: yes
+hlsVariant: mpegts
+hlsSegmentCount: 6
+hlsSegmentDuration: 2s
+hlsSegmentMaxSize: 50M
+hlsAllowOrigin: "*"
+
+paths: {}
+
+# Authentication
+authMethod: "internal"
+authInternalUsers:
+  - user: "admin"
+    pass: "nexxau"
+    ips: []
+    permissions:
+      - action: read
+      - action: publish
+      - action: playback
+      - action: api
