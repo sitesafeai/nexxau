@@ -209,7 +209,7 @@ export const authOptions: NextAuthOptions = {
       if (normalizedRole !== 'SUPER_ADMIN' && normalizedRole !== 'SUPERADMIN' && token.companyId) {
         const now = Date.now();
         const lastChecked = token.pilotEndsAtCheckedAt ?? 0;
-        if (!token.pilotEndsAtCheckedAt || now - lastChecked > 10 * 60 * 1000) {
+        if (!token.pilotEndsAtCheckedAt || now - lastChecked > 60 * 60 * 1000) {
           const co = await getCompanyAccessState(token.companyId);
           const pilotEndsAt = co?.pilotEndsAt;
           token.pilotEndsAt = pilotEndsAt ? new Date(pilotEndsAt).toISOString() : null;
