@@ -38,6 +38,7 @@ declare module "next-auth/jwt" {
     pilotEndsAt?: string | null;
     pilotEndsAtCheckedAt?: number;
     companySuspended?: boolean;
+    companyStatusCheckedAt?: number;
   }
 }
 
@@ -47,8 +48,13 @@ type CompanyAccessState = {
   pilotEndsAt: Date | null;
 };
 
+type CompanyStatusState = Omit<CompanyAccessState, 'pilotEndsAt'>;
+
 const companyAccessCache = new Map<string, { value: CompanyAccessState | null; expiresAt: number }>();
+const companyStatusCache = new Map<string, { value: CompanyStatusState | null; expiresAt: number }>();
 const COMPANY_CACHE_TTL_MS = 60_000;
+const COMPANY_STATUS_REFRESH_MS = 10 * 60 * 1000;
+const PILOT_ACCESS_REFRESH_MS = 60 * 60 * 1000;
 
 async function getCompanyAccessState(companyId: string): Promise<CompanyAccessState | null> {
   const cached = companyAccessCache.get(companyId);
@@ -70,6 +76,28 @@ async function getCompanyAccessState(companyId: string): Promise<CompanyAccessSt
     : null;
 
   companyAccessCache.set(companyId, { value: normalized, expiresAt: now + COMPANY_CACHE_TTL_MS });
+  return normalized;
+}
+
+async function getCompanyStatusState(companyId: string): Promise<CompanyStatusState | null> {
+  const cached = companyStatusCache.get(companyId);
+  const now = Date.now();
+  if (cached && now < cached.expiresAt) {
+    return cached.value;
+  }
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { suspended: true, deletedAt: true } as any,
+  });
+  const normalized = company
+    ? {
+        suspended: Boolean((company as any).suspended),
+        deletedAt: ((company as any).deletedAt ?? null) as Date | null,
+      }
+    : null;
+
+  companyStatusCache.set(companyId, { value: normalized, expiresAt: now + COMPANY_CACHE_TTL_MS });
   return normalized;
 }
 
@@ -204,17 +232,27 @@ export const authOptions: NextAuthOptions = {
         token.worksiteId = user.worksiteId;
       }
 
-      // Keep pilot end date reasonably fresh for middleware gating.
+      // Keep critical tenant lockouts fresher than lower-risk pilot expiry checks.
       const normalizedRole = (token.role || '').toUpperCase();
       if (normalizedRole !== 'SUPER_ADMIN' && normalizedRole !== 'SUPERADMIN' && token.companyId) {
         const now = Date.now();
-        const lastChecked = token.pilotEndsAtCheckedAt ?? 0;
-        if (!token.pilotEndsAtCheckedAt || now - lastChecked > 60 * 60 * 1000) {
+        const lastPilotChecked = token.pilotEndsAtCheckedAt ?? 0;
+        const lastCompanyStatusChecked = token.companyStatusCheckedAt ?? 0;
+        const shouldRefreshPilot = !token.pilotEndsAtCheckedAt || now - lastPilotChecked > PILOT_ACCESS_REFRESH_MS;
+        const shouldRefreshCompanyStatus =
+          !token.companyStatusCheckedAt || now - lastCompanyStatusChecked > COMPANY_STATUS_REFRESH_MS;
+
+        if (shouldRefreshPilot) {
           const co = await getCompanyAccessState(token.companyId);
           const pilotEndsAt = co?.pilotEndsAt;
           token.pilotEndsAt = pilotEndsAt ? new Date(pilotEndsAt).toISOString() : null;
           token.companySuspended = Boolean(co?.suspended || co?.deletedAt);
           token.pilotEndsAtCheckedAt = now;
+          token.companyStatusCheckedAt = now;
+        } else if (shouldRefreshCompanyStatus) {
+          const co = await getCompanyStatusState(token.companyId);
+          token.companySuspended = Boolean(co?.suspended || co?.deletedAt);
+          token.companyStatusCheckedAt = now;
         }
       }
       return token;
