@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { enforceWorksiteAccess } from '@/app/lib/worksite-access';
 import { getWorksiteMetricsPayload } from '@/app/lib/worksite-metrics-payload';
+import { withCache } from '@/app/lib/cache';
 
 /** Keep aligned with UserDashboard overview alerts slice */
 const OVERVIEW_ALERTS_LIMIT = 40;
@@ -51,61 +52,65 @@ export async function GET(request: NextRequest) {
     const denied = await enforceWorksiteAccess(request, worksiteId);
     if (denied) return denied;
 
-    const [metrics, alerts, cameras] = await Promise.all([
-      getWorksiteMetricsPayload(worksiteId),
-      prisma.alert.findMany({
-        where: { worksiteId },
-        orderBy: { createdAt: 'desc' },
-        take: OVERVIEW_ALERTS_LIMIT,
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          severity: true,
-          status: true,
-          source: true,
-          location: true,
-          metadata: true,
-          createdAt: true,
-          updatedAt: true,
-          resolvedAt: true,
-          ruleId: true,
-          worksiteId: true,
-          cameraId: true,
-          detectionSnapshot: true,
-          rule: {
-            select: { name: true, description: true, severity: true },
+    const data = await withCache(`dashboard:site-summary:${worksiteId}`, 10_000, async () => {
+      const [metrics, alerts, cameras] = await Promise.all([
+        getWorksiteMetricsPayload(worksiteId),
+        prisma.alert.findMany({
+          where: { worksiteId },
+          orderBy: { createdAt: 'desc' },
+          take: OVERVIEW_ALERTS_LIMIT,
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            severity: true,
+            status: true,
+            source: true,
+            location: true,
+            metadata: true,
+            createdAt: true,
+            updatedAt: true,
+            resolvedAt: true,
+            ruleId: true,
+            worksiteId: true,
+            cameraId: true,
+            detectionSnapshot: true,
+            rule: {
+              select: { name: true, description: true, severity: true },
+            },
+            worksite: {
+              select: { id: true, name: true, worksiteName: true },
+            },
+            camera: {
+              select: { id: true, name: true, location: true },
+            },
           },
-          worksite: {
-            select: { id: true, name: true, worksiteName: true },
+        }),
+        prisma.camera.findMany({
+          where: { worksiteId },
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            location: true,
+            streamUrl: true,
+            hlsUrl: true,
+            mediamtxPath: true,
+            rtspPath: true,
+            ipAddress: true,
+            port: true,
+            metadata: true,
+            worksiteId: true,
+            type: true,
+            createdAt: true,
+            updatedAt: true,
           },
-          camera: {
-            select: { id: true, name: true, location: true },
-          },
-        },
-      }),
-      prisma.camera.findMany({
-        where: { worksiteId },
-        select: {
-          id: true,
-          name: true,
-          status: true,
-          location: true,
-          streamUrl: true,
-          hlsUrl: true,
-          mediamtxPath: true,
-          rtspPath: true,
-          ipAddress: true,
-          port: true,
-          metadata: true,
-          worksiteId: true,
-          type: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-    ]);
+          orderBy: { createdAt: 'desc' },
+        }),
+      ]);
+      return { metrics, alerts, cameras };
+    });
+    const { metrics, alerts, cameras } = data;
 
     if (!metrics) {
       return NextResponse.json(

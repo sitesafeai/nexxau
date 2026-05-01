@@ -271,7 +271,7 @@ export default function HomePage() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <Image src="/nexxau-logo-resized.png" alt="Nexxau Logo" width={24} height={24} className="w-6 h-6 object-contain" />
+                <Image src="/nexxau-logo.png" alt="Nexxau Logo" width={24} height={24} className="w-6 h-6 object-contain" />
                 <span className="text-white font-bold">NEXXAU</span>
               </div>
               <p className="text-sm text-[#8b9bb1]">AI-powered safety monitoring for construction and industrial sites.</p>

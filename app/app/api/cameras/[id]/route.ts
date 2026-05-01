@@ -5,7 +5,7 @@ import { authOptions } from '@/app/lib/auth';
 import { normalizeRole } from '@/app/lib/roles';
 import { stopHlsStream } from '@/app/lib/streaming/hlsManager';
 import { stopRtpPush } from '@/app/lib/services/cameraIngestClient';
-import { removeStreamFromGo2RTC } from '@/app/lib/services/go2rtcClient';
+import { removeStreamFromMediaMTX } from '@/app/lib/services/mediamtxClient';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -280,18 +280,18 @@ export async function DELETE(
       console.log(`[API /cameras/[id] DELETE] [${requestId}] ℹ️ No janusFeedId, skipping RTP worker stop`);
     }
 
-    // Step 2: Remove stream from go2rtc (camera ID is stream name)
-    console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 1b: Removing stream from go2rtc...`);
+    // Step 2: Remove stream from MediaMTX (camera ID is stream name)
+    console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 1b: Removing stream from MediaMTX...`);
     try {
-      const go2rtcUrl = process.env.GO2RTC_URL || 'http://localhost:1984';
-      const removed = await removeStreamFromGo2RTC(go2rtcUrl, trimmedCameraId);
+      const mediamtxApiUrl = process.env.MEDIAMTX_API_URL || 'http://localhost:9000';
+      const removed = await removeStreamFromMediaMTX(mediamtxApiUrl, trimmedCameraId);
       if (removed) {
-        console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Stream removed from go2rtc`);
+        console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Stream removed from MediaMTX`);
       } else {
-        console.log(`[API /cameras/[id] DELETE] [${requestId}] ℹ️ Stream not found in go2rtc or already removed`);
+        console.log(`[API /cameras/[id] DELETE] [${requestId}] ℹ️ Stream not found in MediaMTX or already removed`);
       }
-    } catch (go2rtcError: any) {
-      console.warn(`[API /cameras/[id] DELETE] [${requestId}] ⚠️ Error removing from go2rtc (continuing):`, go2rtcError?.message);
+    } catch (mediamtxError: any) {
+      console.warn(`[API /cameras/[id] DELETE] [${requestId}] ⚠️ Error removing from MediaMTX (continuing):`, mediamtxError?.message);
     }
 
     // Step 3: Stop HLS stream (if exists)
@@ -361,159 +361,119 @@ export async function DELETE(
     }
 
     // ============================================================
-    // PART F: DELETE RELATED RECORDS (CASCADE)
+    // PART F/G: TRANSACTIONAL DB CLEANUP + CAMERA DELETE
     // ============================================================
-    // Delete all related records that might block camera deletion
-    // Detection model doesn't have onDelete: Cascade, so we must delete manually
-    
-    try {
-      console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 3: Deleting related database records...`);
-      
-      // Delete Detection records (no cascade, must delete manually)
-      const detectionsResult = await Promise.race([
-        prisma.detection.deleteMany({
-          where: { cameraId: trimmedCameraId }
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Delete detections timeout after 15s')), 15000)
-        )
-      ]) as any;
-      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted ${detectionsResult.count} detection records`);
+    console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 3: Transactional delete of related records + camera...`);
 
-      // Delete Alert records (has SetNull, but delete for cleanliness)
-      const alertsResult = await Promise.race([
-        prisma.alert.deleteMany({
-          where: { cameraId: trimmedCameraId }
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Delete alerts timeout after 15s')), 15000)
-        )
-      ]) as any;
-      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted ${alertsResult.count} alert records`);
-
-      // Delete SafetyViolation records (has SetNull, but delete for cleanliness)
-      const violationsResult = await Promise.race([
-        prisma.safetyViolation.deleteMany({
-          where: { cameraId: trimmedCameraId }
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Delete violations timeout after 15s')), 15000)
-        )
-      ]) as any;
-      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted ${violationsResult.count} safety violation records`);
-
-      // Delete CustomRule records (has SetNull, but delete for cleanliness)
-      const customRulesResult = await Promise.race([
-        prisma.customRule.deleteMany({
-          where: { cameraId: trimmedCameraId }
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Delete custom rules timeout after 15s')), 15000)
-        )
-      ]) as any;
-      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted ${customRulesResult.count} custom rule records`);
-
-      // Delete CustomRuleTrigger records
-      const triggersResult = await Promise.race([
-        prisma.customRuleTrigger.deleteMany({
-          where: { cameraId: trimmedCameraId }
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Delete triggers timeout after 15s')), 15000)
-        )
-      ]) as any;
-      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted ${triggersResult.count} custom rule trigger records`);
-
-      // Delete CustomRuleViolation records
-      const ruleViolationsResult = await Promise.race([
-        prisma.customRuleViolation.deleteMany({
-          where: { cameraId: trimmedCameraId }
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Delete rule violations timeout after 15s')), 15000)
-        )
-      ]) as any;
-      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted ${ruleViolationsResult.count} custom rule violation records`);
-
-      // Delete SMSNotification records (has SetNull, but delete for cleanliness)
-      const smsResult = await Promise.race([
-        prisma.sMSNotification.deleteMany({
-          where: { cameraId: trimmedCameraId }
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Delete SMS notifications timeout after 15s')), 15000)
-        )
-      ]) as any;
-      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted ${smsResult.count} SMS notification records`);
-
-      // Note: TrainingImage, CameraHealth, FalsePositiveReport, TruePositiveReport have onDelete: Cascade
-      // so they will be deleted automatically when camera is deleted
-
-    } catch (relatedDeleteError: any) {
-      console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Error deleting related records:`, {
-        name: relatedDeleteError.name,
-        message: relatedDeleteError.message,
-        code: relatedDeleteError.code,
-        stack: relatedDeleteError.stack
-      });
-      return NextResponse.json(
-        {
-          error: 'Failed to delete related records',
-          code: 'RELATED_DELETE_ERROR',
-          message: relatedDeleteError.message || 'Database error while deleting related records'
-        },
-        { status: relatedDeleteError.message?.includes('timeout') ? 504 : 500 }
-      );
-    }
-
-    // ============================================================
-    // PART G: DELETE CAMERA RECORD (FINAL STEP)
-    // ============================================================
-    console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 4: Deleting camera record...`);
-    
     try {
       const deleteStart = Date.now();
-      const deleteResult = await Promise.race([
-        prisma.camera.delete({
-          where: { id: trimmedCameraId }
+      const deleteSummary = await Promise.race([
+        prisma.$transaction(async (tx) => {
+          const detectionsResult = await tx.detection.deleteMany({
+            where: { cameraId: trimmedCameraId }
+          });
+
+          const alertRows = await tx.alert.findMany({
+            where: { cameraId: trimmedCameraId },
+            select: { id: true }
+          });
+          const alertIds = alertRows.map((a) => a.id);
+
+          let alertResponsesDeleted = 0;
+          let alertResolutionLogsDeleted = 0;
+          if (alertIds.length > 0) {
+            const alertResponsesResult = await tx.alertResponse.deleteMany({
+              where: { alertId: { in: alertIds } }
+            });
+            alertResponsesDeleted = alertResponsesResult.count;
+
+            const alertResolutionLogsResult = await tx.alertResolutionLog.deleteMany({
+              where: { alertId: { in: alertIds } }
+            });
+            alertResolutionLogsDeleted = alertResolutionLogsResult.count;
+          }
+
+          const alertsResult = await tx.alert.deleteMany({
+            where: { cameraId: trimmedCameraId }
+          });
+
+          const violationsResult = await tx.safetyViolation.deleteMany({
+            where: { cameraId: trimmedCameraId }
+          });
+
+          const customRulesResult = await tx.customRule.deleteMany({
+            where: { cameraId: trimmedCameraId }
+          });
+
+          const triggersResult = await tx.customRuleTrigger.deleteMany({
+            where: { cameraId: trimmedCameraId }
+          });
+
+          const ruleViolationsResult = await tx.customRuleViolation.deleteMany({
+            where: { cameraId: trimmedCameraId }
+          });
+
+          const smsResult = await tx.sMSNotification.deleteMany({
+            where: { cameraId: trimmedCameraId }
+          });
+
+          const cameraDeleteResult = await tx.camera.delete({
+            where: { id: trimmedCameraId },
+            select: {
+              id: true,
+              name: true,
+              worksiteId: true
+            }
+          });
+
+          return {
+            detectionsDeleted: detectionsResult.count,
+            alertResponsesDeleted,
+            alertResolutionLogsDeleted,
+            alertsDeleted: alertsResult.count,
+            violationsDeleted: violationsResult.count,
+            customRulesDeleted: customRulesResult.count,
+            triggersDeleted: triggersResult.count,
+            ruleViolationsDeleted: ruleViolationsResult.count,
+            smsDeleted: smsResult.count,
+            camera: cameraDeleteResult
+          };
         }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Delete camera timeout after 15s')), 15000)
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Transactional delete timeout after 20s')), 20000)
         )
       ]) as any;
+
       const deleteDuration = Date.now() - deleteStart;
-      
-      console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Camera deleted successfully (${deleteDuration}ms)`);
-      console.log(`[API /cameras/[id] DELETE] [${requestId}] Deleted camera:`, {
-        id: deleteResult.id,
-        name: deleteResult.name,
-        worksiteId: deleteResult.worksiteId
-      });
-      
+      console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Transactional delete completed (${deleteDuration}ms):`, deleteSummary);
+
       const totalDuration = Date.now() - startTime;
       console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Total deletion completed in ${totalDuration}ms`);
 
-      // Return 204 No Content (as per REST best practices for DELETE)
       return new NextResponse(null, { status: 204 });
-
     } catch (deleteError: any) {
-      console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Error deleting camera record:`, {
+      console.error(`[API /cameras/[id] DELETE] [${requestId}] ❌ Error during transactional delete:`, {
         name: deleteError.name,
         message: deleteError.message,
         code: deleteError.code,
         meta: deleteError.meta,
         stack: deleteError.stack
       });
-      
-      // Return the REAL error message, not a generic one
+
+      const status =
+        deleteError?.code === 'P2025' ? 404 :
+        deleteError?.code?.startsWith?.('P20') ? 409 :
+        deleteError.message?.includes('timeout') ? 504 :
+        500;
+
       return NextResponse.json(
         {
           error: 'Failed to delete camera',
           code: deleteError.code || 'DELETE_ERROR',
-          message: deleteError.message || 'Unknown database error',
+          message: deleteError.message || 'Database error during camera deletion',
           details: deleteError.meta || undefined
         },
-        { status: deleteError.message?.includes('timeout') ? 504 : 500 }
+        { status }
       );
     }
 
@@ -601,7 +561,7 @@ export async function GET(
 /**
  * PATCH /api/cameras/[id]
  * Update camera (name, streamUrl, location, metadata).
- * Janus streams (janusFeedId) are deprecated; use go2rtc.
+ * Janus streams (janusFeedId) are deprecated; use RTSP + MediaMTX.
  */
 export async function PATCH(
   request: NextRequest,
@@ -626,7 +586,7 @@ export async function PATCH(
     const body = await request.json().catch(() => ({}));
     if (body.janusFeedId !== undefined && body.janusFeedId !== null) {
       return NextResponse.json(
-        { error: 'Janus streams deprecated. Add cameras with RTSP URL for go2rtc streaming.' },
+        { error: 'Janus streams deprecated. Add cameras with RTSP URL for MediaMTX streaming.' },
         { status: 410 }
       );
     }

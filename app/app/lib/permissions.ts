@@ -120,11 +120,11 @@ export function canViewUsers(role: UserRole): boolean {
 // ============================================================================
 
 /**
- * Only super-admins can add cameras.
+ * Super-admins and company admins can add cameras.
  * Backend provisions Janus automatically (DB first → mountpoint → RTP).
  */
 export function canCreateCamera(role: UserRole): boolean {
-  return role === 'SUPER_ADMIN';
+  return role === 'SUPER_ADMIN' || role === 'COMPANY_ADMIN';
 }
 
 export function canEditCamera(role: UserRole): boolean {

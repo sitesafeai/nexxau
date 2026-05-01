@@ -3,7 +3,7 @@ import { prisma } from '@/app/lib/prisma';
 import { getCachedSession } from '@/app/lib/session-cache';
 import { normalizeRole } from '@/app/lib/roles';
 import { validateRtspStream } from '@/app/lib/rtsp-validation';
-import { addStreamToGo2RTC } from '@/app/lib/services/go2rtcClient';
+import { addStreamToMediaMTX } from '@/app/lib/services/mediamtxClient';
 
 export const runtime = 'nodejs';
 
@@ -535,7 +535,21 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, type, streamUrl, worksiteId, username, password, frameRate, resolution } = body;
+    const {
+      name,
+      type,
+      streamUrl,
+      ingestUrl,
+      streamProvider,
+      worksiteId,
+      username,
+      password,
+      frameRate,
+      resolution,
+    } = body;
+    const normalizedStreamUrl = typeof streamUrl === 'string' ? streamUrl.trim() : '';
+    const normalizedIngestUrl = typeof ingestUrl === 'string' ? ingestUrl.trim() : '';
+    const effectiveIngestUrl = normalizedIngestUrl || normalizedStreamUrl;
 
     // Validation
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -561,7 +575,7 @@ export async function POST(request: NextRequest) {
 
     // Validate RTSP URL format
     if (type === 'IP Camera (RTSP)' || type === 'ONVIF Camera') {
-      if (!streamUrl.startsWith('rtsp://')) {
+      if (!effectiveIngestUrl.startsWith('rtsp://')) {
         return NextResponse.json(
           { success: false, error: 'RTSP URL must start with rtsp://' },
           { status: 400 }
@@ -599,10 +613,10 @@ export async function POST(request: NextRequest) {
     const cameraType = type === 'IP Camera (RTSP)' ? 'RTSP' : type === 'ONVIF Camera' ? 'ONVIF' : 'CLOUD';
 
     // ============================================================
-    // RTSP → go2rtc FLOW
+    // RTSP → MediaMTX FLOW
     // ============================================================
-    if ((cameraType === 'RTSP' || cameraType === 'ONVIF') && streamUrl.trim().startsWith('rtsp://')) {
-      const validation = await validateRtspStream(streamUrl.trim());
+    if ((cameraType === 'RTSP' || cameraType === 'ONVIF') && effectiveIngestUrl.startsWith('rtsp://')) {
+      const validation = await validateRtspStream(effectiveIngestUrl);
       if (!validation.ok) {
         return NextResponse.json(
           {
@@ -621,7 +635,9 @@ export async function POST(request: NextRequest) {
           data: {
             name: name.trim(),
             type: cameraType,
-            streamUrl: streamUrl.trim(),
+            streamUrl: normalizedStreamUrl,
+            ingestUrl: effectiveIngestUrl,
+            streamProvider: streamProvider?.trim?.() || 'rtsp',
             worksiteId,
             status: 'online',
             username: username?.trim() || null,
@@ -657,15 +673,15 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const go2rtcUrl = process.env.GO2RTC_URL || 'http://localhost:1984';
-      const streamAdded = await addStreamToGo2RTC(go2rtcUrl, camera.id, streamUrl.trim());
+      const mediamtxApiUrl = process.env.MEDIAMTX_API_URL || 'http://localhost:9000';
+      const streamAdded = await addStreamToMediaMTX(mediamtxApiUrl, camera.id, effectiveIngestUrl);
       if (!streamAdded) {
         await prisma.camera.delete({ where: { id: camera.id } }).catch(() => {});
         return NextResponse.json(
           {
             success: false,
-            error: 'Failed to add stream to go2rtc',
-            details: 'Streaming gateway unavailable. Is go2rtc running?',
+            error: 'Failed to add stream to MediaMTX',
+            details: 'Streaming gateway unavailable. Is MediaMTX running?',
           },
           { status: 500 }
         );
@@ -717,7 +733,11 @@ export async function POST(request: NextRequest) {
       data: {
         name: name.trim(),
         type: cameraType,
-        streamUrl: streamUrl.trim(),
+        streamUrl: normalizedStreamUrl,
+        ingestUrl: effectiveIngestUrl,
+        streamProvider:
+          streamProvider?.trim?.() ||
+          (effectiveIngestUrl.includes('.m3u8') ? 'hls' : 'cloud'),
         worksiteId,
         status: 'pending',
         username: username?.trim() || null,
@@ -744,11 +764,11 @@ export async function POST(request: NextRequest) {
 
     console.log('[API /cameras] ✅ Camera created:', camera.id, camera.name);
 
-      if (streamUrl.trim().includes('.m3u8')) {
+      if (effectiveIngestUrl.includes('.m3u8')) {
         await prisma.camera.update({
           where: { id: camera.id },
           data: {
-            hlsUrl: streamUrl.trim(),
+            hlsUrl: effectiveIngestUrl,
             status: 'active',
           }
         });
@@ -787,7 +807,7 @@ export async function POST(request: NextRequest) {
         createdAt: camera.createdAt.toISOString(),
         updatedAt: camera.updatedAt.toISOString(),
         // Note: hlsUrl will be set asynchronously for RTSP cameras
-        hlsUrl: cameraType === 'CLOUD' && streamUrl.trim().includes('.m3u8') ? streamUrl.trim() : null,
+        hlsUrl: cameraType === 'CLOUD' && effectiveIngestUrl.includes('.m3u8') ? effectiveIngestUrl : null,
       }
     }, { status: 201 });
 

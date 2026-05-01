@@ -8,6 +8,7 @@ import {
   getSentryPublicInfo,
   getTrafficStress,
 } from '@/app/lib/observability-status';
+import { withCache } from '@/app/lib/cache';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,56 +17,58 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check database health
-    const dbHealth = await checkDatabaseHealth();
-    
-    // Check AI detection service
-    const aiHealth = await checkAIServiceHealth();
-    
-    // Check MediaMTX service
-    const mediaHealth = await checkMediaMTXHealth();
-    
-    // Check WebSocket service
-    const wsHealth = await checkWebSocketHealth();
-    
-    // Check notification service
-    const notificationHealth = await checkNotificationHealth();
-    
-    // Get system metrics (counts from DB)
-    const usageMetrics = await getSystemMetrics();
+    const systemStatus = await withCache('admin:system-status', 10_000, async () => {
+      // Check database health
+      const dbHealth = await checkDatabaseHealth();
+      
+      // Check AI detection service
+      const aiHealth = await checkAIServiceHealth();
+      
+      // Check MediaMTX service
+      const mediaHealth = await checkMediaMTXHealth();
+      
+      // Check WebSocket service
+      const wsHealth = await checkWebSocketHealth();
+      
+      // Check notification service
+      const notificationHealth = await checkNotificationHealth();
+      
+      // Get system metrics (counts from DB)
+      const usageMetrics = await getSystemMetrics();
 
-    const uptimeSeconds = process.uptime();
-    const uptimeFormatted = formatUptime(uptimeSeconds);
-    const memUsage = (process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100;
+      const uptimeSeconds = process.uptime();
+      const uptimeFormatted = formatUptime(uptimeSeconds);
+      const memUsage = (process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100;
 
-    const httpTrafficRaw = getHttpTrafficSnapshot();
-    const trafficStress = getTrafficStress(
-      httpTrafficRaw.requestsPerMinute,
-      httpTrafficRaw.rpmPendingBaseline,
-      httpTrafficRaw.rateLimitRejectionsTotal,
-      httpTrafficRaw.responses.server5xx,
-      httpTrafficRaw.totalHttpRequests
-    );
+      const httpTrafficRaw = getHttpTrafficSnapshot();
+      const trafficStress = getTrafficStress(
+        httpTrafficRaw.requestsPerMinute,
+        httpTrafficRaw.rpmPendingBaseline,
+        httpTrafficRaw.rateLimitRejectionsTotal,
+        httpTrafficRaw.responses.server5xx,
+        httpTrafficRaw.totalHttpRequests
+      );
 
-    const systemStatus = {
-      database: dbHealth,
-      aiDetection: aiHealth,
-      mediaMTX: mediaHealth,
-      websocket: wsHealth,
-      notifications: notificationHealth,
-      uptime: uptimeFormatted,
-      uptimeSeconds: Math.floor(uptimeSeconds),
-      processHostname: getHostname(),
-      memoryUsage: Math.round(memUsage),
-      cpuUsage: await getCPUUsage(),
-      diskUsage: await getDiskUsage(),
-      sentry: getSentryPublicInfo(),
-      httpTraffic: {
-        ...httpTrafficRaw,
-        stress: trafficStress,
-      },
-      ...usageMetrics,
-    };
+      return {
+        database: dbHealth,
+        aiDetection: aiHealth,
+        mediaMTX: mediaHealth,
+        websocket: wsHealth,
+        notifications: notificationHealth,
+        uptime: uptimeFormatted,
+        uptimeSeconds: Math.floor(uptimeSeconds),
+        processHostname: getHostname(),
+        memoryUsage: Math.round(memUsage),
+        cpuUsage: await getCPUUsage(),
+        diskUsage: await getDiskUsage(),
+        sentry: getSentryPublicInfo(),
+        httpTraffic: {
+          ...httpTrafficRaw,
+          stress: trafficStress,
+        },
+        ...usageMetrics,
+      };
+    });
 
     return NextResponse.json(systemStatus);
 

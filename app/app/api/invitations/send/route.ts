@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
       console.log('📧 RESENDING invitation email to:', email);
       console.log('🔗 Invite URL:', inviteUrl);
 
-      // Send email and wait for it to complete
+      // Send email and fail request if delivery fails.
       try {
         const emailResult = await sendInvitationEmail(
           email,
@@ -99,16 +99,30 @@ export async function POST(request: NextRequest) {
           company?.name || 'Your Organization',
           token
         );
-        
+
         if (!emailResult.success) {
           console.error('Failed to resend invitation email:', emailResult.error);
-          // Don't fail the whole request, but log it
-        } else {
-          console.log('✅ Invitation email resent successfully to:', email);
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Failed to send invitation email via Resend',
+              details: emailResult.error || 'Unknown email delivery error',
+            },
+            { status: 502 }
+          );
         }
+
+        console.log('✅ Invitation email resent successfully to:', email);
       } catch (emailError: any) {
         console.error('Error resending invitation email:', emailError);
-        // Don't fail the whole request, but log it
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Failed to send invitation email via Resend',
+            details: emailError?.message || 'Unknown email delivery error',
+          },
+          { status: 502 }
+        );
       }
 
       return NextResponse.json({
@@ -176,7 +190,7 @@ export async function POST(request: NextRequest) {
     console.log('👤 Role:', role);
     console.log('⏰ Expires:', expires);
 
-    // Send email and wait for it to complete
+    // Send email and fail request if delivery fails.
     try {
       const emailResult = await sendInvitationEmail(
         email,
@@ -185,16 +199,30 @@ export async function POST(request: NextRequest) {
         company?.name || 'Your Organization',
         token
       );
-      
+
       if (!emailResult.success) {
         console.error('Failed to send invitation email:', emailResult.error);
-        // Don't fail the whole request, but log it
-      } else {
-        console.log('✅ Invitation email sent successfully to:', email);
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Failed to send invitation email via Resend',
+            details: emailResult.error || 'Unknown email delivery error',
+          },
+          { status: 502 }
+        );
       }
+
+      console.log('✅ Invitation email sent successfully to:', email);
     } catch (emailError: any) {
       console.error('Error sending invitation email:', emailError);
-      // Don't fail the whole request, but log it
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Failed to send invitation email via Resend',
+          details: emailError?.message || 'Unknown email delivery error',
+        },
+        { status: 502 }
+      );
     }
 
     return NextResponse.json({

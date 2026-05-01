@@ -26,6 +26,7 @@ const ReportsAnalytics = dynamic(() => import('../components/dashboard/ReportsAn
 const WorkflowDashboard = dynamic(() => import('../components/dashboard/WorkflowDashboard').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
 const WorksiteUserManagementModal = dynamic(() => import('../components/dashboard/WorksiteUserManagementModal').then((m) => m.default), { ssr: false });
 const CamerasTab = dynamic(() => import('../components/dashboard/CamerasTab').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading cameras...</div>, ssr: false });
+const CamerasOctoTab = dynamic(() => import('../components/dashboard/CamerasOctoTab').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading Octo cameras...</div>, ssr: false });
 
 // Wrapper component that provides the dashboard context
 export default function DashboardPage() {
@@ -120,6 +121,16 @@ function DashboardContent() {
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        ),
+      },
+      {
+        key: 'cameras-octo',
+        name: 'Cameras Octo',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11h.01M12 11h.01M16 11h.01" />
           </svg>
         ),
       },
@@ -426,6 +437,11 @@ function DashboardContent() {
             {visitedTabs.has('cameras') && (
               <div className={selected === 'cameras' ? 'block' : 'hidden'}>
                 <CamerasTab selectedSite={selectedSite} currentUser={state.currentUser} />
+              </div>
+            )}
+            {visitedTabs.has('cameras-octo') && (
+              <div className={selected === 'cameras-octo' ? 'block' : 'hidden'}>
+                <CamerasOctoTab selectedSite={selectedSite} currentUser={state.currentUser} />
               </div>
             )}
             {selected === 'sites' && (
@@ -3577,6 +3593,7 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
           <thead className="bg-slate-900/50">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Severity</th>
+              <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Snapshot</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Alert</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Camera</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
@@ -3586,9 +3603,9 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
           </thead>
           <tbody className="divide-y divide-slate-700/50">
             {loading ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400">Loading...</td></tr>
+              <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400">Loading...</td></tr>
             ) : filteredAlerts.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400">No alerts found</td></tr>
+              <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400">No alerts found</td></tr>
             ) : (
               filteredAlerts.map((alert) => (
                 <tr key={alert.id} className="hover:bg-slate-700/20 transition-colors">
@@ -3602,6 +3619,19 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
                       }`} />
                       {alert.severity || 'Low'}
               </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {alert.detectionSnapshot ? (
+                      <img
+                        src={alert.detectionSnapshot}
+                        alt="Alert snapshot"
+                        className="w-12 h-9 object-cover rounded border border-slate-700/50 cursor-pointer"
+                        onClick={() => window.open(alert.detectionSnapshot, '_blank')}
+                        title="Open snapshot"
+                      />
+                    ) : (
+                      <span className="text-xs text-slate-500">—</span>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-sm font-medium text-white">{alert.title || 'Alert'}</p>

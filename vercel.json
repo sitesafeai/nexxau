@@ -2,5 +2,18 @@
   "buildCommand": "npx prisma@6.19.3 generate && next build",
   "outputDirectory": ".next",
   "installCommand": "pnpm install --no-frozen-lockfile",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.nexxau.com"
+        }
+      ],
+      "destination": "https://nexxau.com/:path*",
+      "permanent": true
+    }
+  ]
 }

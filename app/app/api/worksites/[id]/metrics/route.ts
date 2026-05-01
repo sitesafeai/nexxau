@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { enforceWorksiteAccess } from '@/app/lib/worksite-access';
 import { getWorksiteMetricsPayload } from '@/app/lib/worksite-metrics-payload';
+import { withCache } from '@/app/lib/cache';
 
 /**
  * GET /api/worksites/[id]/metrics
@@ -18,7 +19,11 @@ export async function GET(
     const denied = await enforceWorksiteAccess(request, worksiteId);
     if (denied) return denied;
 
-    const payload = await getWorksiteMetricsPayload(worksiteId);
+    const payload = await withCache(
+      `worksites:metrics:${worksiteId}`,
+      10_000,
+      () => getWorksiteMetricsPayload(worksiteId)
+    );
     if (!payload) {
       return NextResponse.json(
         { error: 'Worksite not found' },

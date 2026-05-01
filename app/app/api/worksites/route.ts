@@ -4,6 +4,7 @@ import { getCachedSession } from '@/app/lib/session-cache';
 import { logCreate } from '@/app/lib/audit-logger';
 import { createWorksiteSchema } from '@/app/lib/validation/worksites';
 import { validateQuery, validateBody } from '@/app/lib/validation/common';
+import { withCache } from '@/app/lib/cache';
 
 /**
  * GET /api/worksites
@@ -71,14 +72,19 @@ export async function GET(request: NextRequest) {
     let worksites: any[] = [];
     try {
       // Fetch worksites WITHOUT company relation to avoid orphaned relation errors
-      worksites = await prisma.worksite.findMany({
-        where: whereClause,
-            select: {
-              id: true,
-              name: true,
+      const worksitesCacheKey = `worksites:list:${JSON.stringify(whereClause)}`;
+      worksites = await withCache(worksitesCacheKey, 15_000, async () =>
+        prisma.worksite.findMany({
+          where: whereClause,
+          select: {
+            id: true,
+            name: true,
           worksiteName: true,
           location: true,
           address: true,
+          octoEmbedUrl: true,
+          octoEmbedUrls: true,
+          octoCameraConfigs: true,
           companyId: true,
           status: true,
           cameraSystemType: true,
@@ -97,22 +103,26 @@ export async function GET(request: NextRequest) {
               status: true
             }
           }
-        }
-      });
+        }})
+      );
       console.log(`[worksites API] Found ${worksites.length} worksites with filter:`, JSON.stringify(whereClause));
       
       // Fetch companies separately to avoid orphaned relation issues
       if (worksites.length > 0) {
         const companyIds = [...new Set(worksites.map(ws => ws.companyId).filter(Boolean))] as string[];
-        const companies = companyIds.length > 0 
-          ? await prisma.company.findMany({
+        const companies = companyIds.length > 0
+          ? await withCache(
+              `worksites:companies:${companyIds.sort().join(',')}`,
+              15_000,
+              () => prisma.company.findMany({
               where: { id: { in: companyIds } },
               select: {
                 id: true,
                 name: true,
                 companyUsername: true,
               }
-            }).catch(() => [])
+              })
+            ).catch(() => [])
           : [];
         
         // Create a map of company data and attach to worksites
@@ -135,124 +145,47 @@ export async function GET(request: NextRequest) {
       console.warn('[worksites API] No worksites found with filter:', JSON.stringify(whereClause));
     }
 
-    // Enrich with real-time stats (with error handling for each worksite)
-    const enrichedWorksites = await Promise.all(
-      worksites.map(async (worksite) => {
-        try {
-          // Get latest safety score
-          const latestScore = await prisma.safetyScore.findFirst({
-            where: { worksiteId: worksite.id },
-            orderBy: { date: 'desc' },
-            select: {
-              safetyScore: true,
-              grade: true
-            }
-          });
+    // Keep this endpoint light: avoid per-worksite query bursts that exhaust DB pools.
+    const enrichedWorksites = worksites.map((worksite) => {
+      const onlineCameras = worksite.cameras.filter((c: { id: string; status: string | null }) =>
+        c.status?.toLowerCase() === 'online' ||
+        c.status?.toLowerCase() === 'active'
+      ).length;
+      const totalCameras = worksite.cameras.length;
 
-          // If no safety score exists, return null (will show "Not calculated" in UI)
-          // Safety scores should be calculated via scheduled jobs or manual triggers
-          const safetyScore = latestScore?.safetyScore ?? null;
-          const grade = latestScore?.grade ?? null;
-
-          // Get active alerts count (using proper ENUM values)
-          const activeAlertsCount = await prisma.alert.count({
-            where: {
-              worksiteId: worksite.id,
-              status: { in: ['ACTIVE', 'ACKNOWLEDGED'] }
-            }
-          });
-
-          // Get last activity (most recent camera update or alert)
-          const lastCameraUpdate = await prisma.camera.findFirst({
-            where: { worksiteId: worksite.id },
-          orderBy: { updatedAt: 'desc' },
-          select: { updatedAt: true }
-        });
-
-        const lastAlert = await prisma.alert.findFirst({
-          where: { worksiteId: worksite.id },
-          orderBy: { createdAt: 'desc' },
-          select: { createdAt: true }
-        });
-
-        const lastActivityTime = [
-          lastCameraUpdate?.updatedAt,
-          lastAlert?.createdAt
-        ]
-          .filter(Boolean)
-          .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime())[0];
-
-        const lastActivity = lastActivityTime
-          ? getTimeAgo(new Date(lastActivityTime))
-          : 'No activity';
-
-          // Determine site status based on camera status
-          // Check both 'online' and 'active' status (camera.status is a string, not enum)
-          const onlineCameras = worksite.cameras.filter((c: { id: string; status: string | null }) => 
-            c.status?.toLowerCase() === 'online' || 
-            c.status?.toLowerCase() === 'active'
-          ).length;
-        const totalCameras = worksite.cameras.length;
-        
-        // Use the worksite's stored status from database, or compute based on camera health
-        // Only override if worksite.status is not set or if we want to compute dynamically
-        let status = worksite.status || 'active';
-        
-        // If worksite doesn't have a status set, compute it based on camera health
-        if (!worksite.status) {
-          if (totalCameras === 0) {
-            status = 'inactive';
-          } else if (onlineCameras === 0) {
-            status = 'offline';
-          } else if (onlineCameras < totalCameras * 0.5) {
-            // Only set to maintenance if less than 50% cameras are online AND worksite status wasn't explicitly set
-            // For now, keep it as 'active' unless explicitly set to maintenance
-            status = 'active';
-          }
+      let status = worksite.status || 'active';
+      if (!worksite.status) {
+        if (totalCameras === 0) {
+          status = 'inactive';
+        } else if (onlineCameras === 0) {
+          status = 'offline';
+        } else if (onlineCameras < totalCameras * 0.5) {
+          status = 'active';
         }
+      }
 
-          return {
-            id: worksite.id,
-            name: worksite.name,
-            worksiteName: worksite.worksiteName,
-            address: worksite.address,
-            companyId: worksite.companyId,
-            company: worksite.company || null, // Include company data that was merged earlier
-            status,
-            cameras: worksite._count.cameras,
-            alerts: activeAlertsCount,
-            workers: worksite._count.workers,
-            lastActivity,
-            safetyScore: safetyScore ?? null,
-            grade: grade ?? null,
-            cameraSystemType: worksite.cameraSystemType,
-            createdAt: worksite.createdAt,
-            updatedAt: worksite.updatedAt
-          };
-        } catch (enrichError) {
-          console.error('Error enriching worksite:', worksite.id, enrichError);
-          // Return basic worksite data without enrichment on error
-          return {
-            id: worksite.id,
-            name: worksite.name,
-            worksiteName: worksite.worksiteName,
-            address: worksite.address,
-            companyId: worksite.companyId,
-            company: worksite.company || null, // Include company data that was merged earlier
-            status: 'unknown',
-            cameras: worksite._count?.cameras ?? 0,
-            alerts: 0,
-            workers: worksite._count?.workers ?? 0,
-            lastActivity: 'Unknown',
-            safetyScore: null,
-            grade: null,
-            cameraSystemType: worksite.cameraSystemType,
-            createdAt: worksite.createdAt,
-            updatedAt: worksite.updatedAt
-          };
-        }
-      })
-    );
+      return {
+        id: worksite.id,
+        name: worksite.name,
+        worksiteName: worksite.worksiteName,
+        address: worksite.address,
+        octoEmbedUrl: worksite.octoEmbedUrl,
+        octoEmbedUrls: worksite.octoEmbedUrls,
+        octoCameraConfigs: worksite.octoCameraConfigs,
+        companyId: worksite.companyId,
+        company: worksite.company || null,
+        status,
+        cameras: worksite._count.cameras,
+        alerts: worksite._count.alerts,
+        workers: worksite._count.workers,
+        lastActivity: 'No activity',
+        safetyScore: null,
+        grade: null,
+        cameraSystemType: worksite.cameraSystemType,
+        createdAt: worksite.createdAt,
+        updatedAt: worksite.updatedAt
+      };
+    });
 
     return NextResponse.json({
       success: true,

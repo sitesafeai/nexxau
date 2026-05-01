@@ -282,7 +282,7 @@ export default function RealtimeDetectionOverlay({
     return safetyMappings[className] || className;
   };
 
-  // Draw detections on canvas with enhanced techy styling
+  // Draw detections on canvas with clean, minimal styling
   const drawDetections = useCallback((predictions: Detection[]) => {
     const canvas = canvasRef.current;
     if (!canvas || !videoElement) return;
@@ -302,8 +302,8 @@ export default function RealtimeDetectionOverlay({
     const scaleX = canvas.width / videoElement.videoWidth;
     const scaleY = canvas.height / videoElement.videoHeight;
 
-    // Draw each detection with enhanced styling
-    predictions.forEach((prediction, index) => {
+    // Draw each detection with simplified styling
+    predictions.forEach((prediction) => {
       const [x, y, width, height] = prediction.bbox;
       
       // Scale coordinates to canvas size
@@ -315,13 +315,9 @@ export default function RealtimeDetectionOverlay({
       // Get unique color for this class (use direct lookup to avoid dependency)
       const colors = CLASS_COLORS[prediction.class] || CLASS_COLORS['default'];
 
-      // Draw glowing effect (outer glow)
-      ctx.shadowBlur = 15;
-      ctx.shadowColor = colors.glow;
-      
-      // Draw main bounding box with rounded corners
+      // Draw main bounding box with subtle rounded corners
       ctx.strokeStyle = colors.box;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       
@@ -340,78 +336,41 @@ export default function RealtimeDetectionOverlay({
       ctx.closePath();
       ctx.stroke();
 
-      // Draw corner accents (cyberpunk style)
-      ctx.shadowBlur = 0;
-      ctx.lineWidth = 4;
-      const accentSize = 15;
-      
-      // Top-left corner
-      ctx.beginPath();
-      ctx.moveTo(scaledX, scaledY + accentSize);
-      ctx.lineTo(scaledX, scaledY);
-      ctx.lineTo(scaledX + accentSize, scaledY);
-      ctx.stroke();
-      
-      // Top-right corner
-      ctx.beginPath();
-      ctx.moveTo(scaledX + scaledWidth - accentSize, scaledY);
-      ctx.lineTo(scaledX + scaledWidth, scaledY);
-      ctx.lineTo(scaledX + scaledWidth, scaledY + accentSize);
-      ctx.stroke();
-
-      // Draw label with gradient background
-      const label = `${prediction.class.toUpperCase()}`;
-      const confidence = `${Math.round(prediction.score * 100)}%`;
-      
-      ctx.font = 'bold 13px "Courier New", monospace';
+      // Draw compact label chip
+      const label = `${prediction.class} ${Math.round(prediction.score * 100)}%`;
+      ctx.font = '600 12px Inter, system-ui, -apple-system, sans-serif';
       const labelMetrics = ctx.measureText(label);
-      ctx.font = 'bold 11px "Courier New", monospace';
-      const confMetrics = ctx.measureText(confidence);
-      
-      const labelWidth = Math.max(labelMetrics.width, confMetrics.width) + 20;
-      const labelHeight = 42;
+      const labelWidth = labelMetrics.width + 16;
+      const labelHeight = 24;
       const labelX = scaledX;
       const labelY = scaledY > labelHeight + 5 ? scaledY - labelHeight - 5 : scaledY + scaledHeight + 5;
 
-      // Draw label background with gradient and glow
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = colors.glow;
-      
-      const gradient = ctx.createLinearGradient(labelX, labelY, labelX, labelY + labelHeight);
-      gradient.addColorStop(0, 'rgba(0, 0, 0, 0.95)');
-      gradient.addColorStop(1, 'rgba(20, 20, 20, 0.95)');
-      
-      ctx.fillStyle = gradient;
-      ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
-      
-      // Draw label border
-      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
       ctx.strokeStyle = colors.box;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(labelX, labelY, labelWidth, labelHeight);
+      ctx.lineWidth = 1.5;
 
-      // Draw label text (class name)
-      ctx.fillStyle = colors.label;
-      ctx.font = 'bold 13px "Courier New", monospace';
-      ctx.shadowBlur = 5;
-      ctx.shadowColor = colors.glow;
-      ctx.fillText(label, labelX + 10, labelY + 18);
-      
-      // Draw confidence text
-      ctx.font = 'bold 11px "Courier New", monospace';
+      const chipRadius = 6;
+      ctx.beginPath();
+      ctx.moveTo(labelX + chipRadius, labelY);
+      ctx.lineTo(labelX + labelWidth - chipRadius, labelY);
+      ctx.quadraticCurveTo(labelX + labelWidth, labelY, labelX + labelWidth, labelY + chipRadius);
+      ctx.lineTo(labelX + labelWidth, labelY + labelHeight - chipRadius);
+      ctx.quadraticCurveTo(labelX + labelWidth, labelY + labelHeight, labelX + labelWidth - chipRadius, labelY + labelHeight);
+      ctx.lineTo(labelX + chipRadius, labelY + labelHeight);
+      ctx.quadraticCurveTo(labelX, labelY + labelHeight, labelX, labelY + labelHeight - chipRadius);
+      ctx.lineTo(labelX, labelY + chipRadius);
+      ctx.quadraticCurveTo(labelX, labelY, labelX + chipRadius, labelY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
       ctx.fillStyle = '#ffffff';
-      ctx.shadowBlur = 3;
-      ctx.fillText(confidence, labelX + 10, labelY + 34);
-
-      // Draw detection index (small number in corner)
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = colors.box;
-      ctx.font = 'bold 12px "Courier New", monospace';
-      ctx.fillText(`#${index + 1}`, scaledX + scaledWidth - 25, scaledY + 20);
+      ctx.fillText(label, labelX + 8, labelY + 16);
     });
 
-    // Reset shadow for future draws
+    // Reset draw settings
     ctx.shadowBlur = 0;
+    ctx.lineWidth = 1;
   }, [videoElement]);
 
   // Perform detection on video frame with enhanced error handling

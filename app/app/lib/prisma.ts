@@ -15,24 +15,13 @@ function getDatasourceUrl(): string | undefined {
   const separator = url.includes('?') ? '&' : '?';
   const params = new URLSearchParams();
   // Only set if not already in URL
-  if (!url.includes('pool_timeout=')) params.set('pool_timeout', '60');
-  if (!url.includes('connection_limit=')) params.set('connection_limit', '20');
+  if (!url.includes('pool_timeout=')) params.set('pool_timeout', '10');
+  if (!url.includes('connection_limit=')) params.set('connection_limit', '2');
+  if (!url.includes('pgbouncer=')) params.set('pgbouncer', 'true');
   const q = params.toString();
   return q ? `${url}${separator}${q}` : url;
 }
 
-// Force fresh Prisma client - clear cache on every restart in development
-if (process.env.NODE_ENV !== 'production' && global.prisma) {
-  // Disconnect and clear the old instance
-  try {
-    global.prisma.$disconnect().catch(() => {});
-  } catch (e) {
-    // Ignore errors
-  }
-  global.prisma = undefined;
-}
-
-// Create fresh Prisma client instance
 const prismaConfig: ConstructorParameters<typeof PrismaClient>[0] = {
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn', 'query'] : ['error'],
 };

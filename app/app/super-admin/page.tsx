@@ -3088,7 +3088,7 @@ function OverviewSection({
             <StatusGauge
               label="Fleet uptime"
               value={uptimePercentage !== null ? uptimePercentage : undefined}
-              helper="Percent of cameras reporting online or active"
+              helper="Share of cameras with a fresh health check (15m) as ONLINE/DEGRADED; otherwise explicit offline/error only — defaults like “active” are not counted as up."
             />
             <StatusBreakdown
               totals={cameraStatus}

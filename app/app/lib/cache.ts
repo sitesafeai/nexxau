@@ -1,3 +1,40 @@
+type CacheEntry<T> = {
+  data: T;
+  expires: number;
+};
+
+const cache = new Map<string, CacheEntry<unknown>>();
+const inflight = new Map<string, Promise<unknown>>();
+
+export async function withCache<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  const hit = cache.get(key);
+  if (hit && hit.expires > now) {
+    return hit.data as T;
+  }
+
+  const active = inflight.get(key);
+  if (active) {
+    return active as Promise<T>;
+  }
+
+  const promise = fn()
+    .then((data) => {
+      cache.set(key, { data, expires: now + ttlMs });
+      return data;
+    })
+    .finally(() => {
+      inflight.delete(key);
+      if (cache.size > 1000) {
+        const firstKey = cache.keys().next().value;
+        if (firstKey) cache.delete(firstKey);
+      }
+    });
+
+  inflight.set(key, promise);
+  return promise;
+}
+
 /**
  * Simple In-Memory Cache Utility
  * 

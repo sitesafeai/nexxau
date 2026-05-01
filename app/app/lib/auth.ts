@@ -41,6 +41,38 @@ declare module "next-auth/jwt" {
   }
 }
 
+type CompanyAccessState = {
+  suspended: boolean;
+  deletedAt: Date | null;
+  pilotEndsAt: Date | null;
+};
+
+const companyAccessCache = new Map<string, { value: CompanyAccessState | null; expiresAt: number }>();
+const COMPANY_CACHE_TTL_MS = 60_000;
+
+async function getCompanyAccessState(companyId: string): Promise<CompanyAccessState | null> {
+  const cached = companyAccessCache.get(companyId);
+  const now = Date.now();
+  if (cached && now < cached.expiresAt) {
+    return cached.value;
+  }
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { suspended: true, deletedAt: true, pilotEndsAt: true } as any,
+  });
+  const normalized = company
+    ? {
+        suspended: Boolean((company as any).suspended),
+        deletedAt: ((company as any).deletedAt ?? null) as Date | null,
+        pilotEndsAt: ((company as any).pilotEndsAt ?? null) as Date | null,
+      }
+    : null;
+
+  companyAccessCache.set(companyId, { value: normalized, expiresAt: now + COMPANY_CACHE_TTL_MS });
+  return normalized;
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     // Temporarily disabled Google provider to fix crashes
@@ -74,11 +106,7 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
-          const company = await prisma.company.findUnique({
-            where: { id: user.companyId },
-            select: { suspended: true, deletedAt: true, pilotEndsAt: true } as any,
-          });
-          const c = company as { suspended?: boolean; deletedAt?: Date | null; pilotEndsAt?: Date | null } | null;
+          const c = await getCompanyAccessState(user.companyId);
           if (!c || c.deletedAt || c.suspended) {
             console.warn('[auth] Impersonation blocked: company inactive');
             return null;
@@ -135,11 +163,7 @@ export const authOptions: NextAuthOptions = {
         // Pilot enforcement (tenant-level access control)
         const normalizedRole = (user.role || '').toUpperCase();
         if (normalizedRole !== 'SUPER_ADMIN' && normalizedRole !== 'SUPERADMIN' && user.companyId) {
-          const company = await prisma.company.findUnique({
-            where: { id: user.companyId },
-            select: { pilotEndsAt: true, suspended: true, deletedAt: true } as any,
-          });
-          const co = company as { pilotEndsAt?: Date | string | null; suspended?: boolean; deletedAt?: Date | null } | null;
+          const co = await getCompanyAccessState(user.companyId);
           if (co?.deletedAt || co?.suspended) {
             console.warn('[auth] Company suspended or removed', user.companyId);
             return null;
@@ -186,11 +210,7 @@ export const authOptions: NextAuthOptions = {
         const now = Date.now();
         const lastChecked = token.pilotEndsAtCheckedAt ?? 0;
         if (!token.pilotEndsAtCheckedAt || now - lastChecked > 10 * 60 * 1000) {
-          const company = await prisma.company.findUnique({
-            where: { id: token.companyId },
-            select: { pilotEndsAt: true, suspended: true, deletedAt: true } as any,
-          });
-          const co = company as { pilotEndsAt?: Date | string | null; suspended?: boolean; deletedAt?: Date | null } | null;
+          const co = await getCompanyAccessState(token.companyId);
           const pilotEndsAt = co?.pilotEndsAt;
           token.pilotEndsAt = pilotEndsAt ? new Date(pilotEndsAt).toISOString() : null;
           token.companySuspended = Boolean(co?.suspended || co?.deletedAt);

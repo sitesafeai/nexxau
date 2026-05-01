@@ -1,10 +1,10 @@
 /**
  * POST /api/worksites/:id/cameras
  *
- * Add a new camera to a worksite with go2rtc.
+ * Add a new camera to a worksite with MediaMTX.
  * 1. Validates input (name, rtspUrl)
  * 2. Creates Camera DB record
- * 3. Registers stream in go2rtc (camera ID as stream name)
+ * 3. Registers stream in MediaMTX (camera ID as stream name)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -12,7 +12,7 @@ import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { normalizeRole } from '@/app/lib/roles';
-import { addStreamToGo2RTC } from '@/app/lib/services/go2rtcClient';
+import { addStreamToMediaMTX } from '@/app/lib/services/mediamtxClient';
 import { seedDefaultRules } from '@/app/lib/defaultRules';
 
 export const runtime = 'nodejs';
@@ -72,7 +72,7 @@ export async function POST(
       );
     }
 
-    // --- Add camera with RTSP URL (create go2rtc stream) ---
+    // --- Add camera with RTSP URL (create MediaMTX stream) ---
     if (!rtspUrl || typeof rtspUrl !== 'string' || !rtspUrl.trim()) {
       return NextResponse.json(
         { success: false, error: 'RTSP URL is required' },
@@ -113,6 +113,8 @@ export async function POST(
       data: {
         name: name.trim(),
         type: 'IP Camera',
+        streamProvider: 'rtsp',
+        ingestUrl: rtspUrlTrimmed,
         streamUrl: rtspUrlTrimmed,
         location: cameraLocation,
         zone: cameraLocation,
@@ -141,22 +143,22 @@ export async function POST(
     // Step 7b: Seed predefined detection rules
     await seedDefaultRules(camera.id, prisma);
 
-    // Step 8: Add stream to go2rtc (use camera ID as stream name)
-    const go2rtcUrl = process.env.GO2RTC_URL || 'http://localhost:1984';
-    const streamAdded = await addStreamToGo2RTC(go2rtcUrl, camera.id, rtspUrlTrimmed);
+    // Step 8: Add stream to MediaMTX (use camera ID as stream name)
+    const mediamtxApiUrl = process.env.MEDIAMTX_API_URL || 'http://localhost:9000';
+    const streamAdded = await addStreamToMediaMTX(mediamtxApiUrl, camera.id, rtspUrlTrimmed);
 
     if (!streamAdded) {
       // Rollback: delete camera from DB
-      console.error(`[API /worksites/:id/cameras] [${requestId}] ❌ Failed to add stream to go2rtc, rolling back`);
+      console.error(`[API /worksites/:id/cameras] [${requestId}] ❌ Failed to add stream to MediaMTX, rolling back`);
       await prisma.camera.delete({ where: { id: camera.id } });
       
       return NextResponse.json(
-        { success: false, error: 'Failed to add stream to go2rtc' },
+        { success: false, error: 'Failed to add stream to MediaMTX' },
         { status: 500 }
       );
     }
 
-    console.log(`[API /worksites/:id/cameras] [${requestId}] ✅ Stream added to go2rtc: ${camera.id}`);
+    console.log(`[API /worksites/:id/cameras] [${requestId}] ✅ Stream added to MediaMTX: ${camera.id}`);
 
     // Success!
     return NextResponse.json(

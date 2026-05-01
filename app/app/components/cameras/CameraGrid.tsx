@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import CameraTile from './CameraTile';
 import AddCameraWizard from './AddCameraWizard';
 
@@ -27,6 +27,17 @@ export default function CameraGrid({
 }: CameraGridProps) {
   const [cameras, setCameras] = useState<Camera[]>(initialCameras);
   const [showWizard, setShowWizard] = useState(false);
+
+  useEffect(() => {
+    // Keep internal state in sync when switching worksites or when the parent fetch completes.
+    // This avoids "0 cameras connected" when initialCameras arrives after first render.
+    setCameras((prev) => {
+      const prevIds = prev.map((c) => c.id).join('|');
+      const nextIds = initialCameras.map((c) => c.id).join('|');
+      if (prevIds === nextIds) return prev;
+      return initialCameras;
+    });
+  }, [worksiteId, initialCameras]);
 
   function onCameraAdded(camera: any) {
     setCameras((prev) => [

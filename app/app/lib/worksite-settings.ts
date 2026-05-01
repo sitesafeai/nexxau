@@ -134,9 +134,15 @@ export function filterDetectionsByConfidence(
   detections: any[],
   confidenceThreshold: number
 ): any[] {
-  return detections.filter(d =>
-    (d.confidence ?? d.conf ?? d.score ?? 0) >= confidenceThreshold
-  );
+  return detections.filter((d) => {
+    const score = d.confidence ?? d.conf ?? d.score ?? 0;
+    const cls = (d.class_name || d.class || '').toString().toLowerCase();
+    const personLike = cls === 'person' || cls.includes('person');
+    const effectiveThreshold = personLike
+      ? Math.max(0.3, confidenceThreshold * 0.6)
+      : confidenceThreshold;
+    return score >= effectiveThreshold;
+  });
 }
 
 /**

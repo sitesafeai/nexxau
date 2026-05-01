@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
 import { prisma } from '@/app/lib/prisma';
+import { getCachedSession } from '@/app/lib/session-cache';
+import { withCache } from '@/app/lib/cache';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getCachedSession(request);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -45,49 +45,75 @@ export async function GET(request: NextRequest) {
     const detectionWindowStart = new Date(now - 60_000);
     const violationWindowStart = new Date(now - 300_000);
 
-    const [detections, violations, cameras] = await Promise.all([
-      prisma.detectionLog.findMany({
-        where: {
-          worksiteId: siteId,
-          timestamp: { gte: detectionWindowStart },
-        },
-        orderBy: { timestamp: 'desc' },
-        take: 50,
-        select: {
-          id: true,
-          cameraId: true,
-          type: true,
-          confidence: true,
-          timestamp: true,
-        },
-      }),
-      prisma.safetyViolation.findMany({
-        where: {
-          worksiteId: siteId,
-          detectedAt: { gte: violationWindowStart },
-          resolved: false,
-        },
-        orderBy: { detectedAt: 'desc' },
-        take: 20,
-        select: {
-          id: true,
-          cameraId: true,
-          violationType: true,
-          severity: true,
-          confidence: true,
-          detectedAt: true,
-        },
-      }),
-      prisma.camera.findMany({
-        where: { worksiteId: siteId },
-        select: { id: true, name: true },
-      }),
-    ]);
+    const cacheKey = `detections:recent:${siteId}`;
+    const data = await withCache(cacheKey, 5_000, async () => {
+      const [recentDetections, violations, cameras] = await Promise.all([
+        prisma.detectionLog.findMany({
+          where: {
+            worksiteId: siteId,
+            timestamp: { gte: detectionWindowStart },
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 50,
+          select: {
+            id: true,
+            cameraId: true,
+            type: true,
+            confidence: true,
+            timestamp: true,
+          },
+        }),
+        prisma.safetyViolation.findMany({
+          where: {
+            worksiteId: siteId,
+            detectedAt: { gte: violationWindowStart },
+            resolved: false,
+          },
+          orderBy: { detectedAt: 'desc' },
+          take: 20,
+          select: {
+            id: true,
+            cameraId: true,
+            violationType: true,
+            severity: true,
+            confidence: true,
+            detectedAt: true,
+          },
+        }),
+        prisma.camera.findMany({
+          where: { worksiteId: siteId },
+          select: { id: true, name: true },
+        }),
+      ]);
+
+      let detections = recentDetections;
+      if (detections.length === 0) {
+        const personFallbackWindowStart = new Date(now - 10 * 60_000);
+        detections = await prisma.detectionLog.findMany({
+          where: {
+            worksiteId: siteId,
+            timestamp: { gte: personFallbackWindowStart },
+            type: { contains: 'person', mode: 'insensitive' },
+          },
+          orderBy: { timestamp: 'desc' },
+          take: 20,
+          select: {
+            id: true,
+            cameraId: true,
+            type: true,
+            confidence: true,
+            timestamp: true,
+          },
+        });
+      }
+
+      return { detections, violations, cameras };
+    });
 
     return NextResponse.json({
-      detections,
-      violations,
-      cameras,
+      detections: data.detections,
+      violations: data.violations,
+      cameras: data.cameras,
       fetchedAt: new Date().toISOString(),
     });
   } catch (error) {

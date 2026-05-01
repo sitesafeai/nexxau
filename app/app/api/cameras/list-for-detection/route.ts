@@ -29,7 +29,10 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         name: true,
+        ingestUrl: true,
         streamUrl: true,
+        hlsUrl: true,
+        streamProvider: true,
         status: true,
         metadata: true,
       },
@@ -42,7 +45,21 @@ export async function GET(request: NextRequest) {
       cameras: cameras.map((cam) => ({
         id: cam.id,
         name: cam.name,
-        rtspUrl: cam.streamUrl,
+        ingestUrl:
+          cam.ingestUrl ||
+          cam.hlsUrl ||
+          cam.streamUrl ||
+          ((metadata(cam).ingestUrl as string | undefined) ?? null),
+        // Backward compatibility for current worker field name.
+        rtspUrl:
+          cam.ingestUrl ||
+          cam.hlsUrl ||
+          cam.streamUrl ||
+          ((metadata(cam).ingestUrl as string | undefined) ?? null),
+        streamProvider:
+          cam.streamProvider ||
+          ((metadata(cam).streamProvider as string | undefined) ??
+            (cam.hlsUrl ? 'hls' : 'rtsp')),
         status: cam.status,
         personAlertsEnabled: Boolean(metadata(cam).personAlertsEnabled),
       })),

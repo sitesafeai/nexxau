@@ -71,6 +71,8 @@ export default function DetectionPanel({ siteId, cameras }: DetectionPanelProps)
   const [violations, setViolations] = useState<ViolationItem[]>([]);
   const [cameras_db, setCamerasDb] = useState<CameraInfo[]>([]);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     let cancelled = false;
@@ -100,7 +102,14 @@ export default function DetectionPanel({ siteId, cameras }: DetectionPanelProps)
     };
   }, [siteId]);
 
-  const isFresh = fetchedAt ? Date.now() - new Date(fetchedAt).getTime() < 10_000 : false;
+  useEffect(() => { setIsMounted(true); }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const isFresh = fetchedAt ? nowMs - new Date(fetchedAt).getTime() < 10_000 : false;
 
   const groupedDetections = useMemo(() => {
     const grouped = new Map<string, DetectionItem[]>();
@@ -132,7 +141,7 @@ export default function DetectionPanel({ siteId, cameras }: DetectionPanelProps)
         <h3 className="text-lg font-semibold text-white">Live Detections</h3>
         <div className="flex items-center gap-2 text-xs text-slate-300">
           <span className={`h-2.5 w-2.5 rounded-full ${isFresh ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
-          {isFresh ? 'Live' : 'Stale'}
+          {isFresh ? (detections.length === 0 ? 'Live (no detections yet)' : 'Live') : 'Stale'}
         </div>
       </div>
 
@@ -161,7 +170,7 @@ export default function DetectionPanel({ siteId, cameras }: DetectionPanelProps)
                       </div>
                       <div className="flex items-center gap-3 text-xs text-slate-400">
                         <span>{Math.round((row.confidence || 0) * 100)}%</span>
-                        <span>{timeAgo(row.timestamp)}</span>
+                        <span>{isMounted ? timeAgo(row.timestamp) : ''}</span>
                       </div>
                     </div>
                   );
@@ -193,7 +202,7 @@ export default function DetectionPanel({ siteId, cameras }: DetectionPanelProps)
                     {TYPE_META[violation.violationType]?.label ?? humanizeFallback(violation.violationType)}
                   </span>
                 </div>
-                <span className="text-xs text-slate-400">{timeAgo(violation.detectedAt)}</span>
+                <span className="text-xs text-slate-400">{isMounted ? timeAgo(violation.detectedAt) : ''}</span>
               </div>
             ))}
           </div>

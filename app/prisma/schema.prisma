@@ -181,6 +181,9 @@ model Worksite {
   name                     String
   worksiteName             String                    @unique
   address                  String?
+  octoEmbedUrl             String?
+  octoEmbedUrls            Json?
+  octoCameraConfigs        Json?
   companyId                String
   cameraSystemType         String                    @default("mixed")
   createdAt                DateTime                  @default(now())
@@ -337,7 +340,9 @@ model Camera {
   id               String                @id @default(cuid())
   name             String
   type             String
+  streamProvider   String                @default("rtsp")
   status           String                @default("active")
+  ingestUrl        String?
   streamUrl        String?
   location         String?
   zone             String?

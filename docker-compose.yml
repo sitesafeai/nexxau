@@ -39,12 +39,12 @@ services:
     ports:
       - "8554:8554"   # RTSP
       - "8888:8888"   # HLS
-      - "8889:8889"   # API/metrics
+      - "8889:8889"   # WebRTC
+      - "9000:9000"   # API
+      - "9001:9001"   # Metrics
     volumes:
-      - ./mediamtx.yml:/mediamtx.yml # Optional: mount your config
-    environment:
-      - MTX_PATHS_ALL_SOURCE=rtsp://your_rtsp_source
+      - ./mediamtx.yml:/mediamtx.yml
 
 networks:
   default:
-    driver: bridge 
+    driver: bridge

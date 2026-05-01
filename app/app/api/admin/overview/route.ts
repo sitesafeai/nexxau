@@ -35,6 +35,49 @@ function toNumber(value: bigint | number | null | undefined): number {
   return value;
 }
 
+/**
+ * Only trust CameraHealth as "fresh" for this long; stale rows are ignored so we
+ * don't show 100% uptime from default Camera.status="active" alone.
+ */
+const CAMERA_HEALTH_FRESH_MS = 15 * 60 * 1000;
+
+type FleetBucket = 'online' | 'offline' | 'error' | 'other';
+
+function classifyCameraForFleetUptime(
+  camera: {
+    status: string;
+    health: Array<{ status: string; lastCheck: Date }>;
+  },
+  now: Date
+): FleetBucket {
+  const latest = camera.health[0];
+  if (latest) {
+    const age = now.getTime() - new Date(latest.lastCheck).getTime();
+    if (age >= 0 && age <= CAMERA_HEALTH_FRESH_MS) {
+      switch (latest.status) {
+        case 'ONLINE':
+          return 'online';
+        case 'OFFLINE':
+          return 'offline';
+        case 'ERROR':
+          return 'error';
+        case 'DEGRADED':
+          return 'online';
+        case 'MAINTENANCE':
+          return 'other';
+        default:
+          return 'other';
+      }
+    }
+  }
+
+  const s = (camera.status || '').toLowerCase();
+  if (s === 'offline') return 'offline';
+  if (s === 'error') return 'error';
+  // Prisma default is "active" — that only means provisioned, not verified streaming
+  return 'other';
+}
+
 type DiagnosticsEntry = {
   scope: string;
   message: string;
@@ -105,6 +148,7 @@ export async function GET(request: NextRequest) {
       complianceTrendRaw,
       detectionTrendRaw,
       worksiteSnapshots,
+      fleetCameras,
     ] = await Promise.all([
       safeQuery('company.count', () => prisma.company.count(), 0, diagnostics),
       safeQuery('worksite.count', () => prisma.worksite.count(), 0, diagnostics),
@@ -189,6 +233,11 @@ export async function GET(request: NextRequest) {
                 select: {
                   id: true,
                   status: true,
+                  health: {
+                    orderBy: { lastCheck: 'desc' },
+                    take: 1,
+                    select: { status: true, lastCheck: true },
+                  },
                 },
               },
               safetyScores: {
@@ -218,24 +267,39 @@ export async function GET(request: NextRequest) {
         [],
         diagnostics
       ),
+      safeQuery(
+        'camera.fleetForUptime',
+        () =>
+          prisma.camera.findMany({
+            select: {
+              id: true,
+              status: true,
+              health: {
+                orderBy: { lastCheck: 'desc' },
+                take: 1,
+                select: { status: true, lastCheck: true },
+              },
+            },
+          }),
+        [] as Array<{
+          id: string;
+          status: string;
+          health: Array<{ status: string; lastCheck: Date }>;
+        }>,
+        diagnostics
+      ),
     ]);
 
-    const cameraStatusTotals = worksiteSnapshots.reduce(
-      (acc, worksite) => {
-        worksite.cameras.forEach((camera) => {
-          const status = (camera.status || 'active').toLowerCase();
-          acc.total += 1;
-
-          if (status === 'online' || status === 'active') {
-            acc.online += 1;
-          } else if (status === 'offline') {
-            acc.offline += 1;
-          } else if (status === 'error') {
-            acc.error += 1;
-          } else {
-            acc.other += 1;
-          }
-        });
+    const cameraStatusTotals = (
+      Array.isArray(fleetCameras) ? fleetCameras : []
+    ).reduce(
+      (acc, camera) => {
+        const bucket = classifyCameraForFleetUptime(camera, now);
+        acc.total += 1;
+        if (bucket === 'online') acc.online += 1;
+        else if (bucket === 'offline') acc.offline += 1;
+        else if (bucket === 'error') acc.error += 1;
+        else acc.other += 1;
         return acc;
       },
       {
@@ -246,6 +310,18 @@ export async function GET(request: NextRequest) {
         other: 0,
       }
     );
+
+    if (
+      cameraStatusTotals.total > 0 &&
+      cameraStatusTotals.online === 0 &&
+      cameraStatusTotals.other === cameraStatusTotals.total
+    ) {
+      diagnostics.push({
+        scope: 'camera.uptime',
+        message:
+          'Fleet uptime uses fresh CameraHealth (last 15m) when present. No cameras currently have fresh health data; default Camera.status="active" is not counted as online.',
+      });
+    }
 
     type CompanyAggregate = {
       id: string;
@@ -320,8 +396,13 @@ export async function GET(request: NextRequest) {
           cameraCount: worksite.cameras.length,
           onlineCameras: worksite.cameras.filter(
             (camera) =>
-              (camera.status || 'active').toLowerCase() === 'online' ||
-              (camera.status || 'active').toLowerCase() === 'active'
+              classifyCameraForFleetUptime(
+                camera as {
+                  status: string;
+                  health: Array<{ status: string; lastCheck: Date }>;
+                },
+                now
+              ) === 'online'
           ).length,
           latestScore,
           latestScoreDate,
