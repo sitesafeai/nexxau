@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getCachedSession } from '@/app/lib/session-cache';
 import { withCache } from '@/app/lib/cache';
+import { checkRole } from '@/app/lib/api-helpers';
 
 /**
  * GET /api/admin/global-stats
@@ -16,6 +17,11 @@ export async function GET(request: NextRequest) {
         { success: false, error: 'Unauthorized' },
         { status: 401 }
       );
+    }
+
+    const roleCheck = checkRole(session.user.role, 'SUPER_ADMIN', 'view global platform statistics');
+    if (roleCheck) {
+      return roleCheck;
     }
 
     const stats = await withCache('admin:global-stats', 15_000, async () => {

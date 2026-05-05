@@ -31,24 +31,23 @@ export async function GET(
     }
 
     const userRole = normalizeRole(session.user.role);
-    const isGlobalAdmin =
-      userRole === 'SUPER_ADMIN' || userRole === 'COMPANY_ADMIN' || userRole === 'ADMIN';
+    if (userRole !== 'SUPER_ADMIN') {
+      const accessConditions: any[] = [
+        { worksiteUsers: { some: { userId: session.user.id } } },
+      ];
+      if (session.user.companyId) {
+        accessConditions.unshift({ companyId: session.user.companyId });
+      }
 
-    if (!isGlobalAdmin) {
-      const userCompany = await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { companyId: true },
+      const worksite = await prisma.worksite.findFirst({
+        where: {
+          id: camera.worksiteId,
+          OR: accessConditions,
+        },
+        select: { id: true },
       });
 
-      if (userCompany?.companyId) {
-        const worksite = await prisma.worksite.findFirst({
-          where: { id: camera.worksiteId, companyId: userCompany.companyId },
-          select: { id: true },
-        });
-        if (!worksite) {
-          return NextResponse.json({ error: 'Access denied to camera' }, { status: 403 });
-        }
-      } else {
+      if (!worksite) {
         return NextResponse.json({ error: 'Access denied to camera' }, { status: 403 });
       }
     }

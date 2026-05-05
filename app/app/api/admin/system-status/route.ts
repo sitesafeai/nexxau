@@ -9,12 +9,18 @@ import {
   getTrafficStress,
 } from '@/app/lib/observability-status';
 import { withCache } from '@/app/lib/cache';
+import { checkRole } from '@/app/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
   try {
     const session = await getCachedSession(request);
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const roleCheck = checkRole(session.user.role, 'SUPER_ADMIN', 'view system status');
+    if (roleCheck) {
+      return roleCheck;
     }
 
     const systemStatus = await withCache('admin:system-status', 10_000, async () => {
