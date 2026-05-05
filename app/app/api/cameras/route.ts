@@ -171,15 +171,12 @@ export async function GET(request: NextRequest) {
       // 5. Validate user has access to worksite
       console.log(`[API /cameras] [${requestId}] Step 4: Validating worksite access...`);
       const userRole = normalizeRole(currentUser.role);
-      const isGlobalAdmin = 
-        userRole === 'SUPER_ADMIN' ||
-        userRole === 'COMPANY_ADMIN' ||
-        userRole === 'ADMIN';
+      const isSuperAdmin = userRole === 'SUPER_ADMIN';
 
       let hasAccess = false;
 
-      if (isGlobalAdmin) {
-        // Global admins can access any worksite
+      if (isSuperAdmin) {
+        // Super admins can access any worksite
         // Verify worksite exists
         try {
           const worksiteCheckStart = Date.now();
@@ -327,11 +324,24 @@ export async function GET(request: NextRequest) {
     console.log(`[API /cameras] [${requestId}] Step 5: Querying cameras from database...`);
     let cameras;
     try {
-      // Build where clause
+      // Build where clause. Unfiltered camera requests must still stay within
+      // the caller's tenant/worksite scope because stream URLs are sensitive.
+      const userRole = normalizeRole(currentUser.role);
+      const isSuperAdmin = userRole === 'SUPER_ADMIN';
       const whereClause: any = {};
       if (worksiteId) {
         whereClause.worksiteId = worksiteId.trim();
         console.log(`[API /cameras] [${requestId}] Filtering by worksiteId:`, worksiteId);
+      } else if (!isSuperAdmin) {
+        const accessibleWorksiteIds = currentUser.worksiteAccess.map((access) => access.worksiteId);
+
+        if (currentUser.companyId) {
+          whereClause.worksite = { is: { companyId: currentUser.companyId } };
+        } else if (accessibleWorksiteIds.length > 0) {
+          whereClause.worksiteId = { in: accessibleWorksiteIds };
+        } else {
+          whereClause.id = { in: [] };
+        }
       }
 
       // Query cameras from database with timeout
