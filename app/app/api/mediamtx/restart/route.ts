@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { normalizeRole } from '@/app/lib/roles';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
@@ -6,6 +9,13 @@ const execAsync = promisify(exec);
 
 // POST /api/mediamtx/restart - Restart MediaMTX to apply config changes
 export async function POST() {
+  const session = await getServerSession(authOptions);
+  const role = normalizeRole(session?.user?.role);
+
+  if (!session?.user || role !== 'SUPER_ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     console.log('Restarting MediaMTX...');
     
