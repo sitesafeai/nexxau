@@ -1,4 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { prisma } from '@/app/lib/prisma';
+import { normalizeRole } from '@/app/lib/roles';
+
+async function canAccessCameraStream(
+  sessionUser: {
+    id?: string;
+    role?: string | null;
+    companyId?: string;
+  },
+  camera: {
+    worksiteId: string | null;
+    worksite: { companyId: string | null } | null;
+  }
+): Promise<boolean> {
+  const role = normalizeRole(sessionUser.role);
+  if (role === 'SUPER_ADMIN') {
+    return true;
+  }
+
+  if (!sessionUser.id || !camera.worksiteId) {
+    return false;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: sessionUser.id },
+    select: {
+      companyId: true,
+      worksiteAccess: {
+        where: { worksiteId: camera.worksiteId },
+        select: { worksiteId: true },
+      },
+    },
+  });
+
+  const companyId = sessionUser.companyId || user?.companyId;
+  if (companyId && camera.worksite?.companyId === companyId) {
+    return true;
+  }
+
+  return Boolean(user?.worksiteAccess.length);
+}
 
 export async function GET(
   request: NextRequest,
@@ -10,12 +53,45 @@ export async function GET(
       return NextResponse.json({ error: 'Missing HLS path' }, { status: 400 });
     }
 
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const streamPath = path[0];
+    const camera = await prisma.camera.findFirst({
+      where: {
+        OR: [
+          { id: streamPath },
+          { mediamtxPath: streamPath },
+        ],
+      },
+      select: {
+        id: true,
+        worksiteId: true,
+        worksite: {
+          select: {
+            companyId: true,
+          },
+        },
+      },
+    });
+
+    if (!camera) {
+      return NextResponse.json({ error: 'Camera stream not found' }, { status: 404 });
+    }
+
+    const hasAccess = await canAccessCameraStream(session.user, camera);
+    if (!hasAccess) {
+      return NextResponse.json({ error: 'Access denied to camera stream' }, { status: 403 });
+    }
+
     const upstreamOrigin = (process.env.MEDIAMTX_HLS_ORIGIN || 'http://localhost:8888').replace(/\/$/, '');
     const user = process.env.MEDIAMTX_API_USERNAME || 'admin';
     const pass = process.env.MEDIAMTX_API_PASSWORD || 'nexxau';
     const encoded = Buffer.from(`${user}:${pass}`).toString('base64');
 
-    const upstreamPath = path.join('/');
+    const upstreamPath = path.map((segment) => encodeURIComponent(segment)).join('/');
     const upstreamUrl = `${upstreamOrigin}/${upstreamPath}${request.nextUrl.search}`;
 
     const upstream = await fetch(upstreamUrl, {
