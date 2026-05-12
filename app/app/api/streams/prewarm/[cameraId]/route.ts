@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { getAuthorizedStreamCamera } from '@/app/lib/camera-stream-auth';
 import { prisma } from '@/app/lib/prisma';
 
 /**
@@ -103,6 +106,19 @@ export async function POST(
 ) {
   try {
     const { cameraId } = await params;
+
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const access = await getAuthorizedStreamCamera(session.user, cameraId);
+    if (access.status === 'not_found') {
+      return NextResponse.json({ success: false, error: 'Camera not found' }, { status: 404 });
+    }
+    if (access.status === 'forbidden') {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
 
     // Fetch camera to get MediaMTX path
     const camera = await prisma.camera.findUnique({

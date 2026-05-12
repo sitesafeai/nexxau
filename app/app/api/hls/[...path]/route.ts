@@ -1,13 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { getAuthorizedStreamCamera } from '@/app/lib/camera-stream-auth';
+
+const SAFE_HLS_PATH_SEGMENT = /^[A-Za-z0-9._-]+$/;
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { path } = await params;
     if (!path?.length) {
       return NextResponse.json({ error: 'Missing HLS path' }, { status: 400 });
+    }
+
+    if (path.length < 2 || path.some(segment => !SAFE_HLS_PATH_SEGMENT.test(segment))) {
+      return NextResponse.json({ error: 'Invalid HLS path' }, { status: 400 });
+    }
+
+    const access = await getAuthorizedStreamCamera(session.user, path[0], {
+      allowMediamtxPath: true,
+    });
+    if (access.status === 'not_found') {
+      return NextResponse.json({ error: 'Stream not found' }, { status: 404 });
+    }
+    if (access.status === 'forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const upstreamOrigin = (process.env.MEDIAMTX_HLS_ORIGIN || 'http://localhost:8888').replace(/\/$/, '');
@@ -15,7 +39,7 @@ export async function GET(
     const pass = process.env.MEDIAMTX_API_PASSWORD || 'nexxau';
     const encoded = Buffer.from(`${user}:${pass}`).toString('base64');
 
-    const upstreamPath = path.join('/');
+    const upstreamPath = path.map(segment => encodeURIComponent(segment)).join('/');
     const upstreamUrl = `${upstreamOrigin}/${upstreamPath}${request.nextUrl.search}`;
 
     const upstream = await fetch(upstreamUrl, {

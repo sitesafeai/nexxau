@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { isSuperAdmin } from '@/app/lib/camera-stream-auth';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
@@ -10,6 +13,14 @@ const execAsync = promisify(exec);
 
 // POST /api/mediamtx/update-config - Update MediaMTX config with new camera streams
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!isSuperAdmin(session.user)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const body = await request.json();
     const { cameraId, rtspUrl, mediamtxPath } = body as {

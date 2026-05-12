@@ -16,40 +16,25 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { ensureHlsStream, getHlsUrl, isStreamActive, stopHlsStream } from '@/app/lib/streaming/hlsManager';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { ensureHlsStream, getHlsUrl } from '@/app/lib/streaming/hlsManager';
 import { prisma } from '@/app/lib/prisma';
 import { ffmpegManager } from '@/app/lib/streaming/ffmpeg';
+import { getAuthorizedStreamCamera, type AuthorizedStreamCamera } from '@/app/lib/camera-stream-auth';
 import { kill } from 'process';
 
 /**
- * Resolve camera RTSP URL from query parameter or database
+ * Resolve camera RTSP URL from the authorized database camera.
  */
-async function resolveCameraRtspUrl(cameraId: string, request: NextRequest): Promise<string | null> {
-  // Option 1: RTSP URL in query parameter (takes precedence)
-  const rtspUrlParam = request.nextUrl.searchParams.get('rtspUrl');
-  if (rtspUrlParam) {
-    console.log(`[Stream API] Using RTSP URL from query parameter for camera ${cameraId}`);
-    return rtspUrlParam;
+async function resolveCameraRtspUrl(camera: AuthorizedStreamCamera): Promise<string | null> {
+  if (camera.streamUrl) {
+    console.log(`[Stream API] Found RTSP URL in database for camera ${camera.id}`);
+    return camera.streamUrl;
   }
 
-  // Option 2: Database lookup
-  try {
-    const camera = await prisma.camera.findUnique({
-      where: { id: cameraId },
-      select: { streamUrl: true },
-    });
-
-    if (camera?.streamUrl) {
-      console.log(`[Stream API] Found RTSP URL in database for camera ${cameraId}`);
-      return camera.streamUrl;
-    }
-
-    console.warn(`[Stream API] No RTSP URL found in database for camera ${cameraId}`);
-    return null;
-  } catch (error: any) {
-    console.error(`[Stream API] Error querying database for camera ${cameraId}:`, error);
-    return null;
-  }
+  console.warn(`[Stream API] No RTSP URL found in database for camera ${camera.id}`);
+  return null;
 }
 
 /**
@@ -79,6 +64,19 @@ export async function GET(
         { error: 'Camera ID is required' },
         { status: 400 }
       );
+    }
+
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const access = await getAuthorizedStreamCamera(session.user, cameraId);
+    if (access.status === 'not_found') {
+      return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
+    }
+    if (access.status === 'forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Check if stream is already active
@@ -146,14 +144,14 @@ export async function GET(
     }
 
     // Resolve RTSP URL
-    const rtspUrl = await resolveCameraRtspUrl(cameraId, request);
+    const rtspUrl = await resolveCameraRtspUrl(access.camera);
 
     // Hard failure: RTSP URL must be provided
     if (!rtspUrl) {
       return NextResponse.json(
         {
           error: 'RTSP URL is required',
-          note: 'Camera not found in database or has no streamUrl. Provide rtspUrl as query parameter: ?rtspUrl=rtsp://...',
+          note: 'Camera has no streamUrl configured.',
         },
         { status: 400 }
       );
@@ -239,6 +237,19 @@ export async function DELETE(
         { error: 'Camera ID is required' },
         { status: 400 }
       );
+    }
+
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const access = await getAuthorizedStreamCamera(session.user, cameraId);
+    if (access.status === 'not_found') {
+      return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
+    }
+    if (access.status === 'forbidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { stopHlsStream } = await import('@/app/lib/streaming/hlsManager');

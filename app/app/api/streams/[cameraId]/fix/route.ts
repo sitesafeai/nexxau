@@ -12,6 +12,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { isSuperAdmin } from '@/app/lib/camera-stream-auth';
 import * as path from 'path';
 import * as fs from 'fs';
 import { exec } from 'child_process';
@@ -35,6 +38,14 @@ export async function POST(
   const diagnostics: DiagnosticStep[] = [];
   const { cameraId } = await params;
   const projectRoot = process.cwd();
+
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!isSuperAdmin(session.user)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   console.log('\n🔥 [HLS Fixer] Starting auto-fix for camera:', cameraId);
 
