@@ -13,6 +13,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { ffmpegManager } from '@/app/lib/streaming/ffmpeg';
 import { streamRegistry } from '@/app/lib/streaming/streamRegistry';
+import { requireCameraAccess } from '@/app/lib/api-route-auth';
+import { getStreamDirectory } from '@/app/lib/streaming/streamPaths';
 
 export async function GET(
   request: NextRequest,
@@ -26,6 +28,11 @@ export async function GET(
         { error: 'Camera ID is required' },
         { status: 400 }
       );
+    }
+
+    const auth = await requireCameraAccess(cameraId);
+    if (!auth.ok) {
+      return auth.response;
     }
 
     const diagnostics: any = {
@@ -70,22 +77,13 @@ export async function GET(
       const streamInfo = streamRegistry.getStream(cameraId);
       diagnostics.registry.streamInfo = {
         rtspUrl: streamInfo?.rtspUrl,
-        hlsUrl: streamInfo?.hlsUrl,
+        hlsUrl: `/streams/${cameraId}/index.m3u8`,
         startedAt: streamInfo?.startedAt?.toISOString(),
       };
     }
 
     // Check filesystem
-    const cwd = process.cwd();
-    let streamDir: string;
-    
-    if (fs.existsSync(path.join(cwd, 'public'))) {
-      streamDir = path.join(cwd, 'public', 'streams', cameraId);
-    } else if (fs.existsSync(path.join(cwd, 'app', 'public'))) {
-      streamDir = path.join(cwd, 'app', 'public', 'streams', cameraId);
-    } else {
-      streamDir = path.join(cwd, 'public', 'streams', cameraId);
-    }
+    const streamDir = getStreamDirectory(cameraId);
 
     diagnostics.filesystem.directoryPath = streamDir;
     diagnostics.filesystem.directoryExists = fs.existsSync(streamDir);

@@ -19,6 +19,8 @@ import { promisify } from 'util';
 import { ensureHlsStream, stopHlsStream, isStreamActive } from '@/app/lib/streaming/hlsManager';
 import { prisma } from '@/app/lib/prisma';
 import { spawn } from 'child_process';
+import { requireSuperAdminSession } from '@/app/lib/api-route-auth';
+import { getStreamDirectory } from '@/app/lib/streaming/streamPaths';
 
 const execAsync = promisify(exec);
 
@@ -34,32 +36,34 @@ export async function POST(
 ): Promise<NextResponse> {
   const diagnostics: DiagnosticStep[] = [];
   const { cameraId } = await params;
-  const projectRoot = process.cwd();
 
   console.log('\n🔥 [HLS Fixer] Starting auto-fix for camera:', cameraId);
 
   try {
+    const auth = await requireSuperAdminSession();
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    const cameraRecord = await prisma.camera.findUnique({
+      where: { id: cameraId },
+      select: { id: true, streamUrl: true },
+    });
+
+    if (!cameraRecord) {
+      return NextResponse.json(
+        { success: false, error: 'Camera not found' },
+        { status: 404 }
+      );
+    }
+
     // ============================================================
     // STEP 1: Verify HLS Files
     // ============================================================
     console.log('[HLS Fixer] Step 1: Checking HLS files...');
     
-    // Use the same path resolution logic as hlsManager
-    // Priority: Check for 'public' directory first (most reliable)
-    let expectedStreamDir: string;
-    if (fs.existsSync(path.join(projectRoot, 'public'))) {
-      // We're in app directory: <repo-root>/app
-      expectedStreamDir = path.join(projectRoot, 'public', 'streams', cameraId);
-      console.log(`[HLS Fixer] Detected app directory structure. Using: ${expectedStreamDir}`);
-    } else if (fs.existsSync(path.join(projectRoot, 'app', 'public'))) {
-      // We're at repo root: <repo-root>
-      expectedStreamDir = path.join(projectRoot, 'app', 'public', 'streams', cameraId);
-      console.log(`[HLS Fixer] Detected repo root structure. Using: ${expectedStreamDir}`);
-    } else {
-      // Fallback: assume we're in app directory
-      expectedStreamDir = path.join(projectRoot, 'public', 'streams', cameraId);
-      console.log(`[HLS Fixer] Using fallback path: ${expectedStreamDir}`);
-    }
+    const expectedStreamDir = getStreamDirectory(cameraId);
+    console.log(`[HLS Fixer] Using private stream directory: ${expectedStreamDir}`);
     const expectedM3u8 = path.join(expectedStreamDir, 'index.m3u8');
     
     let filesExist = false;
@@ -140,11 +144,7 @@ export async function POST(
       rtspUrl = body.rtspUrl || null;
       
       if (!rtspUrl) {
-        const camera = await prisma.camera.findUnique({
-          where: { id: cameraId },
-          select: { streamUrl: true },
-        });
-        rtspUrl = camera?.streamUrl || null;
+        rtspUrl = cameraRecord.streamUrl || null;
       }
     } catch (error) {
       // Try query param as fallback

@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/app/lib/prisma';
+import { requireSuperAdminSession } from '@/app/lib/api-route-auth';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
-const prisma = new PrismaClient();
 const execAsync = promisify(exec);
 
 // POST /api/mediamtx/update-config - Update MediaMTX config with new camera streams
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireSuperAdminSession();
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const body = await request.json();
     const { cameraId, rtspUrl, mediamtxPath } = body as {
       cameraId?: string;

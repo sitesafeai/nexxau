@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireApiSession } from '@/app/lib/api-route-auth';
 
 export async function GET(): Promise<NextResponse> {
+  const auth = await requireApiSession();
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   const apiKey = process.env.TURN_API_KEY;
 
   if (!apiKey) {

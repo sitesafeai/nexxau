@@ -18,37 +18,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { streamRegistry } from './streamRegistry';
 import { ffmpegManager } from './ffmpeg';
-
-/**
- * Get the stream output directory for a camera
- * 
- * Next.js serves files from the 'public' directory.
- * Path must be: <repo-root>/app/public/streams/{cameraId}
- */
-function getStreamDirectory(cameraId: string): string {
-  const cwd = process.cwd();
-  
-  // Check if we're in the app directory or repo root
-  // Priority: Check for 'public' directory first (most reliable)
-  let publicDir: string;
-  
-  // First, check if we're already in the app directory (public exists directly)
-  if (fs.existsSync(path.join(cwd, 'public'))) {
-    // We're in app directory: <repo-root>/app
-    publicDir = path.join(cwd, 'public', 'streams', cameraId);
-    console.log(`[HLS Manager] Detected app directory structure. Using: ${publicDir}`);
-  } else if (fs.existsSync(path.join(cwd, 'app', 'public'))) {
-    // We're at repo root: <repo-root>
-    publicDir = path.join(cwd, 'app', 'public', 'streams', cameraId);
-    console.log(`[HLS Manager] Detected repo root structure. Using: ${publicDir}`);
-  } else {
-    // Fallback: assume we're in app directory
-    publicDir = path.join(cwd, 'public', 'streams', cameraId);
-    console.log(`[HLS Manager] Using fallback path: ${publicDir}`);
-  }
-  
-  return publicDir;
-}
+import { getStreamDirectory } from './streamPaths';
 
 /**
  * Ensure stream directory exists and is clean
@@ -150,7 +120,7 @@ export function ensureHlsStream(cameraId: string, rtspUrl: string): string | nul
     console.log('[HLS Manager] Resolved HLS path:', path.resolve(streamDir));
     console.log('[HLS Manager] Full output path:', path.resolve(path.join(streamDir, 'index.m3u8')));
     console.log('[HLS Manager] Project root:', process.cwd());
-    console.log('[HLS Manager] Expected location: <repo-root>/app/public/streams/', cameraId);
+    console.log('[HLS Manager] Expected location: private HLS stream directory for camera', cameraId);
 
     // Register stream (prevent duplicates)
     const registered = streamRegistry.startStream(cameraId, rtspUrl);

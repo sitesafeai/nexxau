@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { normalizeRole } from '@/app/lib/roles';
 import { stopHlsStream } from '@/app/lib/streaming/hlsManager';
+import { getStreamDirectory } from '@/app/lib/streaming/streamPaths';
 import { stopRtpPush } from '@/app/lib/services/cameraIngestClient';
 import { removeStreamFromMediaMTX } from '@/app/lib/services/mediamtxClient';
 import * as path from 'path';
@@ -19,7 +20,7 @@ import * as fs from 'fs';
  * - Kill associated FFmpeg process
  * - Remove camera from active stream registry
  * - Delete camera record from database
- * - Remove HLS files: app/public/streams/{cameraId}/
+ * - Remove HLS files from the private stream directory
  */
 export async function DELETE(
   request: NextRequest,
@@ -321,16 +322,7 @@ export async function DELETE(
     console.log(`[API /cameras/[id] DELETE] [${requestId}] Step 2: Removing stream files...`);
     
     try {
-      const cwd = process.cwd();
-      let streamDir: string;
-      
-      if (fs.existsSync(path.join(cwd, 'public'))) {
-        streamDir = path.join(cwd, 'public', 'streams', trimmedCameraId);
-      } else if (fs.existsSync(path.join(cwd, 'app', 'public'))) {
-        streamDir = path.join(cwd, 'app', 'public', 'streams', trimmedCameraId);
-      } else {
-        streamDir = path.join(cwd, 'public', 'streams', trimmedCameraId);
-      }
+      const streamDir = getStreamDirectory(trimmedCameraId);
 
       if (fs.existsSync(streamDir)) {
         // Remove all files in the directory
