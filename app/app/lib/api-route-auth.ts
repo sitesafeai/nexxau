@@ -10,7 +10,7 @@ type AuthFailure = {
   response: NextResponse;
 };
 
-type AuthSuccess<T extends Record<string, unknown> = Record<string, never>> = {
+type AuthSuccess<T extends object = {}> = {
   ok: true;
   session: Session;
   userRole: string;

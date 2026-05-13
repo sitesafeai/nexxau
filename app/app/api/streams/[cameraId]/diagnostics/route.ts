@@ -77,7 +77,7 @@ export async function GET(
       const streamInfo = streamRegistry.getStream(cameraId);
       diagnostics.registry.streamInfo = {
         rtspUrl: streamInfo?.rtspUrl,
-        hlsUrl: streamInfo?.hlsUrl,
+        hlsUrl: `/streams/${cameraId}/index.m3u8`,
         startedAt: streamInfo?.startedAt?.toISOString(),
       };
     }
