@@ -8,6 +8,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as path from 'path';
 import * as fs from 'fs';
+import { requireCameraAccess } from '@/app/lib/api-route-auth';
+import { getStreamDirectory } from '@/app/lib/streaming/streamPaths';
 
 export async function GET(
   request: NextRequest,
@@ -17,6 +19,11 @@ export async function GET(
     const { cameraId, filename } = await params;
 
     console.log(`[Streams Route] GET /streams/${cameraId}/${filename}`);
+
+    const auth = await requireCameraAccess(cameraId);
+    if (!auth.ok) {
+      return auth.response;
+    }
 
     // Security: Only allow .m3u8 and .ts files
     if (!filename.endsWith('.m3u8') && !filename.endsWith('.ts')) {
@@ -36,28 +43,12 @@ export async function GET(
       );
     }
 
-    // Determine the correct path
-    const cwd = process.cwd();
-    let filePath: string;
-    
-    if (fs.existsSync(path.join(cwd, 'public'))) {
-      // We're in app directory
-      filePath = path.join(cwd, 'public', 'streams', cameraId, filename);
-      console.log(`[Streams Route] Using app directory path: ${filePath}`);
-    } else if (fs.existsSync(path.join(cwd, 'app', 'public'))) {
-      // We're at repo root
-      filePath = path.join(cwd, 'app', 'public', 'streams', cameraId, filename);
-      console.log(`[Streams Route] Using repo root path: ${filePath}`);
-    } else {
-      // Fallback
-      filePath = path.join(cwd, 'public', 'streams', cameraId, filename);
-      console.log(`[Streams Route] Using fallback path: ${filePath}`);
-    }
+    const filePath = path.join(getStreamDirectory(cameraId), filename);
+    console.log(`[Streams Route] Using private stream path: ${filePath}`);
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
       console.warn(`[Streams Route] File not found: ${filePath}`);
-      console.warn(`[Streams Route] CWD: ${cwd}`);
       console.warn(`[Streams Route] Directory exists: ${fs.existsSync(path.dirname(filePath))}`);
       
       // If it's an M3U8 file and doesn't exist, wait a bit for FFmpeg to create it
@@ -122,10 +113,6 @@ export async function GET(
       'Pragma': 'no-cache',
       'Expires': '0',
       'X-Accel-Buffering': 'no', // Disable nginx buffering
-      // CORS headers
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-      'Access-Control-Allow-Headers': 'Range, Content-Type',
       'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges',
     };
 
@@ -259,17 +246,12 @@ export async function HEAD(
       );
     }
 
-    // Determine file path (same as GET)
-    const cwd = process.cwd();
-    let filePath: string;
-    
-    if (fs.existsSync(path.join(cwd, 'public'))) {
-      filePath = path.join(cwd, 'public', 'streams', cameraId, filename);
-    } else if (fs.existsSync(path.join(cwd, 'app', 'public'))) {
-      filePath = path.join(cwd, 'app', 'public', 'streams', cameraId, filename);
-    } else {
-      filePath = path.join(cwd, 'public', 'streams', cameraId, filename);
+    const auth = await requireCameraAccess(cameraId);
+    if (!auth.ok) {
+      return auth.response;
     }
+
+    const filePath = path.join(getStreamDirectory(cameraId), filename);
 
     if (!fs.existsSync(filePath)) {
       return NextResponse.json(
@@ -297,9 +279,6 @@ export async function HEAD(
       'Pragma': 'no-cache',
       'Expires': '0',
       'X-Accel-Buffering': 'no',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-      'Access-Control-Allow-Headers': 'Range, Content-Type',
       'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges',
     };
 

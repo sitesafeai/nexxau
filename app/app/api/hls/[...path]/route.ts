@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireCameraAccess } from '@/app/lib/api-route-auth';
 
 export async function GET(
   request: NextRequest,
@@ -8,6 +9,11 @@ export async function GET(
     const { path } = await params;
     if (!path?.length) {
       return NextResponse.json({ error: 'Missing HLS path' }, { status: 400 });
+    }
+
+    const auth = await requireCameraAccess(path[0]);
+    if (!auth.ok) {
+      return auth.response;
     }
 
     const upstreamOrigin = (process.env.MEDIAMTX_HLS_ORIGIN || 'http://localhost:8888').replace(/\/$/, '');

@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
-import { prisma } from '@/app/lib/prisma';
-import { normalizeRole } from '@/app/lib/roles';
 import { addStreamToMediaMTX, getMediaMTXHLSUrl } from '@/app/lib/services/mediamtxClient';
+import { requireCameraAccess } from '@/app/lib/api-route-auth';
 
 export async function GET(
   request: NextRequest,
@@ -16,42 +13,11 @@ export async function GET(
       return NextResponse.json({ error: 'Camera ID is required' }, { status: 400 });
     }
 
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await requireCameraAccess(cameraId);
+    if (!auth.ok) {
+      return auth.response;
     }
-
-    const camera = await prisma.camera.findUnique({
-      where: { id: cameraId },
-      select: { id: true, name: true, status: true, worksiteId: true, streamUrl: true },
-    });
-
-    if (!camera) {
-      return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
-    }
-
-    const userRole = normalizeRole(session.user.role);
-    const isGlobalAdmin =
-      userRole === 'SUPER_ADMIN' || userRole === 'COMPANY_ADMIN' || userRole === 'ADMIN';
-
-    if (!isGlobalAdmin) {
-      const userCompany = await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { companyId: true },
-      });
-
-      if (userCompany?.companyId) {
-        const worksite = await prisma.worksite.findFirst({
-          where: { id: camera.worksiteId, companyId: userCompany.companyId },
-          select: { id: true },
-        });
-        if (!worksite) {
-          return NextResponse.json({ error: 'Access denied to camera' }, { status: 403 });
-        }
-      } else {
-        return NextResponse.json({ error: 'Access denied to camera' }, { status: 403 });
-      }
-    }
+    const { camera } = auth;
 
     const rtspUrl = camera.streamUrl?.trim();
     if (!rtspUrl || !rtspUrl.startsWith('rtsp://')) {

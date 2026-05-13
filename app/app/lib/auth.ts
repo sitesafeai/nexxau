@@ -106,6 +106,11 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
+          if (!user.isActivated || !user.approved) {
+            console.warn('[auth] Impersonation blocked: user inactive or unapproved');
+            return null;
+          }
+
           const c = await getCompanyAccessState(user.companyId);
           if (!c || c.deletedAt || c.suspended) {
             console.warn('[auth] Impersonation blocked: company inactive');
@@ -158,13 +163,18 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        if (!user.isActivated || !user.approved) {
+          console.warn('[auth] User inactive or unapproved', emailNormalized);
+          return null;
+        }
+
         console.info('[auth] Login success for', emailNormalized);
 
         // Pilot enforcement (tenant-level access control)
         const normalizedRole = (user.role || '').toUpperCase();
         if (normalizedRole !== 'SUPER_ADMIN' && normalizedRole !== 'SUPERADMIN' && user.companyId) {
           const co = await getCompanyAccessState(user.companyId);
-          if (co?.deletedAt || co?.suspended) {
+          if (!co || co.deletedAt || co.suspended) {
             console.warn('[auth] Company suspended or removed', user.companyId);
             return null;
           }

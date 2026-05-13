@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
+import { requireCameraAccess } from '@/app/lib/api-route-auth';
 
 /**
  * Pre-warm MediaMTX HLS stream
@@ -104,22 +104,11 @@ export async function POST(
   try {
     const { cameraId } = await params;
 
-    // Fetch camera to get MediaMTX path
-    const camera = await prisma.camera.findUnique({
-      where: { id: cameraId },
-      select: {
-        id: true,
-        mediamtxPath: true,
-        hlsUrl: true,
-      },
-    });
-
-    if (!camera) {
-      return NextResponse.json(
-        { success: false, error: 'Camera not found' },
-        { status: 404 }
-      );
+    const auth = await requireCameraAccess(cameraId);
+    if (!auth.ok) {
+      return auth.response;
     }
+    const { camera } = auth;
 
     if (!camera.mediamtxPath && !camera.hlsUrl) {
       return NextResponse.json(

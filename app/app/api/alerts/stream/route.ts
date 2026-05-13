@@ -1,11 +1,49 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { onAlertCreated } from '@/app/lib/alert-events';
+import { prisma } from '@/app/lib/prisma';
+import { requireApiSession } from '@/app/lib/api-route-auth';
 
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
+  const auth = await requireApiSession();
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   const { searchParams } = new URL(request.url);
   const worksiteId = searchParams.get('worksiteId');
+  let allowedWorksiteIds: Set<string> | null = null;
+
+  if (auth.userRole !== 'SUPER_ADMIN') {
+    const user = await prisma.user.findUnique({
+      where: { id: auth.session.user.id },
+      select: {
+        companyId: true,
+        worksiteId: true,
+        worksiteAccess: {
+          select: { worksiteId: true },
+        },
+      },
+    });
+
+    const ids = new Set<string>();
+    if (auth.userRole === 'COMPANY_ADMIN' && user?.companyId) {
+      const worksites = await prisma.worksite.findMany({
+        where: { companyId: user.companyId },
+        select: { id: true },
+      });
+      worksites.forEach((site) => ids.add(site.id));
+    } else {
+      if (user?.worksiteId) ids.add(user.worksiteId);
+      user?.worksiteAccess.forEach((access) => ids.add(access.worksiteId));
+    }
+
+    if (worksiteId && !ids.has(worksiteId)) {
+      return NextResponse.json({ error: 'Access denied to worksite' }, { status: 403 });
+    }
+    allowedWorksiteIds = ids;
+  }
 
   const stream = new ReadableStream({
     start(controller) {
@@ -13,6 +51,7 @@ export async function GET(request: NextRequest) {
 
       const send = (data: any) => {
         if (worksiteId && data.worksiteId !== worksiteId) return;
+        if (!worksiteId && allowedWorksiteIds && !allowedWorksiteIds.has(data.worksiteId)) return;
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
 
