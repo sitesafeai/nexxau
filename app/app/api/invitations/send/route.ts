@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import type { CompanyRole, UserRole, WorksiteRole } from '@prisma/client';
 import { prisma } from '@/app/lib/prisma';
 import { authOptions } from '@/app/lib/auth';
 import { sendInvitationEmail } from '@/app/lib/email-service';
@@ -246,7 +247,7 @@ export async function POST(request: NextRequest) {
     const newUser = await prisma.user.create({
       data: {
         email: normalizedEmail,
-        role: inviteRole,
+        role: inviteRole as UserRole,
         inviteToken: token,
         inviteExpires: expires,
         invitedBy,
@@ -263,11 +264,12 @@ export async function POST(request: NextRequest) {
         data: {
           userId: newUser.id,
           worksiteId,
-          role:
+          role: (
             inviteRole === 'SITE_ADMIN' ? 'ADMIN' :
             inviteRole === 'SUPERVISOR' ? 'SUPERVISOR' :
             inviteRole === 'VIEWER' ? 'VIEWER' :
             'WORKER'
+          ) as WorksiteRole
         }
       });
     }
@@ -278,7 +280,7 @@ export async function POST(request: NextRequest) {
         data: {
           userId: newUser.id,
           companyId,
-          role: inviteRole === 'COMPANY_ADMIN' ? 'ADMIN' : 'VIEWER'
+          role: (inviteRole === 'COMPANY_ADMIN' ? 'ADMIN' : 'VIEWER') as CompanyRole
         }
       });
     }
