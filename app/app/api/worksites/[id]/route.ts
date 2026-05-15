@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { clearWorksiteSettingsCache } from '@/app/lib/worksite-settings';
+import { enforceWorksiteAccess } from '@/app/lib/worksite-access';
 
 /**
  * GET /api/worksites/:id
@@ -12,6 +13,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const denied = await enforceWorksiteAccess(request, id);
+    if (denied) return denied;
+
     // Use explicit select to avoid non-existent columns
     const worksite = await prisma.worksite.findFirst({
       where: { id },
@@ -123,6 +127,9 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    const denied = await enforceWorksiteAccess(request, id, { requireAdmin: true });
+    if (denied) return denied;
+
     const body = await request.json();
     console.log('[PATCH /api/worksites/:id] Updating worksite:', id, 'with data:', body);
 
@@ -260,6 +267,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const denied = await enforceWorksiteAccess(request, id, { requireCompanyAdmin: true });
+    if (denied) return denied;
+
     await prisma.worksite.delete({
       where: { id }
     });

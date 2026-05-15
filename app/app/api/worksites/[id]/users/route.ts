@@ -3,9 +3,9 @@ import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { normalizeRole } from '@/app/lib/roles';
-import { Cache, CacheKeys } from '@/app/lib/cache';
 import { generateInviteToken, getTokenExpiry } from '@/app/lib/token-utils';
 import { sendInvitationEmail } from '@/app/lib/email-service';
+import { enforceWorksiteAccess } from '@/app/lib/worksite-access';
 
 /**
  * GET /api/worksites/:id/users
@@ -29,6 +29,9 @@ export async function GET(
         { status: 401 }
       );
     }
+
+    const denied = await enforceWorksiteAccess(request, worksiteId);
+    if (denied) return denied;
 
     // Get query params for filtering
     const { searchParams } = new URL(request.url);
@@ -61,6 +64,7 @@ export async function GET(
             phoneNumber: true,
             role: true,
             isActivated: true, // Use isActivated for status
+            onboardingComplete: true,
             lastLogin: true,
             createdAt: true
           }
@@ -151,6 +155,9 @@ export async function POST(
         { status: 401 }
       );
     }
+
+    const denied = await enforceWorksiteAccess(request, worksiteId, { requireAdmin: true });
+    if (denied) return denied;
 
     // Get current user's worksite role, ID, and name (for audit log and email)
     const currentUser = await prisma.user.findUnique({
@@ -435,7 +442,7 @@ export async function POST(
         data: {
           userId: currentUser.id!,
           action: 'USER_ADDED_TO_WORKSITE',
-          entityType: 'WorksiteUser',
+          entity: 'WorksiteUser',
           entityId: assignment.id,
           metadata: {
             worksiteId,

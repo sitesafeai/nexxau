@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/app/lib/prisma';
+import { enforceWorksiteAccess } from '@/app/lib/worksite-access';
 
 export async function GET(
   request: NextRequest,
@@ -9,6 +11,18 @@ export async function GET(
     if (!path?.length) {
       return NextResponse.json({ error: 'Missing HLS path' }, { status: 400 });
     }
+
+    const cameraId = path[0];
+    const camera = await prisma.camera.findUnique({
+      where: { id: cameraId },
+      select: { worksiteId: true },
+    });
+    if (!camera) {
+      return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
+    }
+
+    const denied = await enforceWorksiteAccess(request, camera.worksiteId);
+    if (denied) return denied;
 
     const upstreamOrigin = (process.env.MEDIAMTX_HLS_ORIGIN || 'http://localhost:8888').replace(/\/$/, '');
     const user = process.env.MEDIAMTX_API_USERNAME || 'admin';
