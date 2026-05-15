@@ -48,9 +48,9 @@ export async function GET(request: NextRequest) {
         // Alert stats
         Promise.all([
           prisma.alert.count({ where: { status: { not: 'RESOLVED' } } }),
-          prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'CRITICAL' } }),
-          prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'WARNING' } }),
-          prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'INFO' } })
+          prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'HIGH' } }),
+          prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'MEDIUM' } }),
+          prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'LOW' } })
         ]),
         
         // Average safety score

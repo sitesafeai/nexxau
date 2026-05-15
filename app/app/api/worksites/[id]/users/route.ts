@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { Prisma, WorksiteRole } from '@prisma/client';
 import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
@@ -40,7 +41,7 @@ export async function GET(
     const includeCurrentUserRole = searchParams.get('includeCurrentUserRole') === 'true';
 
     // Build where clause for user search
-    const userWhere: any = {};
+    const userWhere: Prisma.UserWhereInput = {};
     if (search) {
       userWhere.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -48,11 +49,17 @@ export async function GET(
       ];
     }
 
+    const allowedRoleFilters: WorksiteRole[] = ['ADMIN', 'SUPERVISOR', 'WORKER', 'VIEWER'];
+    const role =
+      roleFilter && roleFilter !== 'all' && allowedRoleFilters.includes(roleFilter as WorksiteRole)
+        ? (roleFilter as WorksiteRole)
+        : undefined;
+
     // Fetch users through worksiteUsers relationship
     const worksiteUsers = await prisma.worksiteUser.findMany({
       where: {
         worksiteId,
-        ...(roleFilter && roleFilter !== 'all' ? { role: roleFilter } : {}),
+        ...(role ? { role } : {}),
         user: userWhere
       },
       include: {
@@ -406,7 +413,7 @@ export async function POST(
       try {
         console.log('[INVITE FLOW] Calling sendInvitationEmail function...');
         const emailResult = await sendInvitationEmail(
-          user.email,
+          user.email || normalizedEmail,
           inviterName,
           role,
           worksite.name,
