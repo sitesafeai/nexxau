@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { Prisma, WorksiteRole } from '@prisma/client';
 import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { normalizeRole } from '@/app/lib/roles';
-import { Cache, CacheKeys } from '@/app/lib/cache';
 import { generateInviteToken, getTokenExpiry } from '@/app/lib/token-utils';
 import { sendInvitationEmail } from '@/app/lib/email-service';
+import { enforceWorksiteAccess } from '@/app/lib/worksite-access';
 
 /**
  * GET /api/worksites/:id/users
@@ -30,6 +31,9 @@ export async function GET(
       );
     }
 
+    const denied = await enforceWorksiteAccess(request, worksiteId);
+    if (denied) return denied;
+
     // Get query params for filtering
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
@@ -37,7 +41,7 @@ export async function GET(
     const includeCurrentUserRole = searchParams.get('includeCurrentUserRole') === 'true';
 
     // Build where clause for user search
-    const userWhere: any = {};
+    const userWhere: Prisma.UserWhereInput = {};
     if (search) {
       userWhere.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -45,11 +49,17 @@ export async function GET(
       ];
     }
 
+    const allowedRoleFilters: WorksiteRole[] = ['ADMIN', 'SUPERVISOR', 'WORKER', 'VIEWER'];
+    const role =
+      roleFilter && roleFilter !== 'all' && allowedRoleFilters.includes(roleFilter as WorksiteRole)
+        ? (roleFilter as WorksiteRole)
+        : undefined;
+
     // Fetch users through worksiteUsers relationship
     const worksiteUsers = await prisma.worksiteUser.findMany({
       where: {
         worksiteId,
-        ...(roleFilter && roleFilter !== 'all' ? { role: roleFilter } : {}),
+        ...(role ? { role } : {}),
         user: userWhere
       },
       include: {
@@ -61,6 +71,7 @@ export async function GET(
             phoneNumber: true,
             role: true,
             isActivated: true, // Use isActivated for status
+            onboardingComplete: true,
             lastLogin: true,
             createdAt: true
           }
@@ -151,6 +162,9 @@ export async function POST(
         { status: 401 }
       );
     }
+
+    const denied = await enforceWorksiteAccess(request, worksiteId, { requireAdmin: true });
+    if (denied) return denied;
 
     // Get current user's worksite role, ID, and name (for audit log and email)
     const currentUser = await prisma.user.findUnique({
@@ -399,7 +413,7 @@ export async function POST(
       try {
         console.log('[INVITE FLOW] Calling sendInvitationEmail function...');
         const emailResult = await sendInvitationEmail(
-          user.email,
+          user.email || normalizedEmail,
           inviterName,
           role,
           worksite.name,
@@ -435,7 +449,7 @@ export async function POST(
         data: {
           userId: currentUser.id!,
           action: 'USER_ADDED_TO_WORKSITE',
-          entityType: 'WorksiteUser',
+          entity: 'WorksiteUser',
           entityId: assignment.id,
           metadata: {
             worksiteId,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getCachedSession } from '@/app/lib/session-cache';
 import { withCache } from '@/app/lib/cache';
+import { checkRole } from '@/app/lib/api-helpers';
 
 /**
  * GET /api/admin/global-stats
@@ -17,6 +18,9 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    const roleCheck = checkRole(session.user.role, 'SUPER_ADMIN', 'access global statistics');
+    if (roleCheck) return roleCheck;
 
     const stats = await withCache('admin:global-stats', 15_000, async () => {
       // Get all stats in parallel
@@ -44,9 +48,9 @@ export async function GET(request: NextRequest) {
         // Alert stats
         Promise.all([
           prisma.alert.count({ where: { status: { not: 'RESOLVED' } } }),
-          prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'CRITICAL' } }),
-          prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'WARNING' } }),
-          prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'INFO' } })
+          prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'HIGH' } }),
+          prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'MEDIUM' } }),
+          prisma.alert.count({ where: { status: { not: 'RESOLVED' }, severity: 'LOW' } })
         ]),
         
         // Average safety score

@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getCachedSession } from '@/app/lib/session-cache';
+import { normalizeRole } from '@/app/lib/roles';
+
+type EnforceWorksiteAccessOptions = {
+  requireAdmin?: boolean;
+  requireCompanyAdmin?: boolean;
+};
 
 /**
  * Returns null if the user may access the worksite, otherwise an error NextResponse.
  */
 export async function enforceWorksiteAccess(
   request: NextRequest,
-  worksiteId: string
+  worksiteId: string,
+  options: EnforceWorksiteAccessOptions = {}
 ): Promise<NextResponse | null> {
   const session = await getCachedSession(request);
   if (!session?.user) {
@@ -21,11 +28,8 @@ export async function enforceWorksiteAccess(
     );
   }
 
-  const sessionRole = String(
-    (session.user as { role?: string }).role || ''
-  ).toUpperCase();
-  const isSuperAdmin =
-    sessionRole === 'SUPER_ADMIN' || sessionRole === 'SUPERADMIN';
+  const sessionRole = normalizeRole((session.user as { role?: string }).role);
+  const isSuperAdmin = sessionRole === 'SUPER_ADMIN';
 
   if (isSuperAdmin) {
     return null;
@@ -37,10 +41,11 @@ export async function enforceWorksiteAccess(
   const slimSelect = {
     id: true,
     companyId: true,
+    worksiteId: true,
     role: true,
     worksiteAccess: {
       where: { worksiteId },
-      select: { worksiteId: true },
+      select: { worksiteId: true, role: true },
       take: 1,
     },
   } as const;
@@ -63,15 +68,41 @@ export async function enforceWorksiteAccess(
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  const viaWorksiteAccess = dbUser.worksiteAccess.length > 0;
-  const viaCompany =
-    !!dbUser.companyId &&
-    !!(await prisma.worksite.findFirst({
-      where: { id: worksiteId, companyId: dbUser.companyId },
-      select: { id: true },
-    }));
+  const dbRole = normalizeRole(dbUser.role || sessionRole);
+  const isCompanyAdmin = dbRole === 'COMPANY_ADMIN';
+  const worksiteMembership = dbUser.worksiteAccess[0];
+  const isWorksiteAdmin = worksiteMembership?.role === 'ADMIN';
+  const worksite = await prisma.worksite.findUnique({
+    where: { id: worksiteId },
+    select: { id: true, companyId: true },
+  });
 
-  const hasAccess = viaWorksiteAccess || viaCompany;
+  if (!worksite) {
+    return NextResponse.json({ error: 'Worksite not found' }, { status: 404 });
+  }
+
+  const companyAdminForWorksite =
+    isCompanyAdmin &&
+    !!dbUser.companyId &&
+    dbUser.companyId === worksite.companyId;
+
+  if (options.requireCompanyAdmin) {
+    return companyAdminForWorksite
+      ? null
+      : NextResponse.json({ error: 'Access denied' }, { status: 403 });
+  }
+
+  if (options.requireAdmin) {
+    const hasAdminAccess = companyAdminForWorksite || isWorksiteAdmin;
+    return hasAdminAccess
+      ? null
+      : NextResponse.json({ error: 'Access denied' }, { status: 403 });
+  }
+
+  const hasAccess =
+    !!worksiteMembership ||
+    dbUser.worksiteId === worksiteId ||
+    companyAdminForWorksite;
 
   if (!hasAccess) {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 });
