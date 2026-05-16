@@ -11,15 +11,20 @@ class DatabasePoolManager {
   private constructor() {
     // Apply connection pool limit to avoid exhaustion (detections every 2s × many cameras = many queued connections).
     // If DATABASE_URL already has connection_limit, leave it; otherwise append one.
-    let dbUrl = process.env.DATABASE_URL ?? '';
-    if (dbUrl && !dbUrl.includes('connection_limit')) {
-      dbUrl += dbUrl.includes('?') ? '&' : '?';
-      dbUrl += 'connection_limit=5&pool_timeout=10';
+    // Only pass datasources when DATABASE_URL is present — passing { url: undefined }
+    // throws PrismaClientConstructorValidationError at build time when the env var is absent.
+    const rawUrl = process.env.DATABASE_URL;
+    let datasources: { db: { url: string } } | undefined;
+    if (rawUrl) {
+      let dbUrl = rawUrl;
+      if (!dbUrl.includes('connection_limit')) {
+        dbUrl += dbUrl.includes('?') ? '&' : '?';
+        dbUrl += 'connection_limit=5&pool_timeout=10';
+      }
+      datasources = { db: { url: dbUrl } };
     }
     this.prisma = new PrismaClient({
-      datasources: {
-        db: { url: dbUrl || process.env.DATABASE_URL },
-      },
+      ...(datasources ? { datasources } : {}),
       log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     });
 
