@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "postinstall": "npx prisma@6.19.3 generate",
+    "postinstall": "prisma generate",
     "build": "next build",
     "dev": "next dev",
     "start": "next start",
@@ -23,13 +23,19 @@
   },
   "devDependencies": {
     "eslint": "8.57.1",
-    "eslint-config-next": "15.2.6",
+    "eslint-config-next": "15.2.8",
+    "prisma": "6.19.3",
     "typescript": "^5.3.3"
   },
   "pnpm": {
     "overrides": {
       "eslint": "8.57.1"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma"
+    ]
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.9.1",
@@ -88,7 +94,7 @@
     "lowlight": "^3.3.0",
     "lucide-react": "^0.513.0",
     "mediasoup": "^3.16.6",
-    "next": "15.2.6",
+    "next": "15.2.8",
     "next-auth": "^4.24.11",
     "next-cloudinary": "^6.16.0",
     "node-media-server": "^2.7.4",

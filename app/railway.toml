@@ -1,0 +1,22 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "app/Dockerfile"
+
+[deploy]
+startCommand = "node server.js"
+restartPolicyType = "always"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+
+# === REQUIRED ENV VARS ON RAILWAY ===
+# Set these in the Railway dashboard for the Next.js service.
+# Replace <mediamtx-private-domain> with Railway's internal hostname for your MediaMTX service
+# (find it in Railway dashboard → MediaMTX service → Settings → Networking → Private Domain).
+#
+# MEDIAMTX_API_URL         = http://<mediamtx-private-domain>:9000
+# MEDIAMTX_HLS_ORIGIN      = http://<mediamtx-private-domain>:8888
+# MEDIAMTX_API_USERNAME    = admin
+# MEDIAMTX_API_PASSWORD    = nexxau   (or whatever you set on the MediaMTX service)
+# INTERNAL_SERVICE_TOKEN   = <same token as the ai-detection service>
+# NEXTAUTH_URL             = https://<your-app-railway-domain>
+# DATABASE_URL             = <supabase connection string>

@@ -7,8 +7,14 @@ services:
       - "3000:3000"
     depends_on:
       - backend
+      - mediamtx
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      # MediaMTX — use docker service hostname, NOT localhost
+      - MEDIAMTX_API_URL=http://mediamtx:9000
+      - MEDIAMTX_HLS_ORIGIN=http://mediamtx:8888
+      - MEDIAMTX_API_USERNAME=${MEDIAMTX_USER}
+      - MEDIAMTX_API_PASSWORD=${MEDIAMTX_PASS}
 
   backend:
     build:
@@ -29,8 +35,13 @@ services:
       context: ./ai-detection
     ports:
       - "5000:5000"
+    depends_on:
+      - frontend
     environment:
       - PYTHONUNBUFFERED=1
+      # Point at the Next.js app inside Docker network, NOT localhost
+      - BACKEND_URL=http://frontend:3000
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
 
   mediamtx:
     image: bluenviron/mediamtx:latest
@@ -44,6 +55,9 @@ services:
       - "9001:9001"   # Metrics
     volumes:
       - ./mediamtx.yml:/mediamtx.yml
+    environment:
+      - MEDIAMTX_USER=${MEDIAMTX_USER}
+      - MEDIAMTX_PASS=${MEDIAMTX_PASS}
 
 networks:
   default:

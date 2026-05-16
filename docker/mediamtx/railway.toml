@@ -1,0 +1,18 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "docker/mediamtx/Dockerfile"
+
+[deploy]
+restartPolicyType = "always"
+
+# === REQUIRED ENV VARS ON RAILWAY ===
+# Set these in the Railway dashboard for the MediaMTX service.
+#
+# MEDIAMTX_USER   = admin
+# MEDIAMTX_PASS   = nexxau   (or a strong password — must match what Next.js uses)
+#
+# === PORTS TO EXPOSE ===
+# Railway only exposes one public port per service. Use the private network for internal ports.
+# Public (for RTSP ingest from real cameras):  8554
+# Private (Next.js reads HLS):                 8888
+# Private (Next.js calls API):                 9000
