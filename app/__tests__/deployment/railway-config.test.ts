@@ -27,4 +27,14 @@ describe('Railway deployment configuration', () => {
     expect(dockerCompose).toContain('MTX_AUTHINTERNALUSERS_0_PASS=${MEDIAMTX_PASS}')
     expect(dockerCompose).not.toMatch(/^\s*-\s*MEDIAMTX_(USER|PASS)=/m)
   })
+
+  it('keeps Prisma CLI and client package versions aligned for generate', () => {
+    const packageJson = JSON.parse(readText(path.join(appRoot, 'package.json')))
+    const packageLock = JSON.parse(readText(path.join(appRoot, 'package-lock.json')))
+
+    expect(packageJson.dependencies['@prisma/client']).toBe(packageJson.devDependencies.prisma)
+    expect(packageLock.packages['node_modules/@prisma/client'].version).toBe(
+      packageLock.packages['node_modules/prisma'].version
+    )
+  })
 })

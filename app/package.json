@@ -38,7 +38,7 @@
     "@headlessui/react": "^2.2.4",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.0.1",
-    "@prisma/client": "^6.7.0",
+    "@prisma/client": "^6.19.3",
     "@reactflow/node-resizer": "^2.2.14",
     "@sentry/nextjs": "^10.17.0",
     "@sentry/node": "^10.17.0",
@@ -121,7 +121,7 @@
     "eslint-config-next": "15.2.6",
     "jest": "^30.2.0",
     "msw": "^2.11.3",
-    "prisma": "^6.19.1",
+    "prisma": "^6.19.3",
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.4"
   },
