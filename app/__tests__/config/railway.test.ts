@@ -14,6 +14,12 @@ describe('Railway deployment configuration', () => {
     path.join(__dirname, '../../../docker-compose.yml'),
     'utf8'
   );
+  const packageJson = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8')
+  );
+  const packageLock = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '../../package-lock.json'), 'utf8')
+  );
 
   it('starts the app with the Next.js package start script', () => {
     expect(appRailwayToml).toContain('startCommand = "npm run start"');
@@ -32,5 +38,10 @@ describe('Railway deployment configuration', () => {
     expect(dockerCompose).toContain('MEDIAMTX_API_PASSWORD=${MEDIAMTX_PASS:-nexxau}');
     expect(dockerCompose).toContain('MTX_AUTHINTERNALUSERS_0_USER=${MEDIAMTX_USER:-admin}');
     expect(dockerCompose).toContain('MTX_AUTHINTERNALUSERS_0_PASS=${MEDIAMTX_PASS:-nexxau}');
+  });
+
+  it('keeps the app Next.js package spec in sync with the lockfile', () => {
+    expect(packageJson.dependencies.next).toBe('15.2.8');
+    expect(packageLock.packages[''].dependencies.next).toBe(packageJson.dependencies.next);
   });
 });
