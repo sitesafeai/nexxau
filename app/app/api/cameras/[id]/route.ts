@@ -6,6 +6,7 @@ import { normalizeRole } from '@/app/lib/roles';
 import { stopHlsStream } from '@/app/lib/streaming/hlsManager';
 import { stopRtpPush } from '@/app/lib/services/cameraIngestClient';
 import { removeStreamFromMediaMTX } from '@/app/lib/services/mediamtxClient';
+import { authorizeWorksiteAccess } from '@/app/lib/access-control';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -544,6 +545,11 @@ export async function GET(
       return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
     }
 
+    const access = await authorizeWorksiteAccess(session, camera.worksiteId);
+    if (!access.allowed) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
+    }
+
     // Mask password in response
     const safe = { ...camera };
     if ((safe as any).password) (safe as any).password = '••••••••';
@@ -593,10 +599,15 @@ export async function PATCH(
 
     const camera = await prisma.camera.findUnique({
       where: { id: cameraId.trim() },
-      select: { id: true, metadata: true },
+      select: { id: true, metadata: true, worksiteId: true },
     });
     if (!camera) {
       return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
+    }
+
+    const access = await authorizeWorksiteAccess(session, camera.worksiteId);
+    if (!access.allowed) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
     const data: Record<string, unknown> = {};

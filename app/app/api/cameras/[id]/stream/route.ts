@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { prisma } from '@/app/lib/prisma';
-import { normalizeRole } from '@/app/lib/roles';
 import { addStreamToMediaMTX, getMediaMTXHLSUrl } from '@/app/lib/services/mediamtxClient';
+import { authorizeWorksiteAccess } from '@/app/lib/access-control';
 
 export async function GET(
   request: NextRequest,
@@ -30,27 +30,9 @@ export async function GET(
       return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
     }
 
-    const userRole = normalizeRole(session.user.role);
-    const isGlobalAdmin =
-      userRole === 'SUPER_ADMIN' || userRole === 'COMPANY_ADMIN' || userRole === 'ADMIN';
-
-    if (!isGlobalAdmin) {
-      const userCompany = await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { companyId: true },
-      });
-
-      if (userCompany?.companyId) {
-        const worksite = await prisma.worksite.findFirst({
-          where: { id: camera.worksiteId, companyId: userCompany.companyId },
-          select: { id: true },
-        });
-        if (!worksite) {
-          return NextResponse.json({ error: 'Access denied to camera' }, { status: 403 });
-        }
-      } else {
-        return NextResponse.json({ error: 'Access denied to camera' }, { status: 403 });
-      }
+    const access = await authorizeWorksiteAccess(session, camera.worksiteId);
+    if (!access.allowed) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
     const rtspUrl = camera.streamUrl?.trim();

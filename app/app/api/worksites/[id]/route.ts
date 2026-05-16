@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { clearWorksiteSettingsCache } from '@/app/lib/worksite-settings';
+import { getCachedSession } from '@/app/lib/session-cache';
+import { authorizeWorksiteAccess } from '@/app/lib/access-control';
+import type { SessionLike } from '@/app/lib/access-control';
+import { normalizeRole } from '@/app/lib/roles';
 
 /**
  * GET /api/worksites/:id
@@ -12,6 +16,15 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const session = (await getCachedSession(request)) as SessionLike;
+    const access = await authorizeWorksiteAccess(session, id);
+    if (!access.allowed) {
+      return NextResponse.json(
+        { success: false, error: access.error },
+        { status: access.status }
+      );
+    }
+
     // Use explicit select to avoid non-existent columns
     const worksite = await prisma.worksite.findFirst({
       where: { id },
@@ -123,6 +136,23 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    const session = (await getCachedSession(request)) as SessionLike;
+    const access = await authorizeWorksiteAccess(session, id);
+    if (!access.allowed) {
+      return NextResponse.json(
+        { success: false, error: access.error },
+        { status: access.status }
+      );
+    }
+
+    const userRole = normalizeRole(session?.user?.role);
+    if (!['SUPER_ADMIN', 'COMPANY_ADMIN', 'SITE_ADMIN'].includes(userRole)) {
+      return NextResponse.json(
+        { success: false, error: 'Insufficient permissions to update worksite' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     console.log('[PATCH /api/worksites/:id] Updating worksite:', id, 'with data:', body);
 
@@ -260,6 +290,23 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const session = (await getCachedSession(request)) as SessionLike;
+    const access = await authorizeWorksiteAccess(session, id);
+    if (!access.allowed) {
+      return NextResponse.json(
+        { success: false, error: access.error },
+        { status: access.status }
+      );
+    }
+
+    const userRole = normalizeRole(session?.user?.role);
+    if (!['SUPER_ADMIN', 'COMPANY_ADMIN'].includes(userRole)) {
+      return NextResponse.json(
+        { success: false, error: 'Insufficient permissions to delete worksite' },
+        { status: 403 }
+      );
+    }
+
     await prisma.worksite.delete({
       where: { id }
     });

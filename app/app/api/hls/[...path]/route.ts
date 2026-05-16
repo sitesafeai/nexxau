@@ -1,13 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/app/lib/prisma';
+import { authorizeWorksiteAccess } from '@/app/lib/access-control';
+import type { SessionLike } from '@/app/lib/access-control';
+import { getCachedSession } from '@/app/lib/session-cache';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
+    const session = (await getCachedSession(request)) as SessionLike;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { path } = await params;
     if (!path?.length) {
       return NextResponse.json({ error: 'Missing HLS path' }, { status: 400 });
+    }
+
+    const streamName = path[0]?.trim();
+    if (!streamName) {
+      return NextResponse.json({ error: 'Missing HLS stream' }, { status: 400 });
+    }
+
+    const camera = await prisma.camera.findFirst({
+      where: {
+        OR: [
+          { id: streamName },
+          { mediamtxPath: streamName },
+        ],
+      },
+      select: { id: true, worksiteId: true },
+    });
+
+    if (!camera) {
+      return NextResponse.json({ error: 'Stream not found' }, { status: 404 });
+    }
+
+    const access = await authorizeWorksiteAccess(session, camera.worksiteId);
+    if (!access.allowed) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
     const upstreamOrigin = (process.env.MEDIAMTX_HLS_ORIGIN || 'http://localhost:8888').replace(/\/$/, '');
