@@ -8,8 +8,12 @@ restartPolicyType = "always"
 # === REQUIRED ENV VARS ON RAILWAY ===
 # Set these in the Railway dashboard for the MediaMTX service.
 #
-# MEDIAMTX_USER   = admin
-# MEDIAMTX_PASS   = nexxau   (or a strong password — must match what Next.js uses)
+# MTX_AUTHINTERNALUSERS_0_USER = admin
+# MTX_AUTHINTERNALUSERS_0_PASS = <strong password>
+#
+# The Next.js service must use matching credentials:
+# MEDIAMTX_API_USERNAME = admin
+# MEDIAMTX_API_PASSWORD = <same strong password>
 #
 # === PORTS TO EXPOSE ===
 # Railway only exposes one public port per service. Use the private network for internal ports.
