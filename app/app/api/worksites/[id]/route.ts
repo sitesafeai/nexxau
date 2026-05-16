@@ -3,6 +3,7 @@ import { prisma } from '@/app/lib/prisma';
 import { clearWorksiteSettingsCache } from '@/app/lib/worksite-settings';
 import { getCachedSession } from '@/app/lib/session-cache';
 import { authorizeWorksiteAccess } from '@/app/lib/access-control';
+import type { SessionLike } from '@/app/lib/access-control';
 import { normalizeRole } from '@/app/lib/roles';
 
 /**
@@ -15,7 +16,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const session = await getCachedSession(request);
+    const session = (await getCachedSession(request)) as SessionLike;
     const access = await authorizeWorksiteAccess(session, id);
     if (!access.allowed) {
       return NextResponse.json(
@@ -135,7 +136,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const session = await getCachedSession(request);
+    const session = (await getCachedSession(request)) as SessionLike;
     const access = await authorizeWorksiteAccess(session, id);
     if (!access.allowed) {
       return NextResponse.json(
@@ -289,7 +290,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const session = await getCachedSession(request);
+    const session = (await getCachedSession(request)) as SessionLike;
     const access = await authorizeWorksiteAccess(session, id);
     if (!access.allowed) {
       return NextResponse.json(

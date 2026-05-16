@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { authorizeWorksiteAccess } from '@/app/lib/access-control';
+import type { SessionLike } from '@/app/lib/access-control';
 import { getCachedSession } from '@/app/lib/session-cache';
 
 export async function GET(
@@ -8,7 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    const session = await getCachedSession(request);
+    const session = (await getCachedSession(request)) as SessionLike;
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

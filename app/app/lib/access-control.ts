@@ -1,7 +1,7 @@
 import { prisma } from '@/app/lib/prisma';
 import { normalizeRole } from '@/app/lib/roles';
 
-type SessionLike = {
+export type SessionLike = {
   user?: {
     id?: string | null;
     email?: string | null;
