@@ -56,8 +56,8 @@ services:
     volumes:
       - ./mediamtx.yml:/mediamtx.yml
     environment:
-      - MEDIAMTX_USER=${MEDIAMTX_USER}
-      - MEDIAMTX_PASS=${MEDIAMTX_PASS}
+      - MTX_AUTHINTERNALUSERS_0_USER=${MEDIAMTX_USER}
+      - MTX_AUTHINTERNALUSERS_0_PASS=${MEDIAMTX_PASS}
 
 networks:
   default:
