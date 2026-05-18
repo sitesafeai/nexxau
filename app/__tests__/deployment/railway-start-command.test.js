@@ -1,14 +1,14 @@
-import fs from 'fs';
-import path from 'path';
+const fs = require('fs');
+const path = require('path');
 
-function readAppFile(fileName: string) {
+function readAppFile(fileName) {
   return fs.readFileSync(path.join(process.cwd(), fileName), 'utf8');
 }
 
 function getRailwayStartCommand() {
   const railwayToml = readAppFile('railway.toml');
   const match = railwayToml.match(/^\s*startCommand\s*=\s*"([^"]+)"\s*$/m);
-  return match?.[1];
+  return match && match[1];
 }
 
 describe('Railway app deployment config', () => {
