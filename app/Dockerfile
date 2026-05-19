@@ -14,6 +14,7 @@ RUN npm install --prefer-offline
 WORKDIR /workspace
 COPY app/ ./app/
 COPY prisma/ ./prisma/
+COPY src/ ./src/
 
 # Build from within app/ — prisma generate finds schema at /workspace/prisma/,
 # outputs client to /workspace/app/node_modules/.prisma/client ✓
