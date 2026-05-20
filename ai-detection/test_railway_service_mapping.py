@@ -4,6 +4,9 @@ import types
 import unittest
 
 
+if 'cv2' not in sys.modules:
+    sys.modules['cv2'] = types.SimpleNamespace(CAP_FFMPEG=0, VideoCapture=object)
+
 if 'ultralytics' not in sys.modules:
     sys.modules['ultralytics'] = types.SimpleNamespace(YOLO=object)
 
