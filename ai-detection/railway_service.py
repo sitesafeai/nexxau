@@ -10,6 +10,7 @@ import logging
 import threading
 import requests
 import os
+import re
 from ultralytics import YOLO
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
@@ -29,29 +30,20 @@ INGEST_TRANSPORT   = os.environ.get('INGEST_TRANSPORT', 'auto').lower()
 
 HEADERS = {'Authorization': f'Bearer {SERVICE_TOKEN}'}
 
-# PPE model class map (when using a custom PPE-trained model):
-# VIOLATION_MAP = {
-#     0: 'helmet',       # Hardhat
-#     1: 'no_helmet',    # NO-Hardhat
-#     2: 'no_vest',      # NO-Safety Vest
-#     3: 'person_detected',  # Person
-#     4: 'vest',         # Safety Vest
-#     5: 'person_detected',  # Worker
-# }
-
-# COCO model class map (yolov8n.pt) — for stream testing only.
-# Person=0 in COCO. Replace with PPE model + map above for production.
-USE_PPE_MODEL = os.environ.get('YOLO_MODEL', 'yolov8n.pt') not in ('yolov8n.pt', 'yolov8s.pt', 'yolov8m.pt', 'yolov8l.pt', 'yolov8x.pt')
-VIOLATION_MAP = {
-    0: 'helmet',       # class: Hardhat  (PPE model) / Person (COCO — remapped below)
-    1: 'no_helmet',    # class: NO-Hardhat
-    2: 'no_vest',      # class: NO-Safety Vest
-    3: 'person_detected',  # class: Person (PPE model)
-    4: 'vest',         # class: Safety Vest
-    5: 'person_detected',  # class: Worker
-} if USE_PPE_MODEL else {
-    0: 'person_detected',  # COCO person class — fires on any person visible
+PPE_FALLBACK_MAP = {
+    0: 'helmet',            # class: Hardhat
+    1: 'no_helmet',         # class: NO-Hardhat
+    2: 'no_vest',           # class: NO-Safety Vest
+    3: 'person_detected',   # class: Person
+    4: 'vest',              # class: Safety Vest
+    5: 'person_detected',   # class: Worker
 }
+
+COCO_MODEL_FILES = {'yolov8n.pt', 'yolov8s.pt', 'yolov8m.pt', 'yolov8l.pt', 'yolov8x.pt'}
+
+# Populated from the loaded YOLO model in main(). The conservative COCO default
+# keeps class 0 (person) from being reported as PPE-compliant before startup.
+VIOLATION_MAP = {0: 'person_detected'}
 
 VIOLATION_LABELS = {
     'helmet':          ('Helmet ✓',     'compliant'),
@@ -90,6 +82,58 @@ def ensure_model(path: str) -> str:
     except Exception as e:
         logger.error(f'Model download failed: {e}. Falling back to yolov8n.pt')
         return 'yolov8n.pt'
+
+def normalize_label(label):
+    return re.sub(r'[^a-z0-9]+', ' ', str(label).lower()).strip()
+
+def label_to_violation(label):
+    normalized = normalize_label(label)
+    tokens = set(normalized.split())
+
+    if ('no' in tokens or 'without' in tokens) and ('helmet' in tokens or 'hardhat' in tokens):
+        return 'no_helmet'
+    if ('no' in tokens or 'without' in tokens) and 'vest' in tokens:
+        return 'no_vest'
+    if 'helmet' in tokens or 'hardhat' in tokens:
+        return 'helmet'
+    if 'vest' in tokens:
+        return 'vest'
+    if 'person' in tokens or 'worker' in tokens:
+        return 'person_detected'
+    return None
+
+def build_violation_map(model_names, resolved_model_path):
+    """
+    Build class-id mappings from the model that actually loaded.
+
+    This avoids corrupting detections when a configured PPE model is missing and
+    ensure_model() falls back to a COCO model where class 0 means person.
+    """
+    mapped = {}
+    if isinstance(model_names, dict):
+        items = model_names.items()
+    elif isinstance(model_names, (list, tuple)):
+        items = enumerate(model_names)
+    else:
+        items = []
+
+    for class_id, label in items:
+        try:
+            numeric_class_id = int(class_id)
+        except (TypeError, ValueError):
+            continue
+
+        violation_type = label_to_violation(label)
+        if violation_type:
+            mapped[numeric_class_id] = violation_type
+
+    if mapped:
+        return mapped
+
+    model_file = os.path.basename(str(resolved_model_path or '')).lower()
+    if model_file in COCO_MODEL_FILES:
+        return {0: 'person_detected'}
+    return PPE_FALLBACK_MAP.copy()
 
 def resolve_ingest_url(camera):
     return (
@@ -260,6 +304,9 @@ def main():
     logger.info('Loading YOLO model...')
     resolved_path = ensure_model(MODEL_PATH)
     model = YOLO(resolved_path)
+    global VIOLATION_MAP
+    VIOLATION_MAP = build_violation_map(getattr(model, 'names', None), resolved_path)
+    logger.info(f'Violation map: {VIOLATION_MAP}')
     logger.info('YOLO model loaded')
 
     active_threads = {}
