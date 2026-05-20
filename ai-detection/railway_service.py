@@ -29,29 +29,69 @@ INGEST_TRANSPORT   = os.environ.get('INGEST_TRANSPORT', 'auto').lower()
 
 HEADERS = {'Authorization': f'Bearer {SERVICE_TOKEN}'}
 
-# PPE model class map (when using a custom PPE-trained model):
-# VIOLATION_MAP = {
-#     0: 'helmet',       # Hardhat
-#     1: 'no_helmet',    # NO-Hardhat
-#     2: 'no_vest',      # NO-Safety Vest
-#     3: 'person_detected',  # Person
-#     4: 'vest',         # Safety Vest
-#     5: 'person_detected',  # Worker
-# }
+COCO_MODEL_FILES = ('yolov8n.pt', 'yolov8s.pt', 'yolov8m.pt', 'yolov8l.pt', 'yolov8x.pt')
 
-# COCO model class map (yolov8n.pt) — for stream testing only.
-# Person=0 in COCO. Replace with PPE model + map above for production.
-USE_PPE_MODEL = os.environ.get('YOLO_MODEL', 'yolov8n.pt') not in ('yolov8n.pt', 'yolov8s.pt', 'yolov8m.pt', 'yolov8l.pt', 'yolov8x.pt')
-VIOLATION_MAP = {
-    0: 'helmet',       # class: Hardhat  (PPE model) / Person (COCO — remapped below)
+LEGACY_PPE_VIOLATION_MAP = {
+    0: 'helmet',       # class: Hardhat
     1: 'no_helmet',    # class: NO-Hardhat
     2: 'no_vest',      # class: NO-Safety Vest
-    3: 'person_detected',  # class: Person (PPE model)
+    3: 'person_detected',  # class: Person
     4: 'vest',         # class: Safety Vest
     5: 'person_detected',  # class: Worker
-} if USE_PPE_MODEL else {
-    0: 'person_detected',  # COCO person class — fires on any person visible
 }
+
+COCO_PERSON_VIOLATION_MAP = {
+    0: 'person_detected',
+}
+
+def _normalise_model_label(label):
+    return ''.join(ch for ch in str(label).lower() if ch.isalnum())
+
+def _iter_model_names(model_names):
+    if not model_names:
+        return
+
+    items = model_names.items() if isinstance(model_names, dict) else enumerate(model_names)
+    for class_id, label in items:
+        try:
+            yield int(class_id), label
+        except (TypeError, ValueError):
+            continue
+
+def _is_coco_model_path(path):
+    return os.path.basename(str(path or '')) in COCO_MODEL_FILES
+
+def build_violation_map(model_names=None, model_path=MODEL_PATH):
+    """
+    Build the ingest type map from the loaded model's class labels.
+
+    This keeps COCO fallbacks safe even when YOLO_MODEL pointed at a missing
+    custom PPE model and ensure_model resolved to yolov8n.pt.
+    """
+    mapping = {}
+
+    for class_id, label in _iter_model_names(model_names):
+        normalised = _normalise_model_label(label)
+        if normalised in ('nohardhat', 'nohelmet', 'withouthelmet', 'missinghelmet'):
+            mapping[class_id] = 'no_helmet'
+        elif normalised in ('nosafetyvest', 'novest', 'withoutvest', 'missingvest'):
+            mapping[class_id] = 'no_vest'
+        elif normalised in ('hardhat', 'helmet', 'safetyhelmet'):
+            mapping[class_id] = 'helmet'
+        elif normalised in ('safetyvest', 'vest', 'reflectivevest', 'hivisvest', 'highvisibilityvest'):
+            mapping[class_id] = 'vest'
+        elif normalised in ('person', 'worker', 'constructionworker'):
+            mapping[class_id] = 'person_detected'
+
+    if mapping:
+        return mapping
+
+    if _is_coco_model_path(model_path):
+        return COCO_PERSON_VIOLATION_MAP.copy()
+
+    return LEGACY_PPE_VIOLATION_MAP.copy()
+
+VIOLATION_MAP = build_violation_map(model_path=MODEL_PATH)
 
 VIOLATION_LABELS = {
     'helmet':          ('Helmet ✓',     'compliant'),
@@ -260,7 +300,10 @@ def main():
     logger.info('Loading YOLO model...')
     resolved_path = ensure_model(MODEL_PATH)
     model = YOLO(resolved_path)
+    global VIOLATION_MAP
+    VIOLATION_MAP = build_violation_map(getattr(model, 'names', None), resolved_path)
     logger.info('YOLO model loaded')
+    logger.info(f'Violation map: {VIOLATION_MAP}')
 
     active_threads = {}
 
