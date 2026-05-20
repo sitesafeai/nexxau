@@ -17,6 +17,7 @@
     "lint": "npm run lint --workspaces || true",
     "test": "npm run test --workspaces || true"
   },
+  "packageManager": "pnpm@9.15.4",
   "engines": {
     "node": ">=20.0.0 <24",
     "npm": ">=9.0.0"
