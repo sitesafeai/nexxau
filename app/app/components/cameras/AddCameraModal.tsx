@@ -79,14 +79,20 @@ const AddCameraModal: React.FC<AddCameraModalProps> = ({
   const [info, setInfo] = useState<string | null>(null);
   
   /**
-   * Validate RTSP URL format
+   * Validate stream URL format — accepts RTSP, RTMP, HLS (https), and HTTP streams
    */
   const validateRtspUrl = useCallback((url: string): boolean => {
     if (!url.trim()) {
       return false;
     }
     const lowerUrl = url.toLowerCase().trim();
-    return lowerUrl.startsWith('rtsp://');
+    return (
+      lowerUrl.startsWith('rtsp://') ||
+      lowerUrl.startsWith('rtmp://') ||
+      lowerUrl.startsWith('rtsps://') ||
+      lowerUrl.startsWith('https://') ||
+      lowerUrl.startsWith('http://')
+    );
   }, []);
   
   /**
@@ -157,7 +163,7 @@ const AddCameraModal: React.FC<AddCameraModalProps> = ({
     }
     
     if (!validateRtspUrl(rtspUrl)) {
-      setError('RTSP URL must start with rtsp://');
+      setError('Stream URL must start with rtsp://, rtmp://, https://, or http://');
       return;
     }
     
@@ -415,7 +421,7 @@ const AddCameraModal: React.FC<AddCameraModalProps> = ({
                 className="w-full px-3 py-2 border border-slate-700 rounded-md bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
               >
                 <option value="janus_stream">Choose from Janus stream list</option>
-                <option value="rtsp">Paste RTSP URL</option>
+                <option value="rtsp">Paste Stream URL (RTSP / HLS / RTMP)</option>
               </select>
             </div>
 
@@ -455,7 +461,7 @@ const AddCameraModal: React.FC<AddCameraModalProps> = ({
             {sourceType === 'rtsp' && (
               <div>
                 <label htmlFor="rtsp-url" className="block text-sm font-medium text-slate-300 mb-1">
-                  RTSP URL
+                  Stream URL
                 </label>
                 <input
                   id="rtsp-url"
@@ -464,10 +470,10 @@ const AddCameraModal: React.FC<AddCameraModalProps> = ({
                   onChange={(e) => setRtspUrl(e.target.value)}
                   disabled={isSubmitting}
                   className="w-full px-3 py-2 border border-slate-700 rounded-md bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 font-mono text-sm"
-                  placeholder="rtsp://username:password@ip:port/path"
+                  placeholder="rtsp://... or https://...m3u8 or rtmp://..."
                 />
                 <p className="mt-1 text-xs text-slate-400">
-                  Format: rtsp://username:password@ip:port/path
+                  RTSP: rtsp://ip:port/path · HLS: https://host/stream.m3u8 · RTMP: rtmp://host/app/key
                 </p>
               </div>
             )}

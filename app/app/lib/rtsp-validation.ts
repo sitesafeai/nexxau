@@ -120,11 +120,24 @@ const mapProbeError = (message: string): RtspValidationErrorCode => {
 
 export async function validateRtspStream(rtspUrl: string): Promise<RtspValidationResult> {
   if (!rtspUrl || typeof rtspUrl !== 'string' || !rtspUrl.trim()) {
-    return { ok: false, error: 'invalid_url', message: 'RTSP URL is required' };
+    return { ok: false, error: 'invalid_url', message: 'Stream URL is required' };
   }
 
-  if (!rtspUrl.toLowerCase().startsWith('rtsp://')) {
-    return { ok: false, error: 'invalid_url', message: 'RTSP URL must start with rtsp://' };
+  const lowerUrl = rtspUrl.toLowerCase().trim();
+  const isRtsp = lowerUrl.startsWith('rtsp://') || lowerUrl.startsWith('rtsps://');
+  const isSupported =
+    isRtsp ||
+    lowerUrl.startsWith('rtmp://') ||
+    lowerUrl.startsWith('https://') ||
+    lowerUrl.startsWith('http://');
+
+  if (!isSupported) {
+    return { ok: false, error: 'invalid_url', message: 'Stream URL must start with rtsp://, rtmp://, https://, or http://' };
+  }
+
+  // Only run ffprobe validation for RTSP streams — HLS and RTMP are accepted as-is
+  if (!isRtsp) {
+    return { ok: true };
   }
 
   const timeoutMs = Number(process.env.RTSP_VALIDATE_TIMEOUT_MS || '5000');
