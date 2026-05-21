@@ -29,29 +29,28 @@ INGEST_TRANSPORT   = os.environ.get('INGEST_TRANSPORT', 'auto').lower()
 
 HEADERS = {'Authorization': f'Bearer {SERVICE_TOKEN}'}
 
-# PPE model class map (when using a custom PPE-trained model):
-# VIOLATION_MAP = {
-#     0: 'helmet',       # Hardhat
-#     1: 'no_helmet',    # NO-Hardhat
-#     2: 'no_vest',      # NO-Safety Vest
-#     3: 'person_detected',  # Person
-#     4: 'vest',         # Safety Vest
-#     5: 'person_detected',  # Worker
-# }
+COCO_MODEL_FILENAMES = {
+    'yolov8n.pt',
+    'yolov8s.pt',
+    'yolov8m.pt',
+    'yolov8l.pt',
+    'yolov8x.pt',
+}
 
-# COCO model class map (yolov8n.pt) — for stream testing only.
-# Person=0 in COCO. Replace with PPE model + map above for production.
-USE_PPE_MODEL = os.environ.get('YOLO_MODEL', 'yolov8n.pt') not in ('yolov8n.pt', 'yolov8s.pt', 'yolov8m.pt', 'yolov8l.pt', 'yolov8x.pt')
-VIOLATION_MAP = {
-    0: 'helmet',       # class: Hardhat  (PPE model) / Person (COCO — remapped below)
+PPE_VIOLATION_MAP = {
+    0: 'helmet',       # class: Hardhat
     1: 'no_helmet',    # class: NO-Hardhat
     2: 'no_vest',      # class: NO-Safety Vest
-    3: 'person_detected',  # class: Person (PPE model)
+    3: 'person_detected',  # class: Person
     4: 'vest',         # class: Safety Vest
     5: 'person_detected',  # class: Worker
-} if USE_PPE_MODEL else {
+}
+
+COCO_VIOLATION_MAP = {
     0: 'person_detected',  # COCO person class — fires on any person visible
 }
+
+VIOLATION_MAP = COCO_VIOLATION_MAP.copy()
 
 VIOLATION_LABELS = {
     'helmet':          ('Helmet ✓',     'compliant'),
@@ -66,6 +65,35 @@ cooldown_lock = threading.Lock()
 
 if INGEST_TRANSPORT in ('tcp', 'udp'):
     os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = f'rtsp_transport;{INGEST_TRANSPORT}'
+
+def build_violation_map(resolved_model_path: str, model=None):
+    """
+    Choose the class-id map for the model that actually loaded.
+    A missing custom PPE model falls back to yolov8n.pt, whose class 0 is
+    person rather than hardhat; using the PPE map there silently corrupts detections.
+    """
+    model_name = os.path.basename(resolved_model_path or '').lower()
+    if model_name in COCO_MODEL_FILENAMES:
+        return COCO_VIOLATION_MAP.copy()
+
+    names = getattr(model, 'names', None)
+    if isinstance(names, dict):
+        normalized_names = {int(key): str(value).lower() for key, value in names.items()}
+    elif isinstance(names, (list, tuple)):
+        normalized_names = {idx: str(value).lower() for idx, value in enumerate(names)}
+    else:
+        normalized_names = {}
+
+    class_zero = normalized_names.get(0, '')
+    has_ppe_labels = any(
+        label in normalized_names.values()
+        for label in ('hardhat', 'helmet', 'no-hardhat', 'no_hardhat', 'no helmet', 'safety vest')
+    )
+
+    if class_zero == 'person' and not has_ppe_labels:
+        return COCO_VIOLATION_MAP.copy()
+
+    return PPE_VIOLATION_MAP.copy()
 
 def ensure_model(path: str) -> str:
     """
@@ -260,6 +288,8 @@ def main():
     logger.info('Loading YOLO model...')
     resolved_path = ensure_model(MODEL_PATH)
     model = YOLO(resolved_path)
+    global VIOLATION_MAP
+    VIOLATION_MAP = build_violation_map(resolved_path, model)
     logger.info('YOLO model loaded')
 
     active_threads = {}

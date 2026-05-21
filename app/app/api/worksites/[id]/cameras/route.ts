@@ -17,6 +17,22 @@ import { seedDefaultRules } from '@/app/lib/defaultRules';
 
 export const runtime = 'nodejs';
 
+function classifyStreamUrl(url: string): 'rtsp' | 'rtsps' | 'rtmp' | 'hls' | 'http' | null {
+  try {
+    const parsed = new URL(url.trim());
+    const protocol = parsed.protocol.toLowerCase();
+    if (protocol === 'rtsp:') return 'rtsp';
+    if (protocol === 'rtsps:') return 'rtsps';
+    if (protocol === 'rtmp:') return 'rtmp';
+    if (protocol === 'http:' || protocol === 'https:') {
+      return parsed.pathname.toLowerCase().includes('.m3u8') ? 'hls' : 'http';
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -72,20 +88,21 @@ export async function POST(
       );
     }
 
-    // --- Add camera with RTSP URL (create MediaMTX stream) ---
+    // --- Add camera with a stream URL (create MediaMTX stream) ---
     if (!rtspUrl || typeof rtspUrl !== 'string' || !rtspUrl.trim()) {
       return NextResponse.json(
-        { success: false, error: 'RTSP URL is required' },
+        { success: false, error: 'Stream URL is required' },
         { status: 400 }
       );
     }
 
     const rtspUrlTrimmed = rtspUrl.trim();
-    if (!rtspUrlTrimmed || !rtspUrlTrimmed.startsWith('rtsp://')) {
+    const streamProvider = classifyStreamUrl(rtspUrlTrimmed);
+    if (!streamProvider) {
       const toLog = rtspUrlTrimmed ? rtspUrlTrimmed.replace(/:[^:@]+@/, ':****@') : '(empty)';
-      console.log('[API /worksites/:id/cameras] RTSP validation failed for URL:', toLog);
+      console.log('[API /worksites/:id/cameras] Stream URL validation failed for URL:', toLog);
       return NextResponse.json(
-        { success: false, error: 'Invalid RTSP URL — must start with rtsp://' },
+        { success: false, error: 'Invalid stream URL - must start with rtsp://, rtmp://, https://, or http://' },
         { status: 400 }
       );
     }
@@ -106,14 +123,14 @@ export async function POST(
 
     console.log(`[API /worksites/:id/cameras] [${requestId}] ✅ Worksite found: ${worksite.name}`);
 
-    // Step 6: RTSP format already validated above (must start with rtsp://). No ffprobe — accepts IP, hostname, test streams.
+    // Step 6: Stream URL format already validated above. The validation API probes RTSP streams and accepts HLS/RTMP/HTTP URLs.
 
     // Step 7: Create camera in DB first (to get camera ID)
     const camera = await prisma.camera.create({
       data: {
         name: name.trim(),
         type: 'IP Camera',
-        streamProvider: 'rtsp',
+        streamProvider,
         ingestUrl: rtspUrlTrimmed,
         streamUrl: rtspUrlTrimmed,
         location: cameraLocation,

@@ -15,11 +15,10 @@ import {
   type AlertPayload,
 } from '@/app/lib/twilio';
 
-const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN ?? '';
-
 export async function POST(req: NextRequest) {
   const auth = req.headers.get('authorization');
-  if (auth !== `Bearer ${INTERNAL_TOKEN}`) {
+  const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
+  if (!internalToken || auth !== `Bearer ${internalToken}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
