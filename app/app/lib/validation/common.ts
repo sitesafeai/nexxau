@@ -36,7 +36,7 @@ export const roleSchema = z.enum([
   'VIEWER',
 ]);
 
-export const severitySchema = z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']);
+export const severitySchema = z.enum(['LOW', 'MEDIUM', 'HIGH']);
 
 export const alertStatusSchema = z.enum(['ACTIVE', 'ACKNOWLEDGED', 'RESOLVED', 'ESCALATED']);
 

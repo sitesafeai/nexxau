@@ -161,7 +161,7 @@ export class AlertStateMachine {
               ...metadata,
             },
             result: 'SUCCESS',
-            severity: toState === 'OVERRIDDEN' ? 'INFO' : 'WARNING',
+            severity: toState === 'OVERRIDDEN' ? 'LOW' : 'MEDIUM',
           },
         });
 
@@ -259,7 +259,7 @@ export class AlertStateMachine {
               ...metadata,
             },
             result: 'SUCCESS',
-            severity: 'INFO',
+            severity: 'LOW',
           },
         });
 

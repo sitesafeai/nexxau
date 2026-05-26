@@ -257,7 +257,7 @@ Alert ID: ${alert.id}
         worksiteId,
         name: 'Default Escalation Chain',
         description: 'Automatic escalation for unacknowledged alerts',
-        severity: ['HIGH', 'CRITICAL'],
+        severity: ['HIGH'],
         alertTypes: [],
         steps: defaultSteps as any,
         enabled: true
@@ -293,7 +293,7 @@ Alert ID: ${alert.id}
    * Get required delay based on severity and level
    */
   private getRequiredDelay(severity: string, level: number): number {
-    if (severity === 'CRITICAL' || severity === 'EMERGENCY') {
+    if (severity === 'HIGH') {
       return ESCALATION_DEFAULTS.CRITICAL_DELAYS[`LEVEL_${level}` as keyof typeof ESCALATION_DEFAULTS.CRITICAL_DELAYS] || 0;
     } else if (severity === 'SEVERE' || severity === 'HIGH') {
       return ESCALATION_DEFAULTS.SEVERE_DELAYS[`LEVEL_${level}` as keyof typeof ESCALATION_DEFAULTS.SEVERE_DELAYS] || 3;

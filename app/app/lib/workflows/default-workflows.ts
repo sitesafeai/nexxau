@@ -14,7 +14,7 @@ export const DEFAULT_WORKFLOWS = {
     type: 'ALERT_ESCALATION',
     triggerType: 'alert_severity',
     triggerConfig: {
-      severity: ['HIGH', 'CRITICAL', 'EMERGENCY']
+      severity: ['HIGH']
     },
     actions: [
       {
@@ -189,7 +189,7 @@ export async function provisionDefaultEscalationChain(worksiteId: string, contac
       worksiteId,
       name: 'Default Escalation Chain',
       description: 'Automatic escalation for unacknowledged severe alerts',
-      severity: ['HIGH', 'CRITICAL', 'EMERGENCY'],
+      severity: ['HIGH'],
       alertTypes: [],
       steps: steps as any,
       enabled: true

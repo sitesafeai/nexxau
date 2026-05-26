@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     const syncHealth = companies.map((company) => {
       const totalAlerts = company.worksites.reduce((sum, ws) => sum + ws.alerts.length, 0);
       const criticalAlerts = company.worksites.reduce(
-        (sum, ws) => sum + ws.alerts.filter((a) => a.severity === 'CRITICAL' || a.severity === 'EMERGENCY').length,
+        (sum, ws) => sum + ws.alerts.filter((a) => a.severity === 'HIGH').length,
         0
       );
 

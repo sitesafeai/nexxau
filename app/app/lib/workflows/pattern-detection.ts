@@ -215,8 +215,8 @@ export class PatternDetector {
    * Determine hotspot severity based on alerts
    */
   private getHotspotSeverity(alerts: any[]): 'MODERATE' | 'HIGH' | 'CRITICAL' {
-    const criticalCount = alerts.filter(a => a.severity === 'CRITICAL' || a.severity === 'EMERGENCY').length;
-    const highCount = alerts.filter(a => a.severity === 'WARNING' || a.severity === 'CRITICAL').length;
+    const criticalCount = alerts.filter(a => a.severity === 'HIGH').length;
+    const highCount = alerts.filter(a => a.severity === 'MEDIUM' || a.severity === 'HIGH').length;
 
     if (criticalCount > 0) return 'CRITICAL';
     if (highCount >= alerts.length * 0.5) return 'HIGH';

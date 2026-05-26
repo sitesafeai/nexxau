@@ -795,7 +795,7 @@ class ExportService {
         {
           id: 'INC-001',
           title: 'Fall from Height Incident',
-          severity: 'CRITICAL',
+          severity: 'HIGH',
           timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
           location: 'Building A - 3rd Floor',
           camera: 'CAM-003',

@@ -177,7 +177,7 @@ export async function GET(request: NextRequest) {
     const formattedIncidents = incidents.map(incident => ({
       id: incident.id,
       type: incident.alert?.rule?.name || 'Unknown Alert',
-      severity: incident.alert?.rule?.severity || 'WARNING',
+      severity: incident.alert?.rule?.severity || 'MEDIUM',
       location: incident.alert?.location || 'Unknown Location',
       timestamp: incident.createdAt.toISOString(),
       status: incident.response, // Using response instead of status

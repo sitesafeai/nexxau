@@ -69,9 +69,9 @@ export async function GET(request: NextRequest) {
       allAlerts = [];
     }
     
-    const criticalAlerts = allAlerts.filter(a => a.severity === 'CRITICAL' && a.status !== 'RESOLVED').length;
-    const highAlerts = allAlerts.filter(a => (a.severity === 'WARNING' || a.severity === 'CRITICAL') && a.status !== 'RESOLVED').length;
-    const mediumAlerts = allAlerts.filter(a => a.severity === 'INFO' && a.status !== 'RESOLVED').length;
+    const criticalAlerts = allAlerts.filter(a => a.severity === 'HIGH' && a.status !== 'RESOLVED').length;
+    const highAlerts = allAlerts.filter(a => (a.severity === 'MEDIUM' || a.severity === 'HIGH') && a.status !== 'RESOLVED').length;
+    const mediumAlerts = allAlerts.filter(a => a.severity === 'LOW' && a.status !== 'RESOLVED').length;
     
     const offlineCameras = cameras.filter(c => c.status === 'offline' || c.status === 'error').length;
     const totalCameras = cameras.length;
@@ -102,9 +102,9 @@ export async function GET(request: NextRequest) {
       select: { severity: true, status: true }
     });
     
-    const prevCritical = previousAlerts.filter(a => a.severity === 'CRITICAL' && a.status !== 'RESOLVED').length;
-    const prevHigh = previousAlerts.filter(a => (a.severity === 'WARNING' || a.severity === 'CRITICAL') && a.status !== 'RESOLVED').length;
-    const prevMedium = previousAlerts.filter(a => a.severity === 'INFO' && a.status !== 'RESOLVED').length;
+    const prevCritical = previousAlerts.filter(a => a.severity === 'HIGH' && a.status !== 'RESOLVED').length;
+    const prevHigh = previousAlerts.filter(a => (a.severity === 'MEDIUM' || a.severity === 'HIGH') && a.status !== 'RESOLVED').length;
+    const prevMedium = previousAlerts.filter(a => a.severity === 'LOW' && a.status !== 'RESOLVED').length;
     
     let previousScore = 100;
     previousScore -= prevCritical * 10;
@@ -144,10 +144,10 @@ export async function GET(request: NextRequest) {
     }
 
     const majorViolations = violations.filter(v => 
-      v.severity === 'CRITICAL' || v.severity === 'WARNING' || v.severity === 'EMERGENCY'
+      v.severity === 'HIGH' || v.severity === 'MEDIUM'
     );
     const minorViolations = violations.filter(v => 
-      v.severity === 'INFO'
+      v.severity === 'LOW'
     );
 
     // Get previous period for comparison (reuse previousPeriodStart from safety score calculation)
@@ -172,7 +172,7 @@ export async function GET(request: NextRequest) {
       // Extract violation type from alert title or use severity
       const violationType = v.title || v.severity || 'Unknown';
       const existing = acc.find(item => item.type === violationType);
-      const severity = v.severity === 'CRITICAL' || v.severity === 'WARNING' || v.severity === 'EMERGENCY' 
+      const severity = v.severity === 'HIGH' || v.severity === 'MEDIUM' 
         ? 'major' 
         : 'minor';
       
@@ -374,7 +374,7 @@ export async function GET(request: NextRequest) {
         violationsByType.push({
           type,
           count: 1,
-          severity: (alert.severity === 'CRITICAL' || alert.severity === 'WARNING' || alert.severity === 'EMERGENCY') ? 'major' : 'minor'
+          severity: (alert.severity === 'HIGH' || alert.severity === 'MEDIUM') ? 'major' : 'minor'
         });
       }
     });

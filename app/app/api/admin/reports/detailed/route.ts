@@ -126,10 +126,10 @@ export async function GET(request: NextRequest) {
     const alertStats = {
       total: alerts.length,
       bySeverity: {
-        CRITICAL: alerts.filter((a) => a.severity === 'CRITICAL').length,
-        EMERGENCY: alerts.filter((a) => a.severity === 'EMERGENCY').length,
-        WARNING: alerts.filter((a) => a.severity === 'WARNING').length,
-        INFO: alerts.filter((a) => a.severity === 'INFO').length,
+        HIGH: alerts.filter((a) => a.severity === 'HIGH').length,
+        HIGH_PREV: alerts.filter((a) => a.severity === 'HIGH').length,
+        MEDIUM: alerts.filter((a) => a.severity === 'MEDIUM').length,
+        LOW: alerts.filter((a) => a.severity === 'LOW').length,
       },
       byStatus: {
         ACTIVE: alerts.filter((a) => a.status === 'ACTIVE').length,
@@ -320,7 +320,7 @@ export async function GET(request: NextRequest) {
       ).length,
       latestScore: worksite.safetyScores[0]?.safetyScore || null,
       alertCount: worksite.alerts.length,
-      criticalAlerts: worksite.alerts.filter((a) => a.severity === 'CRITICAL').length,
+      criticalAlerts: worksite.alerts.filter((a) => a.severity === 'HIGH').length,
     }));
 
     return NextResponse.json({

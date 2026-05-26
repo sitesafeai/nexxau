@@ -303,7 +303,7 @@ export async function POST(request: NextRequest) {
             fileSize,
           },
           result: 'SUCCESS',
-          severity: 'INFO',
+          severity: 'LOW',
         },
       });
 

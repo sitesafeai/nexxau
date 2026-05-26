@@ -228,9 +228,9 @@ export async function POST(request: NextRequest) {
         ...customAlerts.map(a => ({
           type: a.rule?.name || a.title,
           name: a.rule?.name || a.title,
-          weight: (a.severity === 'CRITICAL' || a.severity === 'EMERGENCY') ? 2.0
-                  : a.severity === 'WARNING' ? 1.5
-                  : a.severity === 'INFO' ? 1.0
+          weight: (a.severity === 'HIGH') ? 2.0
+                  : a.severity === 'MEDIUM' ? 1.5
+                  : a.severity === 'LOW' ? 1.0
                   : 0.5,
           timestamp: a.createdAt,
           location: undefined // Alerts don't have location yet

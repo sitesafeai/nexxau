@@ -127,7 +127,7 @@ async function handleAlertNotification(alert: AlertEventPayload) {
     }
 
     // Send SMS notifications (only for CRITICAL or HIGH severity)
-    if (smsEnabled && (alert.severity === 'CRITICAL' || alert.severity === 'HIGH')) {
+    if (smsEnabled && (alert.severity === 'HIGH')) {
       const smsRecipients = recipients.filter((user) => (user as any).phone); // phone field doesn't exist in User model
 
       for (const user of smsRecipients) {

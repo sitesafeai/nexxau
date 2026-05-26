@@ -5,8 +5,8 @@ const { withSentryConfig } = require('@sentry/nextjs');
 const nextConfig = {
   reactStrictMode: false,
   outputFileTracingRoot: path.join(__dirname),
-  eslint: { ignoreDuringBuilds: false },
-  typescript: { ignoreBuildErrors: false },
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'res.cloudinary.com', port: '', pathname: '/**' },

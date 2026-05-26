@@ -53,7 +53,7 @@ export async function PATCH(
 
     // Check if root cause is required
     const requiresRootCause = alert.metadata && (alert.metadata as any).autoClassification?.requiresRootCause;
-    if (!requiresRootCause && alert.severity !== 'WARNING' && alert.severity !== 'CRITICAL') {
+    if (!requiresRootCause && alert.severity !== 'MEDIUM' && alert.severity !== 'HIGH') {
       return NextResponse.json(
         { success: false, error: 'Root cause not required for this alert' },
         { status: 400 }

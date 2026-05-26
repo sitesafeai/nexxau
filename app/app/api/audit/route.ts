@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
         changes,
         details,
         result: result || 'SUCCESS',
-        severity: severity || 'INFO',
+        severity: severity || 'LOW',
         ipAddress,
         userAgent,
         metadata,

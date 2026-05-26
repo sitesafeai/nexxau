@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
         entityName: report.name,
         details: { name, entities, fieldsCount: fields?.length },
         result: 'SUCCESS',
-        severity: 'INFO',
+        severity: 'LOW',
       },
     });
 

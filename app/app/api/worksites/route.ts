@@ -434,7 +434,7 @@ async function handleNewFormatCreate(body: any, user: any, userRole: string, req
             contact,
           },
           result: 'SUCCESS',
-          severity: 'INFO',
+          severity: 'LOW',
           ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
           userAgent: request.headers.get('user-agent') || 'unknown',
         }

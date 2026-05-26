@@ -210,7 +210,7 @@ export async function reconcileOrphanedData(): Promise<{
           entityName: 'Data Reconciliation',
           metadata: results,
           result: 'WARNING',
-          severity: 'INFO',
+          severity: 'LOW',
         },
       });
     }
@@ -250,7 +250,7 @@ export async function softDelete<T extends { id: string; deletedAt?: Date | null
           entityName: `${model} ${id}`,
           metadata: { deletedBy: userId },
           result: 'SUCCESS',
-          severity: 'INFO',
+          severity: 'LOW',
         },
       });
     });
