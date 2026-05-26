@@ -1,7 +1,7 @@
 {
-  "buildCommand": "npx prisma@6.19.3 generate && next build",
+  "buildCommand": "prisma generate && next build",
   "outputDirectory": ".next",
-  "installCommand": "pnpm install --no-frozen-lockfile",
+  "installCommand": "pnpm install --frozen-lockfile",
   "framework": "nextjs",
   "redirects": [
     {

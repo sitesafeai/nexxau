@@ -1,10 +1,22 @@
 import { withAuth } from "next-auth/middleware";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { applyCors, handlePreflight } from "./lib/cors";
 
 export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token;
+  function middleware(req: NextRequest & { nextauth: { token: any } }) {
     const path = req.nextUrl.pathname;
+
+    // ── CORS for all /api/* routes ────────────────────────────────────────────
+    // Handle OPTIONS preflight before any auth logic so browsers can complete
+    // the CORS handshake even for unauthenticated pre-flight requests.
+    if (path.startsWith("/api")) {
+      if (req.method === "OPTIONS") {
+        return handlePreflight(req);
+      }
+      return applyCors(req, NextResponse.next());
+    }
+
+    const token = req.nextauth.token;
 
     // If no token, redirect to login (except for public paths)
     if (!token) {
@@ -87,7 +99,9 @@ export default withAuth(
     callbacks: {
       authorized: ({ req, token }) => {
         const path = req.nextUrl.pathname;
-        // Allow dashboard and company routes if authenticated
+        // API routes handle their own authentication — always let the middleware
+        // function run so CORS headers get applied regardless of session state.
+        if (path.startsWith('/api')) return true;
         if (path.startsWith('/dashboard') || path.startsWith('/company')) {
           return !!token;
         }
@@ -99,15 +113,7 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - login, signup, auth pages
-     * - public files
-     */
+    "/api/:path*",
     "/admin/:path*",
     "/company/:path*",
     "/dashboard/:path*",

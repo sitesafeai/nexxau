@@ -1,3 +1,6 @@
+# Claude Code worktrees / session files
+.claude/
+
 # Dependencies
 node_modules/
 __pycache__/
@@ -71,3 +74,8 @@ temp/
 cookies.txt
 dump.rdb
 app/public/streams/
+
+# Database dumps - never commit these
+*.sql.bak
+db_backup.sql
+db_public_data.sql

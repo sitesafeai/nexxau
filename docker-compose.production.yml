@@ -114,6 +114,9 @@ services:
     volumes:
       - ./mediamtx.yml:/mediamtx.yml
       - mediamtx_data:/mediamtx
+    environment:
+      - MEDIAMTX_USER=${MEDIAMTX_USER}
+      - MEDIAMTX_PASS=${MEDIAMTX_PASS}
     networks:
       - nexxau-network
     healthcheck:

@@ -68,10 +68,26 @@ export async function POST(
           password?: string;
         };
 
+        // Validate role against the canonical enum before writing to DB.
+        // This prevents typos like "admin" (lowercase) from being persisted and
+        // creating records that won't match any role check elsewhere.
+        const VALID_ROLES = new Set([
+          'SUPER_ADMIN', 'COMPANY_ADMIN', 'SITE_ADMIN', 'SUPERVISOR', 'WORKER', 'VIEWER',
+        ]);
+        if (role !== undefined) {
+          const normalizedRole = normalizeRole(role);
+          if (!VALID_ROLES.has(normalizedRole)) {
+            return NextResponse.json(
+              { success: false, error: `Invalid role: '${role}'` },
+              { status: 400 }
+            );
+          }
+        }
+
         const updateData: Record<string, unknown> = {};
         if (name !== undefined) updateData.name = name;
         if (email !== undefined) updateData.email = email;
-        if (role !== undefined) updateData.role = role;
+        if (role !== undefined) updateData.role = normalizeRole(role);
         if (status !== undefined) {
           updateData.isActivated = status === 'active';
           updateData.approved = status !== 'suspended';

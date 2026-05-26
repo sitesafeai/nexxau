@@ -28,8 +28,8 @@ paths: {}
 # Authentication
 authMethod: "internal"
 authInternalUsers:
-  - user: "admin"
-    pass: "nexxau"
+  - user: "${MEDIAMTX_USER}"
+    pass: "${MEDIAMTX_PASS}"
     ips: []
     permissions:
       - action: read

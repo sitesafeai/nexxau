@@ -6,6 +6,7 @@ Payload format matches app/app/lib/safety/frame-validator.ts requirements.
 """
 
 import logging
+import os
 import requests
 from typing import List, Dict, Optional
 import base64
@@ -19,18 +20,31 @@ logger = logging.getLogger(__name__)
 class NexxauClient:
     """
     Client for posting detection results to Nexxau API.
-    
+
     Implements section 2.5 of the plan:
     - POST /api/yolo/detections
-    - Payload matches frame-validator.ts: camera_id, timestamp, detections, frame_data, frame_width, frame_height
-    - Detection format: { class_name, confidence, bbox }
+    - POST /api/cameras/snapshot
+    Payload matches frame-validator.ts: camera_id, timestamp, detections, frame_data, frame_width, frame_height
+    Detection format: { class_name, confidence, bbox }
     """
-    
+
     def __init__(self, api_url: str, timeout: int = 10):
         self.api_url = api_url.rstrip('/')
         self.detections_endpoint = f"{self.api_url}/api/yolo/detections"
+        self.snapshot_endpoint = f"{self.api_url}/api/cameras/snapshot"
         self.timeout = timeout
-        
+
+        token = os.environ.get("INTERNAL_SERVICE_TOKEN", "")
+        if not token:
+            logger.warning(
+                "INTERNAL_SERVICE_TOKEN is not set — requests to authenticated "
+                "endpoints will be rejected by the API."
+            )
+        self._auth_headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        }
+
         logger.info(f"NexxauClient initialized. Endpoint: {self.detections_endpoint}")
     
     def send_detection(
@@ -78,7 +92,7 @@ class NexxauClient:
                 self.detections_endpoint,
                 json=payload,
                 timeout=self.timeout,
-                headers={"Content-Type": "application/json"},
+                headers=self._auth_headers,
             )
             
             if response.status_code == 200:
@@ -104,6 +118,34 @@ class NexxauClient:
             logger.error(f"[{camera_id}] Exception sending detection: {e}")
             return False
     
+    def send_snapshot(self, camera_id: str, snapshot_b64: str) -> bool:
+        """Send a base64-encoded snapshot to /api/cameras/snapshot."""
+        try:
+            response = requests.post(
+                self.snapshot_endpoint,
+                json={"camera_id": camera_id, "snapshot": snapshot_b64},
+                timeout=self.timeout,
+                headers=self._auth_headers,
+            )
+            if response.status_code == 200:
+                logger.debug(f"[{camera_id}] Snapshot sent successfully.")
+                return True
+            else:
+                logger.warning(
+                    f"[{camera_id}] Failed to send snapshot. "
+                    f"Status: {response.status_code}, Response: {response.text[:200]}"
+                )
+                return False
+        except requests.exceptions.Timeout:
+            logger.error(f"[{camera_id}] Timeout sending snapshot to Nexxau API")
+            return False
+        except requests.exceptions.ConnectionError:
+            logger.error(f"[{camera_id}] Connection error sending snapshot to Nexxau API")
+            return False
+        except Exception as e:
+            logger.error(f"[{camera_id}] Exception sending snapshot: {e}")
+            return False
+
     def health_check(self) -> bool:
         """
         Check if Nexxau API is reachable.

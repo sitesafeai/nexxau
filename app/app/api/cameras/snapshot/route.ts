@@ -1,11 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { prisma } from '@/app/lib/prisma';
 import { uploadViolationSnapshot } from '@/app/lib/storage';
 import { sendAlerts } from '@/app/lib/notifications';
 
 export const runtime = 'nodejs';
 
+function verifyServiceToken(req: NextRequest): boolean {
+  const configured = process.env.INTERNAL_SERVICE_TOKEN;
+  if (!configured) {
+    console.error('[Snapshot API] INTERNAL_SERVICE_TOKEN is not set — rejecting all requests');
+    return false;
+  }
+
+  const header = req.headers.get('authorization') ?? '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (!token) return false;
+
+  try {
+    const a = Buffer.from(configured);
+    const b = Buffer.from(token);
+    // timingSafeEqual requires same length; pad/compare length separately to avoid
+    // leaking which side is shorter while still rejecting mismatches.
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(req: NextRequest) {
+  const configured = process.env.INTERNAL_SERVICE_TOKEN;
+  if (!configured) {
+    return NextResponse.json({ error: 'Service token not configured' }, { status: 503 });
+  }
+
+  if (!verifyServiceToken(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const { camera_id, snapshot } = await req.json();
 
@@ -44,7 +77,6 @@ export async function POST(req: NextRequest) {
 
     console.log('[Snapshot API] Saved snapshot for alert:', recentAlert.id);
 
-    // Send email with snapshot (non-blocking) — isolated try/catch so snapshot success is not affected
     try {
       const camera = await prisma.camera.findUnique({
         where: { id: camera_id },
@@ -75,7 +107,6 @@ export async function POST(req: NextRequest) {
         }
       }
     } catch (emailErr) {
-      // Email sending failed — snapshot was already saved, don't crash
       console.warn('[Snapshot API] Email send failed (non-fatal):', emailErr);
     }
 
@@ -85,4 +116,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
-

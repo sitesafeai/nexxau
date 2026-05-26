@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getSession } from '@/app/lib/auth';
+import { normalizeRole } from '@/app/lib/roles';
+import { enforceCompanyScope } from '@/app/lib/auth-scope';
 import { logUpdate, logDelete } from '@/app/lib/audit-logger';
+
+const ROLE_ALLOWLIST: Record<string, string[]> = {
+  SUPER_ADMIN: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'SITE_ADMIN', 'SUPERVISOR', 'WORKER', 'VIEWER'],
+  COMPANY_ADMIN: ['SITE_ADMIN', 'SUPERVISOR', 'WORKER', 'VIEWER'],
+};
 
 /**
  * PATCH /api/users/[id]
@@ -23,8 +30,8 @@ export async function PATCH(
       );
     }
 
-    // Only SUPER_ADMIN and COMPANY_ADMIN can edit users
-    if (currentUser.role !== 'SUPER_ADMIN' && currentUser.role !== 'COMPANY_ADMIN') {
+    const actorRole = normalizeRole(currentUser.role);
+    if (actorRole !== 'SUPER_ADMIN' && actorRole !== 'COMPANY_ADMIN') {
       return NextResponse.json(
         { success: false, error: 'Insufficient permissions' },
         { status: 403 }
@@ -34,9 +41,10 @@ export async function PATCH(
     const body = await request.json();
     const { name, email, role } = body;
 
-    // Get user before update for audit log
+    // Load target before any mutation — needed for scope check, audit log, and role validation.
     const beforeUser = await prisma.user.findUnique({
-      where: { id }
+      where: { id },
+      select: { id: true, name: true, email: true, role: true, companyId: true },
     });
 
     if (!beforeUser) {
@@ -46,17 +54,50 @@ export async function PATCH(
       );
     }
 
-    // Update user
+    // Tenant isolation: actor must belong to the same company as the target.
+    const scopeCheck = await enforceCompanyScope({
+      session,
+      resourceCompanyId: beforeUser.companyId,
+    });
+    if (!scopeCheck.ok) {
+      return NextResponse.json(
+        { success: false, error: scopeCheck.error },
+        { status: scopeCheck.status }
+      );
+    }
+
+    // Role-change validation
+    if (role !== undefined) {
+      const normalizedNewRole = normalizeRole(role);
+      const permitted = ROLE_ALLOWLIST[actorRole] ?? [];
+      if (!permitted.includes(normalizedNewRole)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Role '${role}' cannot be assigned by a ${actorRole}`,
+          },
+          { status: 403 }
+        );
+      }
+
+      // Prevent self-promotion/demotion — changing your own role is not allowed.
+      if (beforeUser.id === currentUser.id) {
+        return NextResponse.json(
+          { success: false, error: 'Cannot change your own role' },
+          { status: 403 }
+        );
+      }
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id },
       data: {
-        ...(name && { name }),
-        ...(email && { email }),
-        ...(role && { role })
-      }
+        ...(name !== undefined && { name }),
+        ...(email !== undefined && { email }),
+        ...(role !== undefined && { role: normalizeRole(role) }),
+      },
     });
 
-    // Log audit trail
     await logUpdate(
       currentUser.id,
       'User',
@@ -66,14 +107,11 @@ export async function PATCH(
       request
     );
 
-    return NextResponse.json({
-      success: true,
-      data: updatedUser
-    });
+    return NextResponse.json({ success: true, data: updatedUser });
   } catch (error: any) {
     console.error('Error updating user:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to update user', details: error.message },
+      { success: false, error: 'Failed to update user' },
       { status: 500 }
     );
   }
@@ -99,17 +137,17 @@ export async function DELETE(
       );
     }
 
-    // Only SUPER_ADMIN and COMPANY_ADMIN can delete users
-    if (currentUser.role !== 'SUPER_ADMIN' && currentUser.role !== 'COMPANY_ADMIN') {
+    const actorRole = normalizeRole(currentUser.role);
+    if (actorRole !== 'SUPER_ADMIN' && actorRole !== 'COMPANY_ADMIN') {
       return NextResponse.json(
         { success: false, error: 'Insufficient permissions' },
         { status: 403 }
       );
     }
 
-    // Get user before deletion for audit log
     const user = await prisma.user.findUnique({
-      where: { id }
+      where: { id },
+      select: { id: true, name: true, email: true, role: true, companyId: true },
     });
 
     if (!user) {
@@ -119,12 +157,28 @@ export async function DELETE(
       );
     }
 
-    // Delete user
-    await prisma.user.delete({
-      where: { id }
-    });
+    // Block deleting yourself.
+    if (user.id === currentUser.id) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot delete your own account' },
+        { status: 400 }
+      );
+    }
 
-    // Log audit trail
+    // Tenant isolation: actor must belong to the same company as the target.
+    const scopeCheck = await enforceCompanyScope({
+      session,
+      resourceCompanyId: user.companyId,
+    });
+    if (!scopeCheck.ok) {
+      return NextResponse.json(
+        { success: false, error: scopeCheck.error },
+        { status: scopeCheck.status }
+      );
+    }
+
+    await prisma.user.delete({ where: { id } });
+
     await logDelete(
       currentUser.id,
       'User',
@@ -133,16 +187,12 @@ export async function DELETE(
       request
     );
 
-    return NextResponse.json({
-      success: true,
-      message: 'User deleted successfully'
-    });
+    return NextResponse.json({ success: true, message: 'User deleted successfully' });
   } catch (error: any) {
     console.error('Error deleting user:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to delete user', details: error.message },
+      { success: false, error: 'Failed to delete user' },
       { status: 500 }
     );
   }
 }
-

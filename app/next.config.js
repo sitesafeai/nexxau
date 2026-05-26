@@ -5,8 +5,8 @@ const { withSentryConfig } = require('@sentry/nextjs');
 const nextConfig = {
   reactStrictMode: false,
   outputFileTracingRoot: path.join(__dirname),
-  eslint: { ignoreDuringBuilds: true },
-  typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: false },
+  typescript: { ignoreBuildErrors: false },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'res.cloudinary.com', port: '', pathname: '/**' },
@@ -22,21 +22,12 @@ const nextConfig = {
   },
   experimental: {
     serverActions: {
-      allowedOrigins: ['localhost:3000', 'localhost:3001', 'localhost:3002'],
+      allowedOrigins: ['localhost:3000', 'localhost:3001', 'localhost:3002', 'nexxau.com', 'www.nexxau.com'],
     },
   },
-  async headers() {
-    return [
-      {
-        source: '/api/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET,OPTIONS,PATCH,DELETE,POST,PUT' },
-          { key: 'Access-Control-Allow-Headers', value: 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version' },
-        ],
-      },
-    ];
-  },
+  // CORS is handled dynamically in app/middleware.ts (origin allowlist driven by
+  // ALLOWED_API_ORIGINS env var) so that we never reflect Access-Control-Allow-Origin: *.
+  // Static headers() block for CORS has been intentionally removed.
   async rewrites() {
     const streamBaseUrl = process.env.NEXT_PUBLIC_STREAM_BASE_URL;
     if (streamBaseUrl && streamBaseUrl !== 'http://localhost:8888') {

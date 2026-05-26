@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log(`[API /cameras] [${requestId}] Session validated. User:`, session.user.email);
+    console.log(`[API /cameras] [${requestId}] Session validated`);
 
     // 2. Get and validate user from database
     console.log(`[API /cameras] [${requestId}] Step 2: Fetching user from database...`);
@@ -155,6 +155,10 @@ export async function GET(request: NextRequest) {
     const worksiteId = searchParams.get('worksiteId');
     console.log(`[API /cameras] [${requestId}] worksiteId from query:`, worksiteId);
 
+    // Compute role once, used both in worksite-access check and whereClause scoping below.
+    const userRole = normalizeRole(currentUser.role);
+    const isSuperAdmin = userRole === 'SUPER_ADMIN';
+
     if (worksiteId) {
       // Validate worksiteId is a valid string (not empty, reasonable length)
       if (typeof worksiteId !== 'string' || worksiteId.trim().length === 0 || worksiteId.length > 100) {
@@ -170,15 +174,10 @@ export async function GET(request: NextRequest) {
 
       // 5. Validate user has access to worksite
       console.log(`[API /cameras] [${requestId}] Step 4: Validating worksite access...`);
-      const userRole = normalizeRole(currentUser.role);
-      const isGlobalAdmin = 
-        userRole === 'SUPER_ADMIN' ||
-        userRole === 'COMPANY_ADMIN' ||
-        userRole === 'ADMIN';
 
       let hasAccess = false;
 
-      if (isGlobalAdmin) {
+      if (isSuperAdmin) {
         // Global admins can access any worksite
         // Verify worksite exists
         try {
@@ -332,6 +331,20 @@ export async function GET(request: NextRequest) {
       if (worksiteId) {
         whereClause.worksiteId = worksiteId.trim();
         console.log(`[API /cameras] [${requestId}] Filtering by worksiteId:`, worksiteId);
+      }
+
+      // Enforce tenant isolation: non-SUPER_ADMINs can only see cameras belonging to
+      // their own company. SUPER_ADMIN cross-tenant queries are logged explicitly.
+      if (!isSuperAdmin) {
+        if (!currentUser.companyId) {
+          return NextResponse.json(
+            { error: 'Forbidden', code: 'NO_COMPANY' },
+            { status: 403 }
+          );
+        }
+        whereClause.worksite = { companyId: currentUser.companyId };
+      } else if (!worksiteId) {
+        console.log(`[API /cameras] [${requestId}] SUPER_ADMIN cross-tenant query`);
       }
 
       // Query cameras from database with timeout

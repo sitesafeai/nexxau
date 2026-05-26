@@ -3,11 +3,17 @@ import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { normalizeRole } from '@/app/lib/roles';
+import { enforceCompanyScope } from '@/app/lib/auth-scope';
 import { stopHlsStream } from '@/app/lib/streaming/hlsManager';
 import { stopRtpPush } from '@/app/lib/services/cameraIngestClient';
 import { removeStreamFromMediaMTX } from '@/app/lib/services/mediamtxClient';
 import * as path from 'path';
 import * as fs from 'fs';
+
+function maskRtspCreds(url: string | null | undefined): string | null | undefined {
+  if (!url) return url;
+  return url.replace(/^(rtsp:\/\/)([^@/]+)@/i, '$1***@');
+}
 
 /**
  * DELETE /api/cameras/[id]
@@ -537,6 +543,7 @@ export async function GET(
         worksiteId: true,
         createdAt: true,
         updatedAt: true,
+        worksite: { select: { companyId: true } },
       },
     });
 
@@ -544,15 +551,27 @@ export async function GET(
       return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
     }
 
-    // Mask password in response
-    const safe = { ...camera };
-    if ((safe as any).password) (safe as any).password = '••••••••';
+    const scopeCheck = await enforceCompanyScope({
+      session,
+      resourceCompanyId: camera.worksite?.companyId ?? null,
+    });
+    if (!scopeCheck.ok) {
+      return NextResponse.json({ error: scopeCheck.error }, { status: scopeCheck.status });
+    }
+
+    // Return a safe copy: mask stored password and strip RTSP credentials from streamUrl
+    const { worksite: _worksite, ...rest } = camera as any;
+    const safe = {
+      ...rest,
+      password: rest.password ? '••••••••' : null,
+      streamUrl: maskRtspCreds(rest.streamUrl),
+    };
 
     return NextResponse.json(safe);
   } catch (error: any) {
     console.error('[API /cameras/[id] GET] Error:', error?.message);
     return NextResponse.json(
-      { error: error?.message || 'Failed to fetch camera' },
+      { error: 'Failed to fetch camera' },
       { status: 500 }
     );
   }
@@ -593,10 +612,22 @@ export async function PATCH(
 
     const camera = await prisma.camera.findUnique({
       where: { id: cameraId.trim() },
-      select: { id: true, metadata: true },
+      select: {
+        id: true,
+        metadata: true,
+        worksite: { select: { companyId: true } },
+      },
     });
     if (!camera) {
       return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
+    }
+
+    const scopeCheck = await enforceCompanyScope({
+      session,
+      resourceCompanyId: camera.worksite?.companyId ?? null,
+    });
+    if (!scopeCheck.ok) {
+      return NextResponse.json({ error: scopeCheck.error }, { status: scopeCheck.status });
     }
 
     const data: Record<string, unknown> = {};
@@ -605,7 +636,12 @@ export async function PATCH(
     if (typeof body.location === 'string') data.location = body.location.trim() || null;
     if (typeof body.zone === 'string') data.zone = body.zone.trim() || null;
     if (body.metadata && typeof body.metadata === 'object') {
-      data.metadata = { ...(camera.metadata as object || {}), ...body.metadata };
+      const ALLOWED_META_KEYS = new Set(['aiEnabled', 'recording', 'overlayEnabled', 'frameRate', 'resolution']);
+      const sanitizedMeta: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(body.metadata as Record<string, unknown>)) {
+        if (ALLOWED_META_KEYS.has(k)) sanitizedMeta[k] = v;
+      }
+      data.metadata = { ...(camera.metadata as object || {}), ...sanitizedMeta };
     }
 
     if (Object.keys(data).length === 0) {
@@ -633,7 +669,7 @@ export async function PATCH(
   } catch (error: any) {
     console.error('[API /cameras/[id] PATCH] Error:', error?.message);
     return NextResponse.json(
-      { error: error?.message || 'Failed to update camera' },
+      { error: 'Failed to update camera' },
       { status: 500 }
     );
   }

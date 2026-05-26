@@ -3,10 +3,10 @@ const path = require('path');
 
 module.exports = {
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   webpack: (config) => {
     config.resolve.alias['@'] = path.resolve(__dirname, 'app');

@@ -2,16 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { 
-  ArrowLeft, 
-  Edit2, 
-  Save, 
-  X, 
-  Plus, 
-  Trash2, 
-  Users, 
-  Shield, 
-  Settings, 
+import {
+  ArrowLeft,
+  Edit2,
+  Save,
+  X,
+  Plus,
+  Trash2,
+  Users,
+  Shield,
+  Settings,
   AlertTriangle,
   CheckCircle2,
   XCircle,
@@ -24,8 +24,10 @@ import {
   Wrench,
   PauseCircle,
   PlayCircle,
-  ChevronRight
+  ChevronRight,
+  Video
 } from 'lucide-react';
+import CameraGrid from '../../../components/cameras/CameraGrid';
 
 interface Worksite {
   id: string;
@@ -57,7 +59,7 @@ interface Worker {
   lastLogin: string | null;
 }
 
-type TabType = 'overview' | 'personnel' | 'compliance' | 'settings';
+type TabType = 'overview' | 'cameras' | 'personnel' | 'compliance' | 'settings';
 
 export default function WorksiteManagementPage() {
   const params = useParams();
@@ -233,6 +235,7 @@ export default function WorksiteManagementPage() {
 
   const tabs = [
     { id: 'overview' as TabType, name: 'Overview', icon: Activity },
+    { id: 'cameras' as TabType, name: 'Cameras', icon: Video },
     { id: 'personnel' as TabType, name: 'Personnel', icon: Users },
     { id: 'compliance' as TabType, name: 'Compliance & Alerts', icon: Shield },
     { id: 'settings' as TabType, name: 'Site Settings', icon: Settings },
@@ -347,14 +350,18 @@ export default function WorksiteManagementPage() {
         {/* Tab Content */}
         <div className="space-y-6">
           {activeTab === 'overview' && (
-            <OverviewTab 
-              worksite={editMode ? editedWorksite : worksite} 
+            <OverviewTab
+              worksite={editMode ? editedWorksite : worksite}
               workers={workers}
               editMode={editMode}
               onEdit={setEditedWorksite}
             />
           )}
-          
+
+          {activeTab === 'cameras' && (
+            <WorksiteCamerasTab worksiteId={worksiteId} />
+          )}
+
           {activeTab === 'personnel' && (
             <PersonnelTab 
               workers={workers} 
@@ -846,7 +853,51 @@ function SettingsTab({ worksite, editMode, onEdit, onSave, onDelete }: any) {
   );
 }
 
-// Add Worker Modal Component  
+// Cameras Tab Component
+function WorksiteCamerasTab({ worksiteId }: { worksiteId: string }) {
+  const [cameras, setCameras] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/cameras?worksiteId=${worksiteId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data?.data ?? data?.cameras ?? [];
+        setCameras(Array.isArray(list) ? list : []);
+      })
+      .catch(() => setCameras([]))
+      .finally(() => setLoading(false));
+  }, [worksiteId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-slate-800/50 backdrop-blur rounded-xl border border-slate-700/50 p-6">
+      <CameraGrid
+        worksiteId={worksiteId}
+        initialCameras={cameras.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          zone: c.zone ?? c.location,
+          location: c.location,
+          status: c.status,
+          streamUrl: c.streamUrl,
+          rules: c.rules ?? [],
+        }))}
+        canAddCamera={false}
+      />
+    </div>
+  );
+}
+
+// Add Worker Modal Component
 function AddWorkerModal({ worksiteId, onClose, onSuccess }: any) {
   const [formData, setFormData] = useState({
     email: '',
