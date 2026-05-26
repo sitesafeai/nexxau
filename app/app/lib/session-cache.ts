@@ -1,15 +1,16 @@
 import { getServerSession } from 'next-auth';
+import type { Session } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import type { NextRequest } from 'next/server';
 
 /** In-memory cache: session cookie value → { session, expiresAt } */
-const cache = new Map<string, { session: Awaited<ReturnType<typeof getServerSession>>; expiresAt: number }>();
+const cache = new Map<string, { session: Session | null; expiresAt: number }>();
 const TTL_MS = 60_000;
 
 /**
  * Cache getServerSession by session cookie to avoid repeated DB hits on parallel API calls.
  */
-export async function getCachedSession(req: NextRequest) {
+export async function getCachedSession(req: NextRequest): Promise<Session | null> {
   const token =
     req.cookies.get('next-auth.session-token')?.value ??
     req.cookies.get('__Secure-next-auth.session-token')?.value ??
