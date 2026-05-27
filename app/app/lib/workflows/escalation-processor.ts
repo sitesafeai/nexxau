@@ -54,8 +54,13 @@ export class EscalationProcessor {
    */
   private async processEscalations(): Promise<void> {
     try {
+      // Guard: Escalation model may not be migrated yet
+      if (!(prisma as any).escalation) {
+        return;
+      }
+
       // Find all active escalations
-      const escalations = await prisma.escalation.findMany({
+      const escalations = await (prisma as any).escalation.findMany({
         where: {
           status: {
             in: ['pending', 'in_progress']
@@ -85,7 +90,7 @@ export class EscalationProcessor {
 
     // Check if alert has been acknowledged
     if (alert.status === 'ACKNOWLEDGED' || alert.status === 'RESOLVED') {
-      await prisma.escalation.update({
+      await (prisma as any).escalation.update({
         where: { id: escalation.id },
         data: {
           status: 'acknowledged',
@@ -102,7 +107,7 @@ export class EscalationProcessor {
 
     if (!nextStep) {
       console.log(`[Escalation] No more escalation steps for ${escalation.id}`);
-      await prisma.escalation.update({
+      await (prisma as any).escalation.update({
         where: { id: escalation.id },
         data: { status: 'completed' }
       });
@@ -119,7 +124,7 @@ export class EscalationProcessor {
       
       // Move to next level
       const nextLevel = currentLevel + 1;
-      await prisma.escalation.update({
+      await (prisma as any).escalation.update({
         where: { id: escalation.id },
         data: {
           currentLevel: nextLevel,
@@ -222,7 +227,7 @@ Alert ID: ${alert.id}
    * Create default escalation chain for new worksite
    */
   async createDefaultChain(worksiteId: string, supervisorContact?: string): Promise<void> {
-    const existing = await prisma.escalationChain.findFirst({
+    const existing = await (prisma as any).escalationChain.findFirst({
       where: { worksiteId }
     });
 
@@ -234,25 +239,25 @@ Alert ID: ${alert.id}
     const defaultSteps = [
       {
         level: 1,
-        delayMinutes: ESCALATION_DEFAULTS.LEVEL_1_DELAY,
+        delayMinutes: ESCALATION_DEFAULTS.MODERATE_DELAYS.LEVEL_1,
         contacts: supervisorContact ? [{ type: 'sms', value: supervisorContact, role: 'Site Lead' }] : [],
         message: null
       },
       {
         level: 2,
-        delayMinutes: ESCALATION_DEFAULTS.LEVEL_2_DELAY,
+        delayMinutes: ESCALATION_DEFAULTS.MODERATE_DELAYS.LEVEL_2,
         contacts: supervisorContact ? [{ type: 'sms', value: supervisorContact, role: 'Site Supervisor' }] : [],
         message: null
       },
       {
         level: 3,
-        delayMinutes: ESCALATION_DEFAULTS.LEVEL_3_DELAY,
+        delayMinutes: ESCALATION_DEFAULTS.MODERATE_DELAYS.LEVEL_3,
         contacts: [], // To be configured by user
         message: null
       }
     ];
 
-    await prisma.escalationChain.create({
+    await (prisma as any).escalationChain.create({
       data: {
         worksiteId,
         name: 'Default Escalation Chain',
