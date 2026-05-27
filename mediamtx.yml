@@ -23,9 +23,7 @@ hlsSegmentDuration: 2s
 hlsSegmentMaxSize: 50M
 hlsAllowOrigin: "*"
 
-paths:
-  "~.*":
-    source: publisher
+paths: {}
 
 # Authentication
 authMethod: "internal"
