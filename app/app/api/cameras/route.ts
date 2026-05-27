@@ -3,7 +3,7 @@ import { prisma } from '@/app/lib/prisma';
 import { getCachedSession } from '@/app/lib/session-cache';
 import { normalizeRole } from '@/app/lib/roles';
 import { validateRtspStream } from '@/app/lib/rtsp-validation';
-import { addStreamToMediaMTX } from '@/app/lib/services/mediamtxClient';
+import { addStreamToMediaMTX, registerPublisherPath, getMediaMTXRtspPushUrl } from '@/app/lib/services/mediamtxClient';
 
 export const runtime = 'nodejs';
 
@@ -559,6 +559,7 @@ export async function POST(request: NextRequest) {
       password,
       frameRate,
       resolution,
+      ingestMode, // 'push' for Pi-managed cameras, omit/undefined for pull (default)
     } = body;
     const normalizedStreamUrl = typeof streamUrl === 'string' ? streamUrl.trim() : '';
     const normalizedIngestUrl = typeof ingestUrl === 'string' ? ingestUrl.trim() : '';
@@ -572,14 +573,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!type || !['IP Camera (RTSP)', 'ONVIF Camera', 'Cloud Stream'].includes(type)) {
+    if (!type || !['IP Camera (RTSP)', 'ONVIF Camera', 'Cloud Stream', 'Pi Camera'].includes(type)) {
       return NextResponse.json(
         { success: false, error: 'Valid camera type is required' },
         { status: 400 }
       );
     }
 
-    if (!streamUrl || typeof streamUrl !== 'string' || !streamUrl.trim()) {
+    // Pi push cameras don't have a source stream URL — the Pi pushes to us
+    if (ingestMode !== 'push' && (!streamUrl || typeof streamUrl !== 'string' || !streamUrl.trim())) {
       return NextResponse.json(
         { success: false, error: 'Stream URL is required' },
         { status: 400 }
@@ -624,6 +626,80 @@ export async function POST(request: NextRequest) {
 
     // Map camera type to database type
     const cameraType = type === 'IP Camera (RTSP)' ? 'RTSP' : type === 'ONVIF Camera' ? 'ONVIF' : 'CLOUD';
+
+    // ============================================================
+    // PI PUSH FLOW — Pi pushes RTSP to MediaMTX, no source URL needed
+    // ============================================================
+    if (ingestMode === 'push' || type === 'Pi Camera') {
+      let camera;
+      try {
+        camera = await prisma.camera.create({
+          data: {
+            name: name.trim(),
+            type: 'RTSP',
+            streamUrl: '',
+            ingestUrl: '',
+            streamProvider: 'rtsp',
+            worksiteId,
+            status: 'pending', // Goes 'online' once Pi starts pushing
+            username: null,
+            password: null,
+            metadata: {
+              frameRate: frameRate || null,
+              resolution: resolution || null,
+              aiEnabled: true,
+              overlayEnabled: true,
+              recording: true,
+              ingestMode: 'push',
+            },
+          },
+          select: { id: true, name: true, type: true, status: true, worksiteId: true, createdAt: true, updatedAt: true },
+        });
+      } catch (dbError: any) {
+        return NextResponse.json(
+          { success: false, error: 'Failed to create camera in database', details: dbError.message },
+          { status: 500 }
+        );
+      }
+
+      const mediamtxApiUrl = process.env.MEDIAMTX_API_URL || 'http://localhost:9000';
+      await registerPublisherPath(mediamtxApiUrl, camera.id);
+
+      const rtspPushUrl = getMediaMTXRtspPushUrl(camera.id);
+
+      if (currentUser?.id) {
+        await prisma.auditLog.create({
+          data: {
+            userId: currentUser.id,
+            action: 'CAMERA_CREATED',
+            entityType: 'Camera',
+            entityId: camera.id,
+            metadata: { cameraName: camera.name, cameraType: 'Pi Push', worksiteId, worksiteName: worksite.name },
+          },
+        }).catch(() => {});
+      }
+
+      console.log('[API /cameras] ✅ Pi push camera created:', camera.id, camera.name);
+
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            id: camera.id,
+            name: camera.name,
+            type: camera.type,
+            status: camera.status,
+            ingestMode: 'push',
+            rtspPushUrl,
+            hlsUrl: `/api/hls/${camera.id}/index.m3u8`,
+            worksiteId: camera.worksiteId,
+            createdAt: camera.createdAt.toISOString(),
+            updatedAt: camera.updatedAt.toISOString(),
+          },
+        },
+        { status: 201 }
+      );
+    }
 
     // ============================================================
     // RTSP → MediaMTX FLOW

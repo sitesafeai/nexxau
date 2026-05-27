@@ -69,6 +69,55 @@ export function getMediaMTXHLSUrl(streamId: string): string {
   return `/api/hls/${streamId}/index.m3u8`;
 }
 
+export function getMediaMTXRtspPushUrl(streamId: string): string {
+  const base = (process.env.MEDIAMTX_RTSP_PUBLIC_URL || '').replace(/\/$/, '');
+  const user = process.env.MEDIAMTX_API_USERNAME || 'admin';
+  const pass = process.env.MEDIAMTX_API_PASSWORD || 'nexxau';
+  if (!base) return '';
+  try {
+    const url = new URL(base);
+    url.username = user;
+    url.password = pass;
+    url.pathname = `/${streamId}`;
+    return url.toString();
+  } catch {
+    return `${base}/${streamId}`;
+  }
+}
+
+export async function registerPublisherPath(
+  baseUrl: string,
+  streamId: string
+): Promise<boolean> {
+  try {
+    const check = await fetch(`${baseUrl}/v3/config/paths/get/${streamId}`, {
+      headers: authHeaders(),
+    });
+    if (check.ok) {
+      console.log(`[mediamtx] Publisher path already exists: ${streamId}`);
+      return true;
+    }
+
+    const response = await fetch(`${baseUrl}/v3/config/paths/add/${streamId}`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ source: 'publisher' }),
+    });
+
+    if (response.ok) {
+      console.log(`[mediamtx] Publisher path registered: ${streamId}`);
+      return true;
+    } else {
+      const text = await response.text();
+      console.error(`[mediamtx] Failed to register publisher path: ${response.status}`, text);
+      return false;
+    }
+  } catch (error) {
+    console.error('[mediamtx] Error registering publisher path:', error);
+    return false;
+  }
+}
+
 export async function healthCheckMediaMTX(baseUrl: string): Promise<boolean> {
   try {
     const response = await fetch(`${baseUrl}/v3/paths/list`, { headers: authHeaders() });
