@@ -453,37 +453,35 @@ export default function CameraStreamViewer({
       // CRITICAL: Live stream configuration to prevent freezing
       const hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: true,
-        // Buffer management - prevent excessive buffering that causes freezes
-        maxBufferLength: 20, // Reduced from 30 to prevent buffering too far ahead
-        maxMaxBufferLength: 30, // Reduced from 60
-        maxBufferSize: 30 * 1000 * 1000, // 30MB max buffer (reduced from 60MB)
-        // Live sync - CRITICAL for live streams
-        liveSyncDurationCount: 3, // Sync to 3 segments behind live edge
-        liveMaxLatencyDurationCount: 5, // Max 5 segments behind
-        maxLiveSyncPlaybackRate: 1.5, // Prevent seeking beyond live edge
-        liveDurationInfinity: false, // Don't buffer indefinitely
-        liveBackBufferLength: 0, // Don't keep old segments in buffer (prevents freeze)
-        // Manifest refresh - CRITICAL for live streams
-        manifestLoadingTimeOut: 20000, // Increased from 10s to 20s to prevent premature failures
+        lowLatencyMode: false, // Disable LLHLS mode — stream is mpegts, not fmp4 LLHLS
+        // Buffer management — keep tight for low latency
+        maxBufferLength: 4,        // Only buffer 4 seconds ahead (was 20)
+        maxMaxBufferLength: 6,     // Hard cap at 6 seconds (was 30)
+        maxBufferSize: 10 * 1000 * 1000, // 10MB max
+        // Live sync — CRITICAL for staying close to live edge
+        liveSyncDurationCount: 2,          // Stay 2 segments behind live (was 3)
+        liveMaxLatencyDurationCount: 4,    // Catch-up starts at 4 segments behind (was 5)
+        maxLiveSyncPlaybackRate: 2.0,      // Speed up to 2x to catch live edge quickly (was 1.5)
+        liveDurationInfinity: false,
+        liveBackBufferLength: 0,
+        // Manifest refresh
+        manifestLoadingTimeOut: 20000,
         manifestLoadingMaxRetry: 3,
         manifestLoadingRetryDelay: 1000,
         // Fragment loading
-        fragLoadingTimeOut: 15000, // Reduced from 20000 for faster failure detection
-        fragLoadingMaxRetry: 2, // Reduced from 3 to fail faster
-        fragLoadingRetryDelay: 500, // Faster retry
+        fragLoadingTimeOut: 15000,
+        fragLoadingMaxRetry: 2,
+        fragLoadingRetryDelay: 500,
         // Level selection
-        startLevel: -1, // Auto-select best quality
-        capLevelToPlayerSize: true, // Cap quality to player size
-        // Back buffer - minimal to prevent freeze
-        backBufferLength: 0, // Don't keep back buffer (prevents freeze on live streams)
-        // Playlist refresh - ensure playlist updates regularly
-        maxBufferHole: 0.5, // Max gap in buffer before seeking
-        highBufferWatchdogPeriod: 2, // Check buffer every 2 seconds
-        nudgeOffset: 0.1, // Small nudge to keep playback smooth
-        nudgeMaxRetry: 3, // Retry nudges
-        maxFragLoadingTimeOut: 20000, // Max time to load a fragment
-        maxMaxBufferLength: 30, // Hard limit
+        startLevel: -1,
+        capLevelToPlayerSize: true,
+        // Back buffer — zero to prevent latency accumulation
+        backBufferLength: 0,
+        maxBufferHole: 0.5,
+        highBufferWatchdogPeriod: 1, // Check every 1 second (was 2)
+        nudgeOffset: 0.1,
+        nudgeMaxRetry: 3,
+        maxFragLoadingTimeOut: 20000,
       });
 
       hlsRef.current = hls;

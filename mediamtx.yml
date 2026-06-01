@@ -18,8 +18,8 @@ rtspAddress: :8554
 hlsAddress: :8888
 hlsAlwaysRemux: yes
 hlsVariant: mpegts
-hlsSegmentCount: 6
-hlsSegmentDuration: 2s
+hlsSegmentCount: 3
+hlsSegmentDuration: 1s
 hlsSegmentMaxSize: 50M
 hlsAllowOrigin: "*"
 
