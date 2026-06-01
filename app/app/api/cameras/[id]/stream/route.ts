@@ -23,7 +23,7 @@ export async function GET(
 
     const camera = await prisma.camera.findUnique({
       where: { id: cameraId },
-      select: { id: true, name: true, status: true, worksiteId: true, streamUrl: true },
+      select: { id: true, name: true, status: true, worksiteId: true, streamUrl: true, metadata: true },
     });
 
     if (!camera) {
@@ -51,6 +51,21 @@ export async function GET(
       } else {
         return NextResponse.json({ error: 'Access denied to camera' }, { status: 403 });
       }
+    }
+
+    // Pi push cameras have no RTSP source URL — they push to MediaMTX themselves.
+    // The publisher path is registered at camera creation; just return the HLS URL.
+    const meta = camera.metadata as Record<string, unknown> | null;
+    const isPushCamera = meta?.ingestMode === 'push';
+
+    if (isPushCamera) {
+      return NextResponse.json({
+        cameraId: camera.id,
+        streamType: 'hls',
+        hlsUrl: getMediaMTXHLSUrl(camera.id),
+        pushMode: true,
+        status: camera.status,
+      });
     }
 
     const rtspUrl = camera.streamUrl?.trim();
