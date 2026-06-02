@@ -213,6 +213,13 @@ def run_camera(camera, model, stop_event):
         if frame_count % FRAME_SKIP != 0:
             continue
 
+        # Skip corrupted frames — H.264 decode errors can produce malformed arrays
+        # that cause "Cannot convert numpy.ndarray to numpy.ndarray" in YOLO
+        if frame is None or frame.size == 0 or len(frame.shape) != 3:
+            continue
+        if not frame.flags['C_CONTIGUOUS']:
+            frame = frame.copy()
+
         try:
             results = model(frame, verbose=False, conf=CONFIDENCE)
             violations = []
