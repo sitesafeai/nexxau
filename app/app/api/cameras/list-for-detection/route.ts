@@ -21,10 +21,15 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Fetch all active cameras (online or active status)
+    // Fetch all active cameras (online/active) plus push cameras (they may be 'pending' status
+    // but actively streaming — detection service reads from MediaMTX internal RTSP directly)
     const cameras = await prisma.camera.findMany({
       where: {
-        status: { in: ['online', 'active'] },
+        OR: [
+          { status: { in: ['online', 'active'] } },
+          // Push cameras pushed from Pi — include regardless of status so YOLO can read them
+          { metadata: { path: ['ingestMode'], equals: 'push' } },
+        ],
       },
       select: {
         id: true,
@@ -41,28 +46,46 @@ export async function GET(request: NextRequest) {
     const metadata = (cam: { metadata: unknown }) =>
       (typeof cam.metadata === 'object' && cam.metadata !== null ? cam.metadata : {}) as Record<string, unknown>;
 
+    // MediaMTX internal RTSP base — detection service reads live streams from here.
+    // Uses same credentials as the rest of the Next.js ↔ MediaMTX integration.
+    const mediamtxUser = process.env.MEDIAMTX_API_USERNAME || 'admin';
+    const mediamtxPass = process.env.MEDIAMTX_API_PASSWORD || 'nexxau';
+    const mediamtxRtspHost = process.env.MEDIAMTX_RTSP_INTERNAL_HOST || 'mediamtx:8554';
+
+    const resolveIngestUrl = (cam: typeof cameras[0]): string | null => {
+      const meta = metadata(cam);
+      const isPush = meta.ingestMode === 'push';
+      if (isPush) {
+        // Pi is actively pushing to MediaMTX; read via internal RTSP
+        return `rtsp://${mediamtxUser}:${mediamtxPass}@${mediamtxRtspHost}/${cam.id}`;
+      }
+      return (
+        cam.ingestUrl ||
+        cam.hlsUrl ||
+        cam.streamUrl ||
+        ((meta.ingestUrl as string | undefined) ?? null)
+      );
+    };
+
     return NextResponse.json({
-      cameras: cameras.map((cam) => ({
-        id: cam.id,
-        name: cam.name,
-        ingestUrl:
-          cam.ingestUrl ||
-          cam.hlsUrl ||
-          cam.streamUrl ||
-          ((metadata(cam).ingestUrl as string | undefined) ?? null),
-        // Backward compatibility for current worker field name.
-        rtspUrl:
-          cam.ingestUrl ||
-          cam.hlsUrl ||
-          cam.streamUrl ||
-          ((metadata(cam).ingestUrl as string | undefined) ?? null),
-        streamProvider:
-          cam.streamProvider ||
-          ((metadata(cam).streamProvider as string | undefined) ??
-            (cam.hlsUrl ? 'hls' : 'rtsp')),
-        status: cam.status,
-        personAlertsEnabled: Boolean(metadata(cam).personAlertsEnabled),
-      })),
+      cameras: cameras.map((cam) => {
+        const meta = metadata(cam);
+        const ingestUrl = resolveIngestUrl(cam);
+        const isPush = meta.ingestMode === 'push';
+        return {
+          id: cam.id,
+          name: cam.name,
+          ingestUrl,
+          // Backward compatibility for current worker field name.
+          rtspUrl: ingestUrl,
+          streamProvider: isPush
+            ? 'rtsp'
+            : cam.streamProvider ||
+              ((meta.streamProvider as string | undefined) ?? (cam.hlsUrl ? 'hls' : 'rtsp')),
+          status: cam.status,
+          personAlertsEnabled: Boolean(meta.personAlertsEnabled),
+        };
+      }),
     });
     
   } catch (error: any) {
