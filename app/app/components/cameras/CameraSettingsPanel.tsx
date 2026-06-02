@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Trash2, RefreshCw, Activity } from 'lucide-react';
+import { X, Trash2, RefreshCw, Activity, Copy, Check } from 'lucide-react';
 
 const TABS = ['Details', 'Health'] as const;
 
@@ -69,6 +69,7 @@ export default function CameraSettingsPanel({
   const [zone, setZone] = useState(camera.zone ?? camera.location ?? '');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [healthData, setHealthData] = useState<HealthData | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -314,6 +315,25 @@ export default function CameraSettingsPanel({
               <div className="border-t border-slate-200 dark:border-slate-700 pt-4 space-y-3">
                 <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Camera Details</h3>
                 <div className="space-y-2.5 text-sm">
+                  <div>
+                    <span className="block text-slate-500 dark:text-slate-400 text-xs mb-0.5">Camera ID</span>
+                    <div className="flex items-center gap-1.5">
+                      <p className="flex-1 text-slate-900 dark:text-white break-all font-mono text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1.5 rounded">
+                        {cam.id}
+                      </p>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(cam.id);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }}
+                        className="shrink-0 p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
+                        title="Copy ID"
+                      >
+                        {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                      </button>
+                    </div>
+                  </div>
                   {cam.streamUrl && (
                     <div>
                       <span className="block text-slate-500 dark:text-slate-400 text-xs mb-0.5">RTSP URL</span>
