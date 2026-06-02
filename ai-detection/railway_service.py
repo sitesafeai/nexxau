@@ -10,7 +10,6 @@ import logging
 import threading
 import requests
 import os
-import numpy as np
 from ultralytics import YOLO
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
@@ -166,66 +165,32 @@ def run_camera(camera, model, stop_event):
     camera_id = camera['id']
     ingest_url = resolve_ingest_url(camera)
     name      = camera.get('name', camera_id)
-    protocol  = classify_stream_protocol(ingest_url)
 
     if not ingest_url:
         logger.warning(f'[{name}] No ingest URL, skipping')
         return
-    if protocol == 'unknown':
-        logger.warning(f'[{name}] Unsupported ingest URL protocol: {ingest_url}')
-        return
 
-    logger.info(f'[{name}] Opening {protocol} stream: {ingest_url}')
-    cap = open_capture(ingest_url, protocol)
-
-    if cap is None or not cap.isOpened():
-        logger.error(f'[{name}] Could not open stream ({protocol})')
-        return
-
-    frame_count = 0
-    consecutive_failures = 0
-    open_started_at = time.time()
+    logger.info(f'[{name}] Starting ultralytics streaming inference: {ingest_url}')
 
     while not stop_event.is_set():
-        ret, frame = cap.read()
-        if not ret:
-            consecutive_failures += 1
-            logger.warning(f'[{name}] Frame read failed ({consecutive_failures})')
-            if protocol == 'hls' and (time.time() - open_started_at) < HLS_OPEN_TIMEOUT_SEC:
-                time.sleep(1)
-                continue
-            if consecutive_failures >= MAX_READ_FAILURES:
-                logger.warning(f'[{name}] Reopening stream after {consecutive_failures} failures')
-                cap.release()
-                time.sleep(RECONNECT_DELAY_SEC)
-                cap = open_capture(ingest_url, protocol)
-                if cap is None or not cap.isOpened():
-                    logger.error(f'[{name}] Reconnect failed, stopping thread')
-                    break
-                consecutive_failures = 0
-                open_started_at = time.time()
-                continue
-            time.sleep(RECONNECT_DELAY_SEC)
-            continue
-
-        consecutive_failures = 0
-        frame_count += 1
-
-        if frame_count % FRAME_SKIP != 0:
-            continue
-
-        # Skip corrupted/empty frames
-        if frame is None or frame.size == 0 or len(frame.shape) != 3:
-            continue
-
         try:
-            results = model(frame, verbose=False, conf=CONFIDENCE)
-            violations = []
+            results = model(
+                source=ingest_url,
+                stream=True,
+                conf=CONFIDENCE,
+                verbose=False,
+                imgsz=640,
+            )
 
             for result in results:
+                if stop_event.is_set():
+                    break
+
                 boxes = result.boxes
                 if boxes is None:
                     continue
+
+                violations = []
                 for box in boxes:
                     class_id   = int(box.cls[0].cpu().numpy())
                     confidence = float(box.conf[0].cpu().numpy())
@@ -244,13 +209,16 @@ def run_camera(camera, model, stop_event):
                     })
                     set_cooldown(camera_id, vtype)
 
-            if violations:
-                post_violations(camera_id, violations)
+                if violations:
+                    post_violations(camera_id, violations)
 
         except Exception as e:
-            logger.error(f'[{name}] YOLO error: {e}')
+            logger.error(f'[{name}] Streaming error: {e}')
+            if stop_event.is_set():
+                break
+            logger.info(f'[{name}] Reconnecting in {RECONNECT_DELAY_SEC}s...')
+            time.sleep(RECONNECT_DELAY_SEC)
 
-    cap.release()
     logger.info(f'[{name}] Stream closed')
 
 def main():
