@@ -11,6 +11,7 @@ import threading
 import requests
 import os
 import numpy as np
+from PIL import Image
 from ultralytics import YOLO
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
@@ -214,18 +215,16 @@ def run_camera(camera, model, stop_event):
         if frame_count % FRAME_SKIP != 0:
             continue
 
-        # Skip corrupted frames — H.264 decode errors produce malformed arrays
-        # that cause "Cannot convert numpy.ndarray to numpy.ndarray" in YOLO.
-        # Force uint8 contiguous array; skip if that fails.
+        # Skip corrupted/empty frames
         if frame is None or frame.size == 0 or len(frame.shape) != 3:
-            continue
-        try:
-            frame = np.ascontiguousarray(frame, dtype=np.uint8)
-        except Exception:
             continue
 
         try:
-            results = model(frame, verbose=False, conf=CONFIDENCE)
+            # Convert BGR (OpenCV) → RGB PIL image — ultralytics handles this
+            # cleanly and avoids the "Cannot convert numpy.ndarray" crash that
+            # occurs when passing raw RTSP frames from OpenCV directly.
+            pil_frame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            results = model(pil_frame, verbose=False, conf=CONFIDENCE)
             violations = []
 
             for result in results:
