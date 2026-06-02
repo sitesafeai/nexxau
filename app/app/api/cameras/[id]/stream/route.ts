@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { prisma } from '@/app/lib/prisma';
 import { normalizeRole } from '@/app/lib/roles';
-import { addStreamToMediaMTX, getMediaMTXHLSUrl } from '@/app/lib/services/mediamtxClient';
+import { addStreamToMediaMTX, getMediaMTXHLSUrl, registerPublisherPath } from '@/app/lib/services/mediamtxClient';
 
 export async function GET(
   request: NextRequest,
@@ -54,11 +54,14 @@ export async function GET(
     }
 
     // Pi push cameras have no RTSP source URL — they push to MediaMTX themselves.
-    // The publisher path is registered at camera creation; just return the HLS URL.
+    // Re-register the publisher path every time so MediaMTX restarts don't break the stream.
     const meta = camera.metadata as Record<string, unknown> | null;
     const isPushCamera = meta?.ingestMode === 'push';
 
     if (isPushCamera) {
+      const mediamtxApiUrl = process.env.MEDIAMTX_API_URL || 'http://localhost:9000';
+      // Fire-and-forget — don't block the response on this
+      registerPublisherPath(mediamtxApiUrl, camera.id).catch(() => {});
       return NextResponse.json({
         cameraId: camera.id,
         streamType: 'hls',
