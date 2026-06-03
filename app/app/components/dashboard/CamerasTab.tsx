@@ -61,25 +61,27 @@ export default function CamerasTab({ selectedSite, currentUser }: CamerasTabProp
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
         </div>
       ) : (
-        <div className="bg-slate-800/50 backdrop-blur rounded-xl border border-slate-700/50 p-6">
-          <CameraGrid
-            worksiteId={selectedSite.id}
-            initialCameras={cameras.map((c: any) => ({
-              id: c.id,
-              name: c.name,
-              zone: c.zone ?? c.location,
-              location: c.location,
-              status: c.status,
-              streamUrl: c.streamUrl,
-              rules: c.rules ?? [],
-            }))}
-            canAddCamera={canAdd}
+        <>
+          <div className="bg-slate-800/50 backdrop-blur rounded-xl border border-slate-700/50 p-6">
+            <CameraGrid
+              worksiteId={selectedSite.id}
+              initialCameras={cameras.map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                zone: c.zone ?? c.location,
+                location: c.location,
+                status: c.status,
+                streamUrl: c.streamUrl,
+                rules: c.rules ?? [],
+              }))}
+              canAddCamera={canAdd}
+            />
+          </div>
+          <DetectionPanel
+            siteId={selectedSite.id}
+            cameras={cameras.map((c: any) => ({ name: c.name, embedUrl: '' }))}
           />
-        </div>
-        <DetectionPanel
-          siteId={selectedSite.id}
-          cameras={cameras.map((c: any) => ({ name: c.name, embedUrl: '' }))}
-        />
+        </>
       )}
     </div>
   );
