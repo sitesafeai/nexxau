@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Maximize2, Settings, Eye, EyeOff } from 'lucide-react';
 import { useGo2RTCStream } from '../../lib/hooks/useGo2RTCStream';
 import CameraFullscreenModal from './CameraFullscreenModal';
@@ -39,54 +39,56 @@ export default function CameraTile({ camera, onDeleted, onUpdated }: CameraTileP
     }
   }, [stream]);
 
-  useEffect(() => {
-    if (!hlsUrl || !videoRef.current) return;
-    if (videoRef.current.srcObject) videoRef.current.srcObject = null;
+  const startHls = useCallback((url: string) => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.srcObject) video.srcObject = null;
 
     import('hls.js').then(({ default: Hls }) => {
+      if (!videoRef.current) return;
       if (Hls.isSupported()) {
         if (hlsRef.current) hlsRef.current.destroy();
         const hls = new Hls({
           liveSyncDurationCount: 1,
-          liveMaxLatencyDurationCount: 3,
-          maxBufferLength: 4,
+          liveMaxLatencyDurationCount: 2,
+          maxBufferLength: 3,
+          maxMaxBufferLength: 5,
+          liveDurationInfinity: true,
         });
         hlsRef.current = hls;
-        hls.loadSource(hlsUrl);
-        hls.attachMedia(videoRef.current!);
+        hls.loadSource(url);
+        hls.attachMedia(videoRef.current);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           videoRef.current?.play().catch(() => {});
         });
-      } else if (videoRef.current!.canPlayType('application/vnd.apple.mpegurl')) {
-        videoRef.current!.src = hlsUrl;
-        videoRef.current!.play().catch(() => {});
+      } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari native HLS — seek to end on load
+        videoRef.current.src = url;
+        videoRef.current.addEventListener('loadedmetadata', () => {
+          const v = videoRef.current;
+          if (v && v.seekable.length > 0) v.currentTime = v.seekable.end(v.seekable.length - 1);
+          v?.play().catch(() => {});
+        }, { once: true });
       }
     });
+  }, []);
 
-    return () => { hlsRef.current?.destroy(); hlsRef.current = null; };
-  }, [hlsUrl]);
-
-  // Snap back to live edge when the user returns to the tab
   useEffect(() => {
+    if (!hlsUrl) return;
+    startHls(hlsUrl);
+    return () => { hlsRef.current?.destroy(); hlsRef.current = null; };
+  }, [hlsUrl, startHls]);
+
+  // On tab return: nuke the buffer and restart fresh from live
+  useEffect(() => {
+    if (!hlsUrl) return;
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
-      const video = videoRef.current;
-      if (!video) return;
-      if (hlsRef.current) {
-        // hls.js: seek to live edge
-        const hls = hlsRef.current;
-        if (hls.liveSyncPosition != null) {
-          video.currentTime = hls.liveSyncPosition;
-        }
-      } else if (video.seekable.length > 0) {
-        // Native HLS (Safari): seek to end of seekable range
-        video.currentTime = video.seekable.end(video.seekable.length - 1);
-      }
-      video.play().catch(() => {});
+      startHls(hlsUrl);
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [hlsUrl]);
+  }, [hlsUrl, startHls]);
 
   const status =
     streamState?.status === 'connected' || streamState?.status === 'live'
