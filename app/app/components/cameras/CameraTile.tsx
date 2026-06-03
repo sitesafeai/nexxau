@@ -49,10 +49,10 @@ export default function CameraTile({ camera, onDeleted, onUpdated }: CameraTileP
       if (Hls.isSupported()) {
         if (hlsRef.current) hlsRef.current.destroy();
         const hls = new Hls({
-          liveSyncDurationCount: 1,
-          liveMaxLatencyDurationCount: 2,
-          maxBufferLength: 3,
-          maxMaxBufferLength: 5,
+          liveSyncDurationCount: 2,
+          liveMaxLatencyDurationCount: 5,
+          maxBufferLength: 8,
+          maxMaxBufferLength: 12,
           liveDurationInfinity: true,
         });
         hlsRef.current = hls;
