@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import CameraGrid from '../cameras/CameraGrid';
+import DetectionPanel from './DetectionPanel';
 import { canCreateCamera } from '../../lib/permissions';
 
 interface CamerasTabProps {
@@ -75,6 +76,10 @@ export default function CamerasTab({ selectedSite, currentUser }: CamerasTabProp
             canAddCamera={canAdd}
           />
         </div>
+        <DetectionPanel
+          siteId={selectedSite.id}
+          cameras={cameras.map((c: any) => ({ name: c.name, embedUrl: '' }))}
+        />
       )}
     </div>
   );
