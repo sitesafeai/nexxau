@@ -46,7 +46,11 @@ export default function CameraTile({ camera, onDeleted, onUpdated }: CameraTileP
     import('hls.js').then(({ default: Hls }) => {
       if (Hls.isSupported()) {
         if (hlsRef.current) hlsRef.current.destroy();
-        const hls = new Hls();
+        const hls = new Hls({
+          liveSyncDurationCount: 1,
+          liveMaxLatencyDurationCount: 3,
+          maxBufferLength: 4,
+        });
         hlsRef.current = hls;
         hls.loadSource(hlsUrl);
         hls.attachMedia(videoRef.current!);
@@ -60,6 +64,28 @@ export default function CameraTile({ camera, onDeleted, onUpdated }: CameraTileP
     });
 
     return () => { hlsRef.current?.destroy(); hlsRef.current = null; };
+  }, [hlsUrl]);
+
+  // Snap back to live edge when the user returns to the tab
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const video = videoRef.current;
+      if (!video) return;
+      if (hlsRef.current) {
+        // hls.js: seek to live edge
+        const hls = hlsRef.current;
+        if (hls.liveSyncPosition != null) {
+          video.currentTime = hls.liveSyncPosition;
+        }
+      } else if (video.seekable.length > 0) {
+        // Native HLS (Safari): seek to end of seekable range
+        video.currentTime = video.seekable.end(video.seekable.length - 1);
+      }
+      video.play().catch(() => {});
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [hlsUrl]);
 
   const status =
