@@ -66,6 +66,23 @@ export async function addStreamToMediaMTX(
 }
 
 export function getMediaMTXHLSUrl(streamId: string): string {
+  // If a public HLS origin is set, point the browser directly at MediaMTX —
+  // bypassing the Next.js proxy so HLS segment fetches don't compete with
+  // API requests on the same container (which caused video freezes on detection).
+  const publicOrigin = process.env.NEXT_PUBLIC_MEDIAMTX_HLS_ORIGIN;
+  if (publicOrigin) {
+    const user = process.env.NEXT_PUBLIC_MEDIAMTX_HLS_USER || '';
+    const pass = process.env.NEXT_PUBLIC_MEDIAMTX_HLS_PASS || '';
+    const base = publicOrigin.replace(/\/$/, '');
+    if (user && pass) {
+      // embed credentials in URL for direct browser fetch
+      const proto = base.startsWith('https') ? 'https' : 'http';
+      const host = base.replace(/^https?:\/\//, '');
+      return `${proto}://${user}:${pass}@${host}/${streamId}/index.m3u8`;
+    }
+    return `${base}/${streamId}/index.m3u8`;
+  }
+  // Fallback: proxy through Next.js (adds latency but always works)
   return `/api/hls/${streamId}/index.m3u8`;
 }
 
