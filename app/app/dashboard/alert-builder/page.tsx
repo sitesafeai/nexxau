@@ -29,10 +29,10 @@ function AlertBuilderPageContent() {
     name: '',
     description: '',
     detectionType: 'object_present',
-    objectClass: 'person_without_hardhat',
-    minConfidence: 0.7,
+    objectClass: 'person_detected',
+    minConfidence: 0.5,
     severity: 'high',
-    actions: ['create_alert', 'log_event'],
+    actions: ['create_alert', 'log_event', 'send_email'],
     cameraId: '',
     zoneCoordinates: null as any,
     zoneName: '',
@@ -299,23 +299,24 @@ function AlertBuilderPageContent() {
         body: JSON.stringify(payload)
       });
 
-      const result = await response.json();
+      let result: any = {};
+      try { result = await response.json(); } catch { result = { success: false, error: `HTTP ${response.status}` }; }
 
-      if (result.success) {
+      if (response.ok && result.success) {
         const action = isEditMode ? 'updated' : 'created';
         setSuccessMessage(`✅ Alert "${formData.name}" ${action} successfully!`);
-        setTimeout(() => {
-          router.push(returnUrl);
-        }, 1500);
+        setTimeout(() => { router.push(returnUrl); }, 1500);
       } else {
-        setErrorMessage(result.error || `Failed to ${isEditMode ? 'update' : 'create'} alert`);
-        setTimeout(() => setErrorMessage(null), 5000);
+        const msg = result.error || result.details || `HTTP ${response.status} — failed to save alert`;
+        console.error('[AlertBuilder] API error:', msg, result);
+        setErrorMessage(msg);
+        setTimeout(() => setErrorMessage(null), 8000);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error ${isEditMode ? 'updating' : 'creating'} alert:`, error);
-      setErrorMessage(`Failed to ${isEditMode ? 'update' : 'create'} alert. Please try again.`);
-      setTimeout(() => setErrorMessage(null), 5000);
+      setErrorMessage(error?.message || `Network error — check your connection and try again.`);
+      setTimeout(() => setErrorMessage(null), 8000);
     }
   };
 

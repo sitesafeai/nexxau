@@ -119,6 +119,14 @@ export const DETECTION_CLASSES: DetectionClass[] = [
   // People & Behavior
   // ========================================
   {
+    id: 'person_detected',
+    name: 'Person Detected (Any)',
+    category: 'person',
+    description: 'Any person visible in frame — use this with the default COCO YOLO model',
+    severity: 'medium',
+    color: '#8b5cf6' // purple
+  },
+  {
     id: 'person_standing',
     name: 'Person Standing',
     category: 'person',
