@@ -14,6 +14,7 @@ import {
   sendWhatsAppAlert,
   type AlertPayload,
 } from '@/app/lib/twilio';
+import { emitAlertCreated } from '@/app/lib/alert-events';
 
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN ?? '';
 
@@ -95,6 +96,41 @@ export async function POST(req: NextRequest) {
         confidence: conf,
         detectedAt: now,
       },
+    });
+
+    // Create an Alert record and emit event → triggers Resend email + in-app notifications
+    const alert = await prisma.alert.create({
+      data: {
+        title: rule.name,
+        description: `${rule.name} detected on ${camera.name} (${Math.round(conf * 100)}% confidence)`,
+        severity: 'HIGH',
+        status: 'ACTIVE',
+        source: 'yolo_detection',
+        location: camera.zone ?? camera.name,
+        worksiteId: camera.worksiteId,
+        cameraId: camera_id,
+        ruleId: rule.id,
+        violationType: rule.andCondition ?? rule.ifCondition,
+        metadata: {
+          cameraId: camera_id,
+          cameraName: camera.name,
+          confidence: conf,
+          detections: violations,
+        },
+      },
+    });
+
+    emitAlertCreated({
+      id: alert.id,
+      title: alert.title,
+      description: alert.description,
+      severity: alert.severity,
+      source: alert.source,
+      location: alert.location ?? null,
+      worksiteId: alert.worksiteId ?? camera.worksiteId,
+      status: alert.status,
+      metadata: (alert.metadata as Record<string, any>) ?? {},
+      createdAt: alert.createdAt.toISOString(),
     });
 
     if (rule.thenAction === 'log_only') continue;
