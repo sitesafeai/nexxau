@@ -3,20 +3,32 @@
  * Rule-based detection ingest from YOLO detection service.
  * Expects: { camera_id, violations: [{type, confidence, bbox}], frame_data }
  * Auth: Bearer INTERNAL_SERVICE_TOKEN
+ *
+ * Flow:
+ *   1. Log every detection to DetectionLog (always)
+ *   2. Load active CustomRules for this camera/worksite
+ *   3. For each rule whose objectClass matches a detected violation:
+ *      - Create SafetyViolation (always logged)
+ *      - Create Alert record
+ *      - Emit alertCreated event (in-app notifications)
+ *      - Send Resend email to rule.emailRecipients if emailEnabled
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { isOnCooldown, setCooldown } from '@/app/lib/cooldown';
-import {
-  sendBothAlerts,
-  sendSMSAlert,
-  sendWhatsAppAlert,
-  type AlertPayload,
-} from '@/app/lib/twilio';
 import { emitAlertCreated } from '@/app/lib/alert-events';
+import { sendAlertNotificationEmail } from '@/app/lib/email-service';
 
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN ?? '';
+
+// Map custom-rule severity strings → AlertSeverity enum values
+const SEVERITY_MAP: Record<string, 'HIGH' | 'MEDIUM' | 'LOW'> = {
+  critical: 'HIGH',
+  high:     'HIGH',
+  medium:   'MEDIUM',
+  low:      'LOW',
+};
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get('authorization');
@@ -33,12 +45,7 @@ export async function POST(req: NextRequest) {
 
   const camera = await prisma.camera.findUnique({
     where: { id: camera_id },
-    include: {
-      worksite: {
-        include: { alertContacts: { where: { active: true } } },
-      },
-      rules: { where: { enabled: true } },
-    },
+    include: { worksite: true },
   });
 
   if (!camera) {
@@ -46,110 +53,125 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date();
-  const detectedTypes = new Set(
-    violations.map((v: { type?: string }) => v.type as string)
-  );
 
-  // Log every detection to DetectionLog
+  // 1. Log every detection to DetectionLog
   for (const v of violations) {
     await prisma.detectionLog.create({
       data: {
-        cameraId: camera_id,
-        worksiteId: camera.worksiteId,
-        type: v.type ?? 'unknown',
-        confidence: Number(v.confidence) || 0,
-        bbox: v.bbox ?? [],
-        frameData: frame_data ?? null,
-        timestamp: now,
+        cameraId:    camera_id,
+        worksiteId:  camera.worksiteId,
+        type:        v.type ?? 'unknown',
+        confidence:  Number(v.confidence) || 0,
+        bbox:        v.bbox ?? [],
+        frameData:   frame_data ?? null,
+        timestamp:   now,
       },
     });
   }
 
-  // Evaluate each enabled rule
-  for (const rule of camera.rules) {
-    const ifMet = detectedTypes.has(rule.ifCondition);
-    const andMet = rule.andCondition
-      ? detectedTypes.has(rule.andCondition)
-      : true;
+  // 2. Load active CustomRules scoped to this camera or its worksite
+  const customRules = await prisma.customRule.findMany({
+    where: {
+      isActive: true,
+      OR: [
+        { cameraId: camera_id },
+        { worksiteId: camera.worksiteId, cameraId: null },
+      ],
+    },
+  });
 
-    if (!ifMet || !andMet) continue;
+  // 3. Evaluate each rule against the incoming violations
+  for (const rule of customRules) {
+    const criteria      = rule.detectionCriteria as Record<string, any>;
+    const targetClass   = criteria?.objectClass as string | undefined;
+    const minConf       = rule.confidenceThreshold ?? 0.5;
 
-    const cooldownKey = `${camera_id}:${rule.id}`;
+    if (!targetClass) continue;
+
+    // Find a matching detection with sufficient confidence
+    const match = violations.find(
+      (v: { type?: string; confidence?: number }) =>
+        v.type === targetClass && (v.confidence ?? 0) >= minConf
+    );
+    if (!match) continue;
+
+    // Per-rule cooldown so we don't flood notifications
+    const cooldownKey = `${camera_id}:rule:${rule.id}`;
     if (isOnCooldown(camera_id, cooldownKey)) continue;
     setCooldown(camera_id, cooldownKey);
 
-    const relevantViolation = violations.find(
-      (v: { type?: string }) =>
-        v.type === rule.ifCondition || v.type === rule.andCondition
-    );
-    const conf = relevantViolation?.confidence ?? 1;
+    const conf     = match.confidence as number;
+    const severity = SEVERITY_MAP[(rule.severity ?? 'medium').toLowerCase()] ?? 'MEDIUM';
 
+    // Always log a SafetyViolation record
     await prisma.safetyViolation.create({
       data: {
-        cameraId: camera_id,
-        worksiteId: camera.worksiteId,
-        ruleId: rule.id,
-        violationType: rule.andCondition ?? rule.ifCondition ?? rule.name,
-        severity: 'high',
-        location: camera.zone ?? camera.name,
-        description: rule.name,
-        confidence: conf,
-        detectedAt: now,
+        cameraId:      camera_id,
+        worksiteId:    camera.worksiteId,
+        violationType: targetClass,
+        severity:      rule.severity?.toLowerCase() ?? 'medium',
+        location:      camera.zone ?? camera.name,
+        description:   rule.name,
+        confidence:    conf,
+        detectedAt:    now,
       },
     });
 
-    // Create an Alert record and emit event → triggers Resend email + in-app notifications
+    // Always create an Alert record
     const alert = await prisma.alert.create({
       data: {
-        title: rule.name,
-        description: `${rule.name} detected on ${camera.name} (${Math.round(conf * 100)}% confidence)`,
-        severity: 'HIGH',
-        status: 'ACTIVE',
-        source: 'yolo_detection',
-        location: camera.zone ?? camera.name,
-        worksiteId: camera.worksiteId,
-        cameraId: camera_id,
-        ruleId: rule.id,
-        violationType: rule.andCondition ?? rule.ifCondition,
+        title:        rule.name,
+        description:  `${rule.name} detected on ${camera.name} (${Math.round(conf * 100)}% confidence)`,
+        severity,
+        status:       'ACTIVE',
+        source:       'yolo_detection',
+        location:     camera.zone ?? camera.name,
+        worksiteId:   camera.worksiteId,
+        cameraId:     camera_id,
+        violationType: targetClass,
         metadata: {
-          cameraId: camera_id,
+          cameraId:   camera_id,
           cameraName: camera.name,
           confidence: conf,
-          detections: violations,
+          ruleId:     rule.id,
+          ruleName:   rule.name,
         },
       },
     });
 
+    // Emit for in-app notifications
     emitAlertCreated({
-      id: alert.id,
-      title: alert.title,
+      id:          alert.id,
+      title:       alert.title,
       description: alert.description,
-      severity: alert.severity,
-      source: alert.source,
-      location: alert.location ?? null,
-      worksiteId: alert.worksiteId ?? camera.worksiteId,
-      status: alert.status,
-      metadata: (alert.metadata as Record<string, any>) ?? {},
-      createdAt: alert.createdAt.toISOString(),
+      severity:    alert.severity,
+      source:      alert.source,
+      location:    alert.location ?? null,
+      worksiteId:  alert.worksiteId ?? camera.worksiteId,
+      status:      alert.status,
+      metadata:    (alert.metadata as Record<string, any>) ?? {},
+      createdAt:   alert.createdAt.toISOString(),
     });
 
-    if (rule.thenAction === 'log_only') continue;
+    // Send email directly to rule's recipients (bypasses worksite-user lookup,
+    // so it works with Resend's single-verified-address restriction)
+    if (rule.emailEnabled) {
+      const recipients = Array.isArray(rule.emailRecipients)
+        ? (rule.emailRecipients as string[]).filter(Boolean)
+        : [];
 
-    const payload: AlertPayload = {
-      cameraName: camera.name,
-      worksiteName: camera.worksite.name,
-      violationType: rule.name,
-      confidence: conf,
-      timestamp: now.toISOString(),
-    };
-
-    for (const contact of camera.worksite.alertContacts) {
-      if (rule.thenAction === 'sms') {
-        sendSMSAlert(contact.phone, payload).catch(console.error);
-      } else if (rule.thenAction === 'whatsapp') {
-        sendWhatsAppAlert(contact.phone, payload).catch(console.error);
-      } else {
-        sendBothAlerts(contact.phone, payload).catch(console.error);
+      if (recipients.length > 0) {
+        const alertUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/dashboard/alerts?worksite=${camera.worksiteId}`;
+        sendAlertNotificationEmail(
+          recipients,
+          alert.title,
+          alert.location ?? camera.name,
+          alert.severity,
+          now,
+          alertUrl
+        ).catch((err) =>
+          console.error(`[ingest] email error for rule ${rule.id}:`, err)
+        );
       }
     }
   }
