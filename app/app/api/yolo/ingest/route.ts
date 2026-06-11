@@ -153,26 +153,31 @@ export async function POST(req: NextRequest) {
       createdAt:   alert.createdAt.toISOString(),
     });
 
-    // Send email directly to rule's recipients (bypasses worksite-user lookup,
-    // so it works with Resend's single-verified-address restriction)
-    if (rule.emailEnabled) {
-      const recipients = Array.isArray(rule.emailRecipients)
-        ? (rule.emailRecipients as string[]).filter(Boolean)
-        : [];
+    // Send email to rule's recipients + ALERT_EMAIL fallback.
+    // ALERT_EMAIL env var is the catch-all for when no recipients are set on the rule
+    // (also works around Resend's single-verified-address restriction in test mode).
+    const ruleRecipients = Array.isArray(rule.emailRecipients)
+      ? (rule.emailRecipients as string[]).filter(Boolean)
+      : [];
+    const fallbackEmail = process.env.ALERT_EMAIL?.trim();
+    const allRecipients = fallbackEmail
+      ? [...new Set([...ruleRecipients, fallbackEmail])]
+      : ruleRecipients;
 
-      if (recipients.length > 0) {
-        const alertUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/dashboard/alerts?worksite=${camera.worksiteId}`;
-        sendAlertNotificationEmail(
-          recipients,
-          alert.title,
-          alert.location ?? camera.name,
-          alert.severity,
-          now,
-          alertUrl
-        ).catch((err) =>
-          console.error(`[ingest] email error for rule ${rule.id}:`, err)
-        );
-      }
+    if (allRecipients.length > 0) {
+      const alertUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/dashboard/alerts?worksite=${camera.worksiteId}`;
+      sendAlertNotificationEmail(
+        allRecipients,
+        alert.title,
+        alert.location ?? camera.name,
+        alert.severity,
+        now,
+        alertUrl
+      ).catch((err) =>
+        console.error(`[ingest] email error for rule ${rule.id}:`, err)
+      );
+    } else {
+      console.log(`[ingest] no email recipients for rule ${rule.id} and ALERT_EMAIL not set — skipping email`);
     }
   }
 
