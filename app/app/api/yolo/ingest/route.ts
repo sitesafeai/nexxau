@@ -164,6 +164,8 @@ export async function POST(req: NextRequest) {
       ? [...new Set([...ruleRecipients, fallbackEmail])]
       : ruleRecipients;
 
+    console.log(`[ingest] rule ${rule.id} matched — allRecipients: [${allRecipients.join(', ')}], ALERT_EMAIL env: ${process.env.ALERT_EMAIL ?? '(not set)'}`);
+
     if (allRecipients.length > 0) {
       const alertUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/dashboard/alerts?worksite=${camera.worksiteId}`;
       sendAlertNotificationEmail(
@@ -173,11 +175,17 @@ export async function POST(req: NextRequest) {
         alert.severity,
         now,
         alertUrl
-      ).catch((err) =>
-        console.error(`[ingest] email error for rule ${rule.id}:`, err)
+      ).then((result) => {
+        if (result.success) {
+          console.log(`[ingest] ✅ Alert email sent for rule ${rule.id} to: ${allRecipients.join(', ')}`);
+        } else {
+          console.error(`[ingest] ❌ Alert email FAILED for rule ${rule.id}: ${result.error}`);
+        }
+      }).catch((err) =>
+        console.error(`[ingest] ❌ Alert email exception for rule ${rule.id}:`, err)
       );
     } else {
-      console.log(`[ingest] no email recipients for rule ${rule.id} and ALERT_EMAIL not set — skipping email`);
+      console.log(`[ingest] ⚠️  No email recipients for rule ${rule.id} — ALERT_EMAIL not set in Railway env vars, and rule has no emailRecipients. Skipping email.`);
     }
   }
 

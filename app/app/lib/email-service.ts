@@ -232,9 +232,21 @@ export async function sendAlertNotificationEmail(
   timestamp: Date,
   detailsUrl: string
 ): Promise<{ success: boolean; error?: string }> {
+  console.log('[ALERT EMAIL] ========================================');
+  console.log('[ALERT EMAIL] SAFETY ALERT EMAIL SEND ATTEMPT');
+  console.log('[ALERT EMAIL] ========================================');
+  console.log('[ALERT EMAIL] Recipients:', to);
+  console.log('[ALERT EMAIL] Alert type:', alertType);
+  console.log('[ALERT EMAIL] Location:', location);
+  console.log('[ALERT EMAIL] Severity:', severity);
+  console.log('[ALERT EMAIL] Timestamp:', timestamp.toISOString());
+  console.log('[ALERT EMAIL] Resend configured:', isResendConfigured());
+  console.log('[ALERT EMAIL] From address:', getResendFromAddress());
+  logResendConfigOnce();
+
   try {
     const severityColor = severity === 'CRITICAL' ? '#dc2626' : severity === 'HIGH' ? '#ea580c' : '#f59e0b';
-    
+
     const content = `
       <p><strong>A ${severity} safety alert has been detected at your worksite.</strong></p>
       <div class="info-box" style="border-left-color: ${severityColor}; background: ${severityColor}15;">
@@ -246,6 +258,7 @@ export async function sendAlertNotificationEmail(
       <p>Please review this alert and take appropriate action immediately.</p>
     `;
 
+    console.log('[ALERT EMAIL] Calling Resend...');
     const sendResult = await sendResendHtml({
       from: getResendFromAddress(),
       to,
@@ -259,11 +272,16 @@ export async function sendAlertNotificationEmail(
     });
 
     if (!sendResult.success) {
+      console.error('[ALERT EMAIL] ❌ Resend returned failure:', sendResult.error);
       return { success: false, error: sendResult.error };
     }
+
+    console.log('[ALERT EMAIL] ✅ Email sent successfully! Resend id:', (sendResult as any).id);
+    console.log('[ALERT EMAIL] ========================================');
     return { success: true };
   } catch (error: any) {
-    console.error('Error sending alert notification email:', error);
+    console.error('[ALERT EMAIL] ❌ Exception sending alert email:', error.message);
+    console.error('[ALERT EMAIL] Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
     return { success: false, error: error.message };
   }
 }

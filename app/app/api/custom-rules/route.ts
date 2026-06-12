@@ -135,116 +135,114 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/custom-rules - Create a new custom rule
+// Handles two payload shapes:
+//   1. Alert-builder: { name, detectionType, objectClass, conditions, actions, severity, ... }
+//   2. Dashboard advanced modal: { name, ruleType, detectionCriteria, triggerConditions, alertSettings, severity, ... }
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const {
-      name,
-      description,
-      detectionType,
-      objectClass,
-      minConfidence = 0.6,
-      zoneCoordinates,
-      conditions,
-      actions,
-      severity = 'medium',
-      cameraId,
-      worksiteId
-    } = body;
 
-    // Validate required fields
-    if (!name || !detectionType) {
+    // ── only name is universally required ───────────────────────────────────
+    if (!body.name) {
       return NextResponse.json(
-        { 
-          success: false,
-          error: 'Missing required fields: name, detectionType' 
-        }, 
+        { success: false, error: 'Missing required field: name' },
         { status: 400 }
       );
     }
 
-    // Validate detection type
-    const validTypes = ['object_missing', 'object_present', 'zone_violation', 'person_count', 'proximity_violation', 'behavior_violation'];
-    if (!validTypes.includes(detectionType)) {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: `Invalid detection type. Must be one of: ${validTypes.join(', ')}` 
-        }, 
-        { status: 400 }
-      );
+    // ── normalise both shapes into one set of locals ─────────────────────────
+    // Shape 1 (alert-builder) uses top-level detectionType / objectClass / actions / conditions
+    // Shape 2 (dashboard modal) uses detectionCriteria / alertSettings / triggerConditions
+    const isAdvancedShape = !body.detectionType && (body.detectionCriteria || body.ruleType);
+
+    const name: string         = body.name;
+    const description: string  = body.description || '';
+    const severity: string     = (body.severity || 'medium').toLowerCase();
+    const cameraId: string | null = body.cameraId || null;
+    const worksiteId: string | null = body.worksiteId || null;
+    const minConfidence: number = body.minConfidence ?? body.confidenceThreshold ?? 0.6;
+
+    // Detection criteria
+    let detectionType: string;
+    let objectClass: string;
+    let detectionCriteriaJson: Record<string, any>;
+    let triggerConditionsJson: Record<string, any>;
+    let alertSettingsJson: Record<string, any>;
+
+    if (isAdvancedShape) {
+      // Dashboard advanced modal — use fields as-is
+      detectionType     = body.detectionCriteria?.detectionType || 'object_present';
+      objectClass       = body.detectionCriteria?.objectClass   || 'person_detected';
+      detectionCriteriaJson  = body.detectionCriteria  || {};
+      triggerConditionsJson  = body.triggerConditions  || {};
+      alertSettingsJson      = body.alertSettings      || { actions: ['create_alert'] };
+    } else {
+      // Alert-builder shape
+      detectionType     = body.detectionType  || 'object_present';
+      objectClass       = body.objectClass    || 'person_detected';
+      const conditions  = body.conditions     || {};
+      const actions: string[] = Array.isArray(body.actions) ? body.actions : ['create_alert'];
+      const zoneCoordinates   = body.zoneCoordinates || null;
+      detectionCriteriaJson  = {
+        detectionType,
+        objectClass,
+        zoneCoordinates,
+        zoneObjectTriggers: conditions.zoneObjectTriggers || null,
+      };
+      triggerConditionsJson  = conditions;
+      alertSettingsJson      = {
+        actions,
+        severity,
+        smsRecipients:  body.smsRecipients  || [],
+        emailRecipients: body.emailRecipients || [],
+      };
     }
 
-    // Validate severity
+    // ── notification flags ───────────────────────────────────────────────────
+    const allActions: string[] = (
+      Array.isArray(alertSettingsJson.actions) ? alertSettingsJson.actions : []
+    );
+    const smsEnabled   = allActions.includes('send_sms');
+    const emailEnabled = allActions.includes('send_email');
+    const smsRecipients: string[]   = body.smsRecipients   || alertSettingsJson.smsRecipients   || [];
+    const emailRecipients: string[] = body.emailRecipients || alertSettingsJson.emailRecipients || [];
+
+    // ── severity validation ──────────────────────────────────────────────────
     const validSeverities = ['low', 'medium', 'high', 'critical'];
-    if (!validSeverities.includes(severity)) {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: `Invalid severity. Must be one of: ${validSeverities.join(', ')}` 
-        }, 
-        { status: 400 }
-      );
-    }
+    const normSeverity = validSeverities.includes(severity) ? severity : 'medium';
 
-    // Extract notification settings
-    const smsRecipients = body.smsRecipients || [];
-    const emailRecipients = body.emailRecipients || [];
-    const smsEnabled = actions.includes('send_sms');
-    const emailEnabled = actions.includes('send_email');
-
-    // Create rule with transaction
+    // ── create ───────────────────────────────────────────────────────────────
     const rule = await retryDatabaseOperation(async () => {
       return await prisma.$transaction(async (tx) => {
-        // Get default worksite if not provided
         let targetWorksiteId = worksiteId;
         if (!targetWorksiteId && !cameraId) {
-          const defaultWorksite = await tx.worksite.findFirst({
-            orderBy: { createdAt: 'asc' }
-          });
-          targetWorksiteId = defaultWorksite?.id;
+          const defaultWorksite = await tx.worksite.findFirst({ orderBy: { createdAt: 'asc' } });
+          targetWorksiteId = defaultWorksite?.id ?? null;
         }
 
-        // Create the rule using the actual schema fields
         const newRule = await tx.customRule.create({
           data: {
             name,
             description,
-            ruleType: detectionType === 'zone_violation' ? 'area_monitoring' : 'object_detection',
-            category: 'safety',
-            severity,
+            ruleType: isAdvancedShape
+              ? (body.ruleType || 'advanced')
+              : (detectionType === 'zone_violation' ? 'area_monitoring' : 'object_detection'),
+            category: body.category || 'safety',
+            severity: normSeverity,
             isActive: true,
-            priority: severity === 'critical' ? 1 : severity === 'high' ? 2 : severity === 'medium' ? 3 : 4,
-            
-            // Rule configuration
-            detectionCriteria: {
-              detectionType,
-              objectClass,
-              zoneCoordinates: zoneCoordinates || null,
-              zoneObjectTriggers: conditions.zoneObjectTriggers || null
-            },
-            triggerConditions: conditions || {},
-            alertSettings: {
-              actions: actions || ['create_alert'],
-              severity,
-              smsRecipients,
-              emailRecipients
-            },
-            
-            // AI Model config
+            priority: normSeverity === 'critical' ? 1 : normSeverity === 'high' ? 2 : normSeverity === 'medium' ? 3 : 4,
+            detectionCriteria:  detectionCriteriaJson,
+            triggerConditions:  triggerConditionsJson,
+            alertSettings:      alertSettingsJson,
             aiModelType: 'yolo',
             confidenceThreshold: minConfidence,
-            
-            // Notification settings
             smsEnabled,
             emailEnabled,
             dashboardEnabled: true,
-            smsRecipients: smsRecipients.length > 0 ? smsRecipients : null,
+            smsRecipients:   smsRecipients.length   > 0 ? smsRecipients   : null,
             emailRecipients: emailRecipients.length > 0 ? emailRecipients : null,
-            
-            // Relationships
-            cameraId: cameraId || null,
-            worksiteId: targetWorksiteId || null
+            cameraId:    cameraId,
+            worksiteId:  targetWorksiteId,
           },
           include: {
             camera: {
