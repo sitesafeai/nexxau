@@ -18,7 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { isOnCooldown, setCooldown } from '@/app/lib/cooldown';
 import { emitAlertCreated } from '@/app/lib/alert-events';
-import { sendAlertNotificationEmail } from '@/app/lib/email-service';
+import { sendEmailAlert } from '@/lib/notifications';
 
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN ?? '';
 
@@ -182,21 +182,19 @@ export async function POST(req: NextRequest) {
 
     if (allRecipients.length > 0) {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
-      const alertUrl = `${appUrl}/dashboard/alerts?worksite=${camera.worksiteId}`;
       const snapshotUrl = frame_data ? `${appUrl}/api/alerts/${alert.id}/snapshot` : undefined;
-      sendAlertNotificationEmail(
-        allRecipients,
-        alert.title,
-        alert.location ?? camera.name,
-        alert.severity,
-        now,
-        alertUrl,
-        snapshotUrl
-      ).then((result) => {
-        if (result.success) {
+      sendEmailAlert(allRecipients, {
+        cameraName:   camera.name,
+        worksiteName: camera.worksite?.name ?? 'Unknown Worksite',
+        type:         targetClass,
+        confidence:   conf,
+        timestamp:    now.toISOString(),
+        snapshotUrl,
+      }).then((ok) => {
+        if (ok) {
           console.log(`[ingest] ✅ Alert email sent for rule ${rule.id} to: ${allRecipients.join(', ')}`);
         } else {
-          console.error(`[ingest] ❌ Alert email FAILED for rule ${rule.id}: ${result.error}`);
+          console.error(`[ingest] ❌ Alert email FAILED for rule ${rule.id}`);
         }
       }).catch((err) =>
         console.error(`[ingest] ❌ Alert email exception for rule ${rule.id}:`, err)

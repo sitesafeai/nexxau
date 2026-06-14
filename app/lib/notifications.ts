@@ -137,7 +137,7 @@ function buildHTMLEmail(p: AlertPayload): string {
   `;
 }
 
-export async function sendEmailAlert(to: string, payload: AlertPayload): Promise<boolean> {
+export async function sendEmailAlert(to: string | string[], payload: AlertPayload): Promise<boolean> {
   const result = await sendResendHtml({
     from: getResendFromAddress(),
     to,
@@ -154,6 +154,6 @@ export async function sendEmailAlert(to: string, payload: AlertPayload): Promise
   return true;
 }
 
-export async function sendAlerts(to: string, payload: AlertPayload): Promise<void> {
+export async function sendAlerts(to: string | string[], payload: AlertPayload): Promise<void> {
   await sendEmailAlert(to, payload);
 }
