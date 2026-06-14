@@ -37,7 +37,11 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { camera_id, violations, frame_data } = body;
+  const { camera_id, violations, frame_data } = body as {
+    camera_id: string;
+    violations: { type?: string; confidence?: number; bbox?: number[] }[];
+    frame_data?: string | null; // base64 JPEG data URI from YOLO service
+  };
 
   if (!camera_id || !Array.isArray(violations) || violations.length === 0) {
     return NextResponse.json({ ok: true });
@@ -130,14 +134,24 @@ export async function POST(req: NextRequest) {
         cameraId:     camera_id,
         violationType: targetClass,
         metadata: {
-          cameraId:   camera_id,
-          cameraName: camera.name,
-          confidence: conf,
-          ruleId:     rule.id,
-          ruleName:   rule.name,
+          cameraId:    camera_id,
+          cameraName:  camera.name,
+          confidence:  conf,
+          ruleId:      rule.id,
+          ruleName:    rule.name,
+          // store raw base64 here so snapshot endpoint can serve it
+          snapshotData: frame_data ?? null,
         },
       },
     });
+
+    // Back-fill detectionSnapshot with the URL to serve it (we now have the alert id)
+    if (frame_data) {
+      await prisma.alert.update({
+        where: { id: alert.id },
+        data: { detectionSnapshot: `/api/alerts/${alert.id}/snapshot` },
+      });
+    }
 
     // Emit for in-app notifications
     emitAlertCreated({
@@ -167,14 +181,17 @@ export async function POST(req: NextRequest) {
     console.log(`[ingest] rule ${rule.id} matched — allRecipients: [${allRecipients.join(', ')}], ALERT_EMAIL env: ${process.env.ALERT_EMAIL ?? '(not set)'}`);
 
     if (allRecipients.length > 0) {
-      const alertUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ''}/dashboard/alerts?worksite=${camera.worksiteId}`;
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
+      const alertUrl = `${appUrl}/dashboard/alerts?worksite=${camera.worksiteId}`;
+      const snapshotUrl = frame_data ? `${appUrl}/api/alerts/${alert.id}/snapshot` : undefined;
       sendAlertNotificationEmail(
         allRecipients,
         alert.title,
         alert.location ?? camera.name,
         alert.severity,
         now,
-        alertUrl
+        alertUrl,
+        snapshotUrl
       ).then((result) => {
         if (result.success) {
           console.log(`[ingest] ✅ Alert email sent for rule ${rule.id} to: ${allRecipients.join(', ')}`);

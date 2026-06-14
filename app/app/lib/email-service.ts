@@ -230,7 +230,8 @@ export async function sendAlertNotificationEmail(
   location: string,
   severity: string,
   timestamp: Date,
-  detailsUrl: string
+  detailsUrl: string,
+  snapshotUrl?: string
 ): Promise<{ success: boolean; error?: string }> {
   console.log('[ALERT EMAIL] ========================================');
   console.log('[ALERT EMAIL] SAFETY ALERT EMAIL SEND ATTEMPT');
@@ -247,6 +248,17 @@ export async function sendAlertNotificationEmail(
   try {
     const severityColor = severity === 'CRITICAL' ? '#dc2626' : severity === 'HIGH' ? '#ea580c' : '#f59e0b';
 
+    const snapshotBlock = snapshotUrl
+      ? `<div style="margin: 20px 0; text-align: center;">
+           <img
+             src="${snapshotUrl}"
+             alt="Detection snapshot"
+             style="max-width: 100%; border-radius: 8px; border: 2px solid ${severityColor};"
+           />
+           <p style="font-size: 12px; color: #6b7280; margin: 6px 0 0 0;">Frame captured at moment of detection</p>
+         </div>`
+      : '';
+
     const content = `
       <p><strong>A ${severity} safety alert has been detected at your worksite.</strong></p>
       <div class="info-box" style="border-left-color: ${severityColor}; background: ${severityColor}15;">
@@ -255,6 +267,7 @@ export async function sendAlertNotificationEmail(
         <p style="margin: 10px 0 0 0;"><strong>Time:</strong> ${timestamp.toLocaleString()}</p>
         <p style="margin: 10px 0 0 0;"><strong>Severity:</strong> <span style="color: ${severityColor}; font-weight: bold;">${severity}</span></p>
       </div>
+      ${snapshotBlock}
       <p>Please review this alert and take appropriate action immediately.</p>
     `;
 

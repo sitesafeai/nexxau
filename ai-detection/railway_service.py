@@ -10,6 +10,7 @@ import logging
 import threading
 import requests
 import os
+import base64
 from ultralytics import YOLO
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
@@ -144,18 +145,39 @@ def fetch_cameras():
         logger.error(f'[api] fetch_cameras error: {e}')
     return []
 
-def post_violations(camera_id, violations):
+def encode_frame(frame):
+    """Encode a numpy BGR frame as a base64 JPEG data URI. Returns None on failure."""
+    try:
+        h, w = frame.shape[:2]
+        # Resize so the longest side is at most 640px — keeps payload small (~20-50KB)
+        max_dim = 640
+        if max(h, w) > max_dim:
+            scale = max_dim / max(h, w)
+            frame = cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+        ok, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        if not ok:
+            return None
+        b64 = base64.b64encode(buf.tobytes()).decode('utf-8')
+        return f'data:image/jpeg;base64,{b64}'
+    except Exception as e:
+        logger.warning(f'[snapshot] Frame encode failed: {e}')
+        return None
+
+def post_violations(camera_id, violations, frame_data=None):
     if not violations:
         return
     try:
+        payload = {'camera_id': camera_id, 'violations': violations}
+        if frame_data:
+            payload['frame_data'] = frame_data
         r = requests.post(
             f'{BACKEND_URL}/api/yolo/ingest',
             headers={**HEADERS, 'Content-Type': 'application/json'},
-            json={'camera_id': camera_id, 'violations': violations},
-            timeout=5
+            json=payload,
+            timeout=10  # slightly longer — payload is bigger now
         )
         if r.status_code == 200:
-            logger.info(f'[ingest] camera={camera_id} violations={len(violations)}')
+            logger.info(f'[ingest] camera={camera_id} violations={len(violations)} snapshot={"yes" if frame_data else "no"}')
         else:
             logger.warning(f'[ingest] {r.status_code} for camera={camera_id}')
     except Exception as e:
@@ -210,7 +232,9 @@ def run_camera(camera, model, stop_event):
                     set_cooldown(camera_id, vtype)
 
                 if violations:
-                    post_violations(camera_id, violations)
+                    # Capture the frame at moment of detection
+                    frame_data = encode_frame(result.orig_img) if result.orig_img is not None else None
+                    post_violations(camera_id, violations, frame_data)
 
         except Exception as e:
             logger.error(f'[{name}] Streaming error: {e}')
