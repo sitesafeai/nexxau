@@ -1,5 +1,6 @@
 "use client";
 import { useState } from 'react';
+import CameraThumbnail from './CameraThumbnail';
 import { CameraHealth, AIPerformance } from './GlobalDashboard';
 
 interface SystemHealthPanelProps {
@@ -138,11 +139,13 @@ export default function SystemHealthPanel({ cameras, aiPerformance, loading }: S
                 key={camera.id}
                 className="relative group bg-slate-700/30 rounded-lg overflow-hidden border border-slate-700/50 hover:border-slate-600 transition-all cursor-pointer"
               >
-                {/* Camera Preview Placeholder */}
-                <div className="aspect-video bg-slate-800 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
+                {/* Camera Thumbnail */}
+                <div className="aspect-video overflow-hidden">
+                  <CameraThumbnail
+                    cameraId={camera.id}
+                    cameraName={camera.name}
+                    isOnline={camera.status === 'online'}
+                  />
                 </div>
 
                 {/* Status Indicator */}
