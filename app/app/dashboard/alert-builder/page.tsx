@@ -33,7 +33,7 @@ function AlertBuilderPageContent() {
     minConfidence: 0.5,
     severity: 'high',
     actions: ['create_alert', 'log_event', 'send_email'],
-    cameraId: '',
+    cameraIds: [] as string[],
     zoneCoordinates: null as any,
     zoneName: '',
     zoneType: 'restricted' as 'restricted' | 'safe' | 'monitored',
@@ -90,6 +90,21 @@ function AlertBuilderPageContent() {
       loadRuleData(editId);
     }
   }, []);
+
+  // Fetch cameras for the worksite so the user can pick which ones the rule applies to
+  useEffect(() => {
+    if (!worksiteParam) return;
+    let cancelled = false;
+    fetch(`/api/cameras?worksiteId=${worksiteParam}`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        const list = Array.isArray(j) ? j : Array.isArray(j?.cameras) ? j.cameras : [];
+        setCameras(list.map((c: any) => ({ id: c.id, name: c.name })));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [worksiteParam]);
 
   useEffect(() => {
     if (!worksiteParam) return;
@@ -210,13 +225,16 @@ function AlertBuilderPageContent() {
           const newFormData = {
             name: rule.name || '',
             description: rule.description || '',
-            detectionType: rule.detectionCriteria?.detectionType || 
+            detectionType: rule.detectionCriteria?.detectionType ||
                           (rule.ruleType === 'area_monitoring' ? 'zone_violation' : 'object_present'),
             objectClass: rule.detectionCriteria?.objectClass || 'person_without_hardhat',
             minConfidence: rule.confidenceThreshold || 0.7,
             severity: (rule.severity || 'high').toLowerCase(),
             actions: Array.isArray(actions) ? actions : ['create_alert'],
-            cameraId: rule.cameraId || '',
+            // cameraIds array; fall back to wrapping legacy cameraId if present
+            cameraIds: Array.isArray(rule.cameraIds) && rule.cameraIds.length > 0
+              ? rule.cameraIds
+              : rule.cameraId ? [rule.cameraId] : [],
             zoneCoordinates: zoneCoordinates,
             zoneName: rule.triggerConditions?.zoneName || 
                      rule.detectionCriteria?.zoneName || 
@@ -281,7 +299,7 @@ function AlertBuilderPageContent() {
         },
         actions: formData.actions,
         severity: formData.severity,
-        cameraId: formData.cameraId || null,
+        cameraIds: formData.cameraIds,
         worksiteId: worksiteParam || null, // Include worksiteId from URL parameter
         zoneCoordinates: formData.zoneCoordinates,
         smsRecipients: formData.smsRecipients,
@@ -498,17 +516,46 @@ function AlertBuilderPageContent() {
               </div>
 
               <div>
-                <label className="block text-gray-300 font-medium mb-2">Apply to Camera</label>
-                <select
-                  value={formData.cameraId}
-                  onChange={(e) => setFormData({...formData, cameraId: e.target.value})}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">All Cameras (Global Rule)</option>
-                  {/* Camera selection removed */}
-                </select>
+                <label className="block text-gray-300 font-medium mb-2">Apply to Cameras</label>
+                {!worksiteParam && (
+                  <p className="text-amber-400 text-sm mb-2 rounded-lg border border-amber-700/50 bg-amber-900/20 px-3 py-2">
+                    Add <code className="text-amber-200">?worksite=…</code> to the URL to load cameras for this worksite.
+                  </p>
+                )}
+                {cameras.length === 0 && worksiteParam ? (
+                  <p className="text-gray-500 text-sm">No cameras found for this worksite.</p>
+                ) : (
+                  <div className="space-y-2 rounded-xl border border-gray-700/60 bg-gray-900/40 p-3">
+                    {cameras.map((cam) => {
+                      const checked = formData.cameraIds.includes(cam.id);
+                      return (
+                        <label
+                          key={cam.id}
+                          className="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-gray-800/80"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                cameraIds: checked
+                                  ? prev.cameraIds.filter((id) => id !== cam.id)
+                                  : [...prev.cameraIds, cam.id],
+                              }));
+                            }}
+                            className="h-4 w-4 rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="font-medium text-white">{cam.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
                 <p className="text-gray-500 text-sm mt-2">
-                  Leave as "All Cameras" to apply this rule to every camera, or select a specific camera.
+                  {formData.cameraIds.length === 0
+                    ? 'No cameras selected — rule will apply to ALL cameras in this worksite.'
+                    : `Rule will only fire on ${formData.cameraIds.length} selected camera${formData.cameraIds.length > 1 ? 's' : ''}.`}
                 </p>
               </div>
 
@@ -1045,11 +1092,20 @@ function AlertBuilderPageContent() {
 
                 <div>
                   <label className="text-gray-400 text-sm">Camera Scope</label>
-                  <p className="text-white font-semibold">
-                    {formData.cameraId 
-                      ? 'Specific Camera (functionality removed)'
-                      : 'All Cameras (Global)'}
-                  </p>
+                  {formData.cameraIds.length === 0 ? (
+                    <p className="text-white font-semibold">All Cameras (Global)</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {formData.cameraIds.map((id) => {
+                        const cam = cameras.find((c) => c.id === id);
+                        return (
+                          <span key={id} className="px-3 py-1 bg-slate-700 text-white rounded-lg text-sm font-medium">
+                            {cam?.name ?? id}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 

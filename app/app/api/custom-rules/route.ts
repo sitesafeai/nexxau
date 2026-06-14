@@ -159,6 +159,7 @@ export async function POST(request: NextRequest) {
     const description: string  = body.description || '';
     const severity: string     = (body.severity || 'medium').toLowerCase();
     const cameraId: string | null = body.cameraId || null;
+    const cameraIds: string[]  = Array.isArray(body.cameraIds) ? body.cameraIds.filter(Boolean) : [];
     const worksiteId: string | null = body.worksiteId || null;
     const minConfidence: number = body.minConfidence ?? body.confidenceThreshold ?? 0.6;
 
@@ -242,6 +243,7 @@ export async function POST(request: NextRequest) {
             smsRecipients:   smsRecipients.length   > 0 ? smsRecipients   : null,
             emailRecipients: emailRecipients.length > 0 ? emailRecipients : null,
             cameraId:    cameraId,
+            cameraIds:   cameraIds,
             worksiteId:  targetWorksiteId,
           },
           include: {

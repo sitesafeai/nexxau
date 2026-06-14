@@ -682,6 +682,7 @@ model CustomRule {
   maxAlertsPerHour    Int                   @default(10)
   worksiteId          String?
   cameraId            String?
+  cameraIds           String[]              @default([])
   createdBy           String?
   triggerCount        Int                   @default(0)
   lastTriggeredAt     DateTime?

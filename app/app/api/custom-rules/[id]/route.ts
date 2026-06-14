@@ -107,6 +107,8 @@ export async function PATCH(
     if (body.triggerConditions !== undefined) updateData.triggerConditions = body.triggerConditions;
     if (body.alertSettings !== undefined) updateData.alertSettings = body.alertSettings;
     if (body.detectionCriteria !== undefined) updateData.detectionCriteria = body.detectionCriteria;
+    if (body.cameraId !== undefined) updateData.cameraId = body.cameraId || null;
+    if (body.cameraIds !== undefined) updateData.cameraIds = Array.isArray(body.cameraIds) ? body.cameraIds.filter(Boolean) : [];
 
     const rule = await retryDatabaseOperation(async () => {
       return await prisma.customRule.update({

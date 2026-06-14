@@ -78,8 +78,12 @@ export async function POST(req: NextRequest) {
     where: {
       isActive: true,
       OR: [
+        // New: rule explicitly lists this camera in cameraIds array
+        { cameraIds: { has: camera_id } },
+        // Backward compat: old single-camera rules
         { cameraId: camera_id },
-        { worksiteId: camera.worksiteId, cameraId: null },
+        // Global rules: scoped to this worksite with no specific cameras set
+        { worksiteId: camera.worksiteId, cameraId: null, cameraIds: { isEmpty: true } },
       ],
     },
   });
