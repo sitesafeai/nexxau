@@ -3548,7 +3548,7 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
           <p className="text-sm text-slate-400 mt-1">{currentSite.name}</p>
         </div>
               <button
-          onClick={() => setShowCreateRuleModal(true)}
+          onClick={() => router.push(`/dashboard/alert-builder?from=alerts${currentSite?.id ? `&worksite=${currentSite.id}` : ''}`)}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
         >
           Create Rule
