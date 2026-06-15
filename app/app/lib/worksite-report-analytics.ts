@@ -263,8 +263,9 @@ export async function getWorksiteReportAnalyticsData(
       select: { safetyScore: true },
     });
     const latestOk = latestRow ? normalizeSafetyScoreDisplay(latestRow.safetyScore) : null;
-    // Match dashboard: only show a trend when a current published score exists (same source as header/side menu)
+
     if (latestOk != null) {
+      // Use stored SafetyScore rows when available
       const scores = await prisma.safetyScore.findMany({
         where: {
           worksiteId: singleWorksiteId,
@@ -282,6 +283,35 @@ export async function getWorksiteReportAnalyticsData(
           safetyScore: n ?? 0,
         };
       });
+    } else {
+      // Fallback: derive daily safety score from Alert volume.
+      // Formula: 100 pts baseline — each alert on that day costs 2 pts, floor at 0.
+      const alertRows = await prisma.alert.findMany({
+        where: { worksiteId: singleWorksiteId, createdAt: { gte: dateFrom, lte: dateTo } },
+        select: { createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      // Group alert counts by ISO date string
+      const alertsByDate: Record<string, number> = {};
+      for (const a of alertRows) {
+        const key = new Date(a.createdAt).toISOString().slice(0, 10);
+        alertsByDate[key] = (alertsByDate[key] ?? 0) + 1;
+      }
+
+      // Emit one point per day in the requested range (capped at 90 days)
+      const totalDays = Math.round((dateTo.getTime() - dateFrom.getTime()) / 86_400_000);
+      for (let i = 0; i <= Math.min(totalDays, 90); i++) {
+        const d = new Date(dateFrom);
+        d.setDate(d.getDate() + i);
+        const key = d.toISOString().slice(0, 10);
+        const alertsOnDay = alertsByDate[key] ?? 0;
+        safetyScoreTrend.push({
+          date: key,
+          label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          safetyScore: Math.max(0, Math.min(100, 100 - alertsOnDay * 2)),
+        });
+      }
     }
   }
 

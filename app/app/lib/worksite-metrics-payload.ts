@@ -250,10 +250,11 @@ export async function getWorksiteMetricsPayload(
         { ttl: 30 }
       ),
 
-      prisma.detection
+      // DetectionLog is written by the YOLO ingest service (Detection table is unused by YOLO)
+      prisma.detectionLog
         .count({
           where: {
-            camera: { worksiteId },
+            worksiteId,
             timestamp: {
               gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
             },
@@ -262,10 +263,23 @@ export async function getWorksiteMetricsPayload(
         .catch(() => 0),
     ]);
 
+  // When no SafetyScore rows exist yet, compute a live score from recent alert activity.
+  // Formula: 100 pts baseline — each alert in the last 7 days costs 2 pts, floor at 0.
+  let { safetyScore, safetyScoreChange } = safetyScoreMetrics;
+  if (safetyScore == null) {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const alerts7d = await prisma.alert
+      .count({ where: { worksiteId, createdAt: { gte: sevenDaysAgo } } })
+      .catch(() => 0);
+    safetyScore = Math.max(0, Math.min(100, 100 - alerts7d * 2));
+    safetyScoreChange = 0; // no historical row to diff against
+  }
+
   return {
     ...cameraMetricsData,
     ...alertMetrics,
-    ...safetyScoreMetrics,
+    safetyScore,
+    safetyScoreChange,
     violations24h,
     lastActivity: lastActivityTimestamp
       ? new Date(lastActivityTimestamp).toISOString()
