@@ -1,14 +1,18 @@
 /**
  * Camera Status Helper
- * 
- * Derives camera online status from health/heartbeat data, NOT from string status field.
- * 
- * Rules:
- * - Camera is "online" if: lastHealthHeartbeat < NOW - 60s OR lastHlsSegmentAt < NOW - 30s
- * - Camera is "offline" if: no recent health check OR health check indicates offline
- * - Status string field is IGNORED for metrics (unreliable)
- * 
- * This ensures metrics reflect real camera health, not potentially stale status strings.
+ *
+ * Derives camera online status from health/heartbeat data when available,
+ * falling back to the camera.status string field when no health records exist.
+ *
+ * Rules (in priority order):
+ * 1. If CameraHealth record exists and is < 60s old → use it (authoritative)
+ * 2. If no health record → fall back to camera.status string ('online' / 'ONLINE')
+ *
+ * Why the fallback:
+ * - CameraHealth records are written by a heartbeat writer that may not be running.
+ * - Without the fallback, every camera appears offline until the heartbeat service starts.
+ * - The status string is set when a camera connects or is manually configured, so it
+ *   reflects a reasonable last-known state when no heartbeat data is available.
  */
 
 import { prisma } from '@/app/lib/prisma';
@@ -42,29 +46,22 @@ export interface CameraWithHealth {
  * Note: This function IGNORES camera.status string field for reliability
  */
 export function isCameraOnline(camera: CameraWithHealth): boolean {
-  // If no health records, camera is offline
-  if (!camera.health || camera.health.length === 0) {
-    return false;
+  // --- Path 1: authoritative health record ---
+  if (camera.health && camera.health.length > 0) {
+    const latestHealth = camera.health[0];
+    if (latestHealth.status !== 'ONLINE') {
+      return false;
+    }
+    const now = new Date();
+    const lastCheck = new Date(latestHealth.lastCheck);
+    const secondsSinceCheck = (now.getTime() - lastCheck.getTime()) / 1000;
+    return secondsSinceCheck < 60;
   }
-  
-  // Get most recent health check
-  const latestHealth = camera.health[0];
-  if (!latestHealth) {
-    return false;
-  }
-  
-  // Check if health status is ONLINE
-  if (latestHealth.status !== 'ONLINE') {
-    return false;
-  }
-  
-  // Check if last health check was within last 60 seconds
-  const now = new Date();
-  const lastCheck = new Date(latestHealth.lastCheck);
-  const secondsSinceCheck = (now.getTime() - lastCheck.getTime()) / 1000;
-  
-  // Camera is online if health check was within 60 seconds
-  return secondsSinceCheck < 60;
+
+  // --- Path 2: no health records — fall back to camera.status string ---
+  // This covers the common case where the heartbeat writer hasn't run yet.
+  const s = camera.status?.toLowerCase();
+  return s === 'online';
 }
 
 /**

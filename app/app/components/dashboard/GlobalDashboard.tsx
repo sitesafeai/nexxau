@@ -48,14 +48,6 @@ export interface CameraHealth {
   recentAlerts: number;
 }
 
-export interface AIPerformance {
-  accuracy: number;
-  falsePositives: number;
-  falseNegatives: number;
-  totalDetections: number;
-  lastUpdated: string;
-}
-
 interface GlobalDashboardProps {
   currentUser: any;
 }
@@ -65,7 +57,6 @@ export default function GlobalDashboard({ currentUser }: GlobalDashboardProps) {
   const [stats, setStats] = useState<GlobalStats | null>(null);
   const [criticalAlerts, setCriticalAlerts] = useState<CriticalAlert[]>([]);
   const [cameraHealth, setCameraHealth] = useState<CameraHealth[]>([]);
-  const [aiPerformance, setAIPerformance] = useState<AIPerformance | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -100,10 +91,9 @@ export default function GlobalDashboard({ currentUser }: GlobalDashboardProps) {
     }
 
     try {
-      const [alertsRes, camerasRes, systemStatusRes] = await Promise.all([
+      const [alertsRes, camerasRes] = await Promise.all([
         fetch('/api/alerts?limit=10&severity=HIGH&status=ACTIVE'),
         fetch('/api/cameras?includeHealth=true'),
-        fetch('/api/admin/system-status'),
       ]);
 
       if (alertsRes.ok) {
@@ -118,17 +108,6 @@ export default function GlobalDashboard({ currentUser }: GlobalDashboardProps) {
         if (camerasData.success) {
           setCameraHealth(camerasData.data || []);
         }
-      }
-
-      if (systemStatusRes.ok) {
-        const systemData = await systemStatusRes.json();
-        setAIPerformance({
-          accuracy: systemData.aiAccuracy || 94.5,
-          falsePositives: systemData.falsePositives || 12,
-          falseNegatives: systemData.falseNegatives || 3,
-          totalDetections: systemData.totalDetections || 15420,
-          lastUpdated: new Date().toISOString(),
-        });
       }
     } catch (error) {
       console.error('Error fetching global dashboard secondary data:', error);
@@ -220,7 +199,6 @@ export default function GlobalDashboard({ currentUser }: GlobalDashboardProps) {
           {/* System Health Panel */}
           <SystemHealthPanel
             cameras={cameraHealth}
-            aiPerformance={aiPerformance}
             loading={loading}
           />
         </div>

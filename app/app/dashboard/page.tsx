@@ -26,7 +26,6 @@ const ReportsAnalytics = dynamic(() => import('../components/dashboard/ReportsAn
 const WorkflowDashboard = dynamic(() => import('../components/dashboard/WorkflowDashboard').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
 const WorksiteUserManagementModal = dynamic(() => import('../components/dashboard/WorksiteUserManagementModal').then((m) => m.default), { ssr: false });
 const CamerasTab = dynamic(() => import('../components/dashboard/CamerasTab').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading cameras...</div>, ssr: false });
-const CamerasOctoTab = dynamic(() => import('../components/dashboard/CamerasOctoTab').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading Octo cameras...</div>, ssr: false });
 
 // Wrapper component that provides the dashboard context
 export default function DashboardPage() {
@@ -121,16 +120,6 @@ function DashboardContent() {
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-        ),
-      },
-      {
-        key: 'cameras-octo',
-        name: 'Cameras Octo',
-        icon: (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11h.01M12 11h.01M16 11h.01" />
           </svg>
         ),
       },
@@ -437,11 +426,6 @@ function DashboardContent() {
             {visitedTabs.has('cameras') && (
               <div className={selected === 'cameras' ? 'block' : 'hidden'}>
                 <CamerasTab selectedSite={selectedSite} currentUser={state.currentUser} />
-              </div>
-            )}
-            {visitedTabs.has('cameras-octo') && (
-              <div className={selected === 'cameras-octo' ? 'block' : 'hidden'}>
-                <CamerasOctoTab selectedSite={selectedSite} currentUser={state.currentUser} />
               </div>
             )}
             {selected === 'sites' && (
