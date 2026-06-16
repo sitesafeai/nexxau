@@ -57,8 +57,29 @@ export default function CamerasTab({ selectedSite, currentUser }: CamerasTabProp
         <p className="text-slate-400 mt-1">{selectedSite.name}</p>
       </div>
       {loading ? (
-        <div className="flex items-center justify-center py-24">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
+        <div className="space-y-4 animate-pulse mt-6">
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="h-9 w-64 bg-slate-700 rounded-lg" />
+              <div className="flex space-x-2">
+                {[0,1,2].map(i => <div key={i} className="h-9 w-24 bg-slate-700 rounded-lg" />)}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="bg-slate-700/30 border border-slate-700/50 rounded-xl overflow-hidden">
+                  <div className="aspect-video bg-slate-700/60" />
+                  <div className="p-3 space-y-2">
+                    <div className="h-4 w-3/4 bg-slate-700 rounded" />
+                    <div className="flex items-center space-x-2">
+                      <div className="h-3 w-3 bg-slate-700 rounded-full" />
+                      <div className="h-3 w-16 bg-slate-700 rounded" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       ) : (
         <>

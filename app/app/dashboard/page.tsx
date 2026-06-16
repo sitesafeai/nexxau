@@ -15,17 +15,28 @@ import SafetyScoreCard from '../components/SafetyScoreCard';
 import { formatRoleLabel, isAdminRole, normalizeRole } from '../lib/roles';
 import DetectionFeedback from '../components/DetectionFeedback';
 import CreateWorksiteModal from '../components/modals/CreateWorksiteModal';
+import {
+  OverviewSkeleton,
+  GlobalDashboardSkeleton,
+  CamerasTabSkeleton,
+  SiteManagementSkeleton,
+  AlertsSkeleton,
+  AlertRulesSkeleton,
+  ReportsSkeleton,
+  WorkflowsSkeleton,
+  AuditLogSkeleton,
+} from '../components/dashboard/DashboardSkeleton';
 
 // Heavy dashboard components: load on demand to avoid ChunkLoadError (timeout)
-const ReportsPageNew = dynamic(() => import('../components/reports/ReportsPage'), { loading: () => <div className="p-8 text-slate-400">Loading reports...</div>, ssr: false });
-const GlobalDashboard = dynamic(() => import('../components/dashboard/GlobalDashboard').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
-const UserDashboard = dynamic(() => import('../components/dashboard/UserDashboard').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
-const SiteManagement = dynamic(() => import('../components/dashboard/SiteManagement').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
-const AlertsAndRules = dynamic(() => import('../components/dashboard/AlertsAndRules').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
-const ReportsAnalytics = dynamic(() => import('../components/dashboard/ReportsAnalytics').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
-const WorkflowDashboard = dynamic(() => import('../components/dashboard/WorkflowDashboard').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading...</div>, ssr: false });
+const ReportsPageNew = dynamic(() => import('../components/reports/ReportsPage'), { loading: () => <ReportsSkeleton />, ssr: false });
+const GlobalDashboard = dynamic(() => import('../components/dashboard/GlobalDashboard').then((m) => m.default), { loading: () => <GlobalDashboardSkeleton />, ssr: false });
+const UserDashboard = dynamic(() => import('../components/dashboard/UserDashboard').then((m) => m.default), { loading: () => <OverviewSkeleton />, ssr: false });
+const SiteManagement = dynamic(() => import('../components/dashboard/SiteManagement').then((m) => m.default), { loading: () => <SiteManagementSkeleton />, ssr: false });
+const AlertsAndRules = dynamic(() => import('../components/dashboard/AlertsAndRules').then((m) => m.default), { loading: () => <AlertsSkeleton />, ssr: false });
+const ReportsAnalytics = dynamic(() => import('../components/dashboard/ReportsAnalytics').then((m) => m.default), { loading: () => <ReportsSkeleton />, ssr: false });
+const WorkflowDashboard = dynamic(() => import('../components/dashboard/WorkflowDashboard').then((m) => m.default), { loading: () => <WorkflowsSkeleton />, ssr: false });
 const WorksiteUserManagementModal = dynamic(() => import('../components/dashboard/WorksiteUserManagementModal').then((m) => m.default), { ssr: false });
-const CamerasTab = dynamic(() => import('../components/dashboard/CamerasTab').then((m) => m.default), { loading: () => <div className="p-8 text-slate-400">Loading cameras...</div>, ssr: false });
+const CamerasTab = dynamic(() => import('../components/dashboard/CamerasTab').then((m) => m.default), { loading: () => <CamerasTabSkeleton />, ssr: false });
 
 // Wrapper component that provides the dashboard context
 export default function DashboardPage() {
@@ -796,10 +807,14 @@ function OverviewTab({ currentSite }: { currentSite: any }) {
     <div className="space-y-6">
       {/* Safety Score Card */}
       {safetyScoreLoading ? (
-        <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 border border-gray-700">
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-            <p className="ml-4 text-gray-400">Loading safety score...</p>
+        <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 border border-gray-700 animate-pulse">
+          <div className="flex items-center space-x-6 py-4">
+            <div className="h-24 w-24 rounded-full bg-slate-700 flex-shrink-0" />
+            <div className="flex-1 space-y-3">
+              <div className="h-5 w-40 bg-slate-700 rounded" />
+              <div className="h-10 w-24 bg-slate-700 rounded" />
+              <div className="h-3 w-56 bg-slate-700 rounded" />
+            </div>
           </div>
         </div>
       ) : safetyScoreError ? (
@@ -3587,7 +3602,15 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
           </thead>
           <tbody className="divide-y divide-slate-700/50">
             {loading ? (
-              <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400">Loading...</td></tr>
+              [...Array(6)].map((_, i) => (
+                <tr key={i} className="animate-pulse">
+                  {[...Array(7)].map((__, j) => (
+                    <td key={j} className="px-6 py-4">
+                      <div className="h-4 bg-slate-700/60 rounded w-full" />
+                    </td>
+                  ))}
+                </tr>
+              ))
             ) : filteredAlerts.length === 0 ? (
               <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400">No alerts found</td></tr>
             ) : (
@@ -5116,7 +5139,15 @@ function AlertRulesPage({ currentSite }: { currentSite: any }) {
           </thead>
           <tbody className="divide-y divide-slate-700/50">
             {loading ? (
-              <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400">Loading...</td></tr>
+              [...Array(5)].map((_, i) => (
+                <tr key={i} className="animate-pulse">
+                  {[...Array(5)].map((__, j) => (
+                    <td key={j} className="px-6 py-4">
+                      <div className="h-4 bg-slate-700/60 rounded w-full" />
+                    </td>
+                  ))}
+                </tr>
+              ))
             ) : rules.length === 0 ? (
               <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400">No rules found. Create your first rule to get started.</td></tr>
             ) : (
@@ -5435,8 +5466,8 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
       {/* Table */}
       <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <div className="p-4">
+            <AuditLogSkeleton />
           </div>
         ) : error ? (
           <div className="text-center py-20">

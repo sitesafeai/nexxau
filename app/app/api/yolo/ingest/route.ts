@@ -58,6 +58,19 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
 
+  // 0. Stamp lastSeenAt on the camera so isCameraOnline() knows it's alive.
+  //    Fire-and-forget — don't let a metadata update failure block detection logging.
+  prisma.camera.update({
+    where: { id: camera_id },
+    data: {
+      status: 'online',
+      metadata: {
+        ...((camera.metadata as Record<string, unknown>) ?? {}),
+        lastSeenAt: now.toISOString(),
+      },
+    },
+  }).catch((e) => console.warn('[ingest] camera status update failed:', e?.message));
+
   // 1. Log every detection to DetectionLog
   for (const v of violations) {
     await prisma.detectionLog.create({

@@ -34,10 +34,11 @@ export async function GET(request: NextRequest) {
         }),
         
         // Camera stats
+        // 'active' is the schema default; ingest upgrades it to 'online' on first detection
         Promise.all([
           prisma.camera.count(),
-          prisma.camera.count({ where: { status: 'online' } }),
-          prisma.camera.count({ where: { status: 'offline' } }),
+          prisma.camera.count({ where: { status: { in: ['online', 'active'] } } }),
+          prisma.camera.count({ where: { status: { in: ['offline', 'inactive'] } } }),
           prisma.camera.count()
         ]),
         

@@ -19,12 +19,12 @@ import { prisma } from '@/app/lib/prisma';
 
 export interface CameraWithHealth {
   id: string;
-  status?: string | null; // Ignored for online calculation
+  status?: string | null;
+  metadata?: Record<string, unknown> | null;
   health?: Array<{
     status: string;
     lastCheck: Date;
   }>;
-  // Future: lastHlsSegmentAt?: Date;
 }
 
 /**
@@ -45,23 +45,40 @@ export interface CameraWithHealth {
  * 
  * Note: This function IGNORES camera.status string field for reliability
  */
+/** Cameras seen by the YOLO service within this many milliseconds are online. */
+const SEEN_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
 export function isCameraOnline(camera: CameraWithHealth): boolean {
-  // --- Path 1: authoritative health record ---
+  // --- Path 1: authoritative CameraHealth record (heartbeat writer) ---
   if (camera.health && camera.health.length > 0) {
     const latestHealth = camera.health[0];
     if (latestHealth.status !== 'ONLINE') {
       return false;
     }
-    const now = new Date();
-    const lastCheck = new Date(latestHealth.lastCheck);
-    const secondsSinceCheck = (now.getTime() - lastCheck.getTime()) / 1000;
+    const secondsSinceCheck =
+      (Date.now() - new Date(latestHealth.lastCheck).getTime()) / 1000;
     return secondsSinceCheck < 60;
   }
 
-  // --- Path 2: no health records — fall back to camera.status string ---
-  // This covers the common case where the heartbeat writer hasn't run yet.
+  // --- Path 2: YOLO ingest lastSeenAt stamp in camera metadata ---
+  // The ingest route writes `metadata.lastSeenAt` whenever it processes a
+  // detection for this camera, giving us a real "last known streaming" time.
+  if (camera.metadata && typeof camera.metadata === 'object') {
+    const lastSeenAt = (camera.metadata as Record<string, unknown>).lastSeenAt;
+    if (lastSeenAt) {
+      const msAgo = Date.now() - new Date(lastSeenAt as string).getTime();
+      if (msAgo < SEEN_WINDOW_MS) {
+        return true;
+      }
+    }
+  }
+
+  // --- Path 3: status string fallback ---
+  // Camera.status defaults to 'active' (schema default) and is also set to
+  // 'online' by some paths. Treat both as "intended to be online."
+  // A camera will only have status 'offline' or 'inactive' if explicitly set.
   const s = camera.status?.toLowerCase();
-  return s === 'online';
+  return s === 'online' || s === 'active';
 }
 
 /**
