@@ -3,7 +3,7 @@ import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 
-// POST /api/reports/run - Generate and stream a report file
+// POST /api/reports/run — fetch data and return JSON; client generates the file
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -15,31 +15,26 @@ export async function POST(request: NextRequest) {
       where: { email: session.user.email || '' },
       select: { id: true, name: true },
     });
-
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     const body = await request.json();
-    const { reportSpec, format = 'csv' } = body;
-
+    const { reportSpec } = body;
     if (!reportSpec) {
       return NextResponse.json({ success: false, error: 'Report specification is required' }, { status: 400 });
     }
 
-    const jobId = `rpt_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    const entities: string[] = reportSpec.entities || ['ALERT'];
-    const scope = reportSpec.scope || {};
-    const fields: string[] = reportSpec.fields || [];
-    const filters: any[] = reportSpec.filters || [];
+    const entities: string[]  = reportSpec.entities || ['ALERT'];
+    const scope                = reportSpec.scope    || {};
+    const fields: string[]    = reportSpec.fields   || [];
+    const filters: any[]      = reportSpec.filters  || [];
 
-    // Build date filter
     const dateFilter: any = {};
     if (scope.from) dateFilter.gte = new Date(scope.from);
     if (scope.to)   dateFilter.lte = new Date(scope.to);
     const hasDates = Object.keys(dateFilter).length > 0;
 
-    // Worksite filter
     const worksiteFilter = scope.worksiteIds?.length > 0
       ? { worksiteId: { in: scope.worksiteIds } }
       : {};
@@ -71,14 +66,14 @@ export async function POST(request: NextRequest) {
             status:          a.status,
             createdAt:       a.createdAt?.toISOString() ?? '',
             resolvedAt:      a.resolvedAt?.toISOString() ?? '',
-            'camera.name':   a.camera?.name ?? '',
-            'worksite.name': a.worksite?.name ?? '',
-            'rule.name':     a.rule?.name ?? '',
+            'camera':        a.camera?.name ?? '',
+            'worksite':      a.worksite?.name ?? '',
+            'rule':          a.rule?.name ?? '',
           })));
           break;
         }
 
-        // INCIDENT maps to Alert (no Incident model in schema)
+        // INCIDENT = Alert (no Incident model in schema)
         case 'INCIDENT': {
           const rows = await prisma.alert.findMany({
             where: {
@@ -94,16 +89,16 @@ export async function POST(request: NextRequest) {
             take: 10000,
           });
           data.push(...rows.map(a => ({
-            incident_id:       a.id,
-            created_at:        a.createdAt?.toISOString() ?? '',
-            resolved_at:       a.resolvedAt?.toISOString() ?? '',
-            title:             a.title,
-            worksite:          a.worksite?.name ?? '',
-            camera:            a.camera?.name ?? '',
-            rule:              a.rule?.name ?? '',
-            status:            a.status,
-            severity:          a.severity,
-            resolution_type:   a.resolvedAt ? 'RESOLVED' : 'OPEN',
+            incident_id:      a.id,
+            created_at:       a.createdAt?.toISOString() ?? '',
+            resolved_at:      a.resolvedAt?.toISOString() ?? '',
+            title:            a.title,
+            worksite:         a.worksite?.name ?? '',
+            camera:           a.camera?.name ?? '',
+            rule:             a.rule?.name ?? '',
+            status:           a.status,
+            severity:         a.severity,
+            resolution_type:  a.resolvedAt ? 'RESOLVED' : 'OPEN',
           })));
           break;
         }
@@ -114,52 +109,43 @@ export async function POST(request: NextRequest) {
               ...worksiteFilter,
               ...(hasDates ? { timestamp: dateFilter } : {}),
             },
-            include: {
-              camera: { select: { id: true, name: true } },
-            },
+            include: { camera: { select: { id: true, name: true } } },
             orderBy: { timestamp: 'desc' },
             take: 10000,
           });
           data.push(...rows.map(d => ({
-            id:            d.id,
-            detectedAt:    d.timestamp?.toISOString() ?? '',
-            violationType: d.type,
-            confidence:    d.confidence,
-            'camera.name': d.camera?.name ?? '',
+            id:             d.id,
+            detectedAt:     d.timestamp?.toISOString() ?? '',
+            violationType:  d.type,
+            confidence:     d.confidence,
+            camera:         d.camera?.name ?? '',
           })));
           break;
         }
 
         case 'CAMERA': {
           const rows = await prisma.camera.findMany({
-            where: { ...worksiteFilter },
+            where: worksiteFilter,
             include: {
               worksite: { select: { id: true, name: true } },
               health:   { orderBy: { lastCheck: 'desc' }, take: 1 },
             },
           });
           data.push(...rows.map(c => ({
-            id:              c.id,
-            name:            c.name,
-            status:          c.status,
-            location:        c.location ?? '',
-            'worksite.name': c.worksite?.name ?? '',
-            lastCheck:       c.health?.[0]?.lastCheck?.toISOString() ?? '',
-            healthStatus:    c.health?.[0]?.status ?? 'UNKNOWN',
+            id:          c.id,
+            name:        c.name,
+            status:      c.status,
+            location:    c.location ?? '',
+            worksite:    c.worksite?.name ?? '',
+            lastCheck:   c.health?.[0]?.lastCheck?.toISOString() ?? '',
+            health:      c.health?.[0]?.status ?? 'UNKNOWN',
           })));
           break;
         }
 
         case 'USER': {
           const rows = await prisma.user.findMany({
-            select: {
-              id:        true,
-              name:      true,
-              email:     true,
-              role:      true,
-              lastLogin: true,
-              createdAt: true,
-            },
+            select: { id: true, name: true, email: true, role: true, lastLogin: true, createdAt: true },
           });
           data.push(...rows.map(u => ({
             id:        u.id,
@@ -175,31 +161,29 @@ export async function POST(request: NextRequest) {
         case 'AUDIT': {
           const rows = await prisma.auditLog.findMany({
             where: {
+              ...worksiteFilter,
               ...(hasDates ? { createdAt: dateFilter } : {}),
             },
-            include: {
-              user: { select: { id: true, name: true, email: true } },
-            },
+            include: { user: { select: { id: true, name: true, email: true } } },
             orderBy: { createdAt: 'desc' },
             take: 10000,
           });
           data.push(...rows.map(a => ({
-            id:           a.id,
-            action:       a.action,
-            entity:       a.entity ?? '',
-            entityId:     a.entityId ?? '',
-            'user.name':  a.user?.name ?? '',
-            'user.email': a.user?.email ?? '',
-            createdAt:    a.createdAt?.toISOString() ?? '',
-            ipAddress:    a.ipAddress ?? '',
-            result:       a.result ?? '',
+            id:        a.id,
+            action:    a.action,
+            entity:    a.entity ?? '',
+            entityId:  a.entityId ?? '',
+            user:      a.user?.name ?? '',
+            email:     a.user?.email ?? '',
+            createdAt: a.createdAt?.toISOString() ?? '',
+            ip:        a.ipAddress ?? '',
           })));
           break;
         }
       }
     }
 
-    // Apply filters
+    // Apply row filters
     if (filters.length > 0) {
       data = data.filter(row =>
         filters.every((f: any) => {
@@ -217,80 +201,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Field projection
+    // Field projection (only if spec fields actually exist in the data)
     if (fields.length > 0 && data.length > 0) {
       const allKeys = Object.keys(data[0]);
-      data = data.map(row => {
-        const out: any = {};
-        for (const f of fields) {
-          if (row[f] !== undefined) out[f] = row[f];
-        }
-        // If field projection left nothing (spec fields don't match real keys), keep all
-        return Object.keys(out).length > 0 ? out : row;
-      });
-    }
-
-    // ── Generate output ──────────────────────────────────────────────────────
-    const reportName = (reportSpec.name || 'report').replace(/[^a-zA-Z0-9_-]/g, '_');
-    const ts = new Date().toISOString().slice(0, 10);
-    let fileContent: string;
-    let contentType: string;
-    const fileName = `${reportName}_${ts}.${format}`;
-
-    if (format === 'json') {
-      fileContent = JSON.stringify({ generated: new Date().toISOString(), rows: data.length, data }, null, 2);
-      contentType = 'application/json';
-    } else {
-      // CSV (default)
-      if (data.length === 0) {
-        fileContent = `# ${reportSpec.name || 'Report'}\n# Generated: ${new Date().toISOString()}\n# No data for this period.\n`;
-      } else {
-        const headers = Object.keys(data[0]);
-        const csvRows = [headers.join(',')];
-        for (const row of data) {
-          const values = headers.map(h => {
-            const v = row[h];
-            if (v === null || v === undefined) return '';
-            const s = String(v);
-            return s.includes(',') || s.includes('\n') || s.includes('"')
-              ? `"${s.replace(/"/g, '""')}"`
-              : s;
-          });
-          csvRows.push(values.join(','));
-        }
-        fileContent = csvRows.join('\n');
+      const validFields = fields.filter(f => allKeys.includes(f));
+      if (validFields.length > 0) {
+        data = data.map(row => {
+          const out: any = {};
+          for (const f of validFields) out[f] = row[f];
+          return out;
+        });
       }
-      contentType = 'text/csv';
     }
 
-    // Audit log — best effort, don't crash if it fails
+    // Audit (best-effort)
     prisma.auditLog.create({
       data: {
-        userId:     user.id,
-        action:     'REPORT_EXPORTED',
-        entity:     'REPORT',
-        entityName: reportSpec.name,
-        details:    { jobId, format, rowCount: data.length },
-        result:     'SUCCESS',
-        severity:   'LOW',
+        userId:  user.id,
+        action:  'REPORT_EXPORTED',
+        entity:  'REPORT',
+        metadata: { reportName: reportSpec.name, rowCount: data.length },
       },
-    }).catch(() => {/* ignore */});
+    }).catch(() => {});
 
-    return new NextResponse(fileContent, {
-      status: 200,
-      headers: {
-        'Content-Type':        contentType,
-        'Content-Disposition': `attachment; filename="${fileName}"`,
-        'X-Job-Id':            jobId,
-        'X-Row-Count':         String(data.length),
+    return NextResponse.json({
+      success: true,
+      data,
+      meta: {
+        reportName:  reportSpec.name || 'Report',
+        rowCount:    data.length,
+        generatedAt: new Date().toISOString(),
+        entities,
+        dateRange:   { from: scope.from, to: scope.to },
       },
     });
 
   } catch (error: any) {
-    console.error('[Reports Run] Error:', error);
-    return NextResponse.json({
-      success: false,
-      error:   error.message ?? 'Failed to run report',
-    }, { status: 500 });
+    console.error('[Reports Run]', error);
+    return NextResponse.json({ success: false, error: error.message ?? 'Failed to run report' }, { status: 500 });
   }
 }

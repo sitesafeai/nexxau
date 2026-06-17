@@ -1,8 +1,130 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import ReportBuilder from './ReportBuilder';
 import WorksiteAnalyticsCharts from '@/app/components/dashboard/WorksiteAnalyticsCharts';
+
+/* ─── Client-side format generators ──────────────────────────────────────── */
+
+function triggerDownload(content: string | Blob, fileName: string, mime: string) {
+  const blob = content instanceof Blob ? content : new Blob([content], { type: mime });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function toCSV(rows: any[]): string {
+  if (rows.length === 0) return 'No data for this period.\n';
+  const headers = Object.keys(rows[0]);
+  const escape  = (v: any) => {
+    const s = v == null ? '' : String(v);
+    return s.includes(',') || s.includes('\n') || s.includes('"')
+      ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [headers.join(','), ...rows.map(r => headers.map(h => escape(r[h])).join(','))].join('\n');
+}
+
+function toSpreadsheetML(rows: any[], sheetName: string): string {
+  const esc = (s: string) =>
+    String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
+  const cellType = (v: any) => (typeof v === 'number' ? 'Number' : 'String');
+
+  const headerRow = `<Row>${headers.map(h => `<Cell ss:StyleID="hdr"><Data ss:Type="String">${esc(h)}</Data></Cell>`).join('')}</Row>`;
+  const dataRows = rows.map(r =>
+    `<Row>${headers.map(h => {
+      const v = r[h] ?? '';
+      return `<Cell><Data ss:Type="${cellType(v)}">${esc(String(v))}</Data></Cell>`;
+    }).join('')}</Row>`
+  ).join('\n');
+
+  return `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:o="urn:schemas-microsoft-com:office:office"
+  xmlns:x="urn:schemas-microsoft-com:office:excel"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles>
+    <Style ss:ID="hdr">
+      <Font ss:Bold="1"/>
+      <Interior ss:Color="#1e293b" ss:Pattern="Solid"/>
+      <Font ss:Color="#ffffff" ss:Bold="1"/>
+    </Style>
+  </Styles>
+  <Worksheet ss:Name="${esc(sheetName)}">
+    <Table>${headerRow}${dataRows}</Table>
+  </Worksheet>
+</Workbook>`;
+}
+
+function openPrintWindow(rows: any[], meta: { reportName: string; generatedAt: string; dateRange?: any }) {
+  const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
+  const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const tableHead = `<tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr>`;
+  const tableBody = rows.map(r =>
+    `<tr>${headers.map(h => `<td>${esc(r[h])}</td>`).join('')}</tr>`
+  ).join('');
+
+  const fromLabel = meta.dateRange?.from ? new Date(meta.dateRange.from).toLocaleDateString() : '';
+  const toLabel   = meta.dateRange?.to   ? new Date(meta.dateRange.to).toLocaleDateString()   : '';
+  const dateLabel = fromLabel && toLabel ? `${fromLabel} – ${toLabel}` : '';
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${esc(meta.reportName)}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, Arial, sans-serif; font-size: 11px; color: #0f172a; padding: 24px; }
+    header { margin-bottom: 20px; border-bottom: 2px solid #0f172a; padding-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-end; }
+    header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+    header p  { font-size: 10px; color: #475569; margin-top: 2px; }
+    .brand { font-size: 14px; font-weight: 900; letter-spacing: 3px; color: #0f172a; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th { background: #0f172a; color: #fff; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 8px; text-align: left; }
+    td { padding: 5px 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; word-break: break-word; max-width: 200px; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    footer { margin-top: 16px; font-size: 9px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 8px; display: flex; justify-content: space-between; }
+    .empty { text-align: center; padding: 40px; color: #64748b; font-size: 13px; }
+    @media print {
+      body { padding: 12px; }
+      @page { margin: 1cm; size: A4 landscape; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>${esc(meta.reportName)}</h1>
+      <p>${dateLabel}</p>
+    </div>
+    <div class="brand">NEXXAU</div>
+  </header>
+  ${rows.length === 0
+    ? `<div class="empty">No data for this period.</div>`
+    : `<table><thead>${tableHead}</thead><tbody>${tableBody}</tbody></table>`}
+  <footer>
+    <span>${rows.length} row${rows.length !== 1 ? 's' : ''}</span>
+    <span>Generated ${new Date(meta.generatedAt).toLocaleString()}</span>
+  </footer>
+  <script>window.onload = function() { window.print(); }</script>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank', 'width=1100,height=800');
+  if (!win) { alert('Allow pop-ups to export PDF.'); return; }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}
 
 // Types
 interface Report {
@@ -196,88 +318,89 @@ export default function ReportsPage({ currentSite, worksites }: ReportsPageProps
 
   const handleRunReport = async () => {
     if (!selectedTemplate) return;
-    
     setRunningReport(selectedTemplate.id);
-    
+
     try {
-      // Calculate date range
+      // Build date range
       let from = runConfig.customFrom;
-      let to = runConfig.customTo;
-      
+      let to   = runConfig.customTo;
       if (runConfig.dateRange !== 'custom') {
         const now = new Date();
         to = now.toISOString();
-        
         switch (runConfig.dateRange) {
-          case 'today':
-            from = new Date(now.setHours(0, 0, 0, 0)).toISOString();
-            break;
-          case 'last7d':
-            from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-            break;
-          case 'last30d':
-            from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-            break;
-          case 'last90d':
-            from = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
-            break;
+          case 'today':   from = new Date(now.setHours(0, 0, 0, 0)).toISOString(); break;
+          case 'last7d':  from = new Date(now.getTime() -  7 * 86400000).toISOString(); break;
+          case 'last30d': from = new Date(now.getTime() - 30 * 86400000).toISOString(); break;
+          case 'last90d': from = new Date(now.getTime() - 90 * 86400000).toISOString(); break;
         }
       }
 
       const reportSpec = {
-        name: selectedTemplate.name,
-        templateId: selectedTemplate.id,
+        name:      selectedTemplate.name,
+        templateId:selectedTemplate.id,
         scope: {
           worksiteIds: runConfig.worksiteId ? [runConfig.worksiteId] : worksites.map(w => w.id),
           from,
           to,
         },
         entities: selectedTemplate.entities,
-        fields: selectedTemplate.fields,
-        filters: [],
-        layout: { format: runConfig.format },
-        includeEvidence: runConfig.includeEvidence,
+        fields:   selectedTemplate.fields,
+        filters:  [],
       };
 
-      const response = await fetch('/api/reports/run', {
-        method: 'POST',
+      // Fetch data as JSON — format generation happens client-side
+      const res = await fetch('/api/reports/run', {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportSpec, format: runConfig.format }),
+        body:    JSON.stringify({ reportSpec }),
       });
 
-      if (response.ok) {
-        // API streams the file directly — trigger browser download
-        const blob = await response.blob();
-        const contentDisposition = response.headers.get('Content-Disposition') ?? '';
-        const match = contentDisposition.match(/filename="([^"]+)"/);
-        const fileName = match?.[1] ?? `report.${runConfig.format}`;
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        const rowCount = response.headers.get('X-Row-Count') ?? '?';
-        const exportJobId = response.headers.get('X-Job-Id') ?? `local_${Date.now()}`;
-        setRecentExports(prev => [{
-          id:           exportJobId,
-          jobId:        exportJobId,
-          format:       runConfig.format,
-          status:       'ready',
-          fileUrl:      undefined,
-          fileSize:     blob.size,
-          requestedAt:  new Date().toISOString(),
-          completedAt:  new Date().toISOString(),
-        }, ...prev]);
-        setShowRunModal(false);
-        setActiveTab('saved');
-      } else {
-        const err = await response.json().catch(() => ({ error: 'Server error' }));
-        setError(err.error || 'Failed to run report');
+      const json = await res.json();
+      if (!json.success) {
+        setError(json.error || 'Failed to run report');
+        return;
       }
+
+      const { data, meta } = json;
+      const safeName = (meta.reportName || 'report').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const ts       = new Date().toISOString().slice(0, 10);
+      const fmt      = runConfig.format;
+
+      switch (fmt) {
+        case 'csv':
+          triggerDownload(toCSV(data), `${safeName}_${ts}.csv`, 'text/csv');
+          break;
+        case 'json':
+          triggerDownload(
+            JSON.stringify({ generated: meta.generatedAt, rows: data.length, data }, null, 2),
+            `${safeName}_${ts}.json`,
+            'application/json',
+          );
+          break;
+        case 'xlsx':
+          triggerDownload(toSpreadsheetML(data, meta.reportName), `${safeName}_${ts}.xls`, 'application/vnd.ms-excel');
+          break;
+        case 'pdf':
+          openPrintWindow(data, meta);
+          break;
+        default:
+          triggerDownload(toCSV(data), `${safeName}_${ts}.csv`, 'text/csv');
+      }
+
+      // Add to recent exports list
+      const exportId = `local_${Date.now()}`;
+      setRecentExports(prev => [{
+        id:          exportId,
+        jobId:       exportId,
+        format:      fmt,
+        status:      'ready',
+        fileSize:    data.length * 80, // rough estimate
+        requestedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+      }, ...prev]);
+
+      setShowRunModal(false);
+      setActiveTab('saved');
     } catch (err: any) {
       setError(err.message || 'Failed to run report');
     } finally {
