@@ -246,13 +246,36 @@ export default function ReportsPage({ currentSite, worksites }: ReportsPageProps
       });
 
       if (response.ok) {
-        const data = await response.json();
-        // Add to recent exports
-        setRecentExports(prev => [data.data, ...prev]);
+        // API streams the file directly — trigger browser download
+        const blob = await response.blob();
+        const contentDisposition = response.headers.get('Content-Disposition') ?? '';
+        const match = contentDisposition.match(/filename="([^"]+)"/);
+        const fileName = match?.[1] ?? `report.${runConfig.format}`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        const rowCount = response.headers.get('X-Row-Count') ?? '?';
+        const exportJobId = response.headers.get('X-Job-Id') ?? `local_${Date.now()}`;
+        setRecentExports(prev => [{
+          id:           exportJobId,
+          jobId:        exportJobId,
+          format:       runConfig.format,
+          status:       'ready',
+          fileUrl:      undefined,
+          fileSize:     blob.size,
+          requestedAt:  new Date().toISOString(),
+          completedAt:  new Date().toISOString(),
+        }, ...prev]);
         setShowRunModal(false);
         setActiveTab('saved');
       } else {
-        const err = await response.json();
+        const err = await response.json().catch(() => ({ error: 'Server error' }));
         setError(err.error || 'Failed to run report');
       }
     } catch (err: any) {
