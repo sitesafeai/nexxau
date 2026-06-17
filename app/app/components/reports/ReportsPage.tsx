@@ -441,7 +441,7 @@ export default function ReportsPage({ currentSite, worksites }: ReportsPageProps
   return (
     <div className="space-y-6">
       {currentSite?.id && (
-        <WorksiteAnalyticsCharts siteFilter={currentSite.id} showPdfDownload />
+        <WorksiteAnalyticsCharts siteFilter={currentSite.id} showPdfDownload={false} />
       )}
 
       {/* Header */}
