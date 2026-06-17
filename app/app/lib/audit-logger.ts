@@ -1,16 +1,20 @@
 import { prisma } from './prisma';
 import { NextRequest } from 'next/server';
 
-export type AuditAction = 
-  | 'CREATE' 
-  | 'UPDATE' 
-  | 'DELETE' 
-  | 'LOGIN' 
-  | 'LOGOUT' 
-  | 'INVITE' 
+export type AuditAction =
+  | 'CREATE'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'LOGIN'
+  | 'LOGIN_FAILED'
+  | 'LOGOUT'
+  | 'INVITE'
   | 'CLAIM_ACCOUNT'
   | 'ACKNOWLEDGE_ALERT'
-  | 'RESOLVE_ALERT';
+  | 'RESOLVE_ALERT'
+  | 'USER_ROLE_UPDATED'
+  | 'USER_REMOVED_FROM_WORKSITE'
+  | 'REPORT_EXPORTED';
 
 export type AuditEntity = 
   | 'User' 

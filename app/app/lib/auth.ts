@@ -155,6 +155,16 @@ export const authOptions: NextAuthOptions = {
 
         if (!isPasswordValid) {
           console.warn('[auth] Invalid password for', emailNormalized);
+          // Track failed login — fire-and-forget, never crash auth
+          prisma.auditLog.create({
+            data: {
+              userId:   user.id,
+              action:   'LOGIN_FAILED',
+              entity:   'User',
+              entityId: user.id,
+              metadata: { email: emailNormalized, reason: 'invalid_password' },
+            },
+          }).catch(() => {});
           return null;
         }
 
@@ -236,6 +246,26 @@ export const authOptions: NextAuthOptions = {
       
       // Redirect to auth-redirect page which will handle role-based routing
       return `${baseUrl}/auth-redirect`;
+    },
+  },
+  events: {
+    async signIn({ user }) {
+      if (!user?.id) return;
+      // Stamp lastLogin on User — fire-and-forget
+      prisma.user.update({
+        where: { id: user.id },
+        data:  { lastLogin: new Date() },
+      }).catch(() => {});
+      // Write audit log entry
+      prisma.auditLog.create({
+        data: {
+          userId:   user.id,
+          action:   'LOGIN',
+          entity:   'User',
+          entityId: user.id,
+          metadata: { method: 'credentials' },
+        },
+      }).catch(() => {});
     },
   },
   pages: {

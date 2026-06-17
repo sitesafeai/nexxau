@@ -144,40 +144,94 @@ export async function POST(request: NextRequest) {
         }
 
         case 'USER': {
-          const rows = await prisma.user.findMany({
+          // Per-user activity summary: join user record with their audit log stats
+          const users = await prisma.user.findMany({
             select: { id: true, name: true, email: true, role: true, lastLogin: true, createdAt: true },
+            orderBy: { lastLogin: 'desc' },
           });
-          data.push(...rows.map(u => ({
-            id:        u.id,
-            name:      u.name ?? '',
-            email:     u.email ?? '',
-            role:      u.role ?? '',
-            lastLogin: u.lastLogin?.toISOString() ?? '',
-            createdAt: u.createdAt?.toISOString() ?? '',
-          })));
+
+          // Batch-fetch audit stats for all users in the date window
+          const userIds = users.map(u => u.id);
+          const auditRows = await prisma.auditLog.findMany({
+            where: {
+              userId: { in: userIds },
+              ...(hasDates ? { createdAt: dateFilter } : {}),
+            },
+            select: { userId: true, action: true, createdAt: true, ipAddress: true, metadata: true },
+          });
+
+          // Aggregate per user
+          const statsMap = new Map<string, {
+            logins: number; failedLogins: number; permissionChanges: number;
+            actions: number; lastSeen: string; lastIp: string;
+          }>();
+          for (const row of auditRows) {
+            if (!row.userId) continue;
+            const s = statsMap.get(row.userId) ?? { logins: 0, failedLogins: 0, permissionChanges: 0, actions: 0, lastSeen: '', lastIp: '' };
+            if (row.action === 'LOGIN')          s.logins++;
+            if (row.action === 'LOGIN_FAILED')   s.failedLogins++;
+            if (row.action === 'USER_ROLE_UPDATED') s.permissionChanges++;
+            s.actions++;
+            if (!s.lastSeen || row.createdAt > new Date(s.lastSeen)) {
+              s.lastSeen = row.createdAt.toISOString();
+              s.lastIp   = row.ipAddress ?? '';
+            }
+            statsMap.set(row.userId, s);
+          }
+
+          data.push(...users.map(u => {
+            const s = statsMap.get(u.id);
+            return {
+              name:              u.name ?? '',
+              email:             u.email ?? '',
+              role:              u.role ?? '',
+              lastLogin:         u.lastLogin?.toISOString() ?? 'Never',
+              logins:            s?.logins ?? 0,
+              failedLogins:      s?.failedLogins ?? 0,
+              permissionChanges: s?.permissionChanges ?? 0,
+              totalActions:      s?.actions ?? 0,
+              lastActiveAt:      s?.lastSeen ?? '',
+              lastIp:            s?.lastIp ?? '',
+              accountCreated:    u.createdAt?.toISOString() ?? '',
+            };
+          }));
           break;
         }
 
         case 'AUDIT': {
+          // User-activity-relevant audit log entries
+          const USER_ACTIVITY_ACTIONS = [
+            'LOGIN', 'LOGIN_FAILED', 'LOGOUT',
+            'USER_ROLE_UPDATED', 'USER_REMOVED_FROM_WORKSITE',
+            'INVITE', 'CLAIM_ACCOUNT',
+          ];
           const rows = await prisma.auditLog.findMany({
             where: {
-              ...worksiteFilter,
+              action: { in: USER_ACTIVITY_ACTIONS },
               ...(hasDates ? { createdAt: dateFilter } : {}),
             },
             include: { user: { select: { id: true, name: true, email: true } } },
             orderBy: { createdAt: 'desc' },
             take: 10000,
           });
-          data.push(...rows.map(a => ({
-            id:        a.id,
-            action:    a.action,
-            entity:    a.entity ?? '',
-            entityId:  a.entityId ?? '',
-            user:      a.user?.name ?? '',
-            email:     a.user?.email ?? '',
-            createdAt: a.createdAt?.toISOString() ?? '',
-            ip:        a.ipAddress ?? '',
-          })));
+          data.push(...rows.map(a => {
+            const meta = (a.metadata as Record<string, any>) ?? {};
+            return {
+              timestamp:   a.createdAt?.toISOString() ?? '',
+              action:      a.action,
+              user:        a.user?.name ?? '',
+              email:       a.user?.email ?? meta.email ?? '',
+              entity:      a.entity ?? '',
+              details:     a.action === 'USER_ROLE_UPDATED'
+                ? `${meta.oldRole ?? '?'} → ${meta.newRole ?? '?'}`
+                : a.action === 'LOGIN_FAILED'
+                ? `Failed: ${meta.reason ?? 'unknown'}`
+                : a.action === 'INVITE'
+                ? `Invited ${meta.invitedEmail ?? '?'} as ${meta.role ?? '?'}`
+                : '',
+              ipAddress:   a.ipAddress ?? '',
+            };
+          }));
           break;
         }
       }
