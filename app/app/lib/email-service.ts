@@ -628,12 +628,12 @@ export async function sendSuperAdminWorksiteAccessEmail(options: {
   summaryLines: string[];
 }): Promise<{ success: boolean; error?: string }> {
   const { to, recipientName, summaryLines } = options;
-  if (!to?.trim()) return { success: false, error: 'No recipient' };
+  if (!to?.trim()) return { success: false, error: ‘No recipient’ };
   try {
     const greeting = recipientName?.trim()
       ? `<p>Hello ${escapeHtmlEmail(recipientName.trim())},</p>`
-      : '<p>Hello,</p>';
-    const list = summaryLines.map((line) => `<li>${escapeHtmlEmail(line)}</li>`).join('');
+      : ‘<p>Hello,</p>’;
+    const list = summaryLines.map((line) => `<li>${escapeHtmlEmail(line)}</li>`).join(‘’);
     const content = `
       ${greeting}
       <p>A platform administrator updated your worksite access:</p>
@@ -645,14 +645,67 @@ export async function sendSuperAdminWorksiteAccessEmail(options: {
     const r = await sendResendHtml({
       from: getResendFromAddress(),
       to,
-      subject: 'Your worksite access was updated',
-      html: getEmailTemplate('Worksite access updated', content, 'Sign in', `${APP_URL}/login`),
+      subject: ‘Your worksite access was updated’,
+      html: getEmailTemplate(‘Worksite access updated’, content, ‘Sign in’, `${APP_URL}/login`),
     });
     if (!r.success) return { success: false, error: r.error };
     return { success: true };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[EMAIL] Worksite access email failed:', message);
+    const message = error instanceof Error ? error.message : ‘Unknown error’;
+    console.error(‘[EMAIL] Worksite access email failed:’, message);
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Notify company admins that a new user has claimed their invite and is waiting for approval.
+ * Called after /api/invitations/claim succeeds.
+ */
+export async function sendPendingApprovalNotification(options: {
+  adminEmail: string;
+  adminName: string | null;
+  newUserName: string;
+  newUserEmail: string;
+  newUserRole: string;
+  companyName: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const { adminEmail, adminName, newUserName, newUserEmail, newUserRole, companyName } = options;
+  if (!adminEmail?.trim()) return { success: false, error: ‘No recipient’ };
+
+  const approveUrl = `${APP_URL}/admin/users`;
+  const greeting = adminName?.trim()
+    ? `<p>Hello ${escapeHtmlEmail(adminName.trim())},</p>`
+    : ‘<p>Hello,</p>’;
+
+  const content = `
+    ${greeting}
+    <p>A new team member has accepted their invitation and is waiting for you to approve their account.</p>
+    <div class="info-box">
+      <p style="margin:0 0 6px 0;"><strong>Name:</strong> ${escapeHtmlEmail(newUserName)}</p>
+      <p style="margin:0 0 6px 0;"><strong>Email:</strong> ${escapeHtmlEmail(newUserEmail)}</p>
+      <p style="margin:0 0 6px 0;"><strong>Role:</strong> ${escapeHtmlEmail(newUserRole)}</p>
+      <p style="margin:0;"><strong>Company:</strong> ${escapeHtmlEmail(companyName)}</p>
+    </div>
+    <p>Head to the Users section to approve their access so they can start using Nexxau.</p>
+  `;
+
+  try {
+    const r = await sendResendHtml({
+      from: getResendFromAddress(),
+      to: adminEmail,
+      subject: `Action required: ${escapeHtmlEmail(newUserName)} is waiting for approval`,
+      html: getEmailTemplate(
+        ‘New user awaiting approval’,
+        content,
+        ‘Review & Approve’,
+        approveUrl
+      ),
+    });
+    if (!r.success) return { success: false, error: r.error };
+    return { success: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : ‘Unknown error’;
+    console.error(‘[EMAIL] Pending approval notification failed:’, message);
     return { success: false, error: message };
   }
 }

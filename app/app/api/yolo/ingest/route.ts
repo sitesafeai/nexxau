@@ -58,8 +58,9 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
 
-  // 0. Stamp lastSeenAt on the camera so isCameraOnline() knows it's alive.
-  //    Fire-and-forget — don't let a metadata update failure block detection logging.
+  // 0. Stamp lastSeenAt on the camera AND write a CameraHealth record so the
+  //    health system knows this camera is online even when YOLO slows down.
+  //    Both are fire-and-forget — never block detection logging.
   prisma.camera.update({
     where: { id: camera_id },
     data: {
@@ -70,6 +71,24 @@ export async function POST(req: NextRequest) {
       },
     },
   }).catch((e) => console.warn('[ingest] camera status update failed:', e?.message));
+
+  // Write a CameraHealth row — the CAMERA report picks the latest via
+  // `orderBy: { lastCheck: 'desc' }, take: 1`.
+  prisma.cameraHealth.create({
+    data: {
+      cameraId:  camera_id,
+      status:    'ONLINE',
+      lastCheck: now,
+    },
+  }).catch((e) => console.warn('[ingest] cameraHealth write failed:', e?.message));
+
+  // Prune old CameraHealth rows (~1% of requests) to prevent table bloat
+  if (Math.random() < 0.01) {
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    prisma.cameraHealth
+      .deleteMany({ where: { lastCheck: { lt: cutoff } } })
+      .catch(() => {});
+  }
 
   // 1. Log every detection to DetectionLog
   for (const v of violations) {
