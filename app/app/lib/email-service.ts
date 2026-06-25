@@ -5,7 +5,7 @@
 
 import { sendResendHtml, getResendFromAddress, isResendConfigured } from './resend-mail';
 
-const FROM_NAME = process.env.FROM_NAME || 'SiteSafe';
+const FROM_NAME = process.env.FROM_NAME || 'Nexxau';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 let resendConfigLogged = false;
@@ -98,7 +98,7 @@ const getEmailTemplate = (title: string, content: string, buttonText?: string, b
 <body>
   <div class="container">
     <div class="header">
-      <h1 class="logo">🛡️ SiteSafe</h1>
+      <h1 class="logo" style="letter-spacing:3px;font-size:28px;">NEXXAU</h1>
     </div>
     <div class="content">
       <h1>${title}</h1>
@@ -110,7 +110,7 @@ const getEmailTemplate = (title: string, content: string, buttonText?: string, b
       ` : ''}
     </div>
     <div class="footer">
-      <p>© ${new Date().getFullYear()} SiteSafe. All rights reserved.</p>
+      <p>© ${new Date().getFullYear()} Nexxau. All rights reserved.</p>
       <p>AI-Powered Construction Safety Monitoring</p>
     </div>
   </div>
@@ -151,7 +151,7 @@ export async function sendInvitationEmail(
     
     const content = `
       <p>Hello!</p>
-      <p><strong>${inviterName}</strong> has added you to <strong>${worksiteName}</strong>${companyName ? ` (${companyName})` : ''} on SiteSafe as a <strong>${role}</strong>.</p>
+      <p><strong>${inviterName}</strong> has added you to <strong>${worksiteName}</strong>${companyName ? ` (${companyName})` : ''} on Nexxau as a <strong>${role}</strong>.</p>
       <div class="info-box">
         <p><strong>What's Next?</strong></p>
         <p>Click the button below to complete your account setup and set your password. This link will expire in 24 hours.</p>
@@ -318,7 +318,7 @@ export async function sendPasswordResetEmail(
     
     const content = `
       <p>Hello ${name},</p>
-      <p>We received a request to reset your password for your SiteSafe account.</p>
+      <p>We received a request to reset your password for your Nexxau account.</p>
       <div class="info-box">
         <p><strong>Security Notice:</strong></p>
         <p>If you didn't request this password reset, please ignore this email. Your password will remain unchanged.</p>
@@ -330,7 +330,7 @@ export async function sendPasswordResetEmail(
     const result = await sendResendHtml({
       from: getResendFromAddress(),
       to,
-      subject: 'Reset Your SiteSafe Password',
+      subject: 'Reset Your Nexxau Password',
       html: getEmailTemplate(
         'Password Reset Request',
         content,
@@ -382,7 +382,7 @@ export async function sendWelcomeEmail(
     const dashboardUrl = `${APP_URL}/dashboard`;
     
     const content = `
-      <p>Welcome to SiteSafe, ${name}!</p>
+      <p>Welcome to Nexxau, ${name}!</p>
       <p>Your account has been successfully created for <strong>${companyName}</strong>.</p>
       <div class="info-box">
         <p><strong>Getting Started:</strong></p>
@@ -399,9 +399,9 @@ export async function sendWelcomeEmail(
     const welcomeResult = await sendResendHtml({
       from: getResendFromAddress(),
       to,
-      subject: `Welcome to SiteSafe - ${companyName}`,
+      subject: `Welcome to Nexxau - ${companyName}`,
       html: getEmailTemplate(
-        'Welcome to SiteSafe! 🎉',
+        'Welcome to Nexxau!',
         content,
         'Go to Dashboard',
         dashboardUrl
