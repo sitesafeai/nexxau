@@ -2239,7 +2239,7 @@ function SitesPage({ sites, currentUser, companies }: { sites: any[]; currentUse
                       {site.safetyScore != null ? `${site.safetyScore}%` : '—'}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="pl-6 pr-8 py-4">
                     <div className="flex items-center space-x-2">
               <button 
                 onClick={() => router.push(`/dashboard?worksite=${site.id}`)}
@@ -3597,7 +3597,7 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Camera</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Time</th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Actions</th>
+              <th className="pl-6 pr-8 py-4 text-left text-xs font-medium text-slate-400 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700/50">
@@ -3653,7 +3653,7 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
                   <td className="px-6 py-4 text-sm text-slate-400">
                     {alert.createdAt ? new Date(alert.createdAt).toLocaleString() : '—'}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="pl-6 pr-8 py-4">
                     <div className="flex items-center space-x-2">
                       {/* ACTIVE alerts → show Acknowledge button */}
                       {alert.status?.toUpperCase() === 'ACTIVE' && (
@@ -4752,7 +4752,7 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Trigger</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Last Run</th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Actions</th>
+              <th className="pl-6 pr-8 py-4 text-left text-xs font-medium text-slate-400 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700/50">
@@ -5134,7 +5134,7 @@ function AlertRulesPage({ currentSite }: { currentSite: any }) {
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Type</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Severity</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Actions</th>
+              <th className="pl-6 pr-8 py-4 text-left text-xs font-medium text-slate-400 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700/50">
@@ -5181,7 +5181,7 @@ function AlertRulesPage({ currentSite }: { currentSite: any }) {
                       {rule.isActive ? 'Active' : 'Inactive'}
                     </button>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="pl-6 pr-8 py-4">
                     <div className="flex items-center space-x-2">
                       <button 
                         onClick={() => router.push(`/dashboard/alert-builder?edit=${rule.id}&worksite=${currentSite.id}`)}
