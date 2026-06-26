@@ -3594,9 +3594,9 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Severity</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Snapshot</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Alert</th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Camera</th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Time</th>
+              <th className="px-4 py-4 text-left text-xs font-medium text-slate-400 uppercase">Camera</th>
+              <th className="px-4 py-4 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
+              <th className="px-4 py-4 text-left text-xs font-medium text-slate-400 uppercase">Time</th>
               <th className="pl-6 pr-8 py-4 text-right text-xs font-medium text-slate-400 uppercase whitespace-nowrap">Actions</th>
             </tr>
           </thead>
@@ -3644,13 +3644,13 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
                     <p className="text-sm font-medium text-white">{alert.title || 'Alert'}</p>
                     <p className="text-xs text-slate-400 truncate max-w-xs">{alert.description || '—'}</p>
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-300">{alert.camera?.name || alert.worksite?.name || alert.location || '—'}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-4 text-sm text-slate-300">{alert.camera?.name || alert.worksite?.name || alert.location || '—'}</td>
+                  <td className="px-4 py-4">
                     <span className={`inline-flex px-2 py-1 text-xs font-medium rounded border ${getStatusBadge(alert.status)}`}>
                       {getStatusDisplayName(alert.status)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-400">
+                  <td className="px-4 py-4 text-sm text-slate-400">
                     {alert.createdAt ? new Date(alert.createdAt).toLocaleString() : '—'}
                   </td>
                   <td className="pl-6 pr-8 py-4 text-right whitespace-nowrap">
