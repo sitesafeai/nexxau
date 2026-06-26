@@ -2333,7 +2333,6 @@ function SitesPage({ sites, currentUser, companies }: { sites: any[]; currentUse
           window.location.reload();
         }}
       />
-                  </div>
   );
 }
 
