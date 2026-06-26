@@ -41,15 +41,26 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
 
-  // Update camera.status + metadata.lastSeenAt for every id
-  await prisma.camera.updateMany({
+  // Only act on camera IDs that actually exist in the DB
+  const existingCameras = await prisma.camera.findMany({
     where: { id: { in: ids } },
+    select: { id: true },
+  });
+  const validIds = existingCameras.map((c) => c.id);
+
+  if (!validIds.length) {
+    return NextResponse.json({ ok: false, error: 'No matching cameras found', updated: 0 }, { status: 404 });
+  }
+
+  // Update camera.status for all valid IDs in one query
+  await prisma.camera.updateMany({
+    where: { id: { in: validIds } },
     data: { status: 'online' },
   });
 
   // Write a CameraHealth row per camera — one round-trip per camera, but typically
   // the YOLO service only manages a handful of cameras so this is fine.
-  const healthWrites = ids.map((cameraId) =>
+  const healthWrites = validIds.map((cameraId) =>
     prisma.cameraHealth
       .create({ data: { cameraId, status: 'ONLINE', lastCheck: now } })
       .catch((e) => console.warn(`[heartbeat] health write failed for ${cameraId}:`, e?.message))
@@ -57,7 +68,7 @@ export async function POST(req: NextRequest) {
 
   // Stamp lastSeenAt on each camera's metadata — do it one-by-one so we can
   // merge the existing JSON rather than replacing it.
-  const metaWrites = ids.map(async (cameraId) => {
+  const metaWrites = validIds.map(async (cameraId) => {
     try {
       const cam = await prisma.camera.findUnique({
         where: { id: cameraId },
@@ -87,5 +98,5 @@ export async function POST(req: NextRequest) {
       .catch((e) => console.warn('[heartbeat] prune failed:', e?.message));
   }
 
-  return NextResponse.json({ ok: true, updated: ids.length, at: now.toISOString() });
+  return NextResponse.json({ ok: true, updated: validIds.length, at: now.toISOString() });
 }
