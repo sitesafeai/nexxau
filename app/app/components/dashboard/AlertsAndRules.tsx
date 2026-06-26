@@ -549,7 +549,7 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
                     <th className="px-4 py-3 text-left font-medium">Time</th>
                     <th className="px-4 py-3 text-left font-medium">Assigned</th>
                     <th className="px-4 py-3 text-left font-medium">Status</th>
-                    <th className="px-4 py-3 text-right font-medium">Actions</th>
+                    <th className="pl-4 pr-6 py-3 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/30">
@@ -594,7 +594,7 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
                             {alert.status}
                           </span>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="pl-4 pr-6 py-4">
                           <div className="flex items-center justify-end space-x-1">
                             {alert.detectionSnapshot && (
                               <img
@@ -705,7 +705,7 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
                     <th className="px-4 py-3 text-left font-medium">Conditions</th>
                     <th className="px-4 py-3 text-left font-medium">Actions</th>
                     <th className="px-4 py-3 text-left font-medium">Status</th>
-                    <th className="px-4 py-3 text-right font-medium">Actions</th>
+                    <th className="pl-4 pr-6 py-3 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/30">
@@ -754,7 +754,7 @@ export default function AlertsAndRules({ currentUser, siteFilter }: AlertsAndRul
                             {rule.isActive ? 'Active' : 'Inactive'}
                           </button>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="pl-4 pr-6 py-4">
                           <div className="flex items-center justify-end space-x-1">
                             <button
                               onClick={() => {
