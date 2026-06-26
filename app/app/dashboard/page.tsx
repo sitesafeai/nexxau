@@ -2196,7 +2196,8 @@ function SitesPage({ sites, currentUser, companies }: { sites: any[]; currentUse
 
       {/* Sites Table */}
       <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead className="bg-slate-900/50">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Site</th>
@@ -2239,8 +2240,8 @@ function SitesPage({ sites, currentUser, companies }: { sites: any[]; currentUse
                       {site.safetyScore != null ? `${site.safetyScore}%` : '—'}
                     </span>
                   </td>
-                  <td className="pl-6 pr-8 py-4">
-                    <div className="flex items-center space-x-2">
+                  <td className="pl-4 pr-8 py-4 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end space-x-2">
               <button 
                 onClick={() => router.push(`/dashboard?worksite=${site.id}`)}
                         className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
@@ -3588,7 +3589,8 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
 
       {/* Alerts Table */}
       <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead className="bg-slate-900/50">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Severity</th>
@@ -3597,7 +3599,7 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Camera</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Time</th>
-              <th className="pl-6 pr-8 py-4 text-left text-xs font-medium text-slate-400 uppercase">Actions</th>
+              <th className="pl-4 pr-8 py-4 text-right text-xs font-medium text-slate-400 uppercase whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700/50">
@@ -3653,8 +3655,8 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
                   <td className="px-6 py-4 text-sm text-slate-400">
                     {alert.createdAt ? new Date(alert.createdAt).toLocaleString() : '—'}
                   </td>
-                  <td className="pl-6 pr-8 py-4">
-                    <div className="flex items-center space-x-2">
+                  <td className="pl-4 pr-8 py-4 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end space-x-2">
                       {/* ACTIVE alerts → show Acknowledge button */}
                       {alert.status?.toUpperCase() === 'ACTIVE' && (
               <button
@@ -3687,6 +3689,7 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
           )}
           </tbody>
         </table>
+        </div>
         </div>
       
       {/* Comprehensive Alert Resolution Modal */}
@@ -4574,7 +4577,8 @@ function ReportsPage({ currentSite }: { currentSite: any }) {
       
       {/* Report Types Table */}
       <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead className="bg-slate-900/50">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Report Type</th>
@@ -4612,6 +4616,7 @@ function ReportsPage({ currentSite }: { currentSite: any }) {
             ))}
           </tbody>
         </table>
+        </div>
         </div>
       </div>
   );
@@ -4744,7 +4749,8 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
         </div>
       ) : (
       <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead className="bg-slate-900/50">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Workflow</th>
@@ -4752,7 +4758,7 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Trigger</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Last Run</th>
-              <th className="pl-6 pr-8 py-4 text-left text-xs font-medium text-slate-400 uppercase">Actions</th>
+              <th className="pl-4 pr-8 py-4 text-right text-xs font-medium text-slate-400 uppercase whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700/50">
@@ -4819,6 +4825,7 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
             ))}
           </tbody>
         </table>
+        </div>
         </div>
       )}
 
@@ -5127,14 +5134,15 @@ function AlertRulesPage({ currentSite }: { currentSite: any }) {
 
       {/* Rules Table */}
       <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead className="bg-slate-900/50">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Rule</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Type</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Severity</th>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
-              <th className="pl-6 pr-8 py-4 text-left text-xs font-medium text-slate-400 uppercase">Actions</th>
+              <th className="pl-4 pr-8 py-4 text-right text-xs font-medium text-slate-400 uppercase whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700/50">
@@ -5181,8 +5189,8 @@ function AlertRulesPage({ currentSite }: { currentSite: any }) {
                       {rule.isActive ? 'Active' : 'Inactive'}
                     </button>
                   </td>
-                  <td className="pl-6 pr-8 py-4">
-                    <div className="flex items-center space-x-2">
+                  <td className="pl-4 pr-8 py-4 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end space-x-2">
                       <button 
                         onClick={() => router.push(`/dashboard/alert-builder?edit=${rule.id}&worksite=${currentSite.id}`)}
                         className="px-3 py-1 border border-slate-600 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded"
