@@ -9,6 +9,7 @@ import os
 from typing import Optional
 
 import cv2
+import httpx
 import numpy as np
 from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile, File, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +19,74 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+# ── Next.js backend config ────────────────────────────────────────────────────
+# BACKEND_URL  — URL of the Next.js app, e.g. https://nexxau.com
+# INTERNAL_SERVICE_TOKEN — shared secret for /api/yolo/ingest and /api/cameras/heartbeat
+# CAMERA_ID_MAP — JSON mapping stream_id → Nexxau camera DB id
+#   e.g. '{"stream1":"cmpp0jiuu0001qm0cbvaei1y9"}'
+
+BACKEND_URL = os.getenv("BACKEND_URL", "").rstrip("/")
+INTERNAL_SERVICE_TOKEN = os.getenv("INTERNAL_SERVICE_TOKEN", "")
+
+_raw_camera_map = os.getenv("CAMERA_ID_MAP", "{}")
+try:
+    CAMERA_ID_MAP: dict[str, str] = json.loads(_raw_camera_map)
+except json.JSONDecodeError:
+    logger.error("CAMERA_ID_MAP is not valid JSON — detections will not be posted")
+    CAMERA_ID_MAP = {}
+
+
+def _ingest_headers() -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {INTERNAL_SERVICE_TOKEN}",
+        "Content-Type": "application/json",
+    }
+
+
+async def post_detections_to_nexxau(
+    camera_id: str,
+    violations: list[dict],
+    frame_b64: Optional[str] = None,
+) -> None:
+    """POST detections to /api/yolo/ingest — fire-and-forget, never raises."""
+    if not BACKEND_URL or not camera_id or not violations:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            await client.post(
+                f"{BACKEND_URL}/api/yolo/ingest",
+                headers=_ingest_headers(),
+                json={
+                    "camera_id": camera_id,
+                    "violations": violations,
+                    "frame_data": frame_b64,
+                },
+            )
+    except Exception as exc:
+        logger.warning(f"[ingest] POST failed for camera {camera_id}: {exc}")
+
+
+async def _heartbeat_loop() -> None:
+    """Ping /api/cameras/heartbeat every 30 s for all known cameras."""
+    camera_ids = list(CAMERA_ID_MAP.values())
+    if not camera_ids or not BACKEND_URL:
+        logger.info("[heartbeat] No cameras or BACKEND_URL configured — heartbeat disabled")
+        return
+
+    logger.info(f"[heartbeat] Starting loop for {len(camera_ids)} camera(s): {camera_ids}")
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.post(
+                    f"{BACKEND_URL}/api/cameras/heartbeat",
+                    headers=_ingest_headers(),
+                    json={"camera_ids": camera_ids},
+                )
+                logger.debug(f"[heartbeat] {resp.status_code} — {resp.text[:80]}")
+        except Exception as exc:
+            logger.warning(f"[heartbeat] Failed: {exc}")
+        await asyncio.sleep(30)
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 # allow_origins=["*"] + allow_credentials=True is invalid per the CORS spec and
@@ -54,6 +123,9 @@ async def startup_event() -> None:
     except Exception as exc:
         logger.error(f"Failed to load YOLO model from '{model_path}': {exc}")
         # Do NOT crash the process — individual endpoints will return 503 if model is None.
+
+    # Start the camera heartbeat background task
+    asyncio.create_task(_heartbeat_loop())
 
 
 # ── internal service token auth ───────────────────────────────────────────────
@@ -209,6 +281,18 @@ async def video_stream(websocket: WebSocket, stream_id: str):
             _, buffer = cv2.imencode('.jpg', frame)
             frame_base64 = base64.b64encode(buffer).decode('utf-8')
             await websocket.send_json({"frame": frame_base64, "detections": detections})
+
+            # POST detections to Next.js if this stream maps to a known camera DB id
+            nexxau_camera_id = CAMERA_ID_MAP.get(stream_id)
+            if nexxau_camera_id and detections:
+                violations = [
+                    {"type": d["class"], "confidence": d["confidence"], "bbox": d["bbox"]}
+                    for d in detections
+                ]
+                asyncio.create_task(
+                    post_detections_to_nexxau(nexxau_camera_id, violations, frame_base64)
+                )
+
             await asyncio.sleep(0.1)
 
     except Exception as exc:

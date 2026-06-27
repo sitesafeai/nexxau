@@ -79,7 +79,20 @@ export async function GET(
           orderBy: {
             createdAt: 'desc'
           }
-        }
+        },
+        // Include FP review so the dashboard dispute form can get the review ID
+        fpReview: {
+          select: {
+            id: true,
+            status: true,
+            superAdminNote: true,
+            reviewedAt: true,
+            disputes: {
+              select: { id: true, status: true, reason: true, createdAt: true },
+              orderBy: { createdAt: 'desc' },
+            },
+          },
+        },
       }
     });
 

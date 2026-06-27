@@ -2401,6 +2401,11 @@ function AlertResolutionModal({
   const [showReopenForm, setShowReopenForm] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(true);
   const [alertDetails, setAlertDetails] = useState<any>(null);
+  // Dispute a super-admin "Confirmed real" ruling
+  const [showDisputeForm, setShowDisputeForm] = useState(false);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [isSubmittingDispute, setIsSubmittingDispute] = useState(false);
+  const [disputeMsg, setDisputeMsg] = useState<string | null>(null);
   
   // Check if alert is already resolved/acknowledged
   const isAlreadyResolved = ['ACKNOWLEDGED', 'RESOLVED', 'CONFIRMED', 'FALSE_POSITIVE', 'ARCHIVED'].includes(alertData.status);
@@ -2780,6 +2785,86 @@ function AlertResolutionModal({
                               </div>
                             ))}
                           </div>
+                        </div>
+                      )}
+
+                      {/* Dispute Nexxau ruling — only shown when super-admin confirmed the violation */}
+                      {alertData.resolutionType === 'CONFIRMED_BY_SUPER_ADMIN' && (
+                        <div className="border-t border-amber-500/30 pt-3 mt-1">
+                          <p className="text-xs text-amber-400 font-semibold uppercase mb-2">
+                            ⚠ Nexxau Review Ruling
+                          </p>
+                          <p className="text-sm text-slate-300 mb-3">
+                            Nexxau's review team has confirmed this was a <strong className="text-red-400">real violation</strong>, not a false positive.
+                            {alertData.resolutionNotes ? ` Note: "${alertData.resolutionNotes}"` : ''}
+                          </p>
+                          {!showDisputeForm ? (
+                            <button
+                              onClick={() => setShowDisputeForm(true)}
+                              className="w-full px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium rounded transition-colors flex items-center justify-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                              </svg>
+                              Dispute this ruling
+                            </button>
+                          ) : (
+                            <div className="space-y-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded">
+                              <p className="text-sm text-amber-400 font-medium">Explain why you disagree</p>
+                              <textarea
+                                value={disputeReason}
+                                onChange={(e) => setDisputeReason(e.target.value)}
+                                placeholder="e.g. Worker had PPE on — camera angle was misleading."
+                                rows={3}
+                                className="w-full px-3 py-2 bg-slate-800 border border-slate-600 text-white rounded text-sm resize-none"
+                              />
+                              {disputeMsg && (
+                                <p className={`text-xs ${disputeMsg.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>
+                                  {disputeMsg}
+                                </p>
+                              )}
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={async () => {
+                                    if (!disputeReason.trim()) return;
+                                    setIsSubmittingDispute(true);
+                                    setDisputeMsg(null);
+                                    try {
+                                      // Get the FP review ID from the alert's fpReview relation
+                                      const detailRes = await fetch(`/api/alerts/${alertData.id}`);
+                                      const detail = await detailRes.json();
+                                      const reviewId = detail?.data?.fpReview?.id;
+                                      if (!reviewId) throw new Error('No review found for this alert');
+                                      const res = await fetch(`/api/admin/fp-reviews/${reviewId}/dispute`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ reason: disputeReason.trim() }),
+                                      });
+                                      const json = await res.json();
+                                      if (!res.ok) throw new Error(json.error ?? 'Failed');
+                                      setDisputeMsg('Dispute submitted — Nexxau will review it shortly.');
+                                      setShowDisputeForm(false);
+                                      setDisputeReason('');
+                                    } catch (e: any) {
+                                      setDisputeMsg(`Error: ${e.message}`);
+                                    } finally {
+                                      setIsSubmittingDispute(false);
+                                    }
+                                  }}
+                                  disabled={isSubmittingDispute || !disputeReason.trim()}
+                                  className="flex-1 px-4 py-2 bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium rounded transition-colors"
+                                >
+                                  {isSubmittingDispute ? 'Submitting...' : 'Submit dispute'}
+                                </button>
+                                <button
+                                  onClick={() => { setShowDisputeForm(false); setDisputeReason(''); setDisputeMsg(null); }}
+                                  className="px-4 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm rounded transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
 

@@ -87,6 +87,9 @@ model User {
   Workflow           Workflow[]
   supportTicketsCreated SupportTicket[]      @relation("SupportTicketCreatedBy")
   supportTicketMessages SupportTicketMessage[] @relation("SupportTicketMessageAuthor")
+  fpReviewsMarked      FalsePositiveReview[] @relation("FpReviewMarkedBy")
+  fpReviewsDone        FalsePositiveReview[] @relation("FpReviewReviewedBy")
+  fpDisputesSubmitted  FalsePositiveDispute[] @relation("FpDisputeSubmittedBy")
 }
 
 model AuditLog {
@@ -214,6 +217,7 @@ model Worksite {
   trainingImages           TrainingImage[]
   auditLogs                AuditLog[]
   workflows                Workflow[]
+  positiveDetections       PositiveDetection[]
 }
 
 model CompanyBillingRecord {
@@ -278,6 +282,7 @@ model Alert {
   camera            Camera?              @relation(fields: [cameraId], references: [id])
   responses         AlertResponse[]
   resolutionLogs    AlertResolutionLog[]
+  fpReview          FalsePositiveReview?
 }
 
 model AlertResolutionLog {
@@ -368,8 +373,9 @@ model Camera {
   customRules      CustomRule[]
   ruleTriggers     CustomRuleTrigger[]
   ruleViolations   CustomRuleViolation[]
-  trainingImages   TrainingImage[]
-  alerts           Alert[]
+  trainingImages        TrainingImage[]
+  alerts                Alert[]
+  positiveDetections    PositiveDetection[]
 }
 
 model CameraSystemConfig {
@@ -1039,4 +1045,72 @@ enum CameraStatus {
   DEGRADED
   ERROR
   MAINTENANCE
+}
+
+// ---------------------------------------------------------------------------
+// Positive compliance detections — PPE worn, safe behaviours observed.
+// Written by the YOLO ingest route when a detection is compliant rather than
+// a violation.  Used by the safety score formula to boost scores.
+// ---------------------------------------------------------------------------
+model PositiveDetection {
+  id            String   @id @default(cuid())
+  worksiteId    String
+  cameraId      String?
+  detectedAt    DateTime
+  detectionType String                   // e.g. "PPE_COMPLIANT", "SAFE_BEHAVIOUR"
+  severity      String   @default("LOW") // HIGH | MEDIUM | LOW — mirrors AlertSeverity
+  confidence    Float?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  worksite      Worksite @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  camera        Camera?  @relation(fields: [cameraId], references: [id], onDelete: SetNull)
+
+  @@index([worksiteId, detectedAt])
+  @@index([cameraId])
+}
+
+// ---------------------------------------------------------------------------
+// False-positive review queue.
+// When a company admin marks an Alert as FALSE_POSITIVE, a review row is
+// created here for a Nexxau super-admin to confirm or dismiss.
+// ---------------------------------------------------------------------------
+model FalsePositiveReview {
+  id             String                   @id @default(cuid())
+  alertId        String                   @unique
+  status         FpReviewStatus           @default(PENDING)
+  markedByUserId String                   // company-admin who flagged it
+  reviewedByUserId String?                // super-admin who reviewed it
+  superAdminNote String?                  // e.g. "PPE was not present"
+  createdAt      DateTime                 @default(now())
+  reviewedAt     DateTime?
+  alert          Alert                    @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  markedBy       User                     @relation("FpReviewMarkedBy", fields: [markedByUserId], references: [id])
+  reviewedBy     User?                    @relation("FpReviewReviewedBy", fields: [reviewedByUserId], references: [id])
+  disputes       FalsePositiveDispute[]
+}
+
+// A worksite can submit a dispute if they disagree with the super-admin ruling.
+model FalsePositiveDispute {
+  id               String              @id @default(cuid())
+  fpReviewId       String
+  submittedByUserId String
+  reason           String
+  status           FpDisputeStatus     @default(PENDING)
+  resolvedNote     String?
+  createdAt        DateTime            @default(now())
+  resolvedAt       DateTime?
+  fpReview         FalsePositiveReview @relation(fields: [fpReviewId], references: [id], onDelete: Cascade)
+  submittedBy      User                @relation("FpDisputeSubmittedBy", fields: [submittedByUserId], references: [id])
+}
+
+enum FpReviewStatus {
+  PENDING     // Waiting for super-admin review
+  CONFIRMED   // Super-admin confirmed it WAS a real violation
+  DISMISSED   // Super-admin agreed it was a false positive
+}
+
+enum FpDisputeStatus {
+  PENDING
+  UPHELD   // Dispute accepted — ruling changed
+  REJECTED // Dispute rejected — original ruling stands
 }

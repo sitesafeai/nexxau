@@ -8,7 +8,8 @@ import {
   calculateSafetyScore,
   getConfig,
   getGrade,
-  type ViolationData
+  type ViolationData,
+  type PositiveDetectionData,
 } from '@/app/lib/safety-score-service';
 
 /**
@@ -238,6 +239,37 @@ export async function POST(request: NextRequest) {
       ]
     };
     
+    // ============================================
+    // FORMAT POSITIVE DETECTIONS
+    // ============================================
+
+    // Query PositiveDetection rows for this worksite/day.
+    // These are written by the YOLO ingest route when PPE is observed
+    // without a violation (e.g. hard hat worn correctly).
+    // If the table doesn't have rows yet the score simply gets no boost —
+    // no error, no penalty, gracefully degrades to v1 behaviour.
+    let positives: PositiveDetectionData = { high: [], medium: [], low: [] };
+    try {
+      const positiveRows = await (tx as any).positiveDetection?.findMany({
+        where: {
+          worksiteId,
+          detectedAt: { gte: startOfDay, lte: endOfDay },
+        },
+        select: { severity: true, detectionType: true, detectedAt: true },
+      });
+      if (positiveRows?.length) {
+        for (const r of positiveRows) {
+          const entry = { timestamp: r.detectedAt, type: r.detectionType };
+          const sev = (r.severity ?? 'LOW').toUpperCase();
+          if (sev === 'HIGH')        positives.high.push(entry);
+          else if (sev === 'MEDIUM') positives.medium.push(entry);
+          else                       positives.low.push(entry);
+        }
+      }
+    } catch {
+      // PositiveDetection table not yet migrated — safe to skip
+    }
+
       // ============================================
       // GET TOTAL DETECTIONS (explicit check, no hand-waving)
       // ============================================
@@ -307,6 +339,7 @@ export async function POST(request: NextRequest) {
         worksiteId,
         date,
         violations,
+        positives,
         totalDetections,
         baseCompliance,
         coverageFactor,
@@ -331,7 +364,7 @@ export async function POST(request: NextRequest) {
           customAlerts: result.breakdown.components.customAlerts,
           baseCompliance: result.breakdown.baseCompliance,
           coverageFactor: result.breakdown.coverageFactor,
-          violationPenalty: result.breakdown.violationPenalty,
+          violationPenalty: result.breakdown.netPenalty,
           majorPenalty: result.breakdown.components.majorViolations.penalty,
           minorPenalty: result.breakdown.components.minorViolations.penalty,
           customAlertPenalty: result.breakdown.components.customAlerts.reduce(

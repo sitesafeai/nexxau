@@ -1,14 +1,23 @@
 /**
  * Safety Score Calculation Service
- * 
- * Implements the comprehensive safety scoring formula with:
- * - Base compliance (C)
- * - Coverage factor (F_cov)
- * - Violation penalties (major, minor, custom alerts)
- * - Time-weighted decay
- * - Consecutive safe day bonuses
- * - Alert deduplication
- * - Configurable parameters
+ *
+ * Bidirectional weighted formula (v2):
+ *
+ *   Net penalty = ( Σ violation_weights - Σ positive_weights ) / S
+ *   Net penalty clamped to [-maxBoostFromPositives, maxPenalty]
+ *
+ *   Score = 100 × C × F_cov × (1 - net_penalty) × (1 + consecutive_bonus)
+ *
+ * Violation severity weights (neg):  HIGH=1.5  MEDIUM=1.0  LOW=0.3
+ * Positive compliance weights (pos): HIGH=0.6  MEDIUM=0.4  LOW=0.12
+ *
+ * Ratio: ~2.5× positives at the same severity cancel one violation.
+ * Example: 10 HIGH violations → net_penalty rises by 1.5 units each;
+ *          25 HIGH positives  → net_penalty falls  by 0.6 units each.
+ *          Net = 0 → score unchanged.  This is insurer-explainable.
+ *
+ * Positive net_penalty (violations dominate) → score falls.
+ * Negative net_penalty (compliances dominate) → score rises (capped at +15%).
  */
 
 import { prisma } from '@/app/lib/prisma';
@@ -18,33 +27,44 @@ import { prisma } from '@/app/lib/prisma';
 // ============================================
 
 export interface SafetyScoreConfig {
-  // Violation weights
-  alpha: number;              // Major violations weight
-  beta: number;               // Minor violations weight
-  gamma: number;              // Custom alerts weight
-  
-  // Alert weight bounds
+  // ── Negative violation weights (severity-tiered) ────────────────────────
+  // Insurer interpretation: HIGH = serious risk exposure, LOW = minor risk.
+  negWeightHigh: number;          // per HIGH/critical violation   (default 1.5)
+  negWeightMedium: number;        // per MEDIUM violation          (default 1.0)
+  negWeightLow: number;           // per LOW/minor violation       (default 0.3)
+
+  // ── Positive compliance weights (severity-tiered) ───────────────────────
+  // negWeight / posWeight ≈ 2.5  →  need ~2.5 positives to offset 1 negative
+  // at the same severity level.  Keeps violations as the dominant signal while
+  // rewarding documented compliance improvement for actuarial reports.
+  posWeightHigh: number;          // per HIGH-confidence compliant obs  (default 0.6)
+  posWeightMedium: number;        // per MEDIUM                         (default 0.4)
+  posWeightLow: number;           // per LOW                            (default 0.12)
+
+  // ── Legacy / custom alert weights ──────────────────────────────────────
+  gamma: number;                  // Custom alert global multiplier
   alertWeightMin: number;
   alertWeightMax: number;
   defaultAlertWeight: number;
-  
-  // Penalty caps
-  maxPenalty: number;         // Max penalty (e.g., 0.5 = 50%)
-  perTypeAlertCap: number;    // Max alerts of same type counted
-  
-  // Time decay
-  lambda: number;             // Decay rate (e.g., 0.1 = 10% per day)
-  
-  // Deduplication
+
+  // ── Net-penalty clamps ──────────────────────────────────────────────────
+  maxPenalty: number;             // Max downward effect  (default 0.50 = −50%)
+  maxBoostFromPositives: number;  // Max upward  effect   (default 0.15 = +15%)
+  perTypeAlertCap: number;
+
+  // ── Time decay ──────────────────────────────────────────────────────────
+  lambda: number;                 // Exponential decay rate per day
+
+  // ── Deduplication ───────────────────────────────────────────────────────
   timeWindowSeconds: number;
   spatialThresholdMeters: number;
-  
-  // Bonuses
-  safeDayBonusRate: number;   // Bonus per consecutive safe day
-  maxBonus: number;           // Max bonus cap
-  safeDayThreshold: number;   // Days needed to start earning bonus
-  
-  // Data requirements
+
+  // ── Consecutive-safe-day bonus ──────────────────────────────────────────
+  safeDayBonusRate: number;
+  maxBonus: number;
+  safeDayThreshold: number;
+
+  // ── Data requirements ───────────────────────────────────────────────────
   minDetections: number;
 }
 
@@ -60,21 +80,37 @@ export interface ViolationData {
   }>;
 }
 
+/**
+ * Positive compliance observations — PPE worn, safe behaviours detected.
+ * Severity mirrors AlertSeverity (HIGH = very confident / high-risk zone covered).
+ */
+export interface PositiveDetectionData {
+  high:   Array<{ timestamp: Date; type: string }>;  // e.g. hard-hat on in mandatory zone
+  medium: Array<{ timestamp: Date; type: string }>;  // e.g. vest worn
+  low:    Array<{ timestamp: Date; type: string }>;  // e.g. general PPE observed
+}
+
 export interface SafetyScoreResult {
   score: number; // Always between 0 and 100 (clamped)
   grade: string;
   breakdown: {
-    baseCompliance: number; // C ∈ [0.5, 1.0]
-    coverageFactor: number; // F_cov ∈ [0.7, 1.0]
-    violationPenalty: number; // P ∈ [0, 0.9]
+    baseCompliance: number;    // C ∈ [0.5, 1.0]
+    coverageFactor: number;    // F_cov ∈ [0.7, 1.0]
+    netPenalty: number;        // Clamped net = violations − positives, ∈ [-0.15, 0.50]
+    /** @deprecated Use netPenalty. Kept for backwards-compat with stored breakdowns. */
+    violationPenalty: number;
     components: {
-      majorViolations: { count: number; penalty: number };
-      minorViolations: { count: number; penalty: number };
-      customAlerts: Array<{ type: string; count: number; weight: number; penalty: number }>;
+      majorViolations:  { count: number; penalty: number };
+      minorViolations:  { count: number; penalty: number };
+      customAlerts:     Array<{ type: string; count: number; weight: number; penalty: number }>;
+      // Positive compliance contributions (negative = score boost)
+      positiveHigh:   { count: number; boost: number };
+      positiveMedium: { count: number; boost: number };
+      positiveLow:    { count: number; boost: number };
+      totalPositiveBoost: number; // sum of all positive boosts (score units before clamping)
     };
     scalingFactor: number;
     bonus: { consecutiveSafeDays: number; bonusAmount: number }; // bonus ∈ [0, 0.15]
-    // Detection source metadata (if available)
     detectionsSource?: 'ACTUAL' | 'ESTIMATED';
     estimationPenaltyApplied?: boolean;
     estimationPenalty?: number;
@@ -94,20 +130,40 @@ export interface SafetyScoreResult {
 // ============================================
 
 export const DEFAULT_SAFETY_CONFIG: SafetyScoreConfig = {
-  alpha: 1.0,
-  beta: 0.25,
+  // Negative severity weights
+  negWeightHigh:   1.50,
+  negWeightMedium: 1.00,
+  negWeightLow:    0.30,
+
+  // Positive severity weights (~2.5× fewer positives needed vs negatives at same tier)
+  posWeightHigh:   0.60,
+  posWeightMedium: 0.40,
+  posWeightLow:    0.12,
+
+  // Custom alert settings
   gamma: 1.0,
   alertWeightMin: 0.1,
   alertWeightMax: 2.0,
   defaultAlertWeight: 0.5,
-  maxPenalty: 0.5,
+
+  // Clamps
+  maxPenalty:           0.50,   // Max score can drop: 50%
+  maxBoostFromPositives: 0.15,  // Max score can rise from compliances: 15%
   perTypeAlertCap: 50,
+
+  // Time decay
   lambda: 0.1,
+
+  // Deduplication
   timeWindowSeconds: 300,
   spatialThresholdMeters: 10,
+
+  // Consecutive-safe-day bonus
   safeDayBonusRate: 0.01,
   maxBonus: 0.10,
   safeDayThreshold: 7,
+
+  // Data requirements
   minDetections: 100
 };
 
@@ -235,54 +291,64 @@ function generateRecommendations(
   totalDetections: number,
   config: SafetyScoreConfig
 ): string[] {
-  const recommendations: string[] = [];
-  
-  const { components, bonus } = breakdown;
-  
-  // Major violations
+  const recs: string[] = [];
+  const { components, bonus, netPenalty } = breakdown;
+
+  // Major violations — always surface these immediately
   if (components.majorViolations.count > 0) {
-    recommendations.push(
+    recs.push(
       `🚨 ${components.majorViolations.count} major violation${
         components.majorViolations.count > 1 ? 's' : ''
-      } detected - immediate action required`
+      } detected — immediate corrective action required`
     );
   }
-  
+
   // Minor violations
   if (components.minorViolations.count > 5) {
-    recommendations.push(
-      `⚠️ ${components.minorViolations.count} minor violations - review and address patterns`
+    recs.push(
+      `⚠️ ${components.minorViolations.count} minor violations — review and address recurring patterns`
     );
   }
-  
+
   // Custom alerts
-  const topAlert = components.customAlerts.sort((a, b) => b.count - a.count)[0];
+  const topAlert = [...components.customAlerts].sort((a, b) => b.count - a.count)[0];
   if (topAlert && topAlert.count > 3) {
-    recommendations.push(
-      `🎯 Focus on ${topAlert.type}: ${topAlert.count} incidents detected`
+    recs.push(`🎯 Focus area: ${topAlert.type} — ${topAlert.count} incidents detected`);
+  }
+
+  // Positive compliance signal
+  const totalPositives =
+    components.positiveHigh.count + components.positiveMedium.count + components.positiveLow.count;
+  if (totalPositives > 0 && netPenalty < 0) {
+    recs.push(
+      `✅ ${totalPositives} compliant observations recorded — positive safety behaviour is boosting your score`
+    );
+  } else if (totalPositives > 0) {
+    recs.push(
+      `📈 ${totalPositives} compliant observations recorded — keep documenting PPE compliance to improve your score`
     );
   }
-  
-  // Consecutive safe days
+
+  // Streak bonus
   if (bonus.consecutiveSafeDays >= config.safeDayThreshold) {
-    recommendations.push(
-      `✅ ${bonus.consecutiveSafeDays}-day streak of improved compliance! Keep it up!`
+    recs.push(
+      `🏅 ${bonus.consecutiveSafeDays}-day compliance streak! Consistent performance earns an actuarial bonus.`
     );
   }
-  
-  // Insufficient data
+
+  // Data quality warning
   if (totalDetections < config.minDetections) {
-    recommendations.push(
-      `📊 Limited detection data (${totalDetections}/${config.minDetections}). Ensure cameras are operational.`
+    recs.push(
+      `📊 Limited detection data (${totalDetections}/${config.minDetections}). Check that cameras are operational.`
     );
   }
-  
-  // Good performance
+
+  // Perfect day
   if (components.majorViolations.count === 0 && components.minorViolations.count === 0) {
-    recommendations.push('🌟 Excellent safety performance - zero violations today!');
+    recs.push('🌟 Zero violations detected today — excellent safety performance!');
   }
-  
-  return recommendations;
+
+  return recs;
 }
 
 // ============================================
@@ -290,29 +356,36 @@ function generateRecommendations(
 // ============================================
 
 /**
- * Calculate comprehensive safety score
- * 
- * @param worksiteId - Worksite identifier
- * @param date - Date for calculation
- * @param violations - Violation data (major, minor, custom alerts)
+ * Calculate comprehensive safety score (v2 — bidirectional weighted formula).
+ *
+ * Formula:
+ *   neg = Σ(negWeight[sev] × time_decay(violation))  over all violations + custom alerts
+ *   pos = Σ(posWeight[sev] × time_decay(detection))  over all positive compliance events
+ *   net = (neg - pos) / S          where S = max(1, totalDetections / 100)
+ *   net clamped to [-maxBoostFromPositives, maxPenalty]
+ *   Score = 100 × C × F_cov × (1 - net) × (1 + bonus) × (1 - estimationPenalty)
+ *   Final score clamped to [0, 100]
+ *
+ * Insurer interpretation:
+ *   - Negative net  → lots of compliances, score rises   (capped at +15%)
+ *   - Positive net  → violations dominate, score falls   (capped at −50%)
+ *   - ~2.5 HIGH positives cancel 1 HIGH violation
+ *
+ * @param worksiteId      - Worksite identifier
+ * @param date            - Date for calculation
+ * @param violations      - Violation data (major, minor, custom alerts)
+ * @param positives       - Positive compliance detections (optional, defaults to empty)
  * @param totalDetections - Total detection count (actual or estimated)
- * @param baseCompliance - Base compliance factor C (will be clamped to [0.5, 1.0])
- * @param coverageFactor - Coverage factor F_cov (will be clamped to [0.7, 1.0])
- * @param config - Optional config override
+ * @param baseCompliance  - Base compliance factor C, clamped to [0.5, 1.0]
+ * @param coverageFactor  - Coverage factor F_cov, clamped to [0.7, 1.0]
+ * @param config          - Optional config override
  * @param detectionMetadata - Optional metadata about detection source
- * 
- * @returns SafetyScoreResult with clamped score [0, 100]
- * 
- * Safety Guarantees:
- * - All input variables are clamped before calculation
- * - Final score is always between 0 and 100
- * - Formula: Score = 100 × C × F_cov × (1 - P) × (1 + bonus)
- * - Clamps: C ∈ [0.5, 1.0], F_cov ∈ [0.7, 1.0], P ∈ [0, 0.9], bonus ∈ [0, 0.15]
  */
 export async function calculateSafetyScore(
   worksiteId: string,
   date: Date,
   violations: ViolationData,
+  positives: PositiveDetectionData = { high: [], medium: [], low: [] },
   totalDetections: number,
   baseCompliance: number = 0.90,
   coverageFactor: number = 0.95,
@@ -322,217 +395,123 @@ export async function calculateSafetyScore(
     estimationPenaltyApplied: boolean;
   }
 ): Promise<SafetyScoreResult> {
-  // Merge with defaults
   const cfg: SafetyScoreConfig = { ...DEFAULT_SAFETY_CONFIG, ...config };
-  
-  // ============================================
-  // CLAMP INPUT VARIABLES (Safety Requirement)
-  // ============================================
-  
-  // Clamp base compliance: C ∈ [0.5, 1.0]
-  const C = Math.min(1.0, Math.max(0.5, baseCompliance));
-  
-  // Clamp coverage factor: F_cov ∈ [0.7, 1.0]
+
+  // ── 1. Clamp inputs ──────────────────────────────────────────────────────
+  const C     = Math.min(1.0, Math.max(0.5, baseCompliance));
   const F_cov = Math.min(1.0, Math.max(0.7, coverageFactor));
-  
-  // Check for insufficient data
   const insufficientData = totalDetections < cfg.minDetections;
-  
-  // ============================================
-  // 1. TIME-WEIGHTED VIOLATIONS
-  // ============================================
-  
+
+  // ── 2. Time-weighted violations ──────────────────────────────────────────
+  // major = HIGH/critical violations, minor = MEDIUM/LOW violations
   const V_maj_weighted = applyTimeDecay(violations.major, date, cfg.lambda);
   const V_min_weighted = applyTimeDecay(violations.minor, date, cfg.lambda);
-  
-  // ============================================
-  // 2. CUSTOM ALERTS with DEDUPLICATION
-  // ============================================
-  
-  // Group alerts by type
+
+  // Use severity-specific neg weights instead of legacy alpha/beta
+  // (alpha/beta left in config for backwards-compat with DB-stored configs)
+  const negMajor = cfg.negWeightHigh   * V_maj_weighted;
+  const negMinor = cfg.negWeightLow    * V_min_weighted;  // minor → LOW weight
+
+  // ── 3. Custom alerts with deduplication ─────────────────────────────────
   const alertsByType = violations.customAlerts.reduce((acc, alert) => {
-    if (!acc[alert.type]) {
-      acc[alert.type] = [];
-    }
-    acc[alert.type].push(alert);
+    (acc[alert.type] ??= []).push(alert);
     return acc;
   }, {} as Record<string, typeof violations.customAlerts>);
-  
-  // Deduplicate and weight each type
+
   const customAlertDetails: Array<{ type: string; count: number; weight: number; penalty: number }> = [];
   let A_score = 0;
-  
+
   for (const [type, alerts] of Object.entries(alertsByType)) {
-    // Get average weight for this type
-    const avgWeight = alerts.reduce((sum, a) => sum + a.weight, 0) / alerts.length;
-    
-    // Clamp weight
-    const clampedWeight = Math.max(
-      cfg.alertWeightMin,
-      Math.min(cfg.alertWeightMax, avgWeight)
-    );
-    
-    // Deduplicate
-    const deduplicatedCount = deduplicateAlerts(
-      alerts,
-      cfg.timeWindowSeconds,
-      cfg.spatialThresholdMeters
-    );
-    
-    // Apply per-type cap
-    const cappedCount = Math.min(deduplicatedCount, cfg.perTypeAlertCap);
-    
-    const penalty = clampedWeight * cappedCount;
-    A_score += penalty;
-    
-    customAlertDetails.push({
-      type: alerts[0].name || type,
-      count: cappedCount,
-      weight: clampedWeight,
-      penalty
-    });
+    const avgWeight    = alerts.reduce((s, a) => s + a.weight, 0) / alerts.length;
+    const clampedWeight = Math.max(cfg.alertWeightMin, Math.min(cfg.alertWeightMax, avgWeight));
+    const deduped      = deduplicateAlerts(alerts, cfg.timeWindowSeconds, cfg.spatialThresholdMeters);
+    const cappedCount  = Math.min(deduped, cfg.perTypeAlertCap);
+    const penalty      = clampedWeight * cappedCount;
+    A_score           += penalty;
+    customAlertDetails.push({ type: alerts[0].name || type, count: cappedCount, weight: clampedWeight, penalty });
   }
-  
-  // ============================================
-  // 3. COMBINED PENALTY NUMERATOR
-  // ============================================
-  
-  const N =
-    cfg.alpha * V_maj_weighted +
-    cfg.beta * V_min_weighted +
-    cfg.gamma * A_score;
-  
-  // ============================================
-  // 4. SCALING FACTOR
-  // ============================================
-  // Normalize penalty by detection volume
-  // More detections = more reliable penalty calculation
-  
+
+  // ── 4. Time-weighted positive detections ─────────────────────────────────
+  const P_hi_weighted  = applyTimeDecay(positives.high,   date, cfg.lambda);
+  const P_med_weighted = applyTimeDecay(positives.medium, date, cfg.lambda);
+  const P_low_weighted = applyTimeDecay(positives.low,    date, cfg.lambda);
+
+  const posHiBoost  = cfg.posWeightHigh   * P_hi_weighted;
+  const posMedBoost = cfg.posWeightMedium * P_med_weighted;
+  const posLowBoost = cfg.posWeightLow    * P_low_weighted;
+  const totalPosBoost = posHiBoost + posMedBoost + posLowBoost;
+
+  // ── 5. Scaling factor (normalise by detection volume) ────────────────────
   const S = Math.max(1, totalDetections / 100);
-  
-  // ============================================
-  // 5. CAPPED PENALTY (with clamp)
-  // ============================================
-  // Clamp penalty: P ∈ [0, 0.9] (max 90% penalty)
-  // This prevents a single bad day from completely zeroing the score
-  // The clamp ensures: 0 ≤ P ≤ 0.9 (never more than 90% penalty)
-  
-  const rawPenalty = N / S;
-  const P = Math.min(0.9, Math.max(0, Math.min(cfg.maxPenalty, rawPenalty)));
-  
-  // ============================================
-  // 6. BASE SCORE (using clamped values)
-  // ============================================
-  // Formula: Score = 100 × C × F_cov × (1 - P) × (1 - estimationPenalty)
-  // All inputs are clamped: C ∈ [0.5, 1.0], F_cov ∈ [0.7, 1.0], P ∈ [0, 0.9]
-  // This ensures the score calculation is deterministic and bounded
-  
-  // Apply estimation penalty if detections were estimated
-  // This penalty exists because estimated data is less reliable than actual detections
-  // Penalty: 10% reduction when using estimated detection counts
-  let estimationPenalty = 0;
-  if (detectionMetadata?.estimationPenaltyApplied) {
-    estimationPenalty = 0.10; // 10% penalty for estimated data
-  }
-  
-  // Calculate base score with clamped inputs
-  // Using clamped C and F_cov ensures score is always in valid range
-  let safetyScore = 100 * C * F_cov * (1 - P) * (1 - estimationPenalty);
-  
-  // ============================================
-  // 7. CONSECUTIVE SAFE DAYS BONUS (with clamp)
-  // ============================================
-  // Reward sites with consistent safety performance
-  // Clamp bonus: bonus ∈ [0, 0.15] (max 15% bonus)
-  // This prevents bonus from exceeding reasonable bounds
-  
-  // Get consecutive safe days from previous scores
+
+  // ── 6. Net penalty — negative means positives dominate (score boost) ─────
+  const negTotal = negMajor + negMinor + cfg.gamma * A_score;
+  const rawNet   = (negTotal - totalPosBoost) / S;
+
+  // Clamp: negative end = score boost cap, positive end = penalty cap
+  const netPenalty = Math.min(
+    cfg.maxPenalty,
+    Math.max(-cfg.maxBoostFromPositives, rawNet)
+  );
+
+  // ── 7. Estimation penalty (less reliable data = slight haircut) ──────────
+  const estimationPenalty = detectionMetadata?.estimationPenaltyApplied ? 0.10 : 0;
+
+  // ── 8. Base score ────────────────────────────────────────────────────────
+  // (1 - netPenalty) > 1 when negatives < positives → score rises
+  let safetyScore = 100 * C * F_cov * (1 - netPenalty) * (1 - estimationPenalty);
+
+  // ── 9. Consecutive safe-day bonus ────────────────────────────────────────
   const consecutiveSafeDays = await getConsecutiveSafeDays(worksiteId, date);
-  
   let bonusAmount = 0;
   if (consecutiveSafeDays >= cfg.safeDayThreshold) {
-    const rawBonus = Math.min(
-      cfg.maxBonus,
-      consecutiveSafeDays * cfg.safeDayBonusRate
-    );
-    // Clamp bonus to [0, 0.15] to prevent excessive bonuses
-    bonusAmount = Math.min(0.15, Math.max(0, rawBonus));
+    bonusAmount = Math.min(0.15, Math.max(0,
+      Math.min(cfg.maxBonus, consecutiveSafeDays * cfg.safeDayBonusRate)
+    ));
     safetyScore = safetyScore * (1 + bonusAmount);
   }
-  
-  // ============================================
-  // 8. FINAL CLAMP: Score ∈ [0, 100]
-  // ============================================
-  // Final safety clamp: ensure score is always between 0 and 100
-  // This is a critical safety measure - no matter what inputs or edge cases,
-  // the score will NEVER exceed [0, 100] bounds
-  // Why this exists: Prevents mathematical errors, overflow, or invalid scores
-  const rawScore = safetyScore;
-  const finalScore = Math.min(100, Math.max(0, rawScore));
-  
-  // ============================================
-  // 9. GRADE (using final clamped score)
-  // ============================================
-  
-  const { grade } = getGrade(finalScore);
-  
-  // ============================================
-  // 10. BREAKDOWN (with detection source info)
-  // ============================================
-  
-  const breakdown = {
-    baseCompliance: C, // Use clamped value
-    coverageFactor: F_cov, // Use clamped value
-    violationPenalty: P, // Use clamped value
+
+  // ── 10. Final clamp ──────────────────────────────────────────────────────
+  const finalScore = Math.min(100, Math.max(0, safetyScore));
+  const { grade }  = getGrade(finalScore);
+
+  // ── 11. Breakdown ────────────────────────────────────────────────────────
+  const breakdown: SafetyScoreResult['breakdown'] = {
+    baseCompliance: C,
+    coverageFactor: F_cov,
+    netPenalty,
+    violationPenalty: netPenalty, // backwards compat alias
     components: {
-      majorViolations: {
-        count: Math.round(V_maj_weighted),
-        penalty: cfg.alpha * V_maj_weighted
-      },
-      minorViolations: {
-        count: Math.round(V_min_weighted),
-        penalty: cfg.beta * V_min_weighted
-      },
-      customAlerts: customAlertDetails
+      majorViolations:  { count: Math.round(V_maj_weighted), penalty: negMajor },
+      minorViolations:  { count: Math.round(V_min_weighted), penalty: negMinor },
+      customAlerts:     customAlertDetails,
+      positiveHigh:     { count: Math.round(P_hi_weighted),  boost: posHiBoost  },
+      positiveMedium:   { count: Math.round(P_med_weighted), boost: posMedBoost },
+      positiveLow:      { count: Math.round(P_low_weighted), boost: posLowBoost },
+      totalPositiveBoost,
     },
     scalingFactor: S,
-    bonus: {
-      consecutiveSafeDays,
-      bonusAmount
-    }
+    bonus: { consecutiveSafeDays, bonusAmount },
+    ...(detectionMetadata && {
+      detectionsSource: detectionMetadata.detectionsSource,
+      estimationPenaltyApplied: detectionMetadata.estimationPenaltyApplied,
+      estimationPenalty,
+    }),
   };
-  
-  // ============================================
-  // 11. RECOMMENDATIONS
-  // ============================================
-  
-  const recommendations = generateRecommendations(
-    breakdown,
-    totalDetections,
-    cfg
-  );
-  
-  // ============================================
-  // 12. TRENDS
-  // ============================================
-  
+
+  // ── 12. Recommendations ──────────────────────────────────────────────────
+  const recommendations = generateRecommendations(breakdown, totalDetections, cfg);
+
+  // ── 13. Trends ───────────────────────────────────────────────────────────
   const trend = await calculateTrends(worksiteId, date);
-  
+
   return {
-    score: Math.round(finalScore * 100) / 100, // Use final clamped score
+    score: Math.round(finalScore * 100) / 100,
     grade,
-    breakdown: {
-      ...breakdown,
-      // Include detection source metadata in breakdown
-      ...(detectionMetadata && {
-        detectionsSource: detectionMetadata.detectionsSource,
-        estimationPenaltyApplied: detectionMetadata.estimationPenaltyApplied,
-        estimationPenalty: estimationPenalty
-      })
-    },
+    breakdown,
     trend,
     recommendations,
-    insufficientData
+    insufficientData,
   };
 }
 
@@ -640,51 +619,51 @@ export async function getConfig(
     });
     
     if (config) {
+      // Map legacy alpha/beta DB fields to new severity weights.
+      // New columns (negWeightHigh etc.) don't exist in DB yet — use defaults.
       return {
-        alpha: config.alpha,
-        beta: config.beta,
-        gamma: config.gamma,
-        alertWeightMin: config.alertWeightMin,
-        alertWeightMax: config.alertWeightMax,
-        defaultAlertWeight: config.defaultAlertWeight,
-        maxPenalty: config.maxPenalty,
-        perTypeAlertCap: config.perTypeAlertCap,
-        lambda: config.lambda,
-        timeWindowSeconds: config.timeWindowSeconds,
+        ...DEFAULT_SAFETY_CONFIG,
+        gamma:               config.gamma,
+        alertWeightMin:      config.alertWeightMin,
+        alertWeightMax:      config.alertWeightMax,
+        defaultAlertWeight:  config.defaultAlertWeight,
+        maxPenalty:          config.maxPenalty,
+        perTypeAlertCap:     config.perTypeAlertCap,
+        lambda:              config.lambda,
+        timeWindowSeconds:   config.timeWindowSeconds,
         spatialThresholdMeters: config.spatialThresholdMeters,
-        safeDayBonusRate: config.safeDayBonusRate,
-        maxBonus: config.maxBonus,
-        safeDayThreshold: config.safeDayThreshold,
-        minDetections: config.minDetections
+        safeDayBonusRate:    config.safeDayBonusRate,
+        maxBonus:            config.maxBonus,
+        safeDayThreshold:    config.safeDayThreshold,
+        minDetections:       config.minDetections,
       };
     }
   }
-  
+
   // Try global config
   const globalConfig = await prisma.safetyScoreConfig.findFirst({
     where: { isGlobal: true }
   });
-  
+
   if (globalConfig) {
     return {
-      alpha: globalConfig.alpha,
-      beta: globalConfig.beta,
-      gamma: globalConfig.gamma,
-      alertWeightMin: globalConfig.alertWeightMin,
-      alertWeightMax: globalConfig.alertWeightMax,
-      defaultAlertWeight: globalConfig.defaultAlertWeight,
-      maxPenalty: globalConfig.maxPenalty,
-      perTypeAlertCap: globalConfig.perTypeAlertCap,
-      lambda: globalConfig.lambda,
-      timeWindowSeconds: globalConfig.timeWindowSeconds,
+      ...DEFAULT_SAFETY_CONFIG,
+      gamma:               globalConfig.gamma,
+      alertWeightMin:      globalConfig.alertWeightMin,
+      alertWeightMax:      globalConfig.alertWeightMax,
+      defaultAlertWeight:  globalConfig.defaultAlertWeight,
+      maxPenalty:          globalConfig.maxPenalty,
+      perTypeAlertCap:     globalConfig.perTypeAlertCap,
+      lambda:              globalConfig.lambda,
+      timeWindowSeconds:   globalConfig.timeWindowSeconds,
       spatialThresholdMeters: globalConfig.spatialThresholdMeters,
-      safeDayBonusRate: globalConfig.safeDayBonusRate,
-      maxBonus: globalConfig.maxBonus,
-      safeDayThreshold: globalConfig.safeDayThreshold,
-      minDetections: globalConfig.minDetections
+      safeDayBonusRate:    globalConfig.safeDayBonusRate,
+      maxBonus:            globalConfig.maxBonus,
+      safeDayThreshold:    globalConfig.safeDayThreshold,
+      minDetections:       globalConfig.minDetections,
     };
   }
-  
+
   // Return defaults
   return DEFAULT_SAFETY_CONFIG;
 }
