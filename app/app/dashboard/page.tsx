@@ -2549,7 +2549,7 @@ function AlertResolutionModal({
                 {alertData.severity || 'Low'}
               </span>
               <span className={`px-3 py-1 text-xs font-medium rounded border ${getStatusBadge(alertData.status, alertData.resolutionType)}`}>
-                {getStatusDisplayName(alertData.status, alertData.resolutionType) || 'Active'}
+                {alertData.status || 'Active'}
               </span>
             </div>
           </div>
