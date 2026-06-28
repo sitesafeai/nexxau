@@ -97,7 +97,7 @@ export async function POST(
     try {
       const updatePayload: any = {
         ...updateData,
-        resolvedBy: user.id,
+        resolvedByUser: { connect: { id: user.id } },
         resolutionType,
         resolutionNotes: notes || null,
         fpReason: resolutionType === 'FALSE_POSITIVE' ? fpReason : null,
@@ -113,7 +113,7 @@ export async function POST(
         updatePayload.overrideAt = new Date();
         updatePayload.overrideReason = fpReason || null;
         
-        // Create false positive report for training team
+        // Create false positive report for training team (legacy handler — may fail, that's ok)
         try {
           await falsePositiveHandler.handleFalsePositive(alertId, user.id, {
             isFalsePositive: true,
@@ -123,6 +123,28 @@ export async function POST(
         } catch (fpError) {
           console.error('Failed to create false positive report:', fpError);
           // Continue anyway - report creation is important but shouldn't fail the resolution
+        }
+
+        // Queue for super-admin review
+        try {
+          await (prisma as any).falsePositiveReview.upsert({
+            where: { alertId },
+            update: {
+              status: 'PENDING',
+              markedByUserId: user.id,
+              reviewedByUserId: null,
+              superAdminNote: null,
+              reviewedAt: null,
+            },
+            create: {
+              alertId,
+              status: 'PENDING',
+              markedByUserId: user.id,
+            },
+          });
+          console.log('[FP Review] Created review for alert', alertId);
+        } catch (fpReviewError) {
+          console.error('[FP Review] Failed to create review:', fpReviewError);
         }
       } else if (resolutionType === 'CONFIRMED') {
         updatePayload.overrideStatus = 'confirmed_violation';
@@ -199,11 +221,35 @@ export async function POST(
     } catch (updateError: any) {
       // If extended fields fail, try minimal update
       console.error('Extended update failed, trying minimal update:', updateError.message);
-      
+
       const updatedAlert = await prisma.alert.update({
         where: { id: alertId },
         data: updateData
       });
+
+      // Still queue for super-admin review on minimal update path
+      if (resolutionType === 'FALSE_POSITIVE') {
+        try {
+          await (prisma as any).falsePositiveReview.upsert({
+            where: { alertId },
+            update: {
+              status: 'PENDING',
+              markedByUserId: user.id,
+              reviewedByUserId: null,
+              superAdminNote: null,
+              reviewedAt: null,
+            },
+            create: {
+              alertId,
+              status: 'PENDING',
+              markedByUserId: user.id,
+            },
+          });
+          console.log('[FP Review] Created review for alert (minimal path)', alertId);
+        } catch (fpReviewError) {
+          console.error('[FP Review] Failed to create review (minimal path):', fpReviewError);
+        }
+      }
 
       return NextResponse.json({
         success: true,
