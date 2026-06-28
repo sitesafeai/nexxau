@@ -65,18 +65,23 @@ export async function POST(
       },
     });
 
-    // If super-admin confirms it WAS a real violation, update the alert status to RESOLVED
-    // with a note so the company admin knows Nexxau overrode their FP flag.
+    // Update alert label based on super-admin decision
     if (action === 'CONFIRMED') {
+      // Was a real violation — override the FP flag
       await prisma.alert.update({
         where: { id: review.alert.id },
         data: {
           status:          'RESOLVED',
           resolutionType:  'CONFIRMED_BY_SUPER_ADMIN',
           resolutionNotes: note || 'Confirmed as real violation by Nexxau review team',
-          resolvedBy:      session.user.id,
           resolvedAt:      new Date(),
         },
+      });
+    } else if (action === 'DISMISSED') {
+      // Agreed it is a false positive — stamp so the UI label changes
+      await prisma.alert.update({
+        where: { id: review.alert.id },
+        data: { resolutionType: 'CONFIRMED_FALSE_POSITIVE' },
       });
     }
 

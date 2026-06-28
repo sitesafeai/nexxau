@@ -245,6 +245,7 @@ export async function GET(request: NextRequest) {
             worksiteId: true,
             cameraId: true,
             detectionSnapshot: true,
+            resolutionType: true,
             // Explicitly exclude overrideStatus and related fields that don't exist in DB
             rule: {
               select: { name: true, description: true, severity: true }
@@ -306,6 +307,7 @@ export async function GET(request: NextRequest) {
             ruleId: true,
             worksiteId: true,
             detectionSnapshot: true,
+            resolutionType: true,
             // Don't select overrideStatus - it doesn't exist in the schema
           }
         };

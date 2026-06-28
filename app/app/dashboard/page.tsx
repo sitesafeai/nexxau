@@ -2548,8 +2548,8 @@ function AlertResolutionModal({
               <span className={`px-3 py-1 text-xs font-medium rounded border ${getSeverityBadge(alertData.severity)}`}>
                 {alertData.severity || 'Low'}
               </span>
-              <span className={`px-3 py-1 text-xs font-medium rounded border ${getStatusBadge(alertData.status)}`}>
-                {alertData.status || 'Active'}
+              <span className={`px-3 py-1 text-xs font-medium rounded border ${getStatusBadge(alertData.status, alertData.resolutionType)}`}>
+                {getStatusDisplayName(alertData.status, alertData.resolutionType) || 'Active'}
               </span>
             </div>
           </div>
@@ -3434,8 +3434,12 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
     return 'bg-blue-500/10 text-blue-400 border-blue-500/30';
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, resolutionType?: string) => {
     const s = status?.toUpperCase();
+    const rt = resolutionType?.toUpperCase();
+    // Super-admin overrides take priority
+    if (s === 'RESOLVED' && rt === 'CONFIRMED_BY_SUPER_ADMIN') return 'bg-orange-500/10 text-orange-400 border-orange-500/30';
+    if (s === 'FALSE_POSITIVE' && (rt === 'CONFIRMED_FALSE_POSITIVE' || rt === 'DISPUTE_UPHELD')) return 'bg-teal-500/10 text-teal-400 border-teal-500/30';
     if (s === 'ACTIVE') return 'bg-red-500/10 text-red-400 border-red-500/30';
     if (s === 'ACKNOWLEDGED') return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
     if (s === 'RESOLVED') return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
@@ -3447,8 +3451,12 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
   };
 
   // Get user-friendly status display name
-  const getStatusDisplayName = (status: string) => {
+  const getStatusDisplayName = (status: string, resolutionType?: string) => {
     const s = status?.toUpperCase();
+    const rt = resolutionType?.toUpperCase();
+    // Super-admin overrides take priority
+    if (s === 'RESOLVED' && rt === 'CONFIRMED_BY_SUPER_ADMIN') return 'Override: Real Violation';
+    if (s === 'FALSE_POSITIVE' && (rt === 'CONFIRMED_FALSE_POSITIVE' || rt === 'DISPUTE_UPHELD')) return 'Confirmed False Positive';
     if (s === 'ACTIVE') return 'Active';
     if (s === 'ACKNOWLEDGED') return 'In Progress';
     if (s === 'RESOLVED') return 'Resolved';
@@ -3731,8 +3739,8 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
                   </td>
                   <td className="px-4 py-4 text-sm text-slate-300">{alert.camera?.name || alert.worksite?.name || alert.location || '—'}</td>
                   <td className="px-4 py-4">
-                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded border ${getStatusBadge(alert.status)}`}>
-                      {getStatusDisplayName(alert.status)}
+                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded border ${getStatusBadge(alert.status, alert.resolutionType)}`}>
+                      {getStatusDisplayName(alert.status, alert.resolutionType)}
                     </span>
                   </td>
                   <td className="px-4 py-4 text-sm text-slate-400">
