@@ -2409,6 +2409,8 @@ function AlertResolutionModal({
   
   // Check if alert is already resolved/acknowledged
   const isAlreadyResolved = ['ACKNOWLEDGED', 'RESOLVED', 'CONFIRMED', 'FALSE_POSITIVE', 'ARCHIVED'].includes(alertData.status);
+  // Locked by super-admin ruling — company admin can only dispute, not re-resolve
+  const isLockedBySuperAdmin = alertData.resolutionType === 'CONFIRMED_BY_SUPER_ADMIN';
 
   // Load full alert details
   useEffect(() => {
@@ -3242,9 +3244,10 @@ function AlertResolutionModal({
           
           <div className="flex gap-3">
             {step < 3 ? (
-          <button 
+          <button
                 onClick={() => setStep(step + 1)}
-                disabled={step === 2 && !resolutionType}
+                disabled={(step === 2 && !resolutionType) || (step === 1 && isLockedBySuperAdmin)}
+                title={step === 1 && isLockedBySuperAdmin ? 'This alert has been confirmed as a real violation by Nexxau. You may dispute the ruling below.' : undefined}
                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors"
           >
                 Next →
