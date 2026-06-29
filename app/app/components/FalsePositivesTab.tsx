@@ -29,6 +29,15 @@ interface FpAlert {
   camera:   { id: string; name: string } | null;
 }
 
+interface DisputeMessage {
+  id: string;
+  authorId: string;
+  authorRole: 'SUPER_ADMIN' | 'COMPANY';
+  content: string;
+  createdAt: string;
+  author: { id: string; name: string | null; email: string };
+}
+
 interface FpDispute {
   id: string;
   reason: string;
@@ -36,6 +45,7 @@ interface FpDispute {
   resolvedNote: string | null;
   createdAt: string;
   submittedBy: { id: string; name: string | null; email: string };
+  messages: DisputeMessage[];
 }
 
 interface FpReview {
@@ -81,6 +91,12 @@ export default function FalsePositivesTab() {
   const [submitting, setSubmitting] = useState(false);
   const [actionMsg, setActionMsg]   = useState<string | null>(null);
 
+  // Dispute thread state
+  const [disputeReplyText, setDisputeReplyText] = useState('');
+  const [disputeAction, setDisputeAction]       = useState<'REPLY' | 'UPHELD' | 'REJECTED' | null>(null);
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false);
+  const [disputeMsg, setDisputeMsg]             = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -98,7 +114,42 @@ export default function FalsePositivesTab() {
   }, [tab]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setSelected(null); setNoteText(''); setActionMsg(null); }, [tab]);
+  useEffect(() => {
+    setSelected(null);
+    setNoteText('');
+    setActionMsg(null);
+    setDisputeReplyText('');
+    setDisputeAction(null);
+    setDisputeMsg(null);
+  }, [tab]);
+
+  const submitDisputeAction = async (d: FpDispute, action: 'REPLY' | 'UPHELD' | 'REJECTED') => {
+    if (!selected) return;
+    if (!disputeReplyText.trim()) { setDisputeMsg('Error: A message is required'); return; }
+    setDisputeSubmitting(true);
+    setDisputeMsg(null);
+    try {
+      const res = await fetch(`/api/admin/fp-reviews/${selected.id}/dispute`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ disputeId: d.id, action, message: disputeReplyText.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Failed');
+      setDisputeMsg(
+        action === 'UPHELD' ? 'Dispute accepted — ruling reversed to false positive.' :
+        action === 'REJECTED' ? 'Dispute rejected — original ruling stands.' :
+        'Reply sent.'
+      );
+      setDisputeReplyText('');
+      setDisputeAction(null);
+      load();
+    } catch (e: any) {
+      setDisputeMsg(`Error: ${e.message}`);
+    } finally {
+      setDisputeSubmitting(false);
+    }
+  };
 
   const submitReview = async (action: 'CONFIRMED' | 'DISMISSED') => {
     if (!selected) return;
@@ -289,28 +340,113 @@ export default function FalsePositivesTab() {
             )}
           </div>
 
-          {/* Disputes */}
-          {selected.disputes.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide">
-                Disputes ({selected.disputes.length})
-              </p>
-              {selected.disputes.map((d) => (
-                <div key={d.id} className="bg-slate-700 rounded p-3 space-y-1 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-300 font-medium">
-                      {d.submittedBy.name ?? d.submittedBy.email}
-                    </span>
-                    <DisputeStatusBadge status={d.status} />
+          {/* Disputes — threaded conversation */}
+          {selected.disputes.length > 0 && selected.disputes.map((d) => (
+            <div key={d.id} className="space-y-3 pt-2 border-t border-slate-700">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide">
+                  Dispute Thread
+                </p>
+                <DisputeStatusBadge status={d.status} />
+              </div>
+
+              {/* Messages */}
+              <div className="space-y-2">
+                {(d.messages ?? []).map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`rounded p-3 text-xs ${
+                      msg.authorRole === 'SUPER_ADMIN'
+                        ? 'bg-blue-900/30 border border-blue-700'
+                        : 'bg-slate-700 border border-slate-600'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`font-medium ${msg.authorRole === 'SUPER_ADMIN' ? 'text-blue-300' : 'text-slate-300'}`}>
+                        {msg.authorRole === 'SUPER_ADMIN' ? '⚡ Nexxau' : (msg.author.name ?? msg.author.email)}
+                      </span>
+                      <span className="text-slate-500">{new Date(msg.createdAt).toLocaleString()}</span>
+                    </div>
+                    <p className="text-slate-200 leading-relaxed">{msg.content}</p>
                   </div>
-                  <p className="text-slate-200">{d.reason}</p>
-                  {d.resolvedNote && (
-                    <p className="text-slate-400 italic">Nexxau: {d.resolvedNote}</p>
+                ))}
+              </div>
+
+              {/* Super-admin reply/resolve area — only for PENDING disputes */}
+              {d.status === 'PENDING' && (
+                <div className="space-y-2">
+                  {disputeMsg && (
+                    <p className={`text-xs ${disputeMsg.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>
+                      {disputeMsg}
+                    </p>
+                  )}
+
+                  {/* Pick action first */}
+                  {!disputeAction && (
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        onClick={() => setDisputeAction('REPLY')}
+                        className="px-2 py-1.5 bg-slate-600 hover:bg-slate-500 text-slate-200 text-xs font-medium rounded transition-colors"
+                      >
+                        💬 Reply
+                      </button>
+                      <button
+                        onClick={() => setDisputeAction('UPHELD')}
+                        className="px-2 py-1.5 bg-green-800 hover:bg-green-700 text-green-200 text-xs font-medium rounded transition-colors"
+                      >
+                        ✅ Accept
+                      </button>
+                      <button
+                        onClick={() => setDisputeAction('REJECTED')}
+                        className="px-2 py-1.5 bg-red-900 hover:bg-red-800 text-red-200 text-xs font-medium rounded transition-colors"
+                      >
+                        ❌ Reject
+                      </button>
+                    </div>
+                  )}
+
+                  {disputeAction && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-semibold ${
+                          disputeAction === 'UPHELD' ? 'text-green-400' :
+                          disputeAction === 'REJECTED' ? 'text-red-400' : 'text-blue-400'
+                        }`}>
+                          {disputeAction === 'UPHELD' ? '✅ Accept dispute' :
+                           disputeAction === 'REJECTED' ? '❌ Reject dispute' : '💬 Reply'}
+                        </span>
+                        <button onClick={() => { setDisputeAction(null); setDisputeReplyText(''); }} className="text-xs text-slate-500 hover:text-slate-300">
+                          cancel
+                        </button>
+                      </div>
+                      <textarea
+                        value={disputeReplyText}
+                        onChange={(e) => setDisputeReplyText(e.target.value)}
+                        rows={3}
+                        placeholder={
+                          disputeAction === 'UPHELD' ? 'Explain why you\'re accepting the dispute...' :
+                          disputeAction === 'REJECTED' ? 'Explain why the ruling stands...' :
+                          'Your reply to the company admin...'
+                        }
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-600 text-white rounded text-xs resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <button
+                        onClick={() => submitDisputeAction(d, disputeAction)}
+                        disabled={disputeSubmitting || !disputeReplyText.trim()}
+                        className={`w-full py-2 text-white text-xs font-medium rounded transition-colors disabled:opacity-50 ${
+                          disputeAction === 'UPHELD' ? 'bg-green-700 hover:bg-green-600' :
+                          disputeAction === 'REJECTED' ? 'bg-red-700 hover:bg-red-600' :
+                          'bg-blue-700 hover:bg-blue-600'
+                        }`}
+                      >
+                        {disputeSubmitting ? 'Sending...' : 'Send'}
+                      </button>
+                    </div>
                   )}
                 </div>
-              ))}
+              )}
             </div>
-          )}
+          ))}
 
           {/* Action area — only for PENDING reviews */}
           {selected.status === 'PENDING' && (

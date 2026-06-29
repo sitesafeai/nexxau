@@ -90,6 +90,7 @@ model User {
   fpReviewsMarked      FalsePositiveReview[] @relation("FpReviewMarkedBy")
   fpReviewsDone        FalsePositiveReview[] @relation("FpReviewReviewedBy")
   fpDisputesSubmitted  FalsePositiveDispute[] @relation("FpDisputeSubmittedBy")
+  disputeMessages      DisputeMessage[]       @relation("DisputeMessageAuthor")
 }
 
 model AuditLog {
@@ -1091,16 +1092,29 @@ model FalsePositiveReview {
 
 // A worksite can submit a dispute if they disagree with the super-admin ruling.
 model FalsePositiveDispute {
-  id               String              @id @default(cuid())
-  fpReviewId       String
+  id                String              @id @default(cuid())
+  fpReviewId        String
   submittedByUserId String
-  reason           String
-  status           FpDisputeStatus     @default(PENDING)
-  resolvedNote     String?
-  createdAt        DateTime            @default(now())
-  resolvedAt       DateTime?
-  fpReview         FalsePositiveReview @relation(fields: [fpReviewId], references: [id], onDelete: Cascade)
-  submittedBy      User                @relation("FpDisputeSubmittedBy", fields: [submittedByUserId], references: [id])
+  reason            String              // company's initial message
+  status            FpDisputeStatus     @default(PENDING)
+  resolvedNote      String?             // super-admin's final decision note
+  createdAt         DateTime            @default(now())
+  resolvedAt        DateTime?
+  fpReview          FalsePositiveReview @relation(fields: [fpReviewId], references: [id], onDelete: Cascade)
+  submittedBy       User                @relation("FpDisputeSubmittedBy", fields: [submittedByUserId], references: [id])
+  messages          DisputeMessage[]
+}
+
+// Thread messages on a dispute — tracks the back-and-forth conversation
+model DisputeMessage {
+  id          String               @id @default(cuid())
+  disputeId   String
+  authorId    String
+  authorRole  String               // 'SUPER_ADMIN' | 'COMPANY'
+  content     String
+  createdAt   DateTime             @default(now())
+  dispute     FalsePositiveDispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  author      User                 @relation("DisputeMessageAuthor", fields: [authorId], references: [id])
 }
 
 enum FpReviewStatus {
@@ -1110,7 +1124,7 @@ enum FpReviewStatus {
 }
 
 enum FpDisputeStatus {
-  PENDING
-  UPHELD   // Dispute accepted — ruling changed
-  REJECTED // Dispute rejected — original ruling stands
+  PENDING   // Company submitted, waiting for super-admin
+  UPHELD    // Dispute accepted — ruling reversed to false positive
+  REJECTED  // Dispute rejected — original ruling stands
 }

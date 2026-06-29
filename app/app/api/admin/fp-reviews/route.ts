@@ -59,6 +59,10 @@ export async function GET(request: NextRequest) {
           disputes: {
             include: {
               submittedBy: { select: { id: true, name: true, email: true } },
+              messages: {
+                include: { author: { select: { id: true, name: true, email: true } } },
+                orderBy: { createdAt: 'asc' },
+              },
             },
             orderBy: { createdAt: 'desc' },
           },
