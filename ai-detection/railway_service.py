@@ -30,36 +30,48 @@ INGEST_TRANSPORT   = os.environ.get('INGEST_TRANSPORT', 'auto').lower()
 
 HEADERS = {'Authorization': f'Bearer {SERVICE_TOKEN}'}
 
-# PPE model class map (when using a custom PPE-trained model):
-# VIOLATION_MAP = {
-#     0: 'helmet',       # Hardhat
-#     1: 'no_helmet',    # NO-Hardhat
-#     2: 'no_vest',      # NO-Safety Vest
-#     3: 'person_detected',  # Person
-#     4: 'vest',         # Safety Vest
-#     5: 'person_detected',  # Worker
-# }
+# ── Model class map ───────────────────────────────────────────────────────────
+# Automatically switches between the custom PPE model (best.pt) and the base
+# COCO model (yolov8n.pt) based on YOLO_MODEL env var.
+#
+# Custom PPE model class order (from data.yaml of ppe-vum8g dataset):
+#   0: a boot       → boot           (compliant)
+#   1: a glove      → glove          (compliant)
+#   2: a hardhat    → helmet         (compliant)
+#   3: a person     → person_detected (info)
+#   4: a vest       → vest           (compliant)
+#   5: no_boots     → no_boots       (violation)
+#   6: no_gloves    → no_gloves      (violation)
+#   7: no_hardhat   → no_helmet      (violation)
+#   8: no_vest      → no_vest        (violation)
 
-# COCO model class map (yolov8n.pt) — for stream testing only.
-# Person=0 in COCO. Replace with PPE model + map above for production.
-USE_PPE_MODEL = os.environ.get('YOLO_MODEL', 'yolov8n.pt') not in ('yolov8n.pt', 'yolov8s.pt', 'yolov8m.pt', 'yolov8l.pt', 'yolov8x.pt')
+BASE_MODELS = ('yolov8n.pt', 'yolov8s.pt', 'yolov8m.pt', 'yolov8l.pt', 'yolov8x.pt')
+USE_PPE_MODEL = os.environ.get('YOLO_MODEL', 'yolov8n.pt') not in BASE_MODELS
+
 VIOLATION_MAP = {
-    0: 'helmet',       # class: Hardhat  (PPE model) / Person (COCO — remapped below)
-    1: 'no_helmet',    # class: NO-Hardhat
-    2: 'no_vest',      # class: NO-Safety Vest
-    3: 'person_detected',  # class: Person (PPE model)
-    4: 'vest',         # class: Safety Vest
-    5: 'person_detected',  # class: Worker
+    0: 'boot',
+    1: 'glove',
+    2: 'helmet',
+    3: 'person_detected',
+    4: 'vest',
+    5: 'no_boots',
+    6: 'no_gloves',
+    7: 'no_helmet',
+    8: 'no_vest',
 } if USE_PPE_MODEL else {
-    0: 'person_detected',  # COCO person class — fires on any person visible
+    0: 'person_detected',   # COCO person class — fires on any person visible
 }
 
 VIOLATION_LABELS = {
-    'helmet':          ('Helmet ✓',     'compliant'),
-    'no_helmet':       ('No Helmet',    'violation'),
-    'vest':            ('Vest ✓',       'compliant'),
-    'no_vest':         ('No Vest',      'violation'),
-    'person_detected': ('Person',       'info'),
+    'boot':            ('Boot ✓',        'compliant'),
+    'glove':           ('Glove ✓',       'compliant'),
+    'helmet':          ('Hardhat ✓',     'compliant'),
+    'person_detected': ('Person',        'info'),
+    'vest':            ('Vest ✓',        'compliant'),
+    'no_boots':        ('No Boots',      'violation'),
+    'no_gloves':       ('No Gloves',     'violation'),
+    'no_helmet':       ('No Hardhat',    'violation'),
+    'no_vest':         ('No Vest',       'violation'),
 }
 
 cooldowns = {}
