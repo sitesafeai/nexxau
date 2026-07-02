@@ -886,41 +886,53 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
     setDiagnosticsResult(null);
     
     try {
-      // Check camera health
+      // Check site cameras
       const camerasRes = await fetch(`/api/cameras?worksiteId=${selectedSite.id}`);
       const camerasData = camerasRes.ok ? await camerasRes.json() : [];
       const camerasList = Array.isArray(camerasData) ? camerasData : camerasData.data || [];
-      
-      // Check API health
+
+      // Check API + system health
       const healthRes = await fetch('/api/health').catch(() => null);
-      const healthData = healthRes?.ok ? await healthRes.json() : { status: 'unknown' };
-      
-      // Calculate diagnostics
-      const onlineCameras = camerasList.filter((c: any) => 
-        (c.status || 'offline').toLowerCase() === 'online' || 
-        (c.status || 'offline').toLowerCase() === 'active'
-      ).length;
+      const healthData = healthRes?.ok ? await healthRes.json() : null;
+
+      // Pull per-service results out of the checks array
+      const dbCheck     = healthData?.checks?.find((c: any) => c.service === 'database');
+      const cameraCheck = healthData?.checks?.find((c: any) => c.service === 'cameras');
+      const alertsCheck = healthData?.checks?.find((c: any) => c.service === 'alerts');
+
+      // Camera counts — use this worksite's cameras, not the global check
+      const onlineCameras = camerasList.filter((c: any) => {
+        const s = (c.status || 'offline').toLowerCase();
+        return s === 'online' || s === 'active';
+      }).length;
       const offlineCameras = camerasList.length - onlineCameras;
       const aiEnabled = camerasList.filter((c: any) => c.aiEnabled).length;
-      
+
       setDiagnosticsResult({
-        systemHealth: healthData.status === 'ok' ? 'healthy' : 'degraded',
-        timestamp: new Date().toISOString(),
+        // Use the health endpoint's actual overall status ('healthy' | 'degraded' | 'unhealthy')
+        systemHealth: healthData?.status ?? 'unknown',
+        timestamp: healthData?.timestamp ?? new Date().toISOString(),
         cameras: {
           total: camerasList.length,
           online: onlineCameras,
           offline: offlineCameras,
-          aiEnabled: aiEnabled,
-          healthScore: camerasList.length > 0 ? Math.round((onlineCameras / camerasList.length) * 100) : 100
+          aiEnabled,
+          healthScore: camerasList.length > 0
+            ? Math.round((onlineCameras / camerasList.length) * 100)
+            : 100,
         },
         api: {
-          status: healthData.status || 'unknown',
-          database: healthData.database || 'unknown',
-          latency: healthData.latency || 'N/A'
+          // API is reachable if we got a response at all
+          status: healthRes?.ok ? 'ok' : 'unreachable',
+          // Database status comes from the dedicated check, not a top-level field
+          database: dbCheck?.status ?? 'unknown',
+          dbMessage: dbCheck?.message ?? '',
+          latency: dbCheck?.responseTime != null ? `${dbCheck.responseTime}ms` : 'N/A',
         },
         alerts: {
           pending: alerts.filter(a => a.status === 'active').length,
-          acknowledged: alerts.filter(a => a.status === 'acknowledged').length
+          acknowledged: alerts.filter(a => a.status === 'acknowledged').length,
+          systemNote: alertsCheck?.message ?? '',
         }
       });
     } catch (error) {
@@ -1494,19 +1506,26 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-slate-400">Status</span>
                     <span className={`text-xs font-medium ${
-                      diagnosticsResult.api.status === 'ok' ? 'text-emerald-400' : 'text-yellow-400'
+                      diagnosticsResult.api.status === 'ok' ? 'text-emerald-400' : 'text-red-400'
                     }`}>
-                      {diagnosticsResult.api.status?.toUpperCase()}
+                      {diagnosticsResult.api.status === 'ok' ? 'REACHABLE' : diagnosticsResult.api.status?.toUpperCase()}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-slate-400">Database</span>
                     <span className={`text-xs font-medium ${
-                      diagnosticsResult.api.database === 'connected' ? 'text-emerald-400' : 'text-yellow-400'
+                      diagnosticsResult.api.database === 'healthy' ? 'text-emerald-400' :
+                      diagnosticsResult.api.database === 'degraded' ? 'text-yellow-400' : 'text-red-400'
                     }`}>
                       {diagnosticsResult.api.database?.toUpperCase()}
                     </span>
                   </div>
+                  {diagnosticsResult.api.latency && diagnosticsResult.api.latency !== 'N/A' && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-400">DB Latency</span>
+                      <span className="text-xs font-medium text-slate-300">{diagnosticsResult.api.latency}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
