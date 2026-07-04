@@ -462,25 +462,33 @@ function AlertBuilderPageContent() {
         )}
 
         {/* Progress Steps */}
-        <div className="flex justify-between mb-8">
-          {[
+        <div className="flex items-start justify-between mb-10">
+          {([
             { num: 1, label: 'Basic Info' },
-            { num: 2, label: 'Detection Type' },
-            { num: 2.5, label: formData.detectionType === 'zone_violation' ? 'Draw Zone' : '', hidden: formData.detectionType !== 'zone_violation' },
+            { num: 2, label: 'Detection' },
+            { num: 2.5, label: 'Draw Zone', hidden: formData.detectionType !== 'zone_violation' },
             { num: 3, label: 'Actions' },
             { num: 4, label: 'Review' }
-          ].filter(s => !s.hidden).map((s) => (
-            <div key={s.num} className="flex items-center flex-1">
-              <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold ${
-                step >= s.num ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400'
-              }`}>
-                {s.num}
+          ] as { num: number; label: string; hidden?: boolean }[]).filter(s => !s.hidden).map((s, i, arr) => (
+            <React.Fragment key={s.num}>
+              <div className="flex flex-col items-center gap-2">
+                <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold text-sm flex-shrink-0 ${
+                  step >= s.num ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400'
+                }`}>
+                  {Math.round(s.num)}
+                </div>
+                <span className={`text-xs text-center leading-tight max-w-[64px] ${
+                  step >= s.num ? 'text-white' : 'text-gray-500'
+                }`}>
+                  {s.label}
+                </span>
               </div>
-              <div className={`flex-1 h-1 ${step > s.num ? 'bg-blue-600' : 'bg-gray-700'} ${s.num === 4 ? 'hidden' : ''}`} />
-              <span className={`ml-2 text-sm ${step >= s.num ? 'text-white' : 'text-gray-500'}`}>
-                {s.label}
-              </span>
-            </div>
+              {i < arr.length - 1 && (
+                <div className={`flex-1 h-1 mt-5 mx-2 ${
+                  step > s.num ? 'bg-blue-600' : 'bg-gray-700'
+                }`} />
+              )}
+            </React.Fragment>
           ))}
         </div>
 
@@ -575,79 +583,118 @@ function AlertBuilderPageContent() {
             </div>
           )}
 
-          {/* Step 2: Detection Type */}
+          {/* Step 2: Detection Configuration */}
           {step === 2 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-white mb-6">Detection Configuration</h2>
-
+            <div className="space-y-8">
               <div>
-                <label className="block text-gray-300 font-medium mb-3">What should trigger this alert? *</label>
-                <div className="grid grid-cols-1 gap-3">
-                  {DETECTION_TYPES.map(type => (
+                <h2 className="text-2xl font-bold text-white">What should trigger this alert?</h2>
+                <p className="text-gray-400 mt-1">Pick what the AI camera should watch for.</p>
+              </div>
+
+              {/* Safety Violations — most common */}
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-red-400">⚠ Safety Violations</span>
+                  <span className="text-xs text-gray-600">Alert when a worker is NOT wearing required PPE</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'person_without_hardhat',     label: 'No Hard Hat',     emoji: '⛑️', desc: 'Worker missing helmet' },
+                    { id: 'person_without_safety_vest', label: 'No Safety Vest',  emoji: '🦺', desc: 'Worker missing hi-vis vest' },
+                    { id: 'person_without_gloves',      label: 'No Gloves',       emoji: '🧤', desc: 'Worker missing protective gloves' },
+                    { id: 'person_without_safety_boots',label: 'No Safety Boots', emoji: '👢', desc: 'Worker missing safety footwear' },
+                  ].map(item => (
                     <button
-                      key={type.id}
+                      key={item.id}
                       type="button"
-                      onClick={() => setFormData({...formData, detectionType: type.id})}
+                      onClick={() => setFormData({...formData, objectClass: item.id, detectionType: 'object_present'})}
                       className={`p-4 rounded-xl text-left transition-all border-2 ${
-                        formData.detectionType === type.id
-                          ? 'bg-blue-600/20 border-blue-500 text-white'
-                          : 'bg-gray-900/50 border-gray-700 text-gray-300 hover:border-gray-600'
+                        formData.objectClass === item.id
+                          ? 'bg-red-600/20 border-red-500'
+                          : 'bg-gray-900/50 border-gray-700 hover:border-red-900/60'
                       }`}
                     >
-                      <div className="font-semibold mb-1">{type.name}</div>
-                      <div className="text-sm text-gray-400">{type.description}</div>
+                      <div className="text-2xl mb-2">{item.emoji}</div>
+                      <div className="font-semibold text-white text-sm">{item.label}</div>
+                      <div className="text-xs text-gray-400 mt-1">{item.desc}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
+              {/* Presence & Compliance */}
               <div>
-                <label className="block text-gray-300 font-medium mb-3">What object should the AI look for? *</label>
-                
-                {/* Filter by category */}
-                <div className="flex gap-2 mb-4">
-                  {['ppe', 'person', 'equipment', 'vehicle', 'zone'].map(category => (
-                    <button
-                      key={category}
-                      type="button"
-                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm transition-colors"
-                    >
-                      {category.toUpperCase()}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-green-400">✓ Presence &amp; Compliance</span>
+                  <span className="text-xs text-gray-600">Alert when a person or PPE item IS detected</span>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto p-1">
-                  {DETECTION_CLASSES.map(cls => (
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'person_detected',          label: 'Person Detected',  emoji: '👤', desc: 'Any person enters camera view' },
+                    { id: 'person_with_hardhat',       label: 'Hard Hat Worn',    emoji: '⛑️', desc: 'Worker wearing helmet' },
+                    { id: 'person_with_safety_vest',   label: 'Safety Vest Worn', emoji: '🦺', desc: 'Worker wearing hi-vis vest' },
+                    { id: 'person_with_gloves',        label: 'Gloves Worn',      emoji: '🧤', desc: 'Worker wearing gloves' },
+                  ].map(item => (
                     <button
-                      key={cls.id}
+                      key={item.id}
                       type="button"
-                      onClick={() => setFormData({...formData, objectClass: cls.id})}
+                      onClick={() => setFormData({...formData, objectClass: item.id, detectionType: 'object_present'})}
                       className={`p-4 rounded-xl text-left transition-all border-2 ${
-                        formData.objectClass === cls.id
-                          ? 'bg-blue-600/20 border-blue-500'
-                          : 'bg-gray-900/50 border-gray-700 hover:border-gray-600'
+                        formData.objectClass === item.id
+                          ? 'bg-green-600/20 border-green-500'
+                          : 'bg-gray-900/50 border-gray-700 hover:border-green-900/60'
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold text-white">{cls.name}</span>
-                        <span 
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: cls.color }}
-                        />
-                      </div>
-                      <div className="text-sm text-gray-400">{cls.description}</div>
-                      <div className="text-xs text-gray-500 mt-2">
-                        Category: {cls.category} • Severity: {cls.severity}
-                      </div>
+                      <div className="text-2xl mb-2">{item.emoji}</div>
+                      <div className="font-semibold text-white text-sm">{item.label}</div>
+                      <div className="text-xs text-gray-400 mt-1">{item.desc}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
+              {/* Advanced: Zone Violation */}
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-blue-400">Advanced</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData({
+                    ...formData,
+                    detectionType: formData.detectionType === 'zone_violation' ? 'object_present' : 'zone_violation',
+                    objectClass: 'person_detected'
+                  })}
+                  className={`w-full p-4 rounded-xl text-left transition-all border-2 ${
+                    formData.detectionType === 'zone_violation'
+                      ? 'bg-blue-600/20 border-blue-500'
+                      : 'bg-gray-900/30 border-gray-700/60 hover:border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">📍</span>
+                    <div>
+                      <div className="font-semibold text-white text-sm">
+                        Zone Violation
+                        {formData.detectionType === 'zone_violation' && (
+                          <span className="ml-2 text-xs text-blue-400">✓ selected</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-0.5">Draw a restricted area on your camera — alert when someone enters it</div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              {/* Confidence Threshold */}
               <div>
                 <label className="block text-gray-300 font-medium mb-2">
-                  Confidence Threshold: {(formData.minConfidence * 100).toFixed(0)}%
+                  AI Confidence: <span className="text-white font-bold">{(formData.minConfidence * 100).toFixed(0)}%</span>
+                  <span className="text-gray-500 text-sm font-normal ml-2">
+                    {formData.minConfidence >= 0.8 ? '(strict — fewer false alarms)' :
+                     formData.minConfidence >= 0.65 ? '(balanced — recommended)' :
+                     '(lenient — catches more, may have false alarms)'}
+                  </span>
                 </label>
                 <input
                   type="range"
@@ -658,10 +705,10 @@ function AlertBuilderPageContent() {
                   onChange={(e) => setFormData({...formData, minConfidence: parseFloat(e.target.value)})}
                   className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                 />
-                <p className="text-gray-500 text-sm mt-2">
-                  Higher = fewer false alarms, but might miss some violations. 
-                  Recommended: 70-80% for PPE detection.
-                </p>
+                <div className="flex justify-between text-xs text-gray-600 mt-1">
+                  <span>50% lenient</span>
+                  <span>95% strict</span>
+                </div>
               </div>
 
               <div className="flex justify-between">
@@ -673,7 +720,6 @@ function AlertBuilderPageContent() {
                 </button>
                 <button
                   onClick={() => {
-                    // If zone violation, go to zone drawing step
                     if (formData.detectionType === 'zone_violation') {
                       setStep(2.5);
                     } else {
