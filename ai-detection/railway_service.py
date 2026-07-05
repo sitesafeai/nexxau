@@ -74,6 +74,10 @@ VIOLATION_LABELS = {
     'no_vest':         ('No Vest',       'violation'),
 }
 
+# Compliant detections (boot, glove, helmet, vest) are false-positive-prone
+# and not actionable. Only post violations + person_detected.
+SKIP_VTYPES = {'boot', 'glove', 'helmet', 'vest'}
+
 cooldowns = {}
 cooldown_lock = threading.Lock()
 
@@ -231,6 +235,8 @@ def run_camera(camera, model, stop_event):
                     vtype      = VIOLATION_MAP.get(class_id)
 
                     if vtype is None:
+                        continue
+                    if vtype in SKIP_VTYPES:
                         continue
                     if is_on_cooldown(camera_id, vtype):
                         continue
