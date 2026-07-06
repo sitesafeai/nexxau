@@ -2,7 +2,7 @@ __pycache__
 *.pyc
 *.pyo
 *.pyd
-*.pt
+# *.pt intentionally NOT excluded — best.pt (PPE model, ~6MB) must be in the image
 *.weights
 *.onnx
 runs/
