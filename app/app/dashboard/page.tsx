@@ -5521,40 +5521,61 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
     fetchAuditLogs();
   }, [fetchAuditLogs]);
 
-  const handleExport = async (format: 'csv' | 'json' | 'pdf') => {
+  // ── client-side export helpers ──────────────────────────────────────────────
+  const auditEscapeCSV = (value: any): string => {
+    if (value === null || value === undefined) return '';
+    const str = typeof value === 'object' ? JSON.stringify(value) : String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const auditLogsToCSV = (rows: any[]): string => {
+    const headers = ['id','timestamp','user_name','user_email','event_type','object_type','object_id','object_name','worksite','severity','result','ip_address','changes_old','changes_new','details'];
+    const csvRows = rows.map(log => [
+      log.id,
+      log.createdAt,
+      log.user?.name || 'SYSTEM',
+      log.user?.email || '',
+      log.action,
+      log.entity,
+      log.entityId || '',
+      log.entityName || '',
+      log.worksite?.name || '',
+      log.severity || '',
+      log.result || '',
+      log.ipAddress || '',
+      JSON.stringify(log.changes?.old || {}),
+      JSON.stringify(log.changes?.new || {}),
+      JSON.stringify(log.details || {}),
+    ].map(auditEscapeCSV).join(','));
+    return [headers.join(','), ...csvRows].join('\n');
+  };
+
+  const triggerDownload = (content: string, filename: string, mime: string) => {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(url);
+    a.remove();
+  };
+
+  const handleExport = (format: 'csv' | 'json' | 'pdf') => {
+    if (auditLogs.length === 0) return;
     setExportLoading(true);
     try {
-      const currentTab = tabs.find(t => t.key === activeTab);
-      const response = await fetch('/api/audit/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          format,
-          filters: {
-            objectTypes: [currentTab?.entity],
-            projects: currentSite?.id ? [currentSite.id] : undefined,
-          },
-          range: {
-            from: filters.from || undefined,
-            to: filters.to || undefined,
-          },
-        }),
-      });
-
-      if (format === 'csv' || format === 'json') {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `audit_${activeTab}_${new Date().toISOString().split('T')[0]}.${format}`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        a.remove();
+      const date = new Date().toISOString().split('T')[0];
+      if (format === 'csv') {
+        triggerDownload(auditLogsToCSV(auditLogs), `audit_${activeTab}_${date}.csv`, 'text/csv;charset=utf-8;');
+      } else if (format === 'json') {
+        triggerDownload(JSON.stringify(auditLogs, null, 2), `audit_${activeTab}_${date}.json`, 'application/json');
       } else {
-        const data = await response.json();
-        console.log('PDF data:', data);
-        alert('PDF export prepared. Check console for data.');
+        alert('PDF export is not yet available. Use CSV or JSON.');
       }
     } catch (err) {
       console.error('Export error:', err);
@@ -5563,6 +5584,12 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
       setExportLoading(false);
     }
   };
+
+  const handleExportSingleEvent = (log: any) => {
+    const ts = new Date(log.createdAt).toISOString().slice(0, 19).replace(/[:.]/g, '-');
+    triggerDownload(auditLogsToCSV([log]), `audit-event-${log.action}-${ts}.csv`, 'text/csv;charset=utf-8;');
+  };
+  // ────────────────────────────────────────────────────────────────────────────
 
   const getActionColor = (action: string) => {
     if (action.includes('CREATED') || action.includes('ADDED') || action.includes('SUCCESS')) return 'text-emerald-400';
@@ -5831,14 +5858,25 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
           >
             <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700/50 p-4 flex items-center justify-between z-10">
               <h2 className="text-lg font-semibold text-white">Event Details</h2>
-              <button
-                onClick={() => setSelectedEvent(null)}
-                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleExportSingleEvent(selectedEvent)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Download CSV
+                </button>
+                <button
+                  onClick={() => setSelectedEvent(null)}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             <div className="p-6 space-y-6">
