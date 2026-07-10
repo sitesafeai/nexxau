@@ -128,14 +128,14 @@ export async function PATCH(
         data: {
           userId: currentUser.id,
           action: 'USER_STATUS_UPDATED',
-          entityType: 'User',
+          entity: 'USER',
           entityId: userId,
+          worksiteId,
           metadata: {
-            worksiteId,
-            userId,
-            oldStatus: existing.user.isActivated ? 'ACTIVE' : 'INACTIVE',
-            newStatus: status,
-            userEmail: existing.user.email
+            entityName: existing.user.email,
+            severity: 'INFO',
+            result: 'SUCCESS',
+            details: { oldStatus: existing.user.isActivated ? 'ACTIVE' : 'INACTIVE', newStatus: status, userEmail: existing.user.email },
           }
         }
       }).catch(err => {

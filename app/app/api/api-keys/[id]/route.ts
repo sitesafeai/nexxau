@@ -75,6 +75,9 @@ export async function DELETE(
       );
     }
 
+    // Capture name before revocation
+    const keyRecord = await prisma.apiKey.findFirst({ where: { id, userId: session.user.id }, select: { name: true } }).catch(() => null);
+
     const result = await ApiKeyManager.revokeApiKey(id, session.user.id);
 
     if (result.count === 0) {
@@ -83,6 +86,22 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    // Audit log
+    prisma.auditLog.create({
+      data: {
+        userId: session.user.id,
+        action: 'API_KEY_REVOKED',
+        entity: 'INTEGRATION',
+        entityId: id,
+        metadata: {
+          entityName: keyRecord?.name || id,
+          severity: 'WARNING',
+          result: 'SUCCESS',
+          details: null,
+        },
+      },
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

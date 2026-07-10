@@ -139,15 +139,16 @@ export async function PATCH(
         data: {
           userId: currentUser.id,
           action: 'USER_ROLE_UPDATED',
-          entityType: 'WorksiteUser',
-          entityId: updated.id,
+          entity: 'USER',
+          entityId: userId,
+          worksiteId,
           metadata: {
-            worksiteId,
-            userId,
-            oldRole: existing.role,
-            newRole: role,
-            userEmail: existing.user.email
-          }
+            entityName: existing.user.name || existing.user.email,
+            severity: 'INFO',
+            result: 'SUCCESS',
+            details: { oldRole: existing.role, newRole: role, userEmail: existing.user.email },
+          },
+          changes: { old: { role: existing.role }, new: { role } },
         }
       }).catch(err => {
         console.error('Failed to create audit log:', err);
@@ -284,14 +285,15 @@ export async function DELETE(
         data: {
           userId: currentUser.id,
           action: 'USER_REMOVED_FROM_WORKSITE',
-          entityType: 'WorksiteUser',
-          entityId: existing.id,
+          entity: 'USER',
+          entityId: userId,
+          worksiteId,
           metadata: {
-            worksiteId,
-            userId,
-            userEmail: existing.user.email,
-            role: existing.role
-          }
+            entityName: existing.user.name || existing.user.email,
+            severity: 'WARNING',
+            result: 'SUCCESS',
+            details: { userEmail: existing.user.email, role: existing.role },
+          },
         }
       }).catch(err => {
         console.error('Failed to create audit log:', err);

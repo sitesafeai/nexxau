@@ -154,6 +154,30 @@ export async function POST(
 
     console.log(`[API /cameras/:id/toggle-ai] [${requestId}] ✅ AI toggled to ${enabled} for camera: ${camera.id}`);
 
+    // Audit log
+    {
+      const currentUserRecord = await prisma.user.findUnique({
+        where: { email: session.user.email || '' },
+        select: { id: true },
+      }).catch(() => null);
+      prisma.auditLog.create({
+        data: {
+          userId: currentUserRecord?.id || null,
+          action: enabled ? 'CAMERA_AI_ENABLED' : 'CAMERA_AI_DISABLED',
+          entity: 'CAMERA',
+          entityId: cameraId,
+          worksiteId: camera.worksiteId || null,
+          metadata: {
+            entityName: camera.name,
+            severity: 'INFO',
+            result: 'SUCCESS',
+            details: { aiEnabled: enabled },
+          },
+          changes: { old: { aiEnabled: !enabled }, new: { aiEnabled: enabled } },
+        },
+      }).catch(() => {});
+    }
+
     // Step 8: Format response
     const response = {
       success: true,

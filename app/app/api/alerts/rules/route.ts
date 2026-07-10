@@ -163,6 +163,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
     const body = await request.json();
     const { name, description, severity, conditions, actions, isActive = true } = body;
 
@@ -180,6 +181,25 @@ export async function POST(request: NextRequest) {
         userId: body.userId || null
       }
     });
+
+    // Audit log
+    if (session?.user?.id) {
+      prisma.auditLog.create({
+        data: {
+          userId: session.user.id,
+          action: 'RULE_CREATED',
+          entity: 'RULE',
+          entityId: alertRule.id,
+          worksiteId: body.worksiteId || null,
+          metadata: {
+            entityName: name,
+            severity: 'INFO',
+            result: 'SUCCESS',
+            details: { alertSeverity: severity, category: body.category || 'CUSTOM' },
+          },
+        },
+      }).catch(() => {});
+    }
 
     return NextResponse.json(alertRule, { status: 201 });
   } catch (error) {

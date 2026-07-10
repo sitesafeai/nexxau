@@ -79,3 +79,5 @@ app/public/streams/
 *.sql.bak
 db_backup.sql
 db_public_data.sql
+PPE-2/
+train.py

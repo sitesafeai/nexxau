@@ -20,19 +20,42 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const entity = searchParams.get('entity');
     const worksiteId = searchParams.get('worksiteId');
+    const search = searchParams.get('search');
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50')));
 
     // Build where clause - only add conditions if values are truthy
     const where: any = {};
-    
+
     if (entity && entity.trim()) {
       where.entity = entity.toUpperCase();
     }
-    
+
     // Only filter by worksite if provided and valid
     if (worksiteId && worksiteId.trim() && worksiteId !== 'undefined' && worksiteId !== 'null') {
       where.worksiteId = worksiteId;
+    }
+
+    // Text search across action, entityName, entity
+    if (search && search.trim()) {
+      where.OR = [
+        { action: { contains: search.trim(), mode: 'insensitive' } },
+        { entityName: { contains: search.trim(), mode: 'insensitive' } },
+        { entity: { contains: search.trim(), mode: 'insensitive' } },
+      ];
+    }
+
+    // Date range filter
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(from);
+      if (to) {
+        const toDate = new Date(to);
+        toDate.setHours(23, 59, 59, 999);
+        where.createdAt.lte = toDate;
+      }
     }
 
     console.log('[Audit API] Query params:', { entity, worksiteId, page, limit });
@@ -88,18 +111,52 @@ export async function GET(request: NextRequest) {
         if (wsIds.length > 0) {
           const worksites = await prisma.worksite.findMany({
             where: { id: { in: wsIds as string[] } },
-            select: { id: true, name: true },
+            select: { id: true, name: true, companyId: true },
           });
-          const wsMap = new Map(worksites.map(w => [w.id, w]));
-          auditLogs = auditLogs.map(log => ({
-            ...log,
-            worksite: log.worksiteId ? wsMap.get(log.worksiteId) || null : null,
-          }));
+
+          // Also fetch companies referenced by those worksites
+          const companyIds = [...new Set(worksites.filter(w => w.companyId).map(w => w.companyId as string))];
+          let companyMap = new Map<string, { id: string; name: string }>();
+          if (companyIds.length > 0) {
+            const companies = await prisma.company.findMany({
+              where: { id: { in: companyIds } },
+              select: { id: true, name: true },
+            });
+            companyMap = new Map(companies.map(c => [c.id, c]));
+          }
+
+          const wsMap = new Map(worksites.map(w => [w.id, {
+            id: w.id,
+            name: w.name,
+            companyId: w.companyId,
+            company: w.companyId ? companyMap.get(w.companyId) || null : null,
+          }]));
+
+          auditLogs = auditLogs.map(log => {
+            const ws = log.worksiteId ? wsMap.get(log.worksiteId) || null : null;
+            return {
+              ...log,
+              worksite: ws ? { id: ws.id, name: ws.name } : null,
+              company: ws?.company || null,
+            };
+          });
         }
       } catch (wsError: any) {
-        console.error('[Audit API] Failed to fetch worksites:', wsError.message);
-        // Continue without worksite info
+        console.error('[Audit API] Failed to fetch worksites/companies:', wsError.message);
+        // Continue without worksite/company info
       }
+
+      // Flatten metadata fields so the UI can access entityName, severity, result, details directly
+      auditLogs = auditLogs.map(log => {
+        const meta = (log.metadata as any) || {};
+        return {
+          ...log,
+          entityName: meta.entityName || log.entityId || null,
+          severity: meta.severity || 'INFO',
+          result: meta.result || 'SUCCESS',
+          details: meta.details || null,
+        };
+      });
     }
 
     return NextResponse.json({

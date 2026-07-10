@@ -107,12 +107,14 @@ export async function POST(request: NextRequest) {
     await prisma.auditLog.create({
       data: {
         userId: user.id,
-        action: 'PASSWORD_RESET',
-        entityType: 'User',
+        action: 'USER_PASSWORD_RESET',
+        entity: 'USER',
         entityId: user.id,
         metadata: {
-          email: user.email,
-          resetAt: new Date().toISOString()
+          entityName: user.email,
+          severity: 'WARNING',
+          result: 'SUCCESS',
+          details: { email: user.email, resetAt: new Date().toISOString() },
         }
       }
     }).catch(err => {

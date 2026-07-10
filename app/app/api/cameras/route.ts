@@ -671,10 +671,16 @@ export async function POST(request: NextRequest) {
         await prisma.auditLog.create({
           data: {
             userId: currentUser.id,
-            action: 'CAMERA_CREATED',
-            entityType: 'Camera',
+            action: 'CAMERA_ADDED',
+            entity: 'CAMERA',
             entityId: camera.id,
-            metadata: { cameraName: camera.name, cameraType: 'Pi Push', worksiteId, worksiteName: worksite.name },
+            worksiteId,
+            metadata: {
+              entityName: camera.name,
+              severity: 'INFO',
+              result: 'SUCCESS',
+              details: { cameraType: 'Pi Push', worksiteName: worksite.name },
+            },
           },
         }).catch(() => {});
       }
@@ -782,14 +788,15 @@ export async function POST(request: NextRequest) {
         await prisma.auditLog.create({
           data: {
             userId: currentUser.id,
-            action: 'CAMERA_CREATED',
-            entityType: 'Camera',
+            action: 'CAMERA_ADDED',
+            entity: 'CAMERA',
             entityId: camera.id,
+            worksiteId,
             metadata: {
-              cameraName: camera.name,
-              cameraType: camera.type,
-              worksiteId,
-              worksiteName: worksite.name,
+              entityName: camera.name,
+              severity: 'INFO',
+              result: 'SUCCESS',
+              details: { cameraType: camera.type, worksiteName: worksite.name },
             },
           },
         }).catch((err) => {
@@ -868,15 +875,16 @@ export async function POST(request: NextRequest) {
       await prisma.auditLog.create({
         data: {
           userId: currentUser.id,
-          action: 'CAMERA_CREATED',
-          entityType: 'Camera',
+          action: 'CAMERA_ADDED',
+          entity: 'CAMERA',
           entityId: camera.id,
+          worksiteId,
           metadata: {
-            cameraName: camera.name,
-            cameraType: camera.type,
-            worksiteId,
-            worksiteName: worksite.name
-          }
+            entityName: camera.name,
+            severity: 'INFO',
+            result: 'SUCCESS',
+            details: { cameraType: camera.type, worksiteName: worksite.name },
+          },
         }
       }).catch(err => {
         console.error('[API /cameras] Failed to create audit log:', err);

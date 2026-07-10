@@ -434,17 +434,22 @@ export async function POST(
       await prisma.auditLog.create({
         data: {
           userId: currentUser.id!,
-          action: 'USER_ADDED_TO_WORKSITE',
-          entityType: 'WorksiteUser',
-          entityId: assignment.id,
+          action: isNewUser ? 'USER_INVITED' : 'USER_ADDED_TO_WORKSITE',
+          entity: 'USER',
+          entityId: user.id,
+          worksiteId,
           metadata: {
-            worksiteId,
-            userId: user.id,
-            email: user.email,
-            role: role,
-            isNewUser: isNewUser,
-            invitationSent: isNewUser || !user.onboardingComplete
-          }
+            entityName: user.email,
+            severity: 'INFO',
+            result: 'SUCCESS',
+            details: {
+              role,
+              isNewUser,
+              worksiteName: worksite.name,
+              companyName: worksite.company?.name || null,
+              invitationSent: isNewUser || !user.onboardingComplete,
+            },
+          },
         }
       }).catch(err => {
         // Don't fail if audit log fails

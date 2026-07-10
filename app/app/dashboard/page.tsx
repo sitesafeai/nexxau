@@ -5477,6 +5477,7 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
   });
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const tabs = [
     { key: 'alerts', label: 'Alerts Activity', entity: 'ALERT' },
@@ -5532,12 +5533,13 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
   };
 
   const auditLogsToCSV = (rows: any[]): string => {
-    const headers = ['id','timestamp','user_name','user_email','event_type','object_type','object_id','object_name','worksite','severity','result','ip_address','changes_old','changes_new','details'];
+    const headers = ['id','timestamp','user_name','user_email','company','event_type','object_type','object_id','object_name','worksite','severity','result','ip_address','changes_old','changes_new','details'];
     const csvRows = rows.map(log => [
       log.id,
       log.createdAt,
       log.user?.name || 'SYSTEM',
       log.user?.email || '',
+      log.company?.name || '',
       log.action,
       log.entity,
       log.entityId || '',
@@ -5592,10 +5594,10 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
   // ────────────────────────────────────────────────────────────────────────────
 
   const getActionColor = (action: string) => {
-    if (action.includes('CREATED') || action.includes('ADDED') || action.includes('SUCCESS')) return 'text-emerald-400';
-    if (action.includes('DELETED') || action.includes('REMOVED') || action.includes('FAILED')) return 'text-red-400';
-    if (action.includes('UPDATED') || action.includes('CHANGED')) return 'text-blue-400';
-    if (action.includes('ACKNOWLEDGED') || action.includes('RESOLVED')) return 'text-amber-400';
+    if (action.includes('CREATED') || action.includes('ADDED') || action.includes('INVITED') || action.includes('SUCCESS') || action === 'USER_LOGIN') return 'text-emerald-400';
+    if (action.includes('DELETED') || action.includes('REMOVED') || action.includes('FAILED') || action.includes('REVOKED')) return 'text-red-400';
+    if (action.includes('UPDATED') || action.includes('CHANGED') || action.includes('EDITED')) return 'text-blue-400';
+    if (action.includes('ACKNOWLEDGED') || action.includes('RESOLVED') || action.includes('OFFLINE')) return 'text-amber-400';
     return 'text-slate-400';
   };
 
@@ -5637,19 +5639,22 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
         <div className="flex items-center space-x-3">
           <div className="relative">
             <button
-              onClick={() => {}}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg border border-slate-600 flex items-center space-x-2"
+              onClick={() => setShowExportMenu(prev => !prev)}
+              disabled={exportLoading}
+              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg border border-slate-600 flex items-center space-x-2 disabled:opacity-50"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
               <span>Export</span>
             </button>
-            <div className="absolute right-0 mt-2 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10 hidden group-hover:block">
-              <button onClick={() => handleExport('csv')} className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700">CSV</button>
-              <button onClick={() => handleExport('json')} className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700">JSON</button>
-              <button onClick={() => handleExport('pdf')} className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700">PDF</button>
-            </div>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10">
+                <button onClick={() => { handleExport('csv'); setShowExportMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 rounded-t-lg">CSV</button>
+                <button onClick={() => { handleExport('json'); setShowExportMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700">JSON</button>
+                <button onClick={() => { handleExport('pdf'); setShowExportMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 rounded-b-lg">PDF</button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -5770,6 +5775,7 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Time</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Company</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Event</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Object</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Severity</th>
@@ -5789,13 +5795,16 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
                     <div className="text-xs text-slate-500">{log.user?.email || 'Automated'}</div>
                   </td>
                   <td className="px-4 py-3">
+                    <div className="text-sm text-white">{log.company?.name || '—'}</div>
+                  </td>
+                  <td className="px-4 py-3">
                     <span className={`text-sm font-medium ${getActionColor(log.action)}`}>
                       {log.action.replace(/_/g, ' ')}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-sm text-white">{log.entityName || log.entityId || '—'}</div>
-                    <div className="text-xs text-slate-500">{log.entity}</div>
+                    <div className="text-xs text-slate-500">{log.entity?.replace(/_/g, ' ')}</div>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded border ${getSeverityBadge(log.severity)}`}>
@@ -5804,7 +5813,9 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-sm text-slate-400 max-w-xs truncate">
-                      {log.details?.notes || log.details?.reason || JSON.stringify(log.changes?.new || {}).slice(0, 50)}
+                      {log.details?.notes || log.details?.reason || log.details?.worksiteName ||
+                       (log.details ? Object.entries(log.details).map(([k,v]) => `${k}: ${v}`).join(', ').slice(0, 60) : null) ||
+                       JSON.stringify(log.changes?.new || {}).slice(0, 50) || '—'}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -5924,6 +5935,14 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
                     <p className="text-white font-medium">{selectedEvent.entityName}</p>
                     <p className="text-sm text-slate-500">ID: {selectedEvent.entityId || '—'}</p>
                   </div>
+                </div>
+              )}
+
+              {/* Company */}
+              {selectedEvent.company && (
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Company</h3>
+                  <p className="text-white">{selectedEvent.company.name}</p>
                 </div>
               )}
 

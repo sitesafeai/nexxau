@@ -335,12 +335,13 @@ export async function POST(request: NextRequest) {
       data: {
         userId: updatedUser.id,
         action: 'USER_ONBOARDING_COMPLETED',
-        entityType: 'User',
+        entity: 'USER',
         entityId: updatedUser.id,
         metadata: {
-          email: updatedUser.email,
-          name: updatedUser.name,
-          completedAt: new Date().toISOString()
+          entityName: updatedUser.name || updatedUser.email,
+          severity: 'INFO',
+          result: 'SUCCESS',
+          details: { email: updatedUser.email, completedAt: new Date().toISOString() },
         }
       }
     }).catch(err => {

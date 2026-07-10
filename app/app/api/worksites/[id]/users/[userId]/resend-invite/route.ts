@@ -178,13 +178,14 @@ export async function POST(
         data: {
           userId: currentUser.id,
           action: 'INVITATION_RESENT',
-          entityType: 'User',
+          entity: 'USER',
           entityId: userId,
+          worksiteId,
           metadata: {
-            worksiteId,
-            userId: userId,
-            email: user.email,
-            role: userRole
+            entityName: user.email,
+            severity: 'INFO',
+            result: 'SUCCESS',
+            details: { email: user.email, role: userRole, worksiteId },
           }
         }
       }).catch(err => {

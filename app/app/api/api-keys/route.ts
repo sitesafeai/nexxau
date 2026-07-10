@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../lib/auth';
 import { ApiKeyManager } from '../../lib/api-key-manager';
 import { withApiKeyAuth } from '../../lib/api-key-middleware';
+import { prisma } from '../../lib/prisma';
 
 // GET /api/api-keys - Get user's API keys
 export async function GET(request: NextRequest) {
@@ -73,6 +74,22 @@ export async function POST(request: NextRequest) {
       rateLimit: rateLimit || 1000,
       expiresAt: expiresAt ? new Date(expiresAt) : undefined,
     });
+
+    // Audit log
+    prisma.auditLog.create({
+      data: {
+        userId: session.user.id,
+        action: 'API_KEY_CREATED',
+        entity: 'INTEGRATION',
+        entityId: apiKey.id,
+        metadata: {
+          entityName: name,
+          severity: 'INFO',
+          result: 'SUCCESS',
+          details: { permissions, rateLimit: rateLimit || 1000 },
+        },
+      },
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

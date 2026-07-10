@@ -453,6 +453,23 @@ export async function DELETE(
       const deleteDuration = Date.now() - deleteStart;
       console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Transactional delete completed (${deleteDuration}ms):`, deleteSummary);
 
+      // Write audit log for camera removal
+      prisma.auditLog.create({
+        data: {
+          userId: userId || null,
+          action: 'CAMERA_REMOVED',
+          entity: 'CAMERA',
+          entityId: trimmedCameraId,
+          worksiteId: camera.worksiteId || null,
+          metadata: {
+            entityName: camera.name,
+            severity: 'WARNING',
+            result: 'SUCCESS',
+            details: { deletedBy: userEmail },
+          },
+        },
+      }).catch(() => {});
+
       const totalDuration = Date.now() - startTime;
       console.log(`[API /cameras/[id] DELETE] [${requestId}] ✅ Total deletion completed in ${totalDuration}ms`);
 
@@ -662,8 +679,33 @@ export async function PATCH(
         location: true,
         zone: true,
         metadata: true,
+        worksiteId: true,
       },
     });
+
+    // Write audit log for camera edit
+    {
+      const currentUserRecord = await prisma.user.findUnique({
+        where: { email: session.user.email || '' },
+        select: { id: true },
+      }).catch(() => null);
+      prisma.auditLog.create({
+        data: {
+          userId: currentUserRecord?.id || null,
+          action: 'CAMERA_EDITED',
+          entity: 'CAMERA',
+          entityId: cameraId.trim(),
+          worksiteId: updated.worksiteId || null,
+          metadata: {
+            entityName: updated.name,
+            severity: 'INFO',
+            result: 'SUCCESS',
+            details: { updatedFields: Object.keys(data) },
+          },
+          changes: { old: {}, new: data },
+        },
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ success: true, data: updated });
   } catch (error: any) {

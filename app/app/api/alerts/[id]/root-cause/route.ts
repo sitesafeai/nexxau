@@ -80,14 +80,17 @@ export async function PATCH(
     await prisma.auditLog.create({
       data: {
         userId: session.user.id,
-        action: 'ROOT_CAUSE_RECORDED',
-        entity: 'Alert', // Using entity instead of entityType
+        action: 'ALERT_ROOT_CAUSE_RECORDED',
+        entity: 'ALERT',
         entityId: id,
         worksiteId: alert.worksiteId,
-        changes: {
-          rootCause,
-          actionTaken
-        } as any
+        metadata: {
+          entityName: id,
+          severity: 'INFO',
+          result: 'SUCCESS',
+          details: { rootCause, actionTaken },
+        },
+        changes: { old: {}, new: { rootCause, actionTaken } } as any
       }
     });
 

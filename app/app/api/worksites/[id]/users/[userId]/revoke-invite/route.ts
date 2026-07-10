@@ -109,12 +109,14 @@ export async function POST(
         data: {
           userId: currentUser.id,
           action: 'INVITATION_REVOKED',
-          entityType: 'User',
+          entity: 'USER',
           entityId: userId,
+          worksiteId,
           metadata: {
-            worksiteId,
-            userId: userId,
-            email: user.email
+            entityName: user.email,
+            severity: 'WARNING',
+            result: 'SUCCESS',
+            details: { email: user.email, worksiteId },
           }
         }
       }).catch(err => {

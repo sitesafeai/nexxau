@@ -260,10 +260,15 @@ export const authOptions: NextAuthOptions = {
       prisma.auditLog.create({
         data: {
           userId:   user.id,
-          action:   'LOGIN',
-          entity:   'User',
+          action:   'USER_LOGIN',
+          entity:   'USER',
           entityId: user.id,
-          metadata: { method: 'credentials' },
+          metadata: {
+            entityName: user.name || user.email || null,
+            severity: 'INFO',
+            result: 'SUCCESS',
+            details: { method: 'credentials' },
+          },
         },
       }).catch(() => {});
     },
