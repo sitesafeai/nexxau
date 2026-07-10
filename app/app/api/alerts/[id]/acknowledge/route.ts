@@ -129,7 +129,7 @@ export async function POST(
           userId: session.user.id,
           worksiteId: existingAlert.worksiteId ?? undefined,
           action: 'ACKNOWLEDGE_ALERT',
-          entity: 'Alert',
+          entity: 'ALERT',
           entityId: id,
           changes: {
             from: { status: existingAlert.status },

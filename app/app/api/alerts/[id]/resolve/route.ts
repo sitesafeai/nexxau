@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
-import { logAlertAction } from '@/app/lib/audit-logger';
+import { writeAuditLog } from '@/app/lib/audit';
 import { falsePositiveHandler } from '@/app/lib/workflows/false-positive-handler';
 
 // POST /api/alerts/[id]/resolve - Resolve an alert with full workflow
@@ -198,14 +198,32 @@ export async function POST(
         // Continue anyway - log is optional
       }
 
-      // Create audit log entry
-      const auditAction = resolutionType === 'CONFIRMED' 
-        ? "ALERT_ACTION" 
-        : resolutionType === 'FALSE_POSITIVE' 
-          ? "ALERT_ACTION" 
-          : "ALERT_ACTION";
-
-      // audit log removed
+      // Write audit log
+      const actionMap: Record<string, string> = {
+        'CONFIRMED': 'ALERT_CONFIRMED',
+        'FALSE_POSITIVE': 'ALERT_FALSE_POSITIVE',
+        'SNOOZED': 'ALERT_SNOOZED',
+      };
+      await writeAuditLog({
+        userId: user.id,
+        worksiteId: alert.worksiteId,
+        action: actionMap[resolutionType] || 'ALERT_RESOLVED',
+        entity: 'ALERT',
+        entityId: alertId,
+        entityName: alert.title || alertId,
+        severity: 'INFO',
+        result: 'SUCCESS',
+        details: {
+          resolutionType,
+          notes: notes || null,
+          fpReason: fpReason || null,
+          violationType: violationType || null,
+          snoozeDuration: snoozeDuration || null,
+          previousStatus: alert.status,
+        },
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+        userAgent: request.headers.get('user-agent'),
+      });
 
       return NextResponse.json({
         success: true,
