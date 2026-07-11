@@ -35,7 +35,17 @@ export async function GET(request: NextRequest) {
 
     // Only filter by worksite if provided and valid
     if (worksiteId && worksiteId.trim() && worksiteId !== 'undefined' && worksiteId !== 'null') {
-      where.worksiteId = worksiteId;
+      const entityUpper = entity?.toUpperCase();
+      if (entityUpper === 'USER') {
+        // For user events, also include global events (no worksiteId) so logins/logouts
+        // that aren't tied to a specific worksite still show up in the User Activity tab
+        where.OR = [
+          { worksiteId },
+          { worksiteId: null },
+        ];
+      } else {
+        where.worksiteId = worksiteId;
+      }
     }
 
     // Text search across action, entityName, entity

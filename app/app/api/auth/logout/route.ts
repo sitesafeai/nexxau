@@ -4,6 +4,7 @@ import { jwtManager } from '@/app/lib/jwt';
 import { rateLimitMiddleware, authRateLimit } from '@/app/lib/rate-limit';
 import { securityMiddleware, addSecurityHeaders } from '@/app/lib/security';
 import { writeAuditLog } from '@/app/lib/audit';
+import { prisma } from '@/app/lib/prisma';
 
 export async function POST(request: NextRequest) {
   // Apply security middleware
@@ -29,8 +30,15 @@ export async function POST(request: NextRequest) {
         await sessionManager.invalidateSession(session.id);
       }
 
+      // Look up worksiteId so the event shows in the right worksite's User Activity tab
+      const dbUser = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { worksiteId: true },
+      }).catch(() => null);
+
       await writeAuditLog({
         userId: session.userId,
+        worksiteId: dbUser?.worksiteId || null,
         action: logoutAll ? 'USER_LOGOUT_ALL' : 'USER_LOGOUT',
         entity: 'USER',
         entityId: session.userId,

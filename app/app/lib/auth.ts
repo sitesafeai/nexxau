@@ -259,10 +259,11 @@ export const authOptions: NextAuthOptions = {
       // Write audit log entry
       prisma.auditLog.create({
         data: {
-          userId:   user.id,
-          action:   'USER_LOGIN',
-          entity:   'USER',
-          entityId: user.id,
+          userId:     user.id,
+          action:     'USER_LOGIN',
+          entity:     'USER',
+          entityId:   user.id,
+          worksiteId: (user as any).worksiteId || null,
           metadata: {
             entityName: user.name || user.email || null,
             severity: 'INFO',
