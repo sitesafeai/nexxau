@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { prisma } from '@/app/lib/prisma';
 import { z } from 'zod';
+import { writeAuditLog } from '@/app/lib/audit';
 
 const overrideSchema = z.object({
   overrideStatus: z.enum(['false_positive', 'confirmed_violation']),
@@ -117,6 +118,27 @@ export async function POST(
       });
 
       return updatedAlert;
+    });
+
+    // Write to main audit log so it appears in Alerts Activity tab
+    await writeAuditLog({
+      userId: session.user.id,
+      worksiteId: existingAlert.worksiteId,
+      action: overrideStatus === 'confirmed_violation' ? 'ALERT_OVERRIDE_CONFIRMED' : 'ALERT_OVERRIDE_FALSE_POSITIVE',
+      entity: 'ALERT',
+      entityId: id,
+      entityName: existingAlert.title || id,
+      severity: 'WARNING',
+      result: 'SUCCESS',
+      details: {
+        overrideStatus,
+        overrideReason: overrideReason || null,
+        isTrainingCandidate: isTrainingCandidate ?? false,
+        notes: notes || null,
+        previousOverrideStatus: existingAlert.overrideStatus || null,
+      },
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      userAgent: request.headers.get('user-agent'),
     });
 
     return NextResponse.json({

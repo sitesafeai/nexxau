@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { prisma } from '@/app/lib/prisma';
 import { z } from 'zod';
+import { writeAuditLog } from '@/app/lib/audit';
 
 const bulkOverrideSchema = z.object({
   alertIds: z.array(z.string()).min(1, 'At least one alert ID is required'),
@@ -59,6 +60,8 @@ export async function POST(request: NextRequest) {
       },
       select: {
         id: true,
+        title: true,
+        worksiteId: true,
         overrideStatus: true,
         isTrainingCandidate: true,
       }
@@ -125,6 +128,33 @@ export async function POST(request: NextRequest) {
 
       return updates;
     });
+
+    // Write one audit log entry per overridden alert (fire-and-forget)
+    const auditAction = overrideStatus === 'confirmed_violation'
+      ? 'ALERT_OVERRIDE_CONFIRMED'
+      : 'ALERT_OVERRIDE_FALSE_POSITIVE';
+    for (const alert of existingAlerts) {
+      writeAuditLog({
+        userId: session.user.id,
+        worksiteId: alert.worksiteId,
+        action: auditAction,
+        entity: 'ALERT',
+        entityId: alert.id,
+        entityName: alert.title || alert.id,
+        severity: 'WARNING',
+        result: 'SUCCESS',
+        details: {
+          overrideStatus,
+          overrideReason: overrideReason || null,
+          isTrainingCandidate: isTrainingCandidate ?? false,
+          notes: notes || null,
+          bulk: true,
+          totalInBatch: alertIds.length,
+        },
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+        userAgent: request.headers.get('user-agent'),
+      }).catch(() => {});
+    }
 
     return NextResponse.json({
       success: true,

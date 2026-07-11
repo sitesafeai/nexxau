@@ -3,6 +3,7 @@ import { sessionManager } from '@/app/lib/session-manager';
 import { jwtManager } from '@/app/lib/jwt';
 import { rateLimitMiddleware, authRateLimit } from '@/app/lib/rate-limit';
 import { securityMiddleware, addSecurityHeaders } from '@/app/lib/security';
+import { writeAuditLog } from '@/app/lib/audit';
 
 export async function POST(request: NextRequest) {
   // Apply security middleware
@@ -27,6 +28,17 @@ export async function POST(request: NextRequest) {
         // Invalidate current session only
         await sessionManager.invalidateSession(session.id);
       }
+
+      await writeAuditLog({
+        userId: session.userId,
+        action: logoutAll ? 'USER_LOGOUT_ALL' : 'USER_LOGOUT',
+        entity: 'USER',
+        entityId: session.userId,
+        severity: 'INFO',
+        result: 'SUCCESS',
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+        userAgent: request.headers.get('user-agent'),
+      });
     }
 
     // Clear cookies

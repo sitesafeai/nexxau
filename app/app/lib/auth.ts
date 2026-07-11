@@ -160,9 +160,9 @@ export const authOptions: NextAuthOptions = {
             data: {
               userId:   user.id,
               action:   'LOGIN_FAILED',
-              entity:   'User',
+              entity:   'USER',
               entityId: user.id,
-              metadata: { email: emailNormalized, reason: 'invalid_password' },
+              metadata: { entityName: user.name || user.email, severity: 'WARNING', result: 'FAILURE', details: { email: emailNormalized, reason: 'invalid_password' } },
             },
           }).catch(() => {});
           return null;

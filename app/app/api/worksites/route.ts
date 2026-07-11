@@ -422,7 +422,7 @@ async function handleNewFormatCreate(body: any, user: any, userRole: string, req
         data: {
           userId: user.id,
           action: 'WORKSITE_CREATED',
-          entity: 'WORKSITE',
+          entity: 'SYSTEM',
           entityId: newWorksite.id,
           entityName: newWorksite.name,
           companyId: newWorksite.companyId,

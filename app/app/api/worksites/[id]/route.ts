@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
 import { clearWorksiteSettingsCache } from '@/app/lib/worksite-settings';
+import { writeAuditLog } from '@/app/lib/audit';
 
 /**
  * GET /api/worksites/:id
@@ -237,6 +240,21 @@ export async function PATCH(
 
     console.log('[PATCH /api/worksites/:id] Successfully updated worksite');
 
+    // Audit log — fire-and-forget
+    const session = await getServerSession(authOptions);
+    writeAuditLog({
+      userId: session?.user?.id || null,
+      action: 'WORKSITE_UPDATED',
+      entity: 'SYSTEM',
+      entityId: id,
+      entityName: existingWorksite.name || id,
+      severity: 'INFO',
+      result: 'SUCCESS',
+      details: { updatedFields: Object.keys(safeData) },
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      userAgent: request.headers.get('user-agent'),
+    }).catch(() => {});
+
     return NextResponse.json({
       success: true,
       data: worksite
@@ -260,9 +278,27 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const worksiteToDelete = await prisma.worksite.findUnique({
+      where: { id },
+      select: { id: true, name: true },
+    });
+
     await prisma.worksite.delete({
       where: { id }
     });
+
+    const deleteSession = await getServerSession(authOptions);
+    writeAuditLog({
+      userId: deleteSession?.user?.id || null,
+      action: 'WORKSITE_DELETED',
+      entity: 'SYSTEM',
+      entityId: id,
+      entityName: worksiteToDelete?.name || id,
+      severity: 'WARNING',
+      result: 'SUCCESS',
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      userAgent: request.headers.get('user-agent'),
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

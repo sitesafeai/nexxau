@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { writeAuditLog } from '@/app/lib/audit';
 
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN ?? '';
 
@@ -41,10 +42,10 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
 
-  // Only act on camera IDs that actually exist in the DB
+  // Only act on camera IDs that actually exist in the DB — grab current status for transition detection
   const existingCameras = await prisma.camera.findMany({
     where: { id: { in: ids } },
-    select: { id: true },
+    select: { id: true, name: true, status: true, worksiteId: true },
   });
   const validIds = existingCameras.map((c) => c.id);
 
@@ -52,11 +53,74 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'No matching cameras found', updated: 0 }, { status: 404 });
   }
 
+  // Cameras that are transitioning from offline → online
+  const comingOnline = existingCameras.filter((c) => c.status !== 'online');
+
   // Update camera.status for all valid IDs in one query
   await prisma.camera.updateMany({
     where: { id: { in: validIds } },
     data: { status: 'online' },
   });
+
+  // Log CAMERA_ONLINE transitions (fire-and-forget)
+  for (const cam of comingOnline) {
+    writeAuditLog({
+      action: 'CAMERA_ONLINE',
+      entity: 'CAMERA',
+      entityId: cam.id,
+      entityName: cam.name || cam.id,
+      worksiteId: cam.worksiteId,
+      severity: 'INFO',
+      result: 'SUCCESS',
+      details: { previousStatus: cam.status || 'unknown' },
+    }).catch(() => {});
+  }
+
+  // Detect cameras that have gone offline — any camera in the same worksites
+  // whose last CameraHealth entry is ONLINE but older than 90 s (3 missed heartbeats).
+  const worksiteIds = [...new Set(existingCameras.map((c) => c.worksiteId).filter(Boolean))] as string[];
+  if (worksiteIds.length) {
+    const staleThreshold = new Date(now.getTime() - 90_000);
+    const staleCameras = await prisma.camera.findMany({
+      where: {
+        worksiteId: { in: worksiteIds },
+        id: { notIn: validIds },
+        status: 'online',
+      },
+      select: { id: true, name: true, worksiteId: true },
+    });
+
+    if (staleCameras.length) {
+      // Verify they actually have no recent heartbeat before marking offline
+      for (const cam of staleCameras) {
+        const latestHealth = await prisma.cameraHealth.findFirst({
+          where: { cameraId: cam.id },
+          orderBy: { lastCheck: 'desc' },
+          select: { lastCheck: true },
+        });
+        if (!latestHealth || latestHealth.lastCheck < staleThreshold) {
+          // Mark offline
+          await prisma.camera.update({
+            where: { id: cam.id },
+            data: { status: 'offline' },
+          }).catch(() => {});
+          await prisma.cameraHealth.create({
+            data: { cameraId: cam.id, status: 'OFFLINE', lastCheck: now },
+          }).catch(() => {});
+          writeAuditLog({
+            action: 'CAMERA_OFFLINE',
+            entity: 'CAMERA',
+            entityId: cam.id,
+            entityName: cam.name || cam.id,
+            worksiteId: cam.worksiteId,
+            severity: 'WARNING',
+            result: 'SUCCESS',
+            details: { lastSeen: latestHealth?.lastCheck?.toISOString() || null },
+          }).catch(() => {});
+        }
+      }
+    }
+  }
 
   // Write a CameraHealth row per camera — one round-trip per camera, but typically
   // the YOLO service only manages a handful of cameras so this is fine.

@@ -3,7 +3,7 @@ import { prisma } from '@/app/lib/prisma';
 import { getSession } from '@/app/lib/auth';
 import { normalizeRole } from '@/app/lib/roles';
 import { enforceCompanyScope } from '@/app/lib/auth-scope';
-import { logUpdate, logDelete } from '@/app/lib/audit-logger';
+import { writeAuditLog } from '@/app/lib/audit';
 
 const ROLE_ALLOWLIST: Record<string, string[]> = {
   SUPER_ADMIN: ['SUPER_ADMIN', 'COMPANY_ADMIN', 'SITE_ADMIN', 'SUPERVISOR', 'WORKER', 'VIEWER'],
@@ -98,14 +98,21 @@ export async function PATCH(
       },
     });
 
-    await logUpdate(
-      currentUser.id,
-      'User',
-      id,
-      { name: beforeUser.name, email: beforeUser.email, role: beforeUser.role },
-      { name: updatedUser.name, email: updatedUser.email, role: updatedUser.role },
-      request
-    );
+    await writeAuditLog({
+      userId: currentUser.id,
+      action: 'USER_UPDATED',
+      entity: 'USER',
+      entityId: id,
+      entityName: updatedUser.name || updatedUser.email || id,
+      severity: 'INFO',
+      result: 'SUCCESS',
+      changes: {
+        old: { name: beforeUser.name, email: beforeUser.email, role: beforeUser.role },
+        new: { name: updatedUser.name, email: updatedUser.email, role: updatedUser.role },
+      },
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      userAgent: request.headers.get('user-agent'),
+    });
 
     return NextResponse.json({ success: true, data: updatedUser });
   } catch (error: any) {
@@ -179,13 +186,20 @@ export async function DELETE(
 
     await prisma.user.delete({ where: { id } });
 
-    await logDelete(
-      currentUser.id,
-      'User',
-      id,
-      { name: user.name, email: user.email, role: user.role },
-      request
-    );
+    await writeAuditLog({
+      userId: currentUser.id,
+      action: 'USER_DELETED',
+      entity: 'USER',
+      entityId: id,
+      entityName: user.name || user.email || id,
+      severity: 'WARNING',
+      result: 'SUCCESS',
+      changes: {
+        old: { name: user.name, email: user.email, role: user.role },
+      },
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      userAgent: request.headers.get('user-agent'),
+    });
 
     return NextResponse.json({ success: true, message: 'User deleted successfully' });
   } catch (error: any) {
