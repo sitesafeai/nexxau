@@ -23,6 +23,20 @@ hlsSegmentDuration: 1s
 hlsSegmentMaxSize: 50M
 hlsAllowOrigin: "*"
 
+pathDefaults:
+  # Notify the Nexxau app when any stream connects or disconnects
+  # Requires NEXXAU_APP_URL and INTERNAL_SERVICE_TOKEN env vars on this Railway service
+  runOnReady: >-
+    curl -sf -X POST "${NEXXAU_APP_URL}/api/cameras/stream-event"
+    -H "Content-Type: application/json"
+    -H "Authorization: Bearer ${INTERNAL_SERVICE_TOKEN}"
+    -d "{\"path\":\"$MTX_PATH\",\"event\":\"connected\"}" || true
+  runOnNotReady: >-
+    curl -sf -X POST "${NEXXAU_APP_URL}/api/cameras/stream-event"
+    -H "Content-Type: application/json"
+    -H "Authorization: Bearer ${INTERNAL_SERVICE_TOKEN}"
+    -d "{\"path\":\"$MTX_PATH\",\"event\":\"disconnected\"}" || true
+
 paths: {}
 
 # Authentication
