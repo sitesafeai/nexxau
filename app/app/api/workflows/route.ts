@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getSession } from '@/app/lib/auth';
+import { writeAuditLog } from '@/app/lib/audit';
 
 /**
  * GET /api/workflows
@@ -108,6 +109,19 @@ export async function POST(request: NextRequest) {
     });
 
     console.log('[POST /api/workflows] Created workflow:', workflow.id);
+
+    // Audit log (fire-and-forget)
+    writeAuditLog({
+      userId: session.user.id,
+      worksiteId: workflow.worksiteId,
+      action: 'RULE_CREATED',
+      entity: 'RULE',
+      entityId: workflow.id,
+      entityName: workflow.name,
+      severity: 'INFO',
+      result: 'SUCCESS',
+      details: { type: workflow.type, triggerType: workflow.triggerType },
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

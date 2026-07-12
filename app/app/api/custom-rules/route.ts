@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { logger } from '@/app/lib/logger';
 import { retryDatabaseOperation } from '@/app/lib/retry';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { writeAuditLog } from '@/app/lib/audit';
 
 // GET /api/custom-rules - Get all custom rules
 export async function GET(request: NextRequest) {
@@ -277,6 +280,21 @@ export async function POST(request: NextRequest) {
 
     // Notify AI detection service (non-blocking)
     notifyAIService(rule);
+
+    // Audit log (fire-and-forget)
+    getServerSession(authOptions).then(session => {
+      writeAuditLog({
+        userId: session?.user?.id,
+        worksiteId: rule.worksiteId,
+        action: 'RULE_CREATED',
+        entity: 'RULE',
+        entityId: rule.id,
+        entityName: rule.name,
+        severity: 'INFO',
+        result: 'SUCCESS',
+        details: { ruleType: rule.ruleType, ruleSeverity: rule.severity, category: rule.category },
+      });
+    }).catch(() => {});
 
     const formattedRule = {
       id: rule.id,

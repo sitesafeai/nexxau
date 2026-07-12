@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getSession } from '@/app/lib/auth';
+import { writeAuditLog } from '@/app/lib/audit';
 
 /**
  * GET /api/workflows/:id
@@ -94,6 +95,19 @@ export async function PATCH(
       data: updateData
     });
 
+    // Audit log (fire-and-forget)
+    writeAuditLog({
+      userId: session.user.id,
+      worksiteId: workflow.worksiteId,
+      action: 'RULE_UPDATED',
+      entity: 'RULE',
+      entityId: workflow.id,
+      entityName: workflow.name,
+      severity: 'INFO',
+      result: 'SUCCESS',
+      details: { enabled: workflow.enabled, type: workflow.type },
+    }).catch(() => {});
+
     return NextResponse.json({
       success: true,
       data: workflow
@@ -125,9 +139,28 @@ export async function DELETE(
       );
     }
 
+    // Fetch before delete so we can capture name/worksiteId for audit
+    const existing = await prisma.workflow.findUnique({
+      where: { id },
+      select: { name: true, worksiteId: true, type: true },
+    }).catch(() => null);
+
     await prisma.workflow.delete({
       where: { id }
     });
+
+    // Audit log (fire-and-forget)
+    writeAuditLog({
+      userId: session.user.id,
+      worksiteId: existing?.worksiteId ?? null,
+      action: 'RULE_DELETED',
+      entity: 'RULE',
+      entityId: id,
+      entityName: existing?.name || id,
+      severity: 'WARNING',
+      result: 'SUCCESS',
+      details: { type: existing?.type },
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

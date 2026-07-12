@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { logger } from '@/app/lib/logger';
 import { retryDatabaseOperation } from '@/app/lib/retry';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { writeAuditLog } from '@/app/lib/audit';
 
 // GET /api/custom-rules/[id] - Get a specific rule
 export async function GET(
@@ -136,6 +139,21 @@ export async function PATCH(
     console.log(`[Custom Rules API] Rule ${id} updated successfully. New isActive: ${rule.isActive}`);
     logger.info(`Custom rule updated: ${rule.name}`, { ruleId: id, isActive: rule.isActive });
 
+    // Audit log (fire-and-forget)
+    getServerSession(authOptions).then(session => {
+      writeAuditLog({
+        userId: session?.user?.id,
+        worksiteId: rule.worksiteId,
+        action: 'RULE_UPDATED',
+        entity: 'RULE',
+        entityId: rule.id,
+        entityName: rule.name,
+        severity: 'INFO',
+        result: 'SUCCESS',
+        details: { isActive: rule.isActive, ruleSeverity: rule.severity },
+      });
+    }).catch(() => {});
+
     // Notify AI service
     notifyAIService(rule, 'update');
 
@@ -166,6 +184,11 @@ export async function DELETE(
 ) {
   const { id } = await params;
   try {
+    // Fetch before delete so we can capture name/worksiteId for audit
+    const existingRule = await prisma.customRule.findUnique({
+      where: { id },
+      select: { name: true, worksiteId: true, ruleType: true, severity: true },
+    }).catch(() => null);
 
     await retryDatabaseOperation(async () => {
       return await prisma.customRule.delete({
@@ -174,6 +197,21 @@ export async function DELETE(
     }, 'delete-custom-rule');
 
     logger.info('Custom rule deleted', { ruleId: id });
+
+    // Audit log (fire-and-forget)
+    getServerSession(authOptions).then(session => {
+      writeAuditLog({
+        userId: session?.user?.id,
+        worksiteId: existingRule?.worksiteId ?? null,
+        action: 'RULE_DELETED',
+        entity: 'RULE',
+        entityId: id,
+        entityName: existingRule?.name || id,
+        severity: 'WARNING',
+        result: 'SUCCESS',
+        details: { ruleType: existingRule?.ruleType, ruleSeverity: existingRule?.severity },
+      });
+    }).catch(() => {});
 
     // Notify AI service to remove rule
     notifyAIService({ id }, 'delete');
