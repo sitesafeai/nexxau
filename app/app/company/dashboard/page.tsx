@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { canCreateWorksite, canDeleteWorksite, canInviteUser, UserRole } from '../../lib/permissions';
-import DashboardHeader from '../../components/DashboardHeader';
 
 interface Worksite {
   id: string;
@@ -14,428 +12,275 @@ interface Worksite {
   location: string | null;
   address: string | null;
   status: string;
-  cameraSystemType: string;
-  createdAt: string;
-  _count?: {
-    cameras: number;
-    worksiteUsers: number;
-  };
+  cameraCount: number;
+  userCount: number;
+  activeAlertCount: number;
+  safetyScore: number | null;
+  hasAccess: boolean;
 }
 
-interface Company {
-  id: string;
-  companyUsername: string;
-  email: string;
-  contactEmail: string | null;
-  phone: string | null;
-  address: string | null;
-  worksites: Worksite[];
-  _count?: {
-    worksites: number;
-    companyUsers: number;
-  };
+function StatusBadge({ status }: { status: string }) {
+  const s = status?.toUpperCase();
+  const cls =
+    s === 'ACTIVE'
+      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+      : s === 'MAINTENANCE'
+      ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+      : 'bg-slate-500/15 text-slate-400 border-slate-500/30';
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${cls}`}>
+      <span className="w-1.5 h-1.5 rounded-full bg-current" />
+      {s}
+    </span>
+  );
+}
+
+function SafetyRing({ score }: { score: number | null }) {
+  if (score === null) return <span className="text-slate-500 text-sm">N/A</span>;
+  const color = score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444';
+  const r = 16;
+  const circ = 2 * Math.PI * r;
+  const dash = (score / 100) * circ;
+  return (
+    <div className="flex items-center gap-1.5">
+      <svg width="40" height="40" viewBox="0 0 40 40">
+        <circle cx="20" cy="20" r={r} fill="none" stroke="#1e293b" strokeWidth="4" />
+        <circle
+          cx="20" cy="20" r={r} fill="none"
+          stroke={color} strokeWidth="4"
+          strokeDasharray={`${dash} ${circ}`}
+          strokeLinecap="round"
+          transform="rotate(-90 20 20)"
+        />
+        <text x="20" y="24" textAnchor="middle" fontSize="10" fontWeight="600" fill={color}>
+          {Math.round(score)}
+        </text>
+      </svg>
+      <span className="text-xs text-slate-400">Safety</span>
+    </div>
+  );
 }
 
 export default function CompanyDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [company, setCompany] = useState<Company | null>(null);
+  const [worksites, setWorksites] = useState<Worksite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Worksite creation now uses dedicated wizard page (/company/worksites/create)
 
-  // User invitation modal
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteFormData, setInviteFormData] = useState({
-    email: '',
-    role: 'SITE_ADMIN',
-    worksiteId: ''
-  });
+  const user = session?.user as any;
+  const isAdmin = ['COMPANY_ADMIN', 'SUPER_ADMIN', 'ADMIN'].includes(user?.role || '');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login');
       return;
     }
-
-    if (status === 'authenticated' && session?.user) {
-      // Check if user is COMPANY_ADMIN
-      const userRole = (session.user as any).role;
-      if (userRole !== 'COMPANY_ADMIN') {
-        if (userRole === 'SUPER_ADMIN') {
-          router.push('/admin'); // Super admin goes to admin panel
-        } else {
-          router.push('/dashboard'); // Others go to worksite dashboard
-        }
+    if (status === 'authenticated') {
+      // Super admin has their own panel
+      if (user?.role === 'SUPER_ADMIN') {
+        router.push('/super-admin');
         return;
       }
-
-      fetchCompanyData();
+      fetchWorksites();
     }
-  }, [status, session, router]);
+  }, [status, session]);
 
-  const fetchCompanyData = async () => {
+  const fetchWorksites = async () => {
     try {
       setLoading(true);
-      const companyId = (session?.user as any).companyId;
-      
-      console.log('🔍 Session:', session);
-      console.log('🔍 CompanyId:', companyId);
-      
-      if (!companyId) {
-        setError('No company associated with this account. Please contact support.');
-        setLoading(false);
-        return;
-      }
-
-      console.log('📡 Fetching company:', companyId);
-      const response = await fetch(`/api/admin/companies/${companyId}`);
-      const data = await response.json();
-      
-      console.log('📦 Company data:', data);
-
+      const res = await fetch('/api/company/worksites');
+      const data = await res.json();
       if (data.success) {
-        setCompany(data.data);
+        setWorksites(data.data);
       } else {
-        setError(data.error || 'Failed to load company data');
+        setError(data.error || 'Failed to load worksites');
       }
-    } catch (err) {
-      console.error('Error fetching company data:', err);
-      setError('Failed to load company data');
+    } catch {
+      setError('Failed to load worksites');
     } finally {
       setLoading(false);
     }
   };
 
-  // Worksite creation moved to /company/worksites/create wizard
-
-  const handleInviteUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      const response = await fetch('/api/invitations/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: inviteFormData.email,
-          role: inviteFormData.role,
-          companyId: company?.id,
-          worksiteId: inviteFormData.worksiteId || null,
-          invitedBy: (session?.user as any).id
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        alert('Invitation sent successfully!');
-        setShowInviteModal(false);
-        setInviteFormData({ email: '', role: 'SITE_ADMIN', worksiteId: '' });
-      } else {
-        alert(`Error: ${data.error}`);
-      }
-    } catch (err) {
-      console.error('Error sending invitation:', err);
-      alert('Failed to send invitation');
-    }
+  const handleEnter = (ws: Worksite) => {
+    if (!ws.hasAccess) return;
+    router.push(`/dashboard?worksite=${ws.id}`);
   };
 
-  const handleDeleteWorksite = async (worksiteId: string, worksiteName: string) => {
-    if (!confirm(`Are you sure you want to delete worksite "${worksiteName}"? This action cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/worksites/${worksiteId}`, {
-        method: 'DELETE'
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        fetchCompanyData(); // Refresh data
-      } else {
-        alert(`Error: ${data.error}`);
-      }
-    } catch (err) {
-      console.error('Error deleting worksite:', err);
-      alert('Failed to delete worksite');
-    }
-  };
-
-  if (loading) {
+  if (status === 'loading' || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
-  if (error || !company) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-6">
-        <div className="bg-red-500/10 border border-red-500 rounded-lg p-6 max-w-md">
-          <h2 className="text-xl font-bold text-red-500 mb-2">Error</h2>
-          <p className="text-white">{error || 'Company not found'}</p>
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-slate-400 text-sm">Loading worksites…</p>
         </div>
       </div>
     );
   }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-6">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6 max-w-sm text-center">
+          <p className="text-red-400 font-medium mb-2">Something went wrong</p>
+          <p className="text-slate-400 text-sm">{error}</p>
+          <button onClick={fetchWorksites} className="mt-4 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-sm rounded-lg transition-colors">
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const accessible = worksites.filter((w) => w.hasAccess);
+  const locked = worksites.filter((w) => !w.hasAccess);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-      <DashboardHeader />
-      <div className="p-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold text-white mb-2">
-                {company.companyUsername}
-              </h1>
-              <p className="text-slate-300">Company Dashboard</p>
+    <div className="min-h-screen bg-[#0f172a] text-white">
+      {/* Top bar */}
+      <div className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-sm sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {/* Logo / brand placeholder */}
+            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
             </div>
-            <div className="flex gap-3">
-              {canInviteUser((session?.user as any).role as UserRole, 'SITE_ADMIN') && (
-                <button
-                  onClick={() => setShowInviteModal(true)}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                >
-                  Invite User
-                </button>
-              )}
-              {canCreateWorksite((session?.user as any).role as UserRole) && (
-                <Link
-                  href="/company/worksites/create"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors inline-flex items-center gap-2"
-                >
-                  + Create Worksite
-                </Link>
-              )}
-            </div>
+            <span className="text-sm font-semibold text-white">Nexxau</span>
           </div>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-slate-800/50 backdrop-blur rounded-xl p-6 border border-slate-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-400 text-sm">Total Worksites</p>
-                <p className="text-3xl font-bold text-white mt-1">
-                  {company._count?.worksites || company.worksites.length}
-                </p>
-              </div>
-              <div className="bg-blue-500/20 p-3 rounded-lg">
-                <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-            </div>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-slate-400 hidden sm:block">
+              {user?.name || user?.email}
+            </span>
+            <button
+              onClick={() => signOut({ callbackUrl: '/login' })}
+              className="text-sm text-slate-400 hover:text-white transition-colors"
+            >
+              Sign out
+            </button>
           </div>
-
-          <div className="bg-slate-800/50 backdrop-blur rounded-xl p-6 border border-slate-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-400 text-sm">Total Users</p>
-                <p className="text-3xl font-bold text-white mt-1">
-                  {company._count?.companyUsers || 0}
-                </p>
-              </div>
-              <div className="bg-green-500/20 p-3 rounded-lg">
-                <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-800/50 backdrop-blur rounded-xl p-6 border border-slate-700">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-400 text-sm">Active Cameras</p>
-                <p className="text-3xl font-bold text-white mt-1">
-                  {company.worksites.reduce((sum, ws) => sum + (ws._count?.cameras || 0), 0)}
-                </p>
-              </div>
-              <div className="bg-purple-500/20 p-3 rounded-lg">
-                <svg className="w-8 h-8 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Worksites Table */}
-        <div className="bg-slate-800/50 backdrop-blur rounded-xl border border-slate-700 overflow-hidden">
-          <div className="p-6 border-b border-slate-700">
-            <h2 className="text-2xl font-bold text-white">Your Worksites</h2>
-          </div>
-
-          {company.worksites.length === 0 ? (
-            <div className="p-12 text-center">
-              <p className="text-slate-400 mb-4">No worksites yet</p>
-              <Link
-                href="/company/worksites/create"
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors inline-block"
-              >
-                Create Your First Worksite
-              </Link>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-900/50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Location</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Cameras</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Users</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-700">
-                  {company.worksites.map((worksite) => (
-                    <tr key={worksite.id} className="hover:bg-slate-700/30 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-white">{worksite.name}</div>
-                        <div className="text-sm text-slate-400">{worksite.worksiteName}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-slate-300">{worksite.location || 'N/A'}</div>
-                        {worksite.address && (
-                          <div className="text-xs text-slate-400">{worksite.address}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                        {worksite._count?.cameras || 0}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
-                        {worksite._count?.worksiteUsers || 0}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          worksite.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {worksite.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-3">
-                        <Link
-                          href={`/company/worksites/${worksite.id}`}
-                          className="text-blue-400 hover:text-blue-300"
-                        >
-                          Manage
-                        </Link>
-                        <Link
-                          href={`/dashboard?worksite=${worksite.id}`}
-                          className="text-green-400 hover:text-green-300"
-                        >
-                          Dashboard
-                        </Link>
-                        {canDeleteWorksite((session?.user as any).role as UserRole) && (
-                          <button
-                            onClick={() => handleDeleteWorksite(worksite.id, worksite.name)}
-                            className="text-red-400 hover:text-red-300"
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Worksite creation modal removed - now uses /company/worksites/create wizard */}
-
-      {/* Invite User Modal */}
-      {showInviteModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-800 rounded-2xl p-8 max-w-md w-full border border-slate-700">
-            <h2 className="text-2xl font-bold text-white mb-6">Invite User</h2>
-            
-            <form onSubmit={handleInviteUser} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Email Address *
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={inviteFormData.email}
-                  onChange={(e) => setInviteFormData({ ...inviteFormData, email: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="user@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Role *
-                </label>
-                <select
-                  value={inviteFormData.role}
-                  onChange={(e) => setInviteFormData({ ...inviteFormData, role: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="SITE_ADMIN">Site Admin</option>
-                  <option value="SUPERVISOR">Supervisor</option>
-                  <option value="WORKER">Worker</option>
-                  <option value="VIEWER">Viewer</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Assign to Worksite (Optional)
-                </label>
-                <select
-                  value={inviteFormData.worksiteId}
-                  onChange={(e) => setInviteFormData({ ...inviteFormData, worksiteId: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">No specific worksite</option>
-                  {company.worksites.map((ws) => (
-                    <option key={ws.id} value={ws.id}>
-                      {ws.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-400 mt-1">
-                  Leave empty for company-wide access
-                </p>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowInviteModal(false)}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                >
-                  Send Invitation
-                </button>
-              </div>
-            </form>
+      <div className="max-w-7xl mx-auto px-6 py-10">
+        {/* Page heading */}
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Select a Worksite</h1>
+            <p className="text-slate-400 text-sm mt-1">
+              {accessible.length === worksites.length
+                ? `${worksites.length} site${worksites.length !== 1 ? 's' : ''} available`
+                : `You have access to ${accessible.length} of ${worksites.length} site${worksites.length !== 1 ? 's' : ''}`}
+            </p>
           </div>
+          {isAdmin && (
+            <Link
+              href="/company/worksites/create"
+              className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New Worksite
+            </Link>
+          )}
         </div>
-      )}
-    </div>
+
+        {/* Accessible worksites */}
+        {accessible.length === 0 && (
+          <div className="text-center py-20 text-slate-500">
+            <svg className="w-12 h-12 mx-auto mb-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            <p className="font-medium">No worksites assigned</p>
+            <p className="text-sm mt-1">Contact your admin to get access to a site.</p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {accessible.map((ws) => (
+            <button
+              key={ws.id}
+              onClick={() => handleEnter(ws)}
+              className="group text-left bg-slate-800/60 border border-slate-700 hover:border-blue-500/60 hover:bg-slate-800 rounded-xl p-5 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between mb-3">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-white truncate group-hover:text-blue-300 transition-colors">
+                    {ws.name}
+                  </h3>
+                  {ws.location && (
+                    <p className="text-xs text-slate-400 mt-0.5 truncate">{ws.location}</p>
+                  )}
+                </div>
+                <StatusBadge status={ws.status} />
+              </div>
+
+              {/* Stats row */}
+              <div className="flex items-center gap-4 mt-4 mb-4">
+                <div className="flex items-center gap-1.5 text-slate-400">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-xs">{ws.cameraCount}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-slate-400">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span className="text-xs">{ws.userCount}</span>
+                </div>
+                {ws.activeAlertCount > 0 && (
+                  <div className="flex items-center gap-1.5 text-amber-400">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span className="text-xs font-medium">{ws.activeAlertCount} alert{ws.activeAlertCount !== 1 ? 's' : ''}</span>
+                  </div>
+                )}
+                <div className="ml-auto">
+                  <SafetyRing score={ws.safetyScore} />
+                </div>
+              </div>
+
+              {/* Enter arrow */}
+              <div className="flex items-center justify-end text-xs text-slate-500 group-hover:text-blue-400 transition-colors">
+                Enter worksite
+                <svg className="w-3.5 h-3.5 ml-1 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </button>
+          ))}
+
+          {/* Locked worksites — only shown to admins who can see the full company picture */}
+          {isAdmin && locked.map((ws) => (
+            <div
+              key={ws.id}
+              className="text-left bg-slate-800/20 border border-slate-700/40 rounded-xl p-5 opacity-50 cursor-not-allowed"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-slate-400 truncate">{ws.name}</h3>
+                  {ws.location && (
+                    <p className="text-xs text-slate-500 mt-0.5 truncate">{ws.location}</p>
+                  )}
+                </div>
+                <StatusBadge status={ws.status} />
+              </div>
+              <div className="flex items-center gap-2 mt-4 text-slate-500">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span className="text-xs">No access assigned</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
-

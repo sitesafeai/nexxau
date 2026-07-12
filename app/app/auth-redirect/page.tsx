@@ -25,15 +25,10 @@ export default function AuthRedirectPage() {
         case 'SUPER_ADMIN':
           router.push('/super-admin');
           break;
-        case 'COMPANY_ADMIN':
-          router.push('/company/dashboard');
-          break;
-        case 'SITE_ADMIN':
-        case 'SUPERVISOR':
-        case 'WORKER':
-        case 'VIEWER':
         default:
-          router.push('/dashboard');
+          // All other roles (COMPANY_ADMIN, SITE_ADMIN, SUPERVISOR, WORKER, VIEWER)
+          // go to the company worksite picker first
+          router.push('/company/dashboard');
           break;
       }
     }

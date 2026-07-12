@@ -5284,22 +5284,70 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
 }
 
 function SettingsPage({ currentUser }: { currentUser: any }) {
+  const router = useRouter();
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: currentUser?.name || '',
-    email: currentUser?.email || ''
+    email: currentUser?.email || '',
   });
 
-  const handleSaveSettings = () => {
-    console.log('Saving user settings:', formData);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
+  const handleSaveSettings = async () => {
+    if (!currentUser?.id) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const res = await fetch(`/api/users/${currentUser.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: formData.name, email: formData.email }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } else {
+        setSaveError(data.error || 'Failed to save');
+      }
+    } catch {
+      setSaveError('Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    const { signOut } = await import('next-auth/react');
+    await signOut({ callbackUrl: '/login' });
   };
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-white">Settings</h1>
-      
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-white">Settings</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => router.push('/company/dashboard')}
+            className="inline-flex items-center gap-2 px-3 py-1.5 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm rounded transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            Switch Worksite
+          </button>
+          <button
+            onClick={handleSignOut}
+            className="inline-flex items-center gap-2 px-3 py-1.5 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm rounded transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Log Out
+          </button>
+        </div>
+      </div>
+
       {saveSuccess && (
         <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-4 py-3 rounded flex items-center gap-2 text-sm">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5307,6 +5355,9 @@ function SettingsPage({ currentUser }: { currentUser: any }) {
           </svg>
           Settings saved successfully
         </div>
+      )}
+      {saveError && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded text-sm">{saveError}</div>
       )}
 
       {/* Profile Settings */}
@@ -5316,24 +5367,24 @@ function SettingsPage({ currentUser }: { currentUser: any }) {
         </div>
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+            <div>
               <label className="block text-xs font-medium text-slate-400 mb-1.5">Name</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({...formData, name: e.target.value})}
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="block w-full border border-slate-600 bg-slate-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-          <div>
+              />
+            </div>
+            <div>
               <label className="block text-xs font-medium text-slate-400 mb-1.5">Email</label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="block w-full border border-slate-600 bg-slate-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
+              />
+            </div>
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1.5">Role</label>
@@ -5346,13 +5397,14 @@ function SettingsPage({ currentUser }: { currentUser: any }) {
             <p className="text-xs text-slate-500 mt-1">Contact an administrator to change your role</p>
           </div>
           <div className="pt-2 flex gap-3">
-            <button 
+            <button
               onClick={handleSaveSettings}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
+              disabled={saving}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded transition-colors"
             >
-              Save Changes
+              {saving ? 'Saving…' : 'Save Changes'}
             </button>
-            <button 
+            <button
               onClick={() => setFormData({ name: currentUser?.name || '', email: currentUser?.email || '' })}
               className="px-4 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded transition-colors"
             >
@@ -5362,46 +5414,34 @@ function SettingsPage({ currentUser }: { currentUser: any }) {
         </div>
       </div>
 
-      {/* Notification Settings */}
+      {/* Account Actions */}
       <div className="bg-slate-800/50 border border-slate-700/50 rounded">
         <div className="px-6 py-4 border-b border-slate-700/50">
-          <h3 className="text-sm font-medium text-white">Notifications</h3>
+          <h3 className="text-sm font-medium text-white">Account</h3>
         </div>
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-white">Email Notifications</p>
-              <p className="text-xs text-slate-400">Receive alerts via email</p>
+              <p className="text-sm text-white">Switch Worksite</p>
+              <p className="text-xs text-slate-400">Go back to the worksite picker</p>
             </div>
-            <button className="w-10 h-5 bg-blue-600 rounded-sm relative">
-              <span className="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-sm" />
+            <button
+              onClick={() => router.push('/company/dashboard')}
+              className="px-4 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded transition-colors"
+            >
+              Switch
             </button>
           </div>
-          <div className="flex items-center justify-between">
+          <div className="border-t border-slate-700/50 pt-3 flex items-center justify-between">
             <div>
-              <p className="text-sm text-white">SMS Notifications</p>
-              <p className="text-xs text-slate-400">Receive alerts via SMS</p>
+              <p className="text-sm text-white">Sign Out</p>
+              <p className="text-xs text-slate-400">End your current session</p>
             </div>
-            <button className="w-10 h-5 bg-slate-600 rounded-sm relative">
-              <span className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-sm" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Danger Zone */}
-      <div className="bg-slate-800/50 border border-red-500/30 rounded">
-        <div className="px-6 py-4 border-b border-red-500/30">
-          <h3 className="text-sm font-medium text-red-400">Danger Zone</h3>
-        </div>
-        <div className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-white">Delete Account</p>
-              <p className="text-xs text-slate-400">Permanently delete your account and all data</p>
-            </div>
-            <button className="px-4 py-2 bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-500/30 text-sm font-medium rounded transition-colors">
-              Delete Account
+            <button
+              onClick={handleSignOut}
+              className="px-4 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded transition-colors"
+            >
+              Log Out
             </button>
           </div>
         </div>
