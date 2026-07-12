@@ -105,7 +105,10 @@ export default function CompanyDashboard() {
 
   const handleEnter = (ws: Worksite) => {
     if (!ws.hasAccess) return;
-    router.push(`/dashboard?worksite=${ws.id}`);
+    // Hard navigation so DashboardContext always mounts fresh and reads the
+    // correct worksite param from window.location.search on first mount.
+    // router.push() can reuse a cached DashboardProvider with stale state.
+    window.location.href = `/dashboard?worksite=${ws.id}`;
   };
 
   if (status === 'loading' || loading) {
