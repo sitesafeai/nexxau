@@ -1162,8 +1162,63 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
   const [downloadingReport, setDownloadingReport] = useState<string | null>(null);
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
   const [severityFilter, setSeverityFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortBy, setSortBy] = useState<'date' | 'severity'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ALERTS_PER_PAGE = 9;
+
+  const severityOrder: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+
+  const filteredAndSortedAlerts = useMemo(() => {
+    let result = [...alerts];
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(a =>
+        a.title?.toLowerCase().includes(q) ||
+        a.description?.toLowerCase().includes(q) ||
+        a.location?.toLowerCase().includes(q) ||
+        a.worksite?.name?.toLowerCase().includes(q)
+      );
+    }
+
+    // Severity filter
+    if (severityFilter !== 'all') {
+      result = result.filter(a => a.severity?.toLowerCase() === severityFilter.toLowerCase());
+    }
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      result = result.filter(a => a.status?.toUpperCase() === statusFilter.toUpperCase());
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      if (sortBy === 'severity') {
+        const diff = (severityOrder[a.severity?.toUpperCase()] ?? 9) - (severityOrder[b.severity?.toUpperCase()] ?? 9);
+        return sortOrder === 'asc' ? diff : -diff;
+      }
+      const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return sortOrder === 'asc' ? diff : -diff;
+    });
+
+    return result;
+  }, [alerts, searchQuery, severityFilter, statusFilter, sortBy, sortOrder]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedAlerts.length / ALERTS_PER_PAGE));
+  const paginatedAlerts = filteredAndSortedAlerts.slice(
+    (currentPage - 1) * ALERTS_PER_PAGE,
+    currentPage * ALERTS_PER_PAGE
+  );
+
+  // Reset to page 1 when filters change
+  const handleFilterChange = (setter: (v: any) => void) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+    setter(e.target.value);
+    setCurrentPage(1);
+  };
 
   const loadAlerts = useCallback(async () => {
     try {
@@ -1310,39 +1365,67 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
       </div>
 
       <div className="bg-gray-800 rounded-lg">
-        <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between flex-wrap gap-3">
-          <h3 className="text-lg font-medium text-white">Active Alerts List</h3>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Severity Filter */}
-            <select
-              value={severityFilter}
-              onChange={(e) => setSeverityFilter(e.target.value)}
-              className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Severities</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-            {/* Sort By */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'date' | 'severity')}
-              className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="date">Sort by Date</option>
-              <option value="severity">Sort by Severity</option>
-            </select>
-            {/* Sort Order */}
-            <button
-              onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-lg text-white text-sm font-medium transition-colors"
-              title={`Sort ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`}
-            >
-              {sortOrder === 'asc' ? '↑' : '↓'}
-            </button>
-        </div>
+        <div className="px-4 py-3 border-b border-gray-700 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h3 className="text-lg font-medium text-white">
+              Alerts
+              <span className="ml-2 text-sm font-normal text-gray-400">
+                {filteredAndSortedAlerts.length} of {alerts.length}
+              </span>
+            </h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Severity Filter */}
+              <select
+                value={severityFilter}
+                onChange={handleFilterChange(setSeverityFilter)}
+                className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All Severities</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+              {/* Status Filter */}
+              <select
+                value={statusFilter}
+                onChange={handleFilterChange(setStatusFilter)}
+                className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All Statuses</option>
+                <option value="ACTIVE">Active</option>
+                <option value="ACKNOWLEDGED">Acknowledged</option>
+                <option value="CONFIRMED">Confirmed</option>
+                <option value="FALSE_POSITIVE">False Positive</option>
+                <option value="RESOLVED">Resolved</option>
+              </select>
+              {/* Sort By */}
+              <select
+                value={sortBy}
+                onChange={(e) => { setSortBy(e.target.value as 'date' | 'severity'); setCurrentPage(1); }}
+                className="px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="date">Sort by Date</option>
+                <option value="severity">Sort by Severity</option>
+              </select>
+              {/* Sort Order */}
+              <button
+                onClick={() => { setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc'); setCurrentPage(1); }}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-lg text-white text-sm font-medium transition-colors"
+                title={sortOrder === 'asc' ? 'Oldest first' : 'Newest first'}
+              >
+                {sortOrder === 'asc' ? '↑ Oldest' : '↓ Newest'}
+              </button>
+            </div>
+          </div>
+          {/* Search */}
+          <input
+            type="text"
+            placeholder="Search by title, description, location..."
+            value={searchQuery}
+            onChange={handleFilterChange(setSearchQuery)}
+            className="w-full px-3 py-1.5 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
         <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
           <table className="min-w-full divide-y divide-gray-700">
@@ -1420,8 +1503,11 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
                       <button
                         onClick={() => {
                           setSeverityFilter('all');
+                          setStatusFilter('all');
+                          setSearchQuery('');
                           setSortBy('date');
                           setSortOrder('desc');
+                          setCurrentPage(1);
                         }}
                         className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
                       >
@@ -1431,7 +1517,7 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
                   </td>
                 </tr>
               ) : (
-                filteredAndSortedAlerts.map((alert) => (
+                paginatedAlerts.map((alert) => (
                 <tr 
                   key={alert.id} 
                   className={`hover:bg-gray-700 transition-colors cursor-pointer ${
@@ -1537,6 +1623,59 @@ function AlertsTab({ currentSite }: { currentSite: any }) {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {filteredAndSortedAlerts.length > ALERTS_PER_PAGE && (
+          <div className="px-4 py-3 border-t border-gray-700 flex items-center justify-between">
+            <span className="text-sm text-gray-400">
+              Showing {(currentPage - 1) * ALERTS_PER_PAGE + 1}–{Math.min(currentPage * ALERTS_PER_PAGE, filteredAndSortedAlerts.length)} of {filteredAndSortedAlerts.length} alerts
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="px-2 py-1 text-xs text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+              >«</button>
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-2 py-1 text-xs text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+              >‹</button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                .reduce<(number | '...')[]>((acc, p, i, arr) => {
+                  if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push('...');
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, i) =>
+                  p === '...' ? (
+                    <span key={`ellipsis-${i}`} className="px-2 py-1 text-xs text-gray-500">…</span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => setCurrentPage(p as number)}
+                      className={`px-2.5 py-1 text-xs rounded transition-colors ${
+                        currentPage === p
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                      }`}
+                    >{p}</button>
+                  )
+                )}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-2 py-1 text-xs text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+              >›</button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="px-2 py-1 text-xs text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+              >»</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Acknowledge Alert Modal */}
