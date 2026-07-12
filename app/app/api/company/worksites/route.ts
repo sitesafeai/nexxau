@@ -48,15 +48,15 @@ export async function GET(request: NextRequest) {
             cameras: true,
             worksiteUsers: true,
             alerts: {
-              where: { status: { in: ['ACTIVE', 'PENDING', 'ACKNOWLEDGED'] } },
+              where: { status: { in: ['ACTIVE', 'ACKNOWLEDGED', 'ESCALATED', 'SNOOZED'] } },
             },
           },
         },
         // Latest safety score
         safetyScores: {
-          orderBy: { calculatedAt: 'desc' },
+          orderBy: { date: 'desc' },
           take: 1,
-          select: { overallScore: true },
+          select: { safetyScore: true },
         },
       },
       orderBy: { createdAt: 'asc' },
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     cameraCount: ws._count.cameras,
     userCount: ws._count.worksiteUsers,
     activeAlertCount: ws._count.alerts,
-    safetyScore: ws.safetyScores[0]?.overallScore ?? null,
+    safetyScore: ws.safetyScores[0]?.safetyScore ?? null,
     hasAccess: isAdmin || accessibleIds.has(ws.id),
   }));
 
