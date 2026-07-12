@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { sendPendingApprovalNotification } from '@/app/lib/email-service';
+import { writeAuditLog } from '@/app/lib/audit';
 
 /**
  * POST /api/invitations/claim
@@ -75,6 +76,19 @@ export async function POST(request: NextRequest) {
     });
 
     console.log('✅ Account claimed successfully:', updatedUser.email);
+
+    // Audit log (fire-and-forget)
+    writeAuditLog({
+      userId: updatedUser.id,
+      worksiteId: updatedUser.worksiteId || null,
+      action: 'INVITATION_ACCEPTED',
+      entity: 'SYSTEM',
+      entityId: updatedUser.id,
+      entityName: updatedUser.email || updatedUser.id,
+      severity: 'INFO',
+      result: 'SUCCESS',
+      details: { email: updatedUser.email, role: updatedUser.role, name },
+    }).catch(() => {});
 
     // Notify company admins that a new user is awaiting approval — fire-and-forget
     if (updatedUser.companyId) {

@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId: session.user.id,
         action: 'API_KEY_CREATED',
-        entity: 'INTEGRATION',
+        entity: 'SYSTEM',
         entityId: apiKey.id,
         metadata: {
           entityName: name,

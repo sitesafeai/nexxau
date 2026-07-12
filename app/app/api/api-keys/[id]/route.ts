@@ -92,7 +92,7 @@ export async function DELETE(
       data: {
         userId: session.user.id,
         action: 'API_KEY_REVOKED',
-        entity: 'INTEGRATION',
+        entity: 'SYSTEM',
         entityId: id,
         metadata: {
           entityName: keyRecord?.name || id,

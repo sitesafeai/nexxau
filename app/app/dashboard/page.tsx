@@ -5603,7 +5603,7 @@ function AlertRulesPage({ currentSite }: { currentSite: any }) {
 // AUDIT PAGE COMPONENT
 // ============================================
 function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser: any }) {
-  const [activeTab, setActiveTab] = useState<'alerts' | 'cameras' | 'users' | 'rules' | 'integrations' | 'system'>('alerts');
+  const [activeTab, setActiveTab] = useState<'alerts' | 'cameras' | 'users' | 'rules' | 'system'>('alerts');
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -5623,7 +5623,6 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
     { key: 'cameras', label: 'Camera Activity', entity: 'CAMERA' },
     { key: 'users', label: 'User Activity', entity: 'USER' },
     { key: 'rules', label: 'Rules & Settings', entity: 'RULE' },
-    { key: 'integrations', label: 'Integrations & API', entity: 'INTEGRATION' },
     { key: 'system', label: 'System Events', entity: 'SYSTEM' },
   ];
 

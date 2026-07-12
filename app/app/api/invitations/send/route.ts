@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { sendInvitationEmail } from '@/app/lib/email-service';
+import { writeAuditLog } from '@/app/lib/audit';
 import crypto from 'crypto';
 
 /**
@@ -125,6 +126,19 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Audit log (fire-and-forget)
+      writeAuditLog({
+        userId: invitedBy,
+        worksiteId: worksiteId || null,
+        action: 'INVITATION_RESENT',
+        entity: 'SYSTEM',
+        entityId: existingUser.id,
+        entityName: email,
+        severity: 'INFO',
+        result: 'SUCCESS',
+        details: { email, role },
+      }).catch(() => {});
+
       return NextResponse.json({
         success: true,
         message: 'Invitation resent',
@@ -224,6 +238,19 @@ export async function POST(request: NextRequest) {
         { status: 502 }
       );
     }
+
+    // Audit log (fire-and-forget)
+    writeAuditLog({
+      userId: invitedBy,
+      worksiteId: worksiteId || null,
+      action: 'INVITATION_SENT',
+      entity: 'SYSTEM',
+      entityId: newUser.id,
+      entityName: email,
+      severity: 'INFO',
+      result: 'SUCCESS',
+      details: { email, role, expiresAt: expires },
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,
