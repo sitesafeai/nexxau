@@ -3,6 +3,25 @@ import type { Prisma } from '@prisma/client';
 import { normalizeSafetyScoreDisplay } from '@/app/lib/worksite-metrics-payload';
 
 export type ViolationsByTypeRow = { type: string; count: number; color: string };
+export type AlertVolumePoint   = { date: string; label: string; count: number };
+export type AlertHourPoint     = { hour: number; label: string; count: number };
+export type AlertSeverityRow   = { severity: 'HIGH' | 'MEDIUM' | 'LOW'; count: number; percentage: number };
+export type ResolutionStats    = {
+  total: number;
+  resolved: number;
+  falsePositive: number;
+  active: number;
+  resolvedPct: number;
+  avgResolutionMinutes: number;
+};
+export type PeriodComparison   = {
+  currentAlerts: number;
+  previousAlerts: number;
+  alertChangePct: number;
+  currentViolations: number;
+  previousViolations: number;
+  violationChangePct: number;
+};
 /** Cameras with the most detection violations, with breakdown by violation type */
 export type CameraViolationHotspotRow = {
   cameraId: string;
@@ -46,6 +65,19 @@ export type WorksiteReportAnalytics = {
     bySeverity: { HIGH: number; MEDIUM: number; LOW: number };
     sampleCount: number;
   };
+  // ── NEW trend fields ──────────────────────────────────────────────────────
+  /** Alert count for each day in the selected period */
+  alertVolumeByDay: AlertVolumePoint[];
+  /** Alert distribution across each hour of the day (0–23) */
+  alertsByHour: AlertHourPoint[];
+  /** HIGH / MEDIUM / LOW breakdown with percentages */
+  alertsBySeverity: AlertSeverityRow[];
+  /** Resolution funnel for the period */
+  resolutionStats: ResolutionStats;
+  /** Current vs previous equal-length period */
+  periodComparison: PeriodComparison;
+  /** Hour with the highest alert count (null if no alerts) */
+  peakHour: number | null;
   worksiteName: string | null;
   dateRange: { from: string; to: string };
 };
@@ -186,6 +218,120 @@ export async function getWorksiteReportAnalyticsData(
   };
 
   const alertCountInPeriod = await prisma.alert.count({ where: alertWhereBase });
+
+  // ── Fetch alert details for trend calculations (one query, many uses) ──────
+  const allAlertDetails = await prisma.alert.findMany({
+    where: alertWhereBase,
+    select: { createdAt: true, severity: true, status: true, resolvedAt: true },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  // Build lookup maps from the single fetch
+  const alertsByDateMap: Record<string, number> = {};
+  const alertHourMap:    Record<number, number>  = {};
+  const severityCountMap: Record<string, number>  = { HIGH: 0, MEDIUM: 0, LOW: 0 };
+  const RESOLVED_STATUSES = new Set(['RESOLVED', 'ARCHIVED', 'CONFIRMED']);
+  let resolvedCount   = 0;
+  let fpCount         = 0;
+  let activeCount     = 0;
+  let totalResolutionMs = 0;
+  let resolutionSamples = 0;
+
+  for (const a of allAlertDetails) {
+    const d = new Date(a.createdAt);
+    const key = d.toISOString().slice(0, 10);
+    alertsByDateMap[key] = (alertsByDateMap[key] ?? 0) + 1;
+    const h = d.getHours();
+    alertHourMap[h] = (alertHourMap[h] ?? 0) + 1;
+    if (a.severity in severityCountMap) severityCountMap[a.severity]++;
+    if (RESOLVED_STATUSES.has(a.status)) {
+      resolvedCount++;
+      if (a.resolvedAt) {
+        const ms = new Date(a.resolvedAt).getTime() - d.getTime();
+        if (ms >= 0) { totalResolutionMs += ms; resolutionSamples++; }
+      }
+    } else if (a.status === 'FALSE_POSITIVE') {
+      fpCount++;
+    } else {
+      activeCount++;
+    }
+  }
+
+  // Alert volume by day (one entry per day in range, capped at 90)
+  const totalDaysRange = Math.round((dateTo.getTime() - dateFrom.getTime()) / 86_400_000);
+  const alertVolumeByDay: AlertVolumePoint[] = [];
+  for (let i = 0; i <= Math.min(totalDaysRange, 90); i++) {
+    const d = new Date(dateFrom);
+    d.setDate(d.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    alertVolumeByDay.push({
+      date:  key,
+      label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      count: alertsByDateMap[key] ?? 0,
+    });
+  }
+
+  // 24-hour distribution
+  const fmtHour = (h: number) => {
+    if (h === 0)  return '12am';
+    if (h === 12) return '12pm';
+    return h < 12 ? `${h}am` : `${h - 12}pm`;
+  };
+  const alertsByHour: AlertHourPoint[] = Array.from({ length: 24 }, (_, h) => ({
+    hour:  h,
+    label: fmtHour(h),
+    count: alertHourMap[h] ?? 0,
+  }));
+
+  const peakHourEntry = alertsByHour.reduce<AlertHourPoint | null>((max, h) =>
+    !max || h.count > max.count ? h : max, null);
+  const peakHour: number | null = peakHourEntry && peakHourEntry.count > 0
+    ? peakHourEntry.hour : null;
+
+  // Severity split
+  const alertsBySeverity: AlertSeverityRow[] = (['HIGH', 'MEDIUM', 'LOW'] as const).map(sev => ({
+    severity:   sev,
+    count:      severityCountMap[sev] ?? 0,
+    percentage: alertCountInPeriod > 0
+      ? Math.round(((severityCountMap[sev] ?? 0) / alertCountInPeriod) * 100)
+      : 0,
+  }));
+
+  // Resolution funnel
+  const resolutionStats: ResolutionStats = {
+    total:                 alertCountInPeriod,
+    resolved:              resolvedCount,
+    falsePositive:         fpCount,
+    active:                activeCount,
+    resolvedPct:           alertCountInPeriod > 0
+      ? Math.round((resolvedCount / alertCountInPeriod) * 100) : 0,
+    avgResolutionMinutes:  resolutionSamples > 0
+      ? Math.round((totalResolutionMs / resolutionSamples / 60_000) * 10) / 10 : 0,
+  };
+
+  // Period-over-period comparison
+  const periodMs = dateTo.getTime() - dateFrom.getTime();
+  const prevTo   = new Date(dateFrom.getTime());
+  const prevFrom = new Date(dateFrom.getTime() - periodMs);
+  const [prevAlerts, prevViolations] = await Promise.all([
+    prisma.alert.count({
+      where: { worksite: worksiteWhere, createdAt: { gte: prevFrom, lte: prevTo } },
+    }),
+    prisma.safetyViolation.count({
+      where: { worksite: worksiteWhere, detectedAt: { gte: prevFrom, lte: prevTo } },
+    }),
+  ]);
+  const changePct = (curr: number, prev: number) =>
+    prev === 0 ? (curr > 0 ? 100 : 0) : Math.round(((curr - prev) / prev) * 100);
+
+  const periodComparison: PeriodComparison = {
+    currentAlerts:       alertCountInPeriod,
+    previousAlerts:      prevAlerts,
+    alertChangePct:      changePct(alertCountInPeriod, prevAlerts),
+    currentViolations:   totalViolationsInPeriod,
+    previousViolations:  prevViolations,
+    violationChangePct:  changePct(totalViolationsInPeriod, prevViolations),
+  };
 
   const titleGroups = await prisma.alert.groupBy({
     by: ['title'],
@@ -377,6 +523,13 @@ export async function getWorksiteReportAnalyticsData(
       },
       sampleCount: responseTimes.length,
     },
+    // trend additions
+    alertVolumeByDay,
+    alertsByHour,
+    alertsBySeverity,
+    resolutionStats,
+    periodComparison,
+    peakHour,
     worksiteName,
     dateRange: { from: dateFrom.toISOString(), to: dateTo.toISOString() },
   };
