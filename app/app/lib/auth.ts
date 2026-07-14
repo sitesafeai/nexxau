@@ -239,12 +239,16 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     async redirect({ url, baseUrl }) {
-      // If it's a callback URL, use it
-      if (url.startsWith(baseUrl)) {
+      // Always route through auth-redirect so role-based routing applies on
+      // every login. Ignoring the stored callbackUrl prevents users from being
+      // sent straight back to /dashboard?worksite=... (bypassing the company
+      // worksite picker) just because they were there in a previous session.
+      //
+      // Exception: honour explicit redirects to /auth-redirect itself and to
+      // the login error page so those still work correctly.
+      if (url === `${baseUrl}/auth-redirect` || url.startsWith(`${baseUrl}/login`)) {
         return url;
       }
-      
-      // Redirect to auth-redirect page which will handle role-based routing
       return `${baseUrl}/auth-redirect`;
     },
   },
