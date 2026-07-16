@@ -60,34 +60,40 @@ export default withAuth(
       return NextResponse.next();
     }
 
+    // /company/dashboard is the worksite picker — all authenticated roles must
+    // be able to reach it so they can select a site after login.
+    // Only deeper company-management routes (/company/worksites/create, etc.)
+    // are restricted to admins.
+    const isWorksitePicker = path === "/company/dashboard";
+
     // SITE_ADMIN: Access to their worksite dashboard, can manage their site
     if (userRole === "SITE_ADMIN") {
-      if (path.startsWith("/admin") || path.startsWith("/company")) {
-        return NextResponse.redirect(new URL("/dashboard", req.url));
+      if (path.startsWith("/admin") || (path.startsWith("/company") && !isWorksitePicker)) {
+        return NextResponse.redirect(new URL("/company/dashboard", req.url));
       }
       return NextResponse.next();
     }
 
     // SUPERVISOR: Similar to SITE_ADMIN but may have limited permissions
     if (userRole === "SUPERVISOR") {
-      if (path.startsWith("/admin") || path.startsWith("/company")) {
-        return NextResponse.redirect(new URL("/dashboard", req.url));
+      if (path.startsWith("/admin") || (path.startsWith("/company") && !isWorksitePicker)) {
+        return NextResponse.redirect(new URL("/company/dashboard", req.url));
       }
       return NextResponse.next();
     }
 
     // WORKER: Basic access, can view but limited edit
     if (userRole === "WORKER") {
-      if (path.startsWith("/admin") || path.startsWith("/company") || path.startsWith("/workflow") || path.startsWith("/cameras")) {
-        return NextResponse.redirect(new URL("/dashboard", req.url));
+      if (path.startsWith("/admin") || (path.startsWith("/company") && !isWorksitePicker) || path.startsWith("/workflow") || path.startsWith("/cameras")) {
+        return NextResponse.redirect(new URL("/company/dashboard", req.url));
       }
       return NextResponse.next();
     }
 
     // VIEWER: Most restricted, read-only access
     if (userRole === "VIEWER") {
-      if (path.startsWith("/admin") || path.startsWith("/company") || path.startsWith("/workflow") || path.startsWith("/cameras") || path.startsWith("/dashboard/object-detection")) {
-        return NextResponse.redirect(new URL("/dashboard", req.url));
+      if (path.startsWith("/admin") || (path.startsWith("/company") && !isWorksitePicker) || path.startsWith("/workflow") || path.startsWith("/cameras") || path.startsWith("/dashboard/object-detection")) {
+        return NextResponse.redirect(new URL("/company/dashboard", req.url));
       }
       return NextResponse.next();
     }
