@@ -102,7 +102,9 @@ export default function HomePage() {
                 <div className="relative aspect-[4/3] bg-[#1e3a5f] rounded-lg overflow-visible border border-white/20">
                   <div className="absolute inset-0 rounded-lg overflow-hidden bg-gradient-to-br from-[#1e3a5f] to-[#0a1628]">
                     <div className="absolute inset-0 opacity-30">
-                      <Image src="https://images.unsplash.com/photo-1636790921342-cbdc4b783de6?w=800" alt="Construction site safety monitoring" fill className="object-cover" />
+                      {/* Plain img — browser fetches Unsplash directly, no Next.js server proxy needed */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="https://images.unsplash.com/photo-1636790921342-cbdc4b783de6?w=800&auto=format&fit=crop" alt="" className="w-full h-full object-cover" />
                     </div>
                   </div>
                   {/* Camera recording indicator (top-right) */}
