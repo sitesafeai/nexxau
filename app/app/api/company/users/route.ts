@@ -83,7 +83,14 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const target = await prisma.user.findFirst({
-      where: { id: userId, companyId },
+      where: {
+        id: userId,
+        OR: [
+          { companyId },
+          { companyAccess: { some: { companyId } } },
+          { worksiteAccess: { some: { worksite: { companyId } } } },
+        ],
+      },
       select: { id: true, name: true, email: true },
     });
 
@@ -91,12 +98,19 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'User not found in your company' }, { status: 404 });
     }
 
-    // Remove worksite access and deactivate the user
+    // Fully remove user from this company:
+    // 1. Remove all worksite-level access records (WorksiteUser)
+    // 2. Remove company-level junction records (CompanyUser / companyAccess)
+    // 3. Clear companyId + worksiteId on the user record, deactivate
+    //
+    // This covers all four OR-clauses in listUsersForSuperAdmin so the user
+    // stops appearing in the super-admin's company-filtered view.
     await prisma.$transaction([
       prisma.worksiteUser.deleteMany({ where: { userId } }),
+      prisma.companyUser.deleteMany({ where: { userId, companyId } }),
       prisma.user.update({
         where: { id: userId },
-        data: { companyId: null, isActivated: false },
+        data: { companyId: null, worksiteId: null, isActivated: false },
       }),
     ]);
 
