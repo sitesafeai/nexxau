@@ -48,19 +48,44 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Text search — only search real DB columns (action, entity, entityId).
-    // entityName is stored inside the metadata JSON blob, not a top-level column,
-    // so including it in a Prisma filter throws a PrismaClientValidationError.
+    // Text search:
+    //   - action:      stored as UPPER_SNAKE_CASE → normalize user input too
+    //   - entityName:  stored inside metadata JSON (not a top-level column) → use PG JSON path
+    //   - entityId:    raw CUID, useful when user pastes an ID
+    //   - user:        join via pre-fetched matching user IDs
     if (search && search.trim()) {
       const searchTerm = search.trim();
-      if (!where.AND) where.AND = [];
-      where.AND.push({
-        OR: [
-          { action: { contains: searchTerm, mode: 'insensitive' } },
-          { entity: { contains: searchTerm, mode: 'insensitive' } },
-          { entityId: { contains: searchTerm, mode: 'insensitive' } },
-        ],
+      // Normalise for action matching (e.g. "acknowledge alert" → "ACKNOWLEDGE_ALERT")
+      const searchAction = searchTerm.toUpperCase().replace(/\s+/g, '_');
+
+      // Find users whose name or email matches — we'll allow searching by who did it
+      const matchingUsers = await prisma.user.findMany({
+        where: {
+          OR: [
+            { name: { contains: searchTerm, mode: 'insensitive' } },
+            { email: { contains: searchTerm, mode: 'insensitive' } },
+          ],
+        },
+        select: { id: true },
+        take: 50,
       });
+      const matchingUserIds = matchingUsers.map((u: { id: string }) => u.id);
+
+      const searchOrClauses: any[] = [
+        // Action (normalised to UPPER_SNAKE)
+        { action: { contains: searchAction, mode: 'insensitive' } },
+        // EntityId (CUIDs — useful when user pastes a copied ID)
+        { entityId: { contains: searchTerm, mode: 'insensitive' } },
+        // EntityName lives in the metadata JSON blob — PostgreSQL JSON path filter
+        { metadata: { path: ['entityName'], string_contains: searchTerm, mode: 'insensitive' } },
+      ];
+
+      if (matchingUserIds.length > 0) {
+        searchOrClauses.push({ userId: { in: matchingUserIds } });
+      }
+
+      if (!where.AND) where.AND = [];
+      where.AND.push({ OR: searchOrClauses });
     }
 
     // Date range filter

@@ -5648,12 +5648,13 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 });
-  const [filters, setFilters] = useState({
-    search: '',
-    from: '',
-    to: '',
-    userId: '',
-  });
+  // filterInputs = what's typed in the boxes (updates on every keystroke)
+  // committedFilters = what the last fetch actually used (only updates on Apply/Clear/Enter)
+  const [filterInputs, setFilterInputs] = useState({ search: '', from: '', to: '', userId: '' });
+  const [committedFilters, setCommittedFilters] = useState({ search: '', from: '', to: '', userId: '' });
+  // keep a single alias so nothing else in the component needs to change
+  const filters = filterInputs;
+  const setFilters = setFilterInputs;
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -5676,16 +5677,17 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
         page: pagination.page.toString(),
         limit: pagination.limit.toString(),
       });
-      
+
       if (currentSite?.id) params.append('worksiteId', currentSite.id);
-      if (filters.search) params.append('search', filters.search);
-      if (filters.from) params.append('from', filters.from);
-      if (filters.to) params.append('to', filters.to);
-      if (filters.userId) params.append('userId', filters.userId);
+      // Use committedFilters — only updated when user explicitly applies/clears
+      if (committedFilters.search) params.append('search', committedFilters.search);
+      if (committedFilters.from) params.append('from', committedFilters.from);
+      if (committedFilters.to) params.append('to', committedFilters.to);
+      if (committedFilters.userId) params.append('userId', committedFilters.userId);
 
       const response = await fetch(`/api/audit?${params}`);
       if (!response.ok) throw new Error('Failed to fetch audit logs');
-      
+
       const data = await response.json();
       setAuditLogs(data.data || []);
       setPagination(prev => ({ ...prev, total: data.pagination?.total || 0, totalPages: data.pagination?.totalPages || 0 }));
@@ -5694,7 +5696,7 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
     } finally {
       setLoading(false);
     }
-  }, [activeTab, pagination.page, currentSite?.id, filters]);
+  }, [activeTab, pagination.page, currentSite?.id, committedFilters]);
 
   useEffect(() => {
     fetchAuditLogs();
@@ -5864,8 +5866,14 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
         <input
           type="text"
           placeholder="Search events..."
-          value={filters.search}
-          onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+          value={filterInputs.search}
+          onChange={(e) => setFilterInputs(prev => ({ ...prev, search: e.target.value }))}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              setCommittedFilters(filterInputs);
+              setPagination(prev => ({ ...prev, page: 1 }));
+            }
+          }}
           className="bg-slate-800/50 border border-slate-700/50 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
         />
         <input
@@ -5882,14 +5890,20 @@ function AuditPage({ currentSite, currentUser }: { currentSite: any; currentUser
         />
         <div className="flex space-x-2">
           <button
-            onClick={() => fetchAuditLogs()}
+            onClick={() => {
+              // Commit the current inputs so fetchAuditLogs picks them up
+              setCommittedFilters(filterInputs);
+              setPagination(prev => ({ ...prev, page: 1 }));
+            }}
             className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
             Apply Filters
           </button>
           <button
             onClick={() => {
-              setFilters({ search: '', from: '', to: '', userId: '' });
+              const empty = { search: '', from: '', to: '', userId: '' };
+              setFilterInputs(empty);
+              setCommittedFilters(empty);
               setPagination(prev => ({ ...prev, page: 1 }));
             }}
             className="px-4 py-2.5 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors"
