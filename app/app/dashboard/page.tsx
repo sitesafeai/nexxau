@@ -5293,6 +5293,13 @@ function SettingsPage({ currentUser }: { currentUser: any }) {
     email: currentUser?.email || '',
   });
 
+  // Password change state
+  const [pwData, setPwData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwSuccess, setPwSuccess] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
+  const [pwShow, setPwShow] = useState({ current: false, new: false, confirm: false });
+
   const handleSaveSettings = async () => {
     if (!currentUser?.id) return;
     setSaving(true);
@@ -5314,6 +5321,31 @@ function SettingsPage({ currentUser }: { currentUser: any }) {
       setSaveError('Failed to save settings');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentUser?.id) return;
+    setPwSaving(true);
+    setPwError(null);
+    try {
+      const res = await fetch(`/api/users/${currentUser.id}/password`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pwData),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPwSuccess(true);
+        setPwData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setTimeout(() => setPwSuccess(false), 4000);
+      } else {
+        setPwError(data.error || 'Failed to update password');
+      }
+    } catch {
+      setPwError('Failed to update password');
+    } finally {
+      setPwSaving(false);
     }
   };
 
@@ -5409,6 +5441,125 @@ function SettingsPage({ currentUser }: { currentUser: any }) {
               className="px-4 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded transition-colors"
             >
               Reset
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Change Password */}
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded">
+        <div className="px-6 py-4 border-b border-slate-700/50">
+          <h3 className="text-sm font-medium text-white">Change Password</h3>
+        </div>
+        <div className="p-6 space-y-4">
+          {pwSuccess && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-4 py-3 rounded flex items-center gap-2 text-sm">
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Password updated successfully
+            </div>
+          )}
+          {pwError && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded text-sm">{pwError}</div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">Current Password</label>
+            <div className="relative">
+              <input
+                type={pwShow.current ? 'text' : 'password'}
+                value={pwData.currentPassword}
+                onChange={(e) => setPwData(p => ({ ...p, currentPassword: e.target.value }))}
+                placeholder="Enter current password"
+                className="block w-full border border-slate-600 bg-slate-700 text-white rounded px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => setPwShow(s => ({ ...s, current: !s.current }))}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300"
+              >
+                {pwShow.current
+                  ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                  : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                }
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">New Password</label>
+              <div className="relative">
+                <input
+                  type={pwShow.new ? 'text' : 'password'}
+                  value={pwData.newPassword}
+                  onChange={(e) => setPwData(p => ({ ...p, newPassword: e.target.value }))}
+                  placeholder="New password"
+                  className="block w-full border border-slate-600 bg-slate-700 text-white rounded px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setPwShow(s => ({ ...s, new: !s.new }))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300"
+                >
+                  {pwShow.new
+                    ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                    : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  }
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">Confirm New Password</label>
+              <div className="relative">
+                <input
+                  type={pwShow.confirm ? 'text' : 'password'}
+                  value={pwData.confirmPassword}
+                  onChange={(e) => setPwData(p => ({ ...p, confirmPassword: e.target.value }))}
+                  placeholder="Confirm new password"
+                  className={`block w-full border bg-slate-700 text-white rounded px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                    pwData.confirmPassword && pwData.confirmPassword !== pwData.newPassword
+                      ? 'border-red-500/60'
+                      : 'border-slate-600'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setPwShow(s => ({ ...s, confirm: !s.confirm }))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300"
+                >
+                  {pwShow.confirm
+                    ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                    : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  }
+                </button>
+              </div>
+              {pwData.confirmPassword && pwData.confirmPassword !== pwData.newPassword && (
+                <p className="text-xs text-red-400 mt-1">Passwords don't match</p>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-slate-500">
+            Must be at least 8 characters with uppercase, lowercase, a number, and a special character (@$!%*?&)
+          </p>
+          <div className="pt-1 flex gap-3">
+            <button
+              onClick={handleChangePassword}
+              disabled={
+                pwSaving ||
+                !pwData.currentPassword ||
+                !pwData.newPassword ||
+                !pwData.confirmPassword ||
+                pwData.newPassword !== pwData.confirmPassword
+              }
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors"
+            >
+              {pwSaving ? 'Updating…' : 'Update Password'}
+            </button>
+            <button
+              onClick={() => { setPwData({ currentPassword: '', newPassword: '', confirmPassword: '' }); setPwError(null); }}
+              className="px-4 py-2 border border-slate-600 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded transition-colors"
+            >
+              Cancel
             </button>
           </div>
         </div>
