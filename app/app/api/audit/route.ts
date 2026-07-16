@@ -34,27 +34,33 @@ export async function GET(request: NextRequest) {
     }
 
     // Only filter by worksite if provided and valid
-    if (worksiteId && worksiteId.trim() && worksiteId !== 'undefined' && worksiteId !== 'null') {
+    const hasWorksite = !!(worksiteId && worksiteId.trim() && worksiteId !== 'undefined' && worksiteId !== 'null');
+    if (hasWorksite) {
       const entityUpper = entity?.toUpperCase();
       if (entityUpper === 'USER') {
         // For user events, also include global events (no worksiteId) so logins/logouts
-        // that aren't tied to a specific worksite still show up in the User Activity tab
-        where.OR = [
-          { worksiteId },
-          { worksiteId: null },
-        ];
+        // that aren't tied to a specific worksite still show up in the User Activity tab.
+        // Use AND + nested OR so we don't clobber the search OR below.
+        if (!where.AND) where.AND = [];
+        where.AND.push({ OR: [{ worksiteId }, { worksiteId: null }] });
       } else {
         where.worksiteId = worksiteId;
       }
     }
 
-    // Text search across action, entityName, entity
+    // Text search — only search real DB columns (action, entity, entityId).
+    // entityName is stored inside the metadata JSON blob, not a top-level column,
+    // so including it in a Prisma filter throws a PrismaClientValidationError.
     if (search && search.trim()) {
-      where.OR = [
-        { action: { contains: search.trim(), mode: 'insensitive' } },
-        { entityName: { contains: search.trim(), mode: 'insensitive' } },
-        { entity: { contains: search.trim(), mode: 'insensitive' } },
-      ];
+      const searchTerm = search.trim();
+      if (!where.AND) where.AND = [];
+      where.AND.push({
+        OR: [
+          { action: { contains: searchTerm, mode: 'insensitive' } },
+          { entity: { contains: searchTerm, mode: 'insensitive' } },
+          { entityId: { contains: searchTerm, mode: 'insensitive' } },
+        ],
+      });
     }
 
     // Date range filter
