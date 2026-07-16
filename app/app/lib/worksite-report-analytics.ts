@@ -212,10 +212,14 @@ export async function getWorksiteReportAnalyticsData(
     });
   }
 
-  const alertWhereBase = {
-    worksite: worksiteWhere,
-    createdAt: { gte: dateFrom, lte: dateTo },
-  };
+  // Use scalar worksiteId when we have a specific ID — matches the same pattern
+  // the site-summary API uses and avoids Prisma relation-join vs scalar discrepancies.
+  // Use scalar worksiteId when we have a specific ID — matches the same pattern
+  // the site-summary API uses and avoids Prisma relation-join vs scalar discrepancies.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const alertWhereBase: any = singleWorksiteId
+    ? { worksiteId: singleWorksiteId, createdAt: { gte: dateFrom, lte: dateTo } }
+    : { worksite: worksiteWhere, createdAt: { gte: dateFrom, lte: dateTo } };
 
   const alertCountInPeriod = await prisma.alert.count({ where: alertWhereBase });
 
@@ -315,10 +319,14 @@ export async function getWorksiteReportAnalyticsData(
   const prevFrom = new Date(dateFrom.getTime() - periodMs);
   const [prevAlerts, prevViolations] = await Promise.all([
     prisma.alert.count({
-      where: { worksite: worksiteWhere, createdAt: { gte: prevFrom, lte: prevTo } },
+      where: singleWorksiteId
+        ? { worksiteId: singleWorksiteId, createdAt: { gte: prevFrom, lte: prevTo } }
+        : { worksite: worksiteWhere, createdAt: { gte: prevFrom, lte: prevTo } },
     }),
     prisma.safetyViolation.count({
-      where: { worksite: worksiteWhere, detectedAt: { gte: prevFrom, lte: prevTo } },
+      where: singleWorksiteId
+        ? { worksiteId: singleWorksiteId, detectedAt: { gte: prevFrom, lte: prevTo } }
+        : { worksite: worksiteWhere, detectedAt: { gte: prevFrom, lte: prevTo } },
     }),
   ]);
   const changePct = (curr: number, prev: number) =>
