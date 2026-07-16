@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { generateInviteToken, getTokenExpiry } from '@/app/lib/token-utils';
 import { sendPasswordResetEmail } from '@/app/lib/email-service';
+import { writeAuditLog } from '@/app/lib/audit';
 
 export async function POST(request: NextRequest) {
   try {
@@ -66,6 +67,20 @@ export async function POST(request: NextRequest) {
     });
 
     console.log('[PASSWORD RESET] Token generated for:', user.email);
+
+    // Audit: log the request (not the token itself)
+    writeAuditLog({
+      userId: user.id,
+      action: 'USER_PASSWORD_RESET_REQUESTED',
+      entity: 'USER',
+      entityId: user.id,
+      entityName: user.email,
+      severity: 'WARNING',
+      result: 'SUCCESS',
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      userAgent: request.headers.get('user-agent'),
+      details: { email: user.email, expiresAt: resetExpires.toISOString() },
+    }).catch(() => {});
 
     // Send password reset email
     const emailResult = await sendPasswordResetEmail(

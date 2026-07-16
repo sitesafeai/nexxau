@@ -45,6 +45,30 @@ export async function PUT(
       );
     }
 
+    // Audit: track what changed on the key
+    prisma.auditLog.create({
+      data: {
+        userId: session.user.id,
+        action: 'API_KEY_UPDATED',
+        entity: 'SYSTEM',
+        entityId: id,
+        metadata: {
+          entityName: name || id,
+          severity: 'INFO',
+          result: 'SUCCESS',
+          details: {
+            changes: {
+              ...(name        !== undefined && { name }),
+              ...(permissions !== undefined && { permissions }),
+              ...(rateLimit   !== undefined && { rateLimit }),
+              ...(expiresAt   !== undefined && { expiresAt }),
+              ...(isActive    !== undefined && { isActive }),
+            },
+          },
+        },
+      },
+    }).catch(() => {});
+
     return NextResponse.json({
       success: true,
       message: 'API key updated successfully',

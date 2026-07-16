@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { normalizeRole } from '@/app/lib/roles';
 import { Cache, CacheKeys } from '@/app/lib/cache';
+import { writeAuditLog } from '@/app/lib/audit';
 import {
   calculateSafetyScore,
   getConfig,
@@ -396,6 +397,24 @@ export async function POST(request: NextRequest) {
         }
       };
       
+      // Audit: who calculated it, what score came out, was it a force-recalc
+      writeAuditLog({
+        userId: session.user.id,
+        worksiteId,
+        action: 'SAFETY_SCORE_CALCULATED',
+        entity: 'WORKSITE',
+        entityId: worksiteId,
+        severity: 'INFO',
+        result: 'SUCCESS',
+        details: {
+          date: date.toISOString().split('T')[0],
+          score: result.score,
+          grade: result.grade,
+          forceRecalculate,
+          detectionsSource,
+        },
+      }).catch(() => {});
+
       // Update cache immediately for instant next GET request
       // This ensures Overview tab loads instantly after calculation
       const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format

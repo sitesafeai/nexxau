@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 import { signImpersonationToken } from '@/app/lib/impersonation-token';
+import { writeAuditLog } from '@/app/lib/audit';
 
 /**
  * POST /api/admin/companies/[id]/impersonate
@@ -79,6 +80,22 @@ export async function POST(
       companyId,
       adminId: superAdmin.id,
     });
+
+    // Audit: impersonation sessions are critical security events
+    writeAuditLog({
+      userId: superAdmin.id,
+      action: 'IMPERSONATION_STARTED',
+      entity: 'USER',
+      entityId: targetUserId,
+      companyId,
+      severity: 'WARNING',
+      result: 'SUCCESS',
+      details: {
+        targetUserId,
+        companyId,
+        adminId: superAdmin.id,
+      },
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,
