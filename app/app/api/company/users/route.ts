@@ -46,7 +46,7 @@ export async function GET(_request: NextRequest) {
         isActivated: true,
         createdAt: true,
         lastLogin: true,
-        worksiteUsers: {
+        worksiteAccess: {
           select: {
             worksiteId: true,
             worksite: { select: { id: true, name: true } },

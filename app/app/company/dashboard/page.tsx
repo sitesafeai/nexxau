@@ -30,7 +30,7 @@ interface CompanyUser {
   isActivated: boolean;
   createdAt: string;
   lastLogin: string | null;
-  worksiteUsers: { worksiteId: string; worksite: { id: string; name: string } }[];
+  worksiteAccess: { worksiteId: string; worksite: { id: string; name: string } }[];
 }
 
 interface BillingData {
@@ -376,7 +376,7 @@ function TeamTab({
                 <td className="px-4 py-3"><RoleBadge role={u.role} /></td>
                 <td className="px-4 py-3 hidden md:table-cell">
                   <span className="text-sm text-slate-400">
-                    {u.worksiteUsers.length === 0 ? 'All sites' : u.worksiteUsers.map(wu => wu.worksite.name).join(', ')}
+                    {u.worksiteAccess.length === 0 ? 'All sites' : u.worksiteAccess.map(wu => wu.worksite.name).join(', ')}
                   </span>
                 </td>
                 <td className="px-4 py-3 hidden lg:table-cell">
