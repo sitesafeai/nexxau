@@ -46,7 +46,9 @@ export default function LoginPage() {
         if (userRole === 'SUPER_ADMIN') {
           router.push('/super-admin');
         } else {
-          router.push('/dashboard');
+          // Always go to the worksite picker first, even if there's only one site.
+          // Never skip straight to /dashboard — that bypasses the picker entirely.
+          router.push('/company/dashboard');
         }
       }
     } catch (error) {
