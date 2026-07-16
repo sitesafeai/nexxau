@@ -214,6 +214,21 @@ export const authOptions: NextAuthOptions = {
         token.worksiteId = user.worksiteId;
       }
 
+      // Re-hydrate role/companyId on stale tokens that pre-date these fields.
+      if (token.id && (!token.role || !token.companyId)) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { role: true, companyId: true, worksiteId: true },
+          });
+          if (dbUser) {
+            if (!token.role) token.role = dbUser.role;
+            if (!token.companyId) token.companyId = dbUser.companyId ?? undefined;
+            if (!token.worksiteId) token.worksiteId = dbUser.worksiteId ?? undefined;
+          }
+        } catch { /* non-fatal — leave token as-is */ }
+      }
+
       // Keep pilot end date reasonably fresh for middleware gating.
       const normalizedRole = (token.role || '').toUpperCase();
       if (normalizedRole !== 'SUPER_ADMIN' && normalizedRole !== 'SUPERADMIN' && token.companyId) {

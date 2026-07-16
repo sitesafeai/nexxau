@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { normalizeRole } from '@/app/lib/roles';
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -204,7 +205,6 @@ function InviteModal({
 // ─── Tab: Worksites ────────────────────────────────────────────────────────────
 
 function WorksitesTab({ worksites, isAdmin }: { worksites: Worksite[]; isAdmin: boolean }) {
-  const router = useRouter();
   const accessible = worksites.filter(w => w.hasAccess);
   const locked = worksites.filter(w => !w.hasAccess);
 
@@ -523,11 +523,12 @@ function BillingTab({ data }: { data: BillingData }) {
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export default function CompanyDashboard() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const router = useRouter();
 
   const user = session?.user as any;
-  const isAdmin = ['COMPANY_ADMIN', 'SUPER_ADMIN', 'ADMIN'].includes(user?.role || '');
+  const userRole = normalizeRole(user?.role); // normalizes casing + aliases (ADMIN → COMPANY_ADMIN)
+  const isAdmin = ['COMPANY_ADMIN', 'SUPER_ADMIN'].includes(userRole);
 
   const [tab, setTab] = useState<'worksites' | 'team' | 'billing'>('worksites');
   const [worksites, setWorksites] = useState<Worksite[]>([]);
@@ -539,10 +540,16 @@ export default function CompanyDashboard() {
   useEffect(() => {
     if (status === 'unauthenticated') { router.push('/login'); return; }
     if (status === 'authenticated') {
-      if (user?.role === 'SUPER_ADMIN') { router.push('/super-admin'); return; }
+      // Stale JWT (issued before role was stored) — force a server-side refresh
+      // so the re-hydration logic in auth.ts runs and patches the cookie.
+      if (!user?.role) {
+        update();
+        return;
+      }
+      if (userRole === 'SUPER_ADMIN') { router.push('/super-admin'); return; }
       fetchBase();
     }
-  }, [status]);
+  }, [status, user?.role]);
 
   const fetchBase = useCallback(async () => {
     setLoading(true); setError(null);
