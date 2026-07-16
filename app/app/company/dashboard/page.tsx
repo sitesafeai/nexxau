@@ -202,6 +202,311 @@ function InviteModal({
   );
 }
 
+// ─── User Action Modal ─────────────────────────────────────────────────────────
+
+function UserActionModal({
+  user: initialUser,
+  worksites,
+  currentUserId,
+  onClose,
+  onRefresh,
+}: {
+  user: CompanyUser;
+  worksites: Worksite[];
+  currentUserId: string;
+  onClose: () => void;
+  onRefresh: () => void;
+}) {
+  const [u, setU] = useState(initialUser);
+  const [pendingRole, setPendingRole] = useState(initialUser.role);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [addSiteId, setAddSiteId] = useState('');
+
+  const assignedIds = new Set(u.worksiteAccess.map(wa => wa.worksiteId));
+  const availableToAdd = worksites.filter(ws => !assignedIds.has(ws.id));
+  const neverLoggedIn = !u.lastLogin;
+
+  const flash = (type: 'ok' | 'err', text: string) => {
+    setMsg({ type, text });
+    if (type === 'ok') setTimeout(() => setMsg(null), 3500);
+  };
+
+  const call = async (action: string, fn: () => Promise<Response>) => {
+    setBusy(action); setMsg(null);
+    try {
+      const res = await fn();
+      const data = await res.json();
+      if (!res.ok || !data.success) { flash('err', data.error || 'Something went wrong'); return null; }
+      return data;
+    } catch { flash('err', 'Request failed'); return null; }
+    finally { setBusy(null); }
+  };
+
+  const doResetPassword = async () => {
+    const data = await call('reset', () => fetch(`/api/company/users/${u.id}/reset-password`, { method: 'POST' }));
+    if (data) flash('ok', 'Password reset email sent');
+  };
+
+  const doResendInvite = async () => {
+    const data = await call('invite', () => fetch(`/api/company/users/${u.id}/resend-invite`, { method: 'POST' }));
+    if (data) flash('ok', 'Invite email resent');
+  };
+
+  const doSaveRole = async () => {
+    const data = await call('role', () =>
+      fetch(`/api/company/users/${u.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: pendingRole }),
+      })
+    );
+    if (data) { setU(prev => ({ ...prev, role: pendingRole })); flash('ok', 'Role updated'); onRefresh(); }
+  };
+
+  const doToggleStatus = async () => {
+    const next = !u.isActivated;
+    const data = await call('status', () =>
+      fetch(`/api/company/users/${u.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActivated: next }),
+      })
+    );
+    if (data) { setU(prev => ({ ...prev, isActivated: next })); flash('ok', next ? 'Account reactivated' : 'Account deactivated'); onRefresh(); }
+  };
+
+  const doRemoveWorksite = async (worksiteId: string) => {
+    const data = await call(`rmws-${worksiteId}`, () =>
+      fetch(`/api/company/users/${u.id}/worksite-access`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remove: [worksiteId] }),
+      })
+    );
+    if (data) { setU(prev => ({ ...prev, worksiteAccess: prev.worksiteAccess.filter(wa => wa.worksiteId !== worksiteId) })); onRefresh(); }
+  };
+
+  const doAddWorksite = async () => {
+    if (!addSiteId) return;
+    const ws = worksites.find(w => w.id === addSiteId);
+    const data = await call('addws', () =>
+      fetch(`/api/company/users/${u.id}/worksite-access`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ add: [addSiteId] }),
+      })
+    );
+    if (data && ws) {
+      setU(prev => ({ ...prev, worksiteAccess: [...prev.worksiteAccess, { worksiteId: ws.id, worksite: { id: ws.id, name: ws.name } }] }));
+      setAddSiteId('');
+      onRefresh();
+    }
+  };
+
+  const doRemoveFromCompany = async () => {
+    if (!confirm(`Remove ${u.name || u.email} from the company? This will revoke all their access.`)) return;
+    const data = await call('remove', () => fetch(`/api/company/users?userId=${u.id}`, { method: 'DELETE' }));
+    if (data) { onRefresh(); onClose(); }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-slate-700 flex items-start justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-11 h-11 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-lg font-semibold text-slate-200 shrink-0">
+              {(u.name || u.email)[0].toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-white truncate">{u.name || '—'}</p>
+              <p className="text-sm text-slate-400 truncate">{u.email}</p>
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <RoleBadge role={u.role} />
+                <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded border ${u.isActivated ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
+                  {u.isActivated ? 'Active' : 'Pending'}
+                </span>
+              </div>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white mt-0.5 shrink-0">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body — scrollable */}
+        <div className="overflow-y-auto flex-1">
+          {msg && (
+            <div className={`mx-6 mt-4 px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 ${
+              msg.type === 'ok'
+                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                : 'bg-red-500/10 border border-red-500/30 text-red-400'
+            }`}>
+              {msg.type === 'ok'
+                ? <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                : <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              }
+              {msg.text}
+            </div>
+          )}
+
+          <div className="p-6 space-y-6">
+            {/* Account actions */}
+            <section>
+              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Account</h4>
+              <div className="flex flex-wrap gap-2">
+                {u.isActivated ? (
+                  <button
+                    onClick={doResetPassword}
+                    disabled={busy === 'reset'}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                    {busy === 'reset' ? 'Sending…' : 'Send Password Reset'}
+                  </button>
+                ) : neverLoggedIn ? (
+                  <button
+                    onClick={doResendInvite}
+                    disabled={busy === 'invite'}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    {busy === 'invite' ? 'Sending…' : 'Resend Invite'}
+                  </button>
+                ) : (
+                  <p className="text-xs text-slate-400 py-1">Account was deactivated — use the Reactivate button below to restore access.</p>
+                )}
+              </div>
+            </section>
+
+            {/* Role */}
+            <section>
+              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Role</h4>
+              <div className="flex items-center gap-2">
+                <select
+                  value={pendingRole}
+                  onChange={e => setPendingRole(e.target.value)}
+                  className="flex-1 bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="SITE_ADMIN">Site Admin</option>
+                  <option value="SUPERVISOR">Supervisor</option>
+                  <option value="WORKER">Worker</option>
+                  <option value="VIEWER">Viewer</option>
+                </select>
+                <button
+                  onClick={doSaveRole}
+                  disabled={pendingRole === u.role || busy === 'role'}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  {busy === 'role' ? '…' : 'Save'}
+                </button>
+              </div>
+            </section>
+
+            {/* Status */}
+            <section>
+              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Status</h4>
+              <div className="flex items-center justify-between p-3 bg-slate-700/40 rounded-lg border border-slate-700">
+                <div className="min-w-0 mr-4">
+                  <p className="text-sm text-white">{u.isActivated ? 'Account is active' : 'Account is deactivated'}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {u.isActivated ? 'User can log in and access their worksites' : 'User cannot log in until reactivated'}
+                  </p>
+                </div>
+                <button
+                  onClick={doToggleStatus}
+                  disabled={busy === 'status'}
+                  className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 ${
+                    u.isActivated
+                      ? 'border-amber-500/40 text-amber-400 hover:bg-amber-500/10'
+                      : 'border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10'
+                  }`}
+                >
+                  {busy === 'status' ? '…' : u.isActivated ? 'Deactivate' : 'Reactivate'}
+                </button>
+              </div>
+            </section>
+
+            {/* Worksite Access */}
+            <section>
+              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Worksite Access</h4>
+              {u.worksiteAccess.length === 0 ? (
+                <p className="text-sm text-slate-400 italic px-1 mb-3">Company-wide access — not restricted to specific sites</p>
+              ) : (
+                <div className="space-y-1.5 mb-3">
+                  {u.worksiteAccess.map(wa => (
+                    <div key={wa.worksiteId} className="flex items-center justify-between px-3 py-2 bg-slate-700/40 rounded-lg border border-slate-700">
+                      <span className="text-sm text-slate-300">{wa.worksite.name}</span>
+                      <button
+                        onClick={() => doRemoveWorksite(wa.worksiteId)}
+                        disabled={!!busy}
+                        className="text-xs text-slate-500 hover:text-red-400 transition-colors disabled:opacity-40"
+                      >
+                        {busy === `rmws-${wa.worksiteId}` ? '…' : 'Remove'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {availableToAdd.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <select
+                    value={addSiteId}
+                    onChange={e => setAddSiteId(e.target.value)}
+                    className="flex-1 bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="">Add to a worksite…</option>
+                    {availableToAdd.map(ws => (
+                      <option key={ws.id} value={ws.id}>{ws.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={doAddWorksite}
+                    disabled={!addSiteId || busy === 'addws'}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    {busy === 'addws' ? '…' : '+ Add'}
+                  </button>
+                </div>
+              )}
+            </section>
+
+            {/* Danger zone */}
+            {u.id !== currentUserId && (
+              <section>
+                <h4 className="text-xs font-semibold text-red-500/60 uppercase tracking-wider mb-3">Danger Zone</h4>
+                <div className="p-3 bg-red-500/5 rounded-lg border border-red-500/20 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm text-white">Remove from company</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Revokes all access and deactivates this account</p>
+                  </div>
+                  <button
+                    onClick={doRemoveFromCompany}
+                    disabled={busy === 'remove'}
+                    className="shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                  >
+                    {busy === 'remove' ? '…' : 'Remove'}
+                  </button>
+                </div>
+              </section>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Tab: Worksites ────────────────────────────────────────────────────────────
 
 function WorksitesTab({ worksites, isAdmin }: { worksites: Worksite[]; isAdmin: boolean }) {
@@ -311,17 +616,8 @@ function TeamTab({
   currentUserId: string; isAdmin: boolean; onRefresh: () => void;
 }) {
   const [showInvite, setShowInvite] = useState(false);
-  const [removing, setRemoving] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState(false);
-
-  const handleRemove = async (userId: string, name: string) => {
-    if (!confirm(`Remove ${name || 'this user'} from the company?`)) return;
-    setRemoving(userId);
-    try {
-      await fetch(`/api/company/users?userId=${userId}`, { method: 'DELETE' });
-      onRefresh();
-    } finally { setRemoving(null); }
-  };
+  const [selectedUser, setSelectedUser] = useState<CompanyUser | null>(null);
 
   return (
     <div className="space-y-4">
@@ -356,12 +652,16 @@ function TeamTab({
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider hidden md:table-cell">Sites</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider hidden lg:table-cell">Last Login</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-              {isAdmin && <th className="px-4 py-3" />}
+              {isAdmin && <th className="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-700/30">
             {users.map(u => (
-              <tr key={u.id} className="hover:bg-slate-700/20 transition-colors">
+              <tr
+                key={u.id}
+                onClick={() => isAdmin && setSelectedUser(u)}
+                className={`hover:bg-slate-700/20 transition-colors ${isAdmin ? 'cursor-pointer' : ''}`}
+              >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-sm font-medium text-slate-300 shrink-0">
@@ -389,15 +689,7 @@ function TeamTab({
                 </td>
                 {isAdmin && (
                   <td className="px-4 py-3 text-right">
-                    {u.id !== currentUserId && (
-                      <button
-                        onClick={() => handleRemove(u.id, u.name || u.email)}
-                        disabled={removing === u.id}
-                        className="text-xs text-slate-500 hover:text-red-400 transition-colors disabled:opacity-40"
-                      >
-                        {removing === u.id ? '…' : 'Remove'}
-                      </button>
-                    )}
+                    <span className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Manage →</span>
                   </td>
                 )}
               </tr>
@@ -411,6 +703,16 @@ function TeamTab({
           worksites={worksites} companyId={companyId} currentUserId={currentUserId}
           onClose={() => setShowInvite(false)}
           onSuccess={() => { setShowInvite(false); setInviteSuccess(true); onRefresh(); }}
+        />
+      )}
+
+      {selectedUser && isAdmin && (
+        <UserActionModal
+          user={selectedUser}
+          worksites={worksites}
+          currentUserId={currentUserId}
+          onClose={() => setSelectedUser(null)}
+          onRefresh={onRefresh}
         />
       )}
     </div>
