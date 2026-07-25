@@ -824,6 +824,138 @@ function BillingTab({ data }: { data: BillingData }) {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
+// ─── Tab: Guide ────────────────────────────────────────────────────────────────
+
+function GuideTab({ isAdmin }: { isAdmin: boolean }) {
+  const sections = [
+    {
+      key: 'worksites',
+      color: 'blue',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+      ),
+      label: 'Worksites',
+      description: 'View and enter all your company\'s construction sites. Each card shows the camera count, active team members, live safety alerts, and a real-time safety score. Click any card to open that site\'s full dashboard.',
+      tips: [
+        'Safety score below 60 turns red — investigate active alerts',
+        'Cards without a score mean no camera data is available yet',
+      ],
+    },
+    ...(isAdmin ? [
+      {
+        key: 'team',
+        color: 'purple',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        ),
+        label: 'Team',
+        badge: 'Admin only',
+        description: 'Manage everyone in your company. Click any member\'s row to open their management panel — from there you can change their role, reset their password, resend a pending invite, deactivate their account, or adjust which worksites they can access. Use "Invite Member" to add new people by email.',
+        tips: [
+          'Pending members haven\'t accepted their invite yet — click their row and use Resend Invite',
+          'Deactivating a user blocks their login without removing their account history',
+          'Worksite access: empty = company-wide; listed sites = restricted to those only',
+        ],
+      },
+      {
+        key: 'billing',
+        color: 'emerald',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+          </svg>
+        ),
+        label: 'Billing',
+        badge: 'Admin only',
+        description: 'Check your subscription status (Pilot, Active, or Expired), see payment history, and upload proof of payment when renewing. During a pilot period, contact your account manager before the expiry date to convert to a paid plan without any service interruption.',
+        tips: [
+          'Pilot plans have an expiry date — your team loses access if it lapses',
+          'Upload a PDF or image of your paid invoice as proof of payment',
+        ],
+      },
+    ] : []),
+  ];
+
+  const colorMap: Record<string, string> = {
+    blue: 'bg-blue-500/10 border-blue-500/30 text-blue-400',
+    purple: 'bg-purple-500/10 border-purple-500/30 text-purple-400',
+    emerald: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400',
+  };
+  const iconBgMap: Record<string, string> = {
+    blue: 'bg-blue-500/15 text-blue-400',
+    purple: 'bg-purple-500/15 text-purple-400',
+    emerald: 'bg-emerald-500/15 text-emerald-400',
+  };
+
+  return (
+    <div className="max-w-2xl space-y-5">
+      <div className="mb-2">
+        <h2 className="text-lg font-semibold text-white">Dashboard Guide</h2>
+        <p className="text-sm text-slate-400 mt-1">A quick overview of what each tab does and how to use it.</p>
+      </div>
+
+      {sections.map(s => (
+        <div key={s.key} className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${iconBgMap[s.color]}`}>
+              {s.icon}
+            </div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-white">{s.label}</h3>
+              {(s as any).badge && (
+                <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded border ${colorMap[s.color]}`}>
+                  {(s as any).badge}
+                </span>
+              )}
+            </div>
+          </div>
+          <p className="text-sm text-slate-400 leading-relaxed mb-3">{s.description}</p>
+          <ul className="space-y-1.5">
+            {s.tips.map((tip, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-slate-500">
+                <span className="mt-0.5 shrink-0 text-slate-600">›</span>
+                {tip}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+
+      {/* Role reference */}
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-amber-500/15 text-amber-400">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <h3 className="text-sm font-semibold text-white">Role Reference</h3>
+        </div>
+        <div className="space-y-2">
+          {[
+            { role: 'Company Admin', color: 'purple', desc: 'Full access — manages team, billing, and all worksites' },
+            { role: 'Site Admin', color: 'blue', desc: 'Manages one or more specific worksites — no billing or team management' },
+            { role: 'Supervisor', color: 'amber', desc: 'Views and responds to alerts within their assigned sites' },
+            { role: 'Worker', color: 'slate', desc: 'Read-only access to their assigned worksite' },
+            { role: 'Viewer', color: 'slate', desc: 'Read-only access, no alert notifications' },
+          ].map(r => (
+            <div key={r.role} className="flex items-start gap-3 py-2 border-b border-slate-700/40 last:border-0">
+              <RoleBadge role={r.role.toUpperCase().replace(' ', '_')} />
+              <p className="text-xs text-slate-400 pt-0.5">{r.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main page ──────────────────────────────────────────────────────────────────
+
 export default function CompanyDashboard() {
   const { data: session, status, update } = useSession();
   const router = useRouter();
@@ -832,7 +964,7 @@ export default function CompanyDashboard() {
   const userRole = normalizeRole(user?.role); // normalizes casing + aliases (ADMIN → COMPANY_ADMIN)
   const isAdmin = ['COMPANY_ADMIN', 'SUPER_ADMIN'].includes(userRole);
 
-  const [tab, setTab] = useState<'worksites' | 'team' | 'billing'>('worksites');
+  const [tab, setTab] = useState<'worksites' | 'team' | 'billing' | 'guide'>('worksites');
   const [worksites, setWorksites] = useState<Worksite[]>([]);
   const [users, setUsers] = useState<CompanyUser[]>([]);
   const [billing, setBilling] = useState<BillingData | null>(null);
@@ -888,6 +1020,7 @@ export default function CompanyDashboard() {
   const tabs = [
     { key: 'worksites', label: 'Worksites' },
     ...(isAdmin ? [{ key: 'team', label: 'Team' }, { key: 'billing', label: 'Billing' }] : []),
+    { key: 'guide', label: 'Guide' },
   ];
 
   if (status === 'loading' || loading) {
@@ -976,6 +1109,7 @@ export default function CompanyDashboard() {
         {tab === 'billing' && !billing && (
           <div className="text-center py-20 text-slate-500 text-sm">Loading billing info…</div>
         )}
+        {tab === 'guide' && <GuideTab isAdmin={isAdmin} />}
       </div>
     </div>
   );
