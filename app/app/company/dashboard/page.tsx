@@ -589,9 +589,9 @@ function WorksiteTabsGuide() {
   ];
 
   return (
-    <div className="mt-8 pt-6 border-t border-slate-700/40">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">What you'll find inside each worksite</p>
-      <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl overflow-hidden divide-y divide-slate-700/30">
+    <div className="mt-5 pt-4 border-t border-slate-700/30">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">Inside each worksite</p>
+      <div className="bg-slate-900/40 border border-slate-700/40 rounded-xl overflow-hidden divide-y divide-slate-700/30">
         {tabs.map(t => (
           <div key={t.key}>
             <button
@@ -723,7 +723,6 @@ function WorksitesTab({ worksites, isAdmin }: { worksites: Worksite[]; isAdmin: 
           </div>
         ))}
       </div>
-      <WorksiteTabsGuide />
     </div>
   );
 }
@@ -1105,6 +1104,7 @@ function GuideTab({ isAdmin }: { isAdmin: boolean }) {
                         ))}
                       </ul>
                     )}
+                    {s.key === 'worksites' && <WorksiteTabsGuide />}
                   </>
                 )}
               </div>
