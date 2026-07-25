@@ -6,6 +6,7 @@
  */
 
 import { prisma } from '../prisma';
+import { sendAlertNotificationEmail } from '../email-service';
 
 export interface WorkflowContext {
   alertId?: string;
@@ -17,7 +18,8 @@ export interface WorkflowContext {
 }
 
 export interface WorkflowAction {
-  type: 'sms' | 'email' | 'webhook' | 'create_incident' | 'escalate';
+  // Builder saves 'send_email'/'send_sms'; legacy records may use 'email'/'sms'
+  type: 'sms' | 'send_sms' | 'email' | 'send_email' | 'webhook' | 'create_incident' | 'escalate';
   config: any;
 }
 
@@ -179,11 +181,13 @@ export class WorkflowEngine {
 
     switch (action.type) {
       case 'sms':
+      case 'send_sms':
         return await this.sendSMS(action.config, context);
-      
+
       case 'email':
+      case 'send_email':
         return await this.sendEmail(action.config, context);
-      
+
       case 'webhook':
         return await this.callWebhook(action.config, context);
       
@@ -200,59 +204,65 @@ export class WorkflowEngine {
 
   /**
    * Send SMS notification
+   * NOTE: No SMS provider (Twilio etc.) is configured yet.
+   * Logs the intent and skips silently — does not throw so the workflow still completes.
    */
   private async sendSMS(config: any, context: WorkflowContext): Promise<void> {
-    const { phones, template } = config;
-    const message = this.renderTemplate(template, context);
-
-    for (const phone of phones) {
-      try {
-        // Log notification
-        await prisma.notificationLog.create({
-          data: {
-            worksiteId: context.worksiteId,
-            alertId: context.alertId,
-            channel: 'sms',
-            recipient: phone,
-            body: message,
-            status: 'pending',
-            createdAt: new Date()
-          }
-        });
-
-        // TODO: Integrate with Twilio or SMS provider
-        console.log(`[SMS] Would send to ${phone}: ${message}`);
-        
-        // For now, just log - actual SMS sending will be handled by a background job
-      } catch (error) {
-        console.error(`[SMS] Failed to queue SMS to ${phone}:`, error);
-      }
+    // Builder saves config.phones; legacy records may use config.recipients
+    const phones: string[] = config.phones || config.recipients || [];
+    if (phones.length === 0) {
+      console.warn('[Workflow SMS] No phone numbers in action config — skipping');
+      return;
     }
+    console.warn(
+      `[Workflow SMS] SMS provider not configured. Would send to: ${phones.join(', ')}`,
+      `| alert=${context.alertId} worksite=${context.worksiteId}`
+    );
+    // Not throwing — SMS is a no-op until Twilio (or similar) is wired up.
   }
 
   /**
-   * Send email notification
+   * Send email notification via Resend (sendAlertNotificationEmail).
+   * Builder saves config.emails; legacy records may use config.recipients.
    */
   private async sendEmail(config: any, context: WorkflowContext): Promise<void> {
-    const { recipients, subject, template } = config;
-    const body = this.renderTemplate(template, context);
-
-    for (const email of recipients) {
-      await prisma.notificationLog.create({
-        data: {
-          worksiteId: context.worksiteId,
-          alertId: context.alertId,
-          channel: 'email',
-          recipient: email,
-          subject: subject || 'Safety Alert',
-          body,
-          status: 'pending'
-        }
-      });
-
-      // TODO: Integrate with email provider (SendGrid, AWS SES, etc.)
-      console.log(`[Email] Would send to ${email}: ${subject}`);
+    // Normalise recipient list — builder uses `emails`, old code used `recipients`
+    const recipients: string[] = config.emails || config.recipients || [];
+    if (recipients.length === 0) {
+      console.warn('[Workflow Email] No recipients in action config — skipping');
+      return;
     }
+
+    const { alert, worksiteId, alertId, timestamp } = context;
+
+    const alertType: string =
+      alert?.violationType || alert?.title || 'Safety Alert';
+    const location: string =
+      alert?.location || worksiteId;
+    const severity: string =
+      alert?.severity || 'MEDIUM';
+    const detailsUrl = `${process.env.NEXTAUTH_URL || ''}/app/dashboard/alerts/${alertId || ''}`;
+    const snapshotUrl: string | undefined =
+      alert?.detectionSnapshot || alert?.snapshotUrl || undefined;
+
+    console.log(`[Workflow Email] Sending alert notification to: ${recipients.join(', ')}`);
+
+    const result = await sendAlertNotificationEmail(
+      recipients,
+      alertType,
+      location,
+      severity,
+      timestamp,
+      detailsUrl,
+      snapshotUrl
+    );
+
+    if (!result.success) {
+      console.error('[Workflow Email] sendAlertNotificationEmail failed:', result.error);
+      throw new Error(`Email send failed: ${result.error}`);
+    }
+
+    console.log(`[Workflow Email] Successfully sent to ${recipients.length} recipient(s)`);
   }
 
   /**
