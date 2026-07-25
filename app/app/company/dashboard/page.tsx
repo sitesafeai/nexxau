@@ -509,6 +509,126 @@ function UserActionModal({
 
 // ─── Tab: Worksites ────────────────────────────────────────────────────────────
 
+function WorksiteTabsGuide() {
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const toggle = (key: string) => setOpenKey(prev => prev === key ? null : key);
+
+  const tabs = [
+    {
+      key: 'overview',
+      label: 'Overview',
+      iconBg: 'bg-blue-500/15 text-blue-400',
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v2H8V5z" /></svg>,
+      description: "The site's home screen. Shows a live safety score ring, camera thumbnail previews, today's alert count, and team presence. The fastest way to take the pulse of a worksite at a glance.",
+      tips: ['Click any camera thumbnail to jump straight to that feed in the Cameras tab', 'The safety score updates in real time as alerts are resolved'],
+    },
+    {
+      key: 'cameras',
+      label: 'Cameras',
+      iconBg: 'bg-cyan-500/15 text-cyan-400',
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>,
+      description: 'View and manage all cameras at this site. See live feeds, check detection status, browse recent snapshots, and add or remove cameras. A red dot on a camera means it has gone offline or stopped sending detections.',
+      tips: ['Cameras showing "No signal" are offline — check the device connection', 'You can rename cameras and assign them to specific zones here'],
+    },
+    {
+      key: 'sites',
+      label: 'Site Management',
+      iconBg: 'bg-slate-400/15 text-slate-400',
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
+      description: "Configure this site's details: address, contact info, zones, and which team members have access. Admins can also manage per-site user roles from here.",
+      tips: ['Site roles set here override the company-level role for that user on this site only', 'Adding a zone lets you tie alert rules to a specific area of the site'],
+    },
+    {
+      key: 'alerts',
+      label: 'Alerts',
+      iconBg: 'bg-amber-500/15 text-amber-400',
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>,
+      description: 'Browse and resolve safety alerts. Each alert shows the timestamp, which rule triggered it, the camera involved, and (if configured) an attached video clip. You can filter by status, type, or date range and bulk-resolve.',
+      tips: ['Unresolved alerts drag down the safety score — resolve or dismiss them promptly', 'Click an alert to see the video clip if one was captured'],
+    },
+    {
+      key: 'alert-rules',
+      label: 'Alert Rules',
+      iconBg: 'bg-orange-500/15 text-orange-400',
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
+      description: 'Define exactly what triggers an alert. Set rules like "no hard hat detected" or "person in restricted zone" with confidence thresholds, time-of-day filters, and which cameras to watch. Rules can be toggled on/off without deleting them.',
+      tips: ['Lower confidence threshold = more alerts, fewer misses; higher = fewer alerts, more precision', 'Time-of-day filters are useful for areas that are legitimately empty at night'],
+    },
+    {
+      key: 'reports',
+      label: 'Reports',
+      iconBg: 'bg-purple-500/15 text-purple-400',
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+      description: 'Generate and export safety reports. Covers compliance trends, alert frequency by type, camera uptime, and a safety score breakdown over time. Reports can be exported as PDFs for insurance or compliance submissions.',
+      tips: ['Run a weekly report to catch patterns before they become incidents', 'PDF exports are formatted for insurance and compliance submissions'],
+    },
+    {
+      key: 'workflows',
+      label: 'Workflows',
+      iconBg: 'bg-indigo-500/15 text-indigo-400',
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+      description: 'Automate responses to alerts without writing code. Build chains like "when a PPE violation is detected → send SMS to the site supervisor → create a report entry." Workflows run in the background the moment an alert fires.',
+      tips: ['Start with a simple SMS notification workflow before building complex chains', 'Workflows can be paused temporarily without deleting them'],
+    },
+    {
+      key: 'settings',
+      label: 'Settings',
+      iconBg: 'bg-slate-500/15 text-slate-400',
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+      description: 'Site-level configuration: default notification preferences, SMS recipient lists, third-party integrations (insurance portals, etc.), and camera detection sensitivity defaults. Changes here affect the whole site.',
+      tips: ['Set SMS recipients here so supervisors get notified even if they\'re not logged in', 'Integration settings connect this site to insurance or compliance platforms'],
+    },
+    {
+      key: 'audit',
+      label: 'Audit Log',
+      iconBg: 'bg-rose-500/15 text-rose-400',
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+      description: 'A tamper-evident record of everything that happened at this site: logins, alert creations and resolutions, rule changes, camera additions, and system events. Filterable by category, user, or date.',
+      tips: ['Use the audit log if you need to prove compliance — it\'s the authoritative record', 'Filter by "User Activity" to see who made changes and when'],
+    },
+  ];
+
+  return (
+    <div className="mt-8 pt-6 border-t border-slate-700/40">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">What you'll find inside each worksite</p>
+      <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl overflow-hidden divide-y divide-slate-700/30">
+        {tabs.map(t => (
+          <div key={t.key}>
+            <button
+              onClick={() => toggle(t.key)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700/30 transition-colors text-left"
+            >
+              <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${t.iconBg}`}>
+                {t.icon}
+              </div>
+              <span className="flex-1 text-sm font-medium text-slate-300">{t.label}</span>
+              <svg
+                className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-200 shrink-0 ${openKey === t.key ? 'rotate-180' : ''}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {openKey === t.key && (
+              <div className="px-4 pb-4 pt-1 border-t border-slate-700/30">
+                <p className="text-sm text-slate-400 leading-relaxed mb-2.5">{t.description}</p>
+                <ul className="space-y-1.5">
+                  {t.tips.map((tip, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-slate-500">
+                      <span className="mt-0.5 shrink-0 text-slate-600">›</span>
+                      {tip}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function WorksitesTab({ worksites, isAdmin }: { worksites: Worksite[]; isAdmin: boolean }) {
   const accessible = worksites.filter(w => w.hasAccess);
   const locked = worksites.filter(w => !w.hasAccess);
@@ -603,6 +723,7 @@ function WorksitesTab({ worksites, isAdmin }: { worksites: Worksite[]; isAdmin: 
           </div>
         ))}
       </div>
+      <WorksiteTabsGuide />
     </div>
   );
 }
