@@ -195,7 +195,7 @@ function WorkflowBuilderPageContent() {
           <div className="col-span-9">
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-6">
               {step === 1 && <Step1Trigger workflow={workflow} setWorkflow={setWorkflow} />}
-              {step === 2 && <Step2Conditions workflow={workflow} setWorkflow={setWorkflow} />}
+              {step === 2 && <Step2Conditions workflow={workflow} setWorkflow={setWorkflow} worksiteId={worksiteId} />}
               {step === 3 && <Step3Actions workflow={workflow} setWorkflow={setWorkflow} />}
               {step === 4 && <Step4Review workflow={workflow} onTest={handleTest} />}
 
@@ -410,7 +410,20 @@ function TriggerConfig({ workflow, setWorkflow }: any) {
 }
 
 // Step 2: Conditions (Optional)
-function Step2Conditions({ workflow, setWorkflow }: any) {
+function Step2Conditions({ workflow, setWorkflow, worksiteId }: any) {
+  const [cameras, setCameras] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (!worksiteId) return;
+    fetch(`/api/cameras?worksiteId=${worksiteId}`)
+      .then(r => r.json())
+      .then(data => {
+        const list = Array.isArray(data) ? data : (data.cameras ?? []);
+        setCameras(list.map((c: any) => ({ id: c.id, name: c.name || c.id })));
+      })
+      .catch(() => {});
+  }, [worksiteId]);
+
   const addCondition = () => {
     if (workflow.conditions.length >= 4) {
       alert('Maximum 4 conditions allowed');
@@ -497,6 +510,27 @@ function Step2Conditions({ workflow, setWorkflow }: any) {
                 }}
                 className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
               />
+            )}
+
+            {condition.type === 'camera' && (
+              cameras.length === 0 ? (
+                <p className="text-sm text-slate-400 px-1">No cameras found for this worksite.</p>
+              ) : (
+                <select
+                  value={condition.config.cameraId || ''}
+                  onChange={(e) => {
+                    const newConditions = [...workflow.conditions];
+                    newConditions[index].config.cameraId = e.target.value;
+                    setWorkflow({ ...workflow, conditions: newConditions });
+                  }}
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white"
+                >
+                  <option value="">Select a camera...</option>
+                  {cameras.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              )
             )}
           </div>
         </div>
