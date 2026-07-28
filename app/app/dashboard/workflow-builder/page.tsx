@@ -137,93 +137,30 @@ function WorkflowBuilderPageContent() {
 
   const [testRunning, setTestRunning] = useState(false);
   const [testResults, setTestResults] = useState<{
-    total: number;
-    matched: number;
-    alerts: Array<{ id: string; title: string; severity: string; createdAt: string; location: string }>;
-    actionSummary: string[];
+    results: Array<{ type: string; status: 'success' | 'failed'; error?: string }>;
   } | null>(null);
 
   const handleTest = async () => {
     setTestRunning(true);
     setTestResults(null);
     try {
-      const res = await fetch(`/api/alerts?worksiteId=${worksiteId}&limit=100`);
+      const res = await fetch('/api/workflows/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          worksiteId,
+          actions: workflow.actions,
+          triggerType: workflow.trigger.type,
+        }),
+      });
       const data = await res.json();
-      const allAlerts: any[] = Array.isArray(data) ? data : (data.alerts ?? []);
-
-      const matched = allAlerts.filter(alert => {
-        // Trigger match
-        const t = workflow.trigger;
-        let triggerMatch = false;
-        const vType = (alert.violationType || alert.title || '').toLowerCase();
-        switch (t.type) {
-          case 'ppe_violation':
-            triggerMatch = ['ppe', 'helmet', 'vest', 'glove', 'boot', 'harness'].some(k => vType.includes(k));
-            break;
-          case 'specific_violation':
-            triggerMatch = t.config.violationType ? vType.includes(t.config.violationType.toLowerCase()) : true;
-            break;
-          case 'camera_offline':
-            triggerMatch = alert.source === 'camera' && alert.status === 'offline';
-            break;
-          case 'camera_online':
-            triggerMatch = alert.source === 'camera' && alert.status === 'online';
-            break;
-          case 'high_alert_volume':
-          case 'alert_created':
-          default:
-            triggerMatch = true;
-        }
-        if (!triggerMatch) return false;
-
-        // Condition match (all must pass)
-        return workflow.conditions.every(cond => {
-          switch (cond.type) {
-            case 'location':
-              return cond.config.location
-                ? (alert.location || '').toLowerCase().includes(cond.config.location.toLowerCase())
-                : true;
-            case 'work_hours': {
-              const h = new Date(alert.createdAt).getHours();
-              return h >= 8 && h < 18;
-            }
-            case 'camera':
-              return cond.config.cameraId ? alert.cameraId === cond.config.cameraId : true;
-            default:
-              return true;
-          }
-        });
-      });
-
-      // Summarise what actions would fire
-      const actionSummary = workflow.actions.map(a => {
-        if (a.type === 'send_email') {
-          const to = (a.config.emails || []).join(', ') || 'no recipients set';
-          return `Send email to ${to}`;
-        }
-        if (a.type === 'send_sms') {
-          const to = (a.config.phones || []).join(', ') || 'no numbers set';
-          return `Send SMS to ${to}`;
-        }
-        if (a.type === 'create_incident') return 'Create incident report';
-        if (a.type === 'notify_supervisor') return 'Notify supervisors';
-        return a.type;
-      });
-
-      setTestResults({
-        total: allAlerts.length,
-        matched: matched.length,
-        alerts: matched.slice(0, 10).map(a => ({
-          id: a.id,
-          title: a.title || a.violationType || 'Alert',
-          severity: a.severity || 'MEDIUM',
-          createdAt: a.createdAt,
-          location: a.location || '—',
-        })),
-        actionSummary,
-      });
-    } catch {
-      setTestResults({ total: 0, matched: 0, alerts: [], actionSummary: ['Error fetching alerts'] });
+      if (data.success) {
+        setTestResults({ results: data.results });
+      } else {
+        setTestResults({ results: [{ type: 'error', status: 'failed', error: data.error || 'Unknown error' }] });
+      }
+    } catch (err: any) {
+      setTestResults({ results: [{ type: 'error', status: 'failed', error: err.message }] });
     } finally {
       setTestRunning(false);
     }
@@ -811,9 +748,6 @@ function Step3Actions({ workflow, setWorkflow }: any) {
 function Step4Review({ workflow, onTest, testRunning, testResults, onClearTest }: any) {
   const trigger = TRIGGERS.find(t => t.value === workflow.trigger.type);
 
-  const severityColor = (s: string) =>
-    s === 'CRITICAL' ? 'text-red-400' : s === 'HIGH' ? 'text-orange-400' : s === 'MEDIUM' ? 'text-yellow-400' : 'text-slate-400';
-
   return (
     <div className="space-y-6">
       <div>
@@ -885,48 +819,20 @@ function Step4Review({ workflow, onTest, testRunning, testResults, onClearTest }
             <h3 className="text-white font-semibold">Test Results</h3>
             <button onClick={onClearTest} className="text-slate-500 hover:text-slate-300 text-xs">Clear</button>
           </div>
-
-          <div className="flex gap-4">
-            <div className="flex-1 bg-slate-800/50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-white">{testResults.total}</p>
-              <p className="text-xs text-slate-400 mt-1">Alerts checked</p>
-            </div>
-            <div className="flex-1 bg-slate-800/50 rounded-lg p-3 text-center">
-              <p className={`text-2xl font-bold ${testResults.matched > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>{testResults.matched}</p>
-              <p className="text-xs text-slate-400 mt-1">Would have fired</p>
-            </div>
-          </div>
-
-          {testResults.actionSummary.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-2">Actions that would run</p>
-              <ul className="space-y-1">
-                {testResults.actionSummary.map((s: string, i: number) => (
-                  <li key={i} className="text-sm text-emerald-300 flex items-center gap-2">
-                    <span className="text-emerald-600">→</span> {s}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {testResults.alerts.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-2">Matching alerts (up to 10)</p>
-              <ul className="space-y-2">
-                {testResults.alerts.map((a: any) => (
-                  <li key={a.id} className="flex items-center justify-between text-sm bg-slate-800/40 rounded px-3 py-2">
-                    <span className="text-slate-200 truncate max-w-[60%]">{a.title}</span>
-                    <span className={`text-xs font-medium ${severityColor(a.severity)}`}>{a.severity}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {testResults.matched === 0 && (
-            <p className="text-sm text-slate-400">No recent alerts matched this workflow's trigger and conditions.</p>
-          )}
+          <ul className="space-y-2">
+            {testResults.results.map((r: any, i: number) => (
+              <li key={i} className={`flex items-start gap-3 rounded-lg px-4 py-3 text-sm ${r.status === 'success' ? 'bg-emerald-900/20 border border-emerald-700/30' : 'bg-red-900/20 border border-red-700/30'}`}>
+                <span className="mt-0.5">{r.status === 'success' ? '✓' : '✗'}</span>
+                <div>
+                  <p className={r.status === 'success' ? 'text-emerald-300' : 'text-red-300'}>
+                    {r.type === 'send_email' ? 'Email sent' : r.type === 'send_sms' ? 'SMS' : r.type}
+                    {r.status === 'success' ? ' — check your inbox' : ' failed'}
+                  </p>
+                  {r.error && <p className="text-xs text-red-400 mt-1">{r.error}</p>}
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

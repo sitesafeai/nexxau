@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { writeAuditLog } from '@/app/lib/audit';
+import { workflowEngine } from '@/app/lib/workflows/workflow-engine';
 
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN ?? '';
 
@@ -117,6 +118,21 @@ export async function POST(req: NextRequest) {
             result: 'SUCCESS',
             details: { lastSeen: latestHealth?.lastCheck?.toISOString() || null },
           }).catch(() => {});
+
+          // Fire camera_offline workflows (fire-and-forget)
+          workflowEngine.processAlert({
+            id: `camera-offline-${cam.id}-${now.getTime()}`,
+            worksiteId: cam.worksiteId,
+            cameraId: cam.id,
+            title: `Camera Offline: ${cam.name || cam.id}`,
+            violationType: 'camera_offline',
+            severity: 'HIGH',
+            source: 'camera',
+            status: 'offline',
+            location: cam.name || cam.id,
+            createdAt: now,
+            metadata: { lastSeen: latestHealth?.lastCheck?.toISOString() || null },
+          }).catch((e: any) => console.error('[heartbeat] workflow trigger failed:', e?.message));
         }
       }
     }

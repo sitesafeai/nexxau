@@ -174,6 +174,26 @@ export class WorkflowEngine {
   }
 
   /**
+   * Run a set of actions against a test context (used by the workflow builder Test button).
+   * Returns per-action results; does NOT write to workflowExecution.
+   */
+  async testActions(
+    actions: WorkflowAction[],
+    context: WorkflowContext
+  ): Promise<Array<{ type: string; status: 'success' | 'failed'; error?: string }>> {
+    const results = [];
+    for (const action of actions) {
+      try {
+        await this.executeAction(action, context, null);
+        results.push({ type: action.type, status: 'success' as const });
+      } catch (err: any) {
+        results.push({ type: action.type, status: 'failed' as const, error: err.message });
+      }
+    }
+    return results;
+  }
+
+  /**
    * Execute a specific action
    */
   private async executeAction(action: WorkflowAction, context: WorkflowContext, workflow: any): Promise<any> {
