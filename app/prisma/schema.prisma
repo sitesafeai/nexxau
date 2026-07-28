@@ -829,23 +829,53 @@ model ViolationClassification {
 }
 
 model Workflow {
-  id                   String    @id @default(cuid())
+  id                   String              @id @default(cuid())
   name                 String
   description          String?
-  nodes                Json
-  connections          Json
-  isActive             Boolean   @default(true)
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  nodes                Json                @default("{}")
+  connections          Json                @default("[]")
+  isActive             Boolean             @default(true)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
   siteId               String?
   userId               String?
   averageExecutionTime Int?
-  executionCount       Int       @default(0)
+  executionCount       Int                 @default(0)
   lastExecuted         DateTime?
   successRate          Float?
   worksiteId           String?
-  worksite             Worksite? @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
-  user                 User?     @relation(fields: [userId], references: [id])
+  // Workflow engine fields
+  type                 String?
+  triggerType          String?
+  triggerConfig        Json                @default("{}")
+  actions              Json                @default("[]")
+  enabled              Boolean             @default(true)
+  priority             Int                 @default(1)
+  lastRunAt            DateTime?
+  createdBy            String?
+  batchingEnabled      Boolean             @default(false)
+  batchWindow          Int                 @default(5)
+  rateLimitWindow      Int                 @default(120)
+  worksite             Worksite?           @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  user                 User?               @relation(fields: [userId], references: [id])
+  executions           WorkflowExecution[]
+}
+
+model WorkflowExecution {
+  id              String    @id @default(cuid())
+  workflowId      String
+  workflow        Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  triggeredBy     String
+  triggerData     Json?
+  status          String    @default("pending")
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  actionsExecuted Int       @default(0)
+  actionsFailed   Int       @default(0)
+  results         Json?
+  error           String?
+
+  @@index([workflowId])
 }
 
 model Site {
