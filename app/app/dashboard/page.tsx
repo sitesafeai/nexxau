@@ -5009,12 +5009,145 @@ function ReportsPage({ currentSite }: { currentSite: any }) {
   );
 }
 
+function NotificationSettingsModal({ worksiteId, onClose }: { worksiteId: string; onClose: () => void }) {
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ name: '', email: '', phone: '' });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    fetch(`/api/alert-contacts?worksiteId=${worksiteId}`)
+      .then(r => r.json())
+      .then(d => { setContacts(d.data || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [worksiteId]);
+
+  const addContact = async () => {
+    if (!form.name || (!form.email && !form.phone)) {
+      setErr('Name and at least one of email or phone required.');
+      return;
+    }
+    setSaving(true); setErr('');
+    const res = await fetch('/api/alert-contacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ worksiteId, ...form }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setContacts(c => [...c, data.data]);
+      setForm({ name: '', email: '', phone: '' });
+      setAdding(false);
+    } else {
+      setErr(data.error || 'Failed to add contact');
+    }
+    setSaving(false);
+  };
+
+  const toggleContact = async (id: string, active: boolean) => {
+    await fetch(`/api/alert-contacts/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: !active }),
+    });
+    setContacts(c => c.map(x => x.id === id ? { ...x, active: !active } : x));
+  };
+
+  const deleteContact = async (id: string) => {
+    await fetch(`/api/alert-contacts/${id}`, { method: 'DELETE' });
+    setContacts(c => c.filter(x => x.id !== id));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+          <h2 className="text-white font-semibold">Notification Contacts</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-white">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div className="px-6 py-4 space-y-3 max-h-80 overflow-y-auto">
+          {loading && <p className="text-slate-400 text-sm">Loading…</p>}
+          {!loading && contacts.length === 0 && <p className="text-slate-400 text-sm">No contacts yet.</p>}
+          {contacts.map(c => (
+            <div key={c.id} className="flex items-center justify-between bg-slate-700/40 rounded-lg px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-white">{c.name}</p>
+                <p className="text-xs text-slate-400">{[c.email, c.phone].filter(Boolean).join(' · ')}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => toggleContact(c.id, c.active)}
+                  className={`text-xs px-2 py-1 rounded border ${c.active ? 'border-emerald-600/50 text-emerald-400 bg-emerald-900/20' : 'border-slate-600 text-slate-500 bg-slate-700/40'}`}
+                >
+                  {c.active ? 'Active' : 'Muted'}
+                </button>
+                <button onClick={() => deleteContact(c.id)} className="text-slate-500 hover:text-red-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {adding ? (
+          <div className="px-6 pb-4 space-y-3">
+            <div className="grid grid-cols-1 gap-2">
+              <input
+                placeholder="Full name *"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm placeholder-slate-500"
+              />
+              <input
+                placeholder="Email address"
+                value={form.email}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm placeholder-slate-500"
+              />
+              <input
+                placeholder="Phone number"
+                value={form.phone}
+                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm placeholder-slate-500"
+              />
+            </div>
+            {err && <p className="text-red-400 text-xs">{err}</p>}
+            <div className="flex gap-2">
+              <button onClick={addContact} disabled={saving} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded disabled:opacity-50">
+                {saving ? 'Saving…' : 'Add Contact'}
+              </button>
+              <button onClick={() => { setAdding(false); setErr(''); }} className="px-4 py-2 border border-slate-600 text-slate-300 text-sm rounded hover:bg-slate-700">
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="px-6 pb-4">
+            <button
+              onClick={() => setAdding(true)}
+              className="w-full py-2 border border-dashed border-slate-600 hover:border-blue-500 text-slate-400 hover:text-blue-400 text-sm rounded transition-colors"
+            >
+              + Add Contact
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function WorkflowsPage({ currentSite }: { currentSite: any }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const worksiteParam = searchParams.get('worksite');
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   // Debug logging
   useEffect(() => {
@@ -5236,10 +5369,10 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
 
       {/* Quick Links */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button 
-          onClick={() => router.push(`/dashboard/alert-rules${currentSite?.id ? `?worksite=${currentSite.id}` : ''}`)}
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('switchTab', { detail: 'alert-rules' }))}
           className="p-4 bg-slate-800/50 border border-slate-700/50 rounded hover:border-slate-600 transition-colors text-left group"
-          >
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">Alert Rules</p>
@@ -5249,11 +5382,11 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </div>
-          </button>
-          <button 
-            onClick={() => router.push(`/dashboard/sms-notifications${currentSite?.id ? `?worksite=${currentSite.id}` : ''}`)}
+        </button>
+        <button
+          onClick={() => setNotifOpen(true)}
           className="p-4 bg-slate-800/50 border border-slate-700/50 rounded hover:border-slate-600 transition-colors text-left group"
-          >
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">Notification Settings</p>
@@ -5263,11 +5396,11 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </div>
-          </button>
-          <button 
-          onClick={() => router.push(`/dashboard/reports${currentSite?.id ? `?worksite=${currentSite.id}` : ''}`)}
+        </button>
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('switchTab', { detail: 'reports' }))}
           className="p-4 bg-slate-800/50 border border-slate-700/50 rounded hover:border-slate-600 transition-colors text-left group"
-          >
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">Incident Reports</p>
@@ -5277,9 +5410,13 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </div>
-          </button>
-            </div>
-          </div>
+        </button>
+      </div>
+
+      {notifOpen && currentSite?.id && (
+        <NotificationSettingsModal worksiteId={currentSite.id} onClose={() => setNotifOpen(false)} />
+      )}
+    </div>
   );
 }
 
