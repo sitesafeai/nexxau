@@ -74,11 +74,13 @@ export function isCameraOnline(camera: CameraWithHealth): boolean {
   }
 
   // --- Path 3: status string fallback ---
-  // Camera.status defaults to 'active' (schema default) and is also set to
-  // 'online' by some paths. Treat both as "intended to be online."
-  // A camera will only have status 'offline' or 'inactive' if explicitly set.
+  // Only trust an explicit 'online' status. 'active' is the DB default for
+  // newly-created cameras that have never sent a heartbeat — treating it as
+  // "online" causes the KPI counter to show cameras as online when they've
+  // never actually connected. 'offline' / 'inactive' / 'active' all map to
+  // offline here; only a camera explicitly marked 'online' counts.
   const s = camera.status?.toLowerCase();
-  return s === 'online' || s === 'active';
+  return s === 'online';
 }
 
 /**
