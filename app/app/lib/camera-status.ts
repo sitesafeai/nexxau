@@ -50,6 +50,9 @@ const SEEN_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
 export function isCameraOnline(camera: CameraWithHealth): boolean {
   // --- Path 1: authoritative CameraHealth record (heartbeat writer) ---
+  // If a health record exists (even a stale one), it is authoritative — we do
+  // NOT fall through to the status string, because camera.status = 'online'
+  // may be a stale value from the last heartbeat that stopped arriving.
   if (camera.health && camera.health.length > 0) {
     const latestHealth = camera.health[0];
     if (latestHealth.status !== 'ONLINE') {
@@ -61,26 +64,23 @@ export function isCameraOnline(camera: CameraWithHealth): boolean {
   }
 
   // --- Path 2: YOLO ingest lastSeenAt stamp in camera metadata ---
-  // The ingest route writes `metadata.lastSeenAt` whenever it processes a
-  // detection for this camera, giving us a real "last known streaming" time.
+  // If lastSeenAt exists (stale or fresh) it is authoritative — stale means
+  // the camera stopped sending frames, so return false instead of falling through.
   if (camera.metadata && typeof camera.metadata === 'object') {
     const lastSeenAt = (camera.metadata as Record<string, unknown>).lastSeenAt;
     if (lastSeenAt) {
       const msAgo = Date.now() - new Date(lastSeenAt as string).getTime();
-      if (msAgo < SEEN_WINDOW_MS) {
-        return true;
-      }
+      return msAgo < SEEN_WINDOW_MS;
     }
   }
 
-  // --- Path 3: status string fallback ---
-  // Only trust an explicit 'online' status. 'active' is the DB default for
-  // newly-created cameras that have never sent a heartbeat — treating it as
-  // "online" causes the KPI counter to show cameras as online when they've
-  // never actually connected. 'offline' / 'inactive' / 'active' all map to
-  // offline here; only a camera explicitly marked 'online' counts.
-  const s = camera.status?.toLowerCase();
-  return s === 'online';
+  // --- No reliable data: treat as offline ---
+  // camera.status is not trustworthy here:
+  //   - 'active' is the DB default for cameras that have never connected
+  //   - 'online' may be stale (set by a past heartbeat that since stopped)
+  // Without a recent health record or lastSeenAt we cannot confirm the camera
+  // is online, so we return false rather than mislead the KPI counter.
+  return false;
 }
 
 /**
