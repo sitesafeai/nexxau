@@ -23,7 +23,7 @@ export async function GET(
 
     const camera = await prisma.camera.findUnique({
       where: { id: cameraId },
-      select: { id: true, name: true, status: true, worksiteId: true, streamUrl: true, metadata: true },
+      select: { id: true, name: true, status: true, worksiteId: true, streamUrl: true, hlsUrl: true, mediamtxPath: true, metadata: true },
     });
 
     if (!camera) {
@@ -50,6 +50,30 @@ export async function GET(
         }
       } else {
         return NextResponse.json({ error: 'Access denied to camera' }, { status: 403 });
+      }
+    }
+
+    // If the camera has an explicit hlsUrl or mediamtxPath, use that stream path directly.
+    // This handles cameras whose stream is pushed to MediaMTX under a path that differs
+    // from the camera DB ID (e.g. phone cameras pushed via FFmpeg).
+    if (camera.hlsUrl || camera.mediamtxPath) {
+      let streamPath: string | null = null;
+      if (camera.hlsUrl) {
+        try {
+          // Extract path segment: https://mediamtx.../cmpp0jiuu0001.../index.m3u8 → cmpp0jiuu0001...
+          const segments = new URL(camera.hlsUrl).pathname.split('/').filter(Boolean);
+          streamPath = segments[0] || null;
+        } catch {}
+      }
+      if (!streamPath && camera.mediamtxPath) {
+        streamPath = camera.mediamtxPath;
+      }
+      if (streamPath) {
+        return NextResponse.json({
+          cameraId: camera.id,
+          streamType: 'hls',
+          hlsUrl: `/api/hls/${streamPath}/index.m3u8`,
+        });
       }
     }
 
