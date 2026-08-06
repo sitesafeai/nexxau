@@ -39,6 +39,19 @@ export default function CameraTile({ camera, onDeleted, onUpdated }: CameraTileP
     }
   }, [stream]);
 
+  const snapToLive = useCallback(() => {
+    const video = videoRef.current;
+    const hls = hlsRef.current;
+    if (!video) return;
+    // Seek to the live edge of the seekable range
+    if (video.seekable.length > 0) {
+      video.currentTime = video.seekable.end(video.seekable.length - 1);
+    } else if (hls && (hls as any).liveSyncPosition) {
+      video.currentTime = (hls as any).liveSyncPosition;
+    }
+    if (video.paused) video.play().catch(() => {});
+  }, []);
+
   const startHls = useCallback((url: string) => {
     const video = videoRef.current;
     if (!video) return;
@@ -49,10 +62,13 @@ export default function CameraTile({ camera, onDeleted, onUpdated }: CameraTileP
       if (Hls.isSupported()) {
         if (hlsRef.current) hlsRef.current.destroy();
         const hls = new Hls({
-          liveSyncDurationCount: 2,
-          liveMaxLatencyDurationCount: 5,
-          maxBufferLength: 8,
-          maxMaxBufferLength: 12,
+          // Low-latency tuning: stay 1 segment behind live, catch up aggressively
+          lowLatencyMode: true,
+          liveSyncDurationCount: 1,
+          liveMaxLatencyDurationCount: 2,
+          maxBufferLength: 4,
+          maxMaxBufferLength: 6,
+          backBufferLength: 0,       // don't keep back buffer — we only need live
           liveDurationInfinity: true,
         });
         hlsRef.current = hls;
@@ -62,7 +78,7 @@ export default function CameraTile({ camera, onDeleted, onUpdated }: CameraTileP
           videoRef.current?.play().catch(() => {});
         });
       } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari native HLS — seek to end on load
+        // Safari native HLS — seek to live edge on load
         videoRef.current.src = url;
         videoRef.current.addEventListener('loadedmetadata', () => {
           const v = videoRef.current;
@@ -79,16 +95,21 @@ export default function CameraTile({ camera, onDeleted, onUpdated }: CameraTileP
     return () => { hlsRef.current?.destroy(); hlsRef.current = null; };
   }, [hlsUrl, startHls]);
 
-  // On tab return: nuke the buffer and restart fresh from live
+  // On tab return: snap to live edge instead of restarting from scratch.
+  // Only do a full restart if the HLS instance died while the tab was hidden.
   useEffect(() => {
     if (!hlsUrl) return;
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
-      startHls(hlsUrl);
+      if (hlsRef.current) {
+        snapToLive();
+      } else {
+        startHls(hlsUrl);
+      }
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [hlsUrl, startHls]);
+  }, [hlsUrl, startHls, snapToLive]);
 
   const status =
     streamState?.status === 'connected' || streamState?.status === 'live'
