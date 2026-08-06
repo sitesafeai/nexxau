@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
         ingestUrl: true,
         streamUrl: true,
         hlsUrl: true,
+        mediamtxPath: true,
         streamProvider: true,
         status: true,
         metadata: true,
@@ -52,16 +53,32 @@ export async function GET(request: NextRequest) {
     const mediamtxPass = process.env.MEDIAMTX_API_PASSWORD || 'nexxau';
     const mediamtxRtspHost = process.env.MEDIAMTX_RTSP_INTERNAL_HOST || 'mediamtx:8554';
 
+    // Extract the MediaMTX stream path from hlsUrl or mediamtxPath.
+    // hlsUrl looks like https://mediamtx-host/cmpp0jiuu0001qm0cbvaei1y9/index.m3u8
+    const getMediaMTXPath = (cam: typeof cameras[0]): string | null => {
+      if (cam.mediamtxPath) return cam.mediamtxPath;
+      if (cam.hlsUrl) {
+        try {
+          const segments = new URL(cam.hlsUrl).pathname.split('/').filter(Boolean);
+          return segments[0] || null;
+        } catch {}
+      }
+      return null;
+    };
+
     const resolveIngestUrl = (cam: typeof cameras[0]): string | null => {
       const meta = metadata(cam);
       const isPush = meta.ingestMode === 'push';
-      if (isPush) {
-        // Pi is actively pushing to MediaMTX; read via internal RTSP
-        return `rtsp://${mediamtxUser}:${mediamtxPass}@${mediamtxRtspHost}/${cam.id}`;
+      const mtxPath = getMediaMTXPath(cam);
+
+      if (isPush || mtxPath) {
+        // Camera streams via MediaMTX — read via internal RTSP using the correct path.
+        // Use the MediaMTX path from hlsUrl/mediamtxPath; fall back to cam.id only if nothing else.
+        const streamPath = mtxPath || cam.id;
+        return `rtsp://${mediamtxUser}:${mediamtxPass}@${mediamtxRtspHost}/${streamPath}`;
       }
       return (
         cam.ingestUrl ||
-        cam.hlsUrl ||
         cam.streamUrl ||
         ((meta.ingestUrl as string | undefined) ?? null)
       );
