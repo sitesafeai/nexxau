@@ -48,35 +48,52 @@ HEADERS = {'Authorization': f'Bearer {SERVICE_TOKEN}'}
 BASE_MODELS = ('yolov8n.pt', 'yolov8s.pt', 'yolov8m.pt', 'yolov8l.pt', 'yolov8x.pt')
 USE_PPE_MODEL = os.environ.get('YOLO_MODEL', 'yolov8n.pt') not in BASE_MODELS
 
-VIOLATION_MAP = {
-    0: 'boot',
-    1: 'glove',
-    2: 'helmet',
-    3: 'person_detected',
-    4: 'vest',
-    5: 'no_boots',
-    6: 'no_gloves',
-    7: 'no_helmet',
-    8: 'no_vest',
-} if USE_PPE_MODEL else {
-    0: 'person_detected',   # COCO person class — fires on any person visible
+# ── Name-based class map (best_ppe_v2.pt — 14 classes) ────────────────────────
+# Keyed by lowercase class name from model.names — avoids fragility of class ID
+# ordering which can differ between dataset versions.
+# Classes from: personal-protective-equipment-combined-model v8, 44k images.
+PPE_CLASS_MAP = {
+    'fall-detected':  'fall_detected',   # violation
+    'gloves':         'gloves',          # compliant
+    'goggles':        'goggles',         # compliant
+    'hardhat':        'helmet',          # compliant
+    'ladder':         'ladder',          # info
+    'mask':           'mask',            # compliant
+    'no-gloves':      'no_gloves',       # violation
+    'no-goggles':     'no_goggles',      # violation
+    'no-hardhat':     'no_helmet',       # violation
+    'no-mask':        'no_mask',         # violation
+    'no-safety vest': 'no_vest',         # violation
+    'person':         'person_detected', # info
+    'safety cone':    'safety_cone',     # info
+    'safety vest':    'vest',            # compliant
+}
+
+# COCO fallback — only person class matters
+COCO_CLASS_MAP = {
+    0: 'person_detected',
 }
 
 VIOLATION_LABELS = {
-    'boot':            ('Boot ✓',        'compliant'),
-    'glove':           ('Glove ✓',       'compliant'),
-    'helmet':          ('Hardhat ✓',     'compliant'),
-    'person_detected': ('Person',        'info'),
-    'vest':            ('Vest ✓',        'compliant'),
-    'no_boots':        ('No Boots',      'violation'),
-    'no_gloves':       ('No Gloves',     'violation'),
-    'no_helmet':       ('No Hardhat',    'violation'),
-    'no_vest':         ('No Vest',       'violation'),
+    'fall_detected':  ('Fall Detected',  'violation'),
+    'gloves':         ('Gloves ✓',       'compliant'),
+    'goggles':        ('Goggles ✓',      'compliant'),
+    'helmet':         ('Hardhat ✓',      'compliant'),
+    'ladder':         ('Ladder',         'info'),
+    'mask':           ('Mask ✓',         'compliant'),
+    'no_gloves':      ('No Gloves',      'violation'),
+    'no_goggles':     ('No Goggles',     'violation'),
+    'no_helmet':      ('No Hardhat',     'violation'),
+    'no_mask':        ('No Mask',        'violation'),
+    'no_vest':        ('No Safety Vest', 'violation'),
+    'person_detected':('Person',         'info'),
+    'safety_cone':    ('Safety Cone',    'info'),
+    'vest':           ('Safety Vest ✓',  'compliant'),
 }
 
-# Compliant detections (boot, glove, helmet, vest) are false-positive-prone
-# and not actionable. Only post violations + person_detected.
-SKIP_VTYPES = {'boot', 'glove', 'helmet', 'vest'}
+# Compliant/info detections — not actionable, skip posting to save noise.
+# Only violations + person_detected fire alerts.
+SKIP_VTYPES = {'gloves', 'goggles', 'helmet', 'ladder', 'mask', 'safety_cone', 'vest'}
 
 cooldowns = {}
 cooldown_lock = threading.Lock()
@@ -232,7 +249,11 @@ def run_camera(camera, model, stop_event):
                 for box in boxes:
                     class_id   = int(box.cls[0].cpu().numpy())
                     confidence = float(box.conf[0].cpu().numpy())
-                    vtype      = VIOLATION_MAP.get(class_id)
+                    if USE_PPE_MODEL:
+                        class_name = (result.names or {}).get(class_id, '').lower()
+                        vtype = PPE_CLASS_MAP.get(class_name)
+                    else:
+                        vtype = COCO_CLASS_MAP.get(class_id)
 
                     if vtype is None:
                         continue
