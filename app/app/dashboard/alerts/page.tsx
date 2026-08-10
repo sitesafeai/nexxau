@@ -206,7 +206,6 @@ function AlertsPageContent() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Severity</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Location</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Created</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
@@ -226,23 +225,6 @@ function AlertsPageContent() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400" title={new Date(alert.createdAt).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'long' })}>
                         {formatAlertTime(alert.createdAt)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleAcknowledge(alert)}
-                            disabled={alert.status !== 'ACTIVE'}
-                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Acknowledge
-                          </button>
-                          <button
-                            onClick={() => handleDownloadReport(alert.id)}
-                            className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-xs rounded-lg transition-colors"
-                          >
-                            Report
-                          </button>
-                        </div>
                       </td>
                     </tr>
                   ))}
