@@ -1247,7 +1247,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
           <span className="text-sm text-slate-400">
             {cameras.filter(c => c.status === 'online').length} / {cameras.length} online
           </span>
-            {(userRole === 'SUPER_ADMIN' || userRole === 'COMPANY_ADMIN') && <button
+            {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN') && <button
               onClick={async () => {
                 try {
                   // Fetch raw camera data from API
