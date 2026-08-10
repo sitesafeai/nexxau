@@ -297,16 +297,17 @@ const hasPermission = (role: UserRole | undefined, action: string): boolean => {
 // ============================================================
 
 // KPI Card Component (Dark Theme)
-const KPICard = ({ 
-  title, 
-  value, 
-  subValue, 
-  change, 
+const KPICard = ({
+  title,
+  value,
+  subValue,
+  change,
   changeDirection,
   icon: Icon,
   onClick,
   color = 'blue',
-  highlight = false
+  highlight = false,
+  tooltip,
 }: {
   title: string;
   value: string | number;
@@ -317,6 +318,7 @@ const KPICard = ({
   onClick?: () => void;
   color?: 'blue' | 'green' | 'yellow' | 'red' | 'gray';
   highlight?: boolean;
+  tooltip?: string;
 }) => {
   const colorClasses = {
     blue: 'text-blue-400',
@@ -343,7 +345,14 @@ const KPICard = ({
     >
       <div className="flex items-start justify-between mb-3">
         <h3 className="text-sm font-medium text-slate-400">{title}</h3>
-        <Icon className={`w-5 h-5 ${colorClasses[color]}`} />
+        <div className="relative group">
+          <Icon className={`w-5 h-5 ${colorClasses[color]}`} />
+          {tooltip && (
+            <div className="absolute right-0 top-6 z-50 hidden group-hover:block w-48 px-3 py-2 text-xs text-slate-200 bg-slate-900 border border-slate-700 rounded-lg shadow-xl pointer-events-none">
+              {tooltip}
+            </div>
+          )}
+        </div>
       </div>
       
       <div className="flex items-baseline space-x-2">
@@ -901,12 +910,13 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
       const alertsCheck = healthData?.checks?.find((c: any) => c.service === 'alerts');
       const memCheck    = healthData?.checks?.find((c: any) => c.service === 'memory');
 
-      // Camera counts — use this worksite's cameras, not the global check
-      const onlineCameras = camerasList.filter((c: any) => {
+      // Camera counts — use the health API's camera check so this matches
+      // the same logic as the main dashboard (CameraHealth records, not stale camera.status).
+      const onlineCameras = cameraCheck?.details?.online ?? camerasList.filter((c: any) => {
         const s = (c.status || 'offline').toLowerCase();
         return s === 'online' || s === 'active';
       }).length;
-      const offlineCameras = camerasList.length - onlineCameras;
+      const offlineCameras = (cameraCheck?.details?.total ?? camerasList.length) - onlineCameras;
       const aiEnabled = camerasList.filter((c: any) => c.aiEnabled).length;
 
       setDiagnosticsResult({
@@ -1055,6 +1065,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <KPICard
           title="Safety Score"
+          tooltip="Overall site safety score from 0–100. Calculated from violation frequency, camera uptime, and alert resolution time. Recalculates daily or on demand."
           value={
             metrics?.safetyScore != null
               ? Math.round(metrics.safetyScore).toString()
@@ -1076,6 +1087,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
         />
         <KPICard
           title="Active Alerts"
+          tooltip="PPE violations and safety events that have been detected but not yet resolved. High severity alerts require immediate attention."
           value={activeAlertCount}
           icon={AlertTriangle}
           color={metrics?.highAlerts && metrics.highAlerts > 0 ? 'red' : activeAlertCount > 0 ? 'yellow' : 'green'}
@@ -1083,6 +1095,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
         />
         <KPICard
           title="Cameras Online"
+          tooltip="Number of cameras currently streaming and being monitored by the AI detection service. A camera is online if it sent a heartbeat in the last 60 seconds."
           value={`${metrics?.activeCameras ?? 0}`}
           subValue={`/ ${(metrics?.activeCameras ?? 0) + (metrics?.offlineCameras ?? 0)}`}
           icon={Camera}
@@ -1090,12 +1103,14 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
         />
         <KPICard
           title="Violations (24h)"
+          tooltip="Total PPE violations detected by AI in the last 24 hours across all cameras on this site."
           value={metrics?.violations24h ?? 0}
           icon={Activity}
           color="gray"
         />
         <KPICard
           title="Avg Response"
+          tooltip="Average time in minutes between a violation being detected and an alert being acknowledged by a supervisor."
           value={metrics?.avgResponseTime ? `${metrics.avgResponseTime}m` : '—'}
           icon={Clock}
           color="blue"

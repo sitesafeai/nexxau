@@ -117,9 +117,10 @@ async function checkCameras(): Promise<HealthCheckResult> {
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
     let message = `${onlineCount}/${totalCameras} cameras online`;
     
-    if (onlinePercentage < 50) {
-      status = 'unhealthy';
-      message = `Critical: Only ${onlineCount}/${totalCameras} cameras online`;
+    // Offline cameras are degraded, not unhealthy — unhealthy is reserved for DB/service failures.
+    if (onlinePercentage === 0) {
+      status = 'degraded';
+      message = `Warning: No cameras online (${totalCameras} configured)`;
     } else if (onlinePercentage < 80) {
       status = 'degraded';
       message = `Warning: ${offlineCount} camera(s) offline`;
