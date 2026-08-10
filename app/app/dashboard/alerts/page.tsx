@@ -78,7 +78,7 @@ function AlertsPageContent() {
       const res = await fetch(url, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
-        const alertsList = Array.isArray(data) ? data : (data.alerts || []);
+        const alertsList = Array.isArray(data) ? data : (data.data || data.alerts || []);
         
         // Filter for ACTIVE status only
         const activeAlerts = alertsList.filter((alert: any) => 
