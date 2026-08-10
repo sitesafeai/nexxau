@@ -227,6 +227,8 @@ def run_camera(camera, model, stop_event):
 
     logger.info(f'[{name}] Starting ultralytics streaming inference: {ingest_url}')
 
+    last_heartbeat_at: float = 0  # track per-camera, only ping when frames actually arrive
+
     while not stop_event.is_set():
         try:
             results = model(
@@ -240,6 +242,14 @@ def run_camera(camera, model, stop_event):
             for result in results:
                 if stop_event.is_set():
                     break
+
+                # Heartbeat fires only when YOLO successfully receives a frame.
+                # If the camera is offline the loop never gets here, so the
+                # heartbeat stops and isCameraOnline() returns false after 60s.
+                now = time.time()
+                if now - last_heartbeat_at >= HEARTBEAT_INTERVAL_SEC:
+                    send_heartbeat([camera_id])
+                    last_heartbeat_at = now
 
                 boxes = result.boxes
                 if boxes is None:
@@ -302,15 +312,6 @@ def send_heartbeat(camera_ids: list[str]):
     except Exception as e:
         logger.warning(f'[heartbeat] error: {e}')
 
-def heartbeat_loop(active_threads: dict, stop_event: threading.Event):
-    """Background thread: ping heartbeat every 30s for all active cameras."""
-    while not stop_event.is_set():
-        alive_ids = [cam_id for cam_id, (t, _) in active_threads.items() if t.is_alive()]
-        if alive_ids:
-            send_heartbeat(alive_ids)
-            logger.debug(f'[heartbeat] pinged {len(alive_ids)} cameras')
-        stop_event.wait(HEARTBEAT_INTERVAL_SEC)
-
 def main():
     logger.info('=== Nexxau Detection Service Starting ===')
     logger.info(f'Backend: {BACKEND_URL}')
@@ -326,13 +327,6 @@ def main():
     logger.info('YOLO model loaded')
 
     active_threads = {}
-
-    # Heartbeat loop — keeps camera online indicators green while YOLO is running
-    hb_stop = threading.Event()
-    hb_thread = threading.Thread(
-        target=heartbeat_loop, args=(active_threads, hb_stop), daemon=True, name='heartbeat'
-    )
-    hb_thread.start()
 
     while True:
         cameras = fetch_cameras()
