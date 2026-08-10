@@ -899,6 +899,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
       const dbCheck     = healthData?.checks?.find((c: any) => c.service === 'database');
       const cameraCheck = healthData?.checks?.find((c: any) => c.service === 'cameras');
       const alertsCheck = healthData?.checks?.find((c: any) => c.service === 'alerts');
+      const memCheck    = healthData?.checks?.find((c: any) => c.service === 'memory');
 
       // Camera counts — use this worksite's cameras, not the global check
       const onlineCameras = camerasList.filter((c: any) => {
@@ -933,7 +934,14 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
           pending: alerts.filter(a => a.status === 'active').length,
           acknowledged: alerts.filter(a => a.status === 'acknowledged').length,
           systemNote: alertsCheck?.message ?? '',
-        }
+        },
+        memory: memCheck ? {
+          status: memCheck.status,
+          message: memCheck.message,
+          heapUsedMB: memCheck.details?.heapUsedMB,
+          heapTotalMB: memCheck.details?.heapTotalMB,
+          heapPercentage: memCheck.details?.heapPercentage,
+        } : null,
       });
     } catch (error) {
       console.error('Error running diagnostics:', error);
@@ -1526,6 +1534,26 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
                       <span className="text-xs font-medium text-slate-300">{diagnosticsResult.api.latency}</span>
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Memory */}
+            {diagnosticsResult.memory && (
+              <div className="p-4 rounded-lg border border-slate-600">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium text-slate-300">Memory</h4>
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                    diagnosticsResult.memory.status === 'healthy' ? 'bg-emerald-500/20 text-emerald-400'
+                    : diagnosticsResult.memory.status === 'degraded' ? 'bg-yellow-500/20 text-yellow-400'
+                    : 'bg-red-500/20 text-red-400'
+                  }`}>{diagnosticsResult.memory.status?.toUpperCase()}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400">Heap Used</span>
+                  <span className="text-xs text-slate-300">
+                    {diagnosticsResult.memory.heapUsedMB}MB / {diagnosticsResult.memory.heapTotalMB}MB ({diagnosticsResult.memory.heapPercentage}%)
+                  </span>
                 </div>
               </div>
             )}

@@ -231,10 +231,10 @@ async function checkMemory(): Promise<HealthCheckResult> {
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
     let message = `${heapUsedMB}MB / ${heapTotalMB}MB (${heapPercentage}%)`;
     
-    if (heapPercentage > 90) {
+    if (heapPercentage > 95) {
       status = 'unhealthy';
       message = `Critical: Memory usage at ${heapPercentage}%`;
-    } else if (heapPercentage > 80) {
+    } else if (heapPercentage > 88) {
       status = 'degraded';
       message = `Warning: Memory usage at ${heapPercentage}%`;
     }
