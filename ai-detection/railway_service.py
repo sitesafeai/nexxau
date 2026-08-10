@@ -284,6 +284,33 @@ def run_camera(camera, model, stop_event):
 
     logger.info(f'[{name}] Stream closed')
 
+HEARTBEAT_INTERVAL_SEC = int(os.environ.get('HEARTBEAT_INTERVAL_SEC', '30'))
+
+def send_heartbeat(camera_ids: list[str]):
+    """Ping /api/cameras/heartbeat so the dashboard shows cameras as online."""
+    if not camera_ids:
+        return
+    try:
+        r = requests.post(
+            f'{BACKEND_URL}/api/cameras/heartbeat',
+            headers={**HEADERS, 'Content-Type': 'application/json'},
+            json={'camera_ids': camera_ids},
+            timeout=5,
+        )
+        if r.status_code != 200:
+            logger.warning(f'[heartbeat] {r.status_code}')
+    except Exception as e:
+        logger.warning(f'[heartbeat] error: {e}')
+
+def heartbeat_loop(active_threads: dict, stop_event: threading.Event):
+    """Background thread: ping heartbeat every 30s for all active cameras."""
+    while not stop_event.is_set():
+        alive_ids = [cam_id for cam_id, (t, _) in active_threads.items() if t.is_alive()]
+        if alive_ids:
+            send_heartbeat(alive_ids)
+            logger.debug(f'[heartbeat] pinged {len(alive_ids)} cameras')
+        stop_event.wait(HEARTBEAT_INTERVAL_SEC)
+
 def main():
     logger.info('=== Nexxau Detection Service Starting ===')
     logger.info(f'Backend: {BACKEND_URL}')
@@ -299,6 +326,13 @@ def main():
     logger.info('YOLO model loaded')
 
     active_threads = {}
+
+    # Heartbeat loop — keeps camera online indicators green while YOLO is running
+    hb_stop = threading.Event()
+    hb_thread = threading.Thread(
+        target=heartbeat_loop, args=(active_threads, hb_stop), daemon=True, name='heartbeat'
+    )
+    hb_thread.start()
 
     while True:
         cameras = fetch_cameras()
