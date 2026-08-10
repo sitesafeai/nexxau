@@ -50,7 +50,15 @@ export async function GET(request: NextRequest) {
     try {
       cameras = await prisma.camera.findMany({
         where: { worksiteId },
-        select: { status: true }
+        select: {
+          status: true,
+          metadata: true,
+          health: {
+            orderBy: { lastCheck: 'desc' },
+            take: 1,
+            select: { status: true, lastCheck: true }
+          }
+        }
       });
     } catch (error: any) {
       console.error('[Analytics API] Error fetching cameras:', error);
@@ -73,10 +81,24 @@ export async function GET(request: NextRequest) {
     const highAlerts = allAlerts.filter(a => (a.severity === 'MEDIUM' || a.severity === 'HIGH') && a.status !== 'RESOLVED').length;
     const mediumAlerts = allAlerts.filter(a => a.severity === 'LOW' && a.status !== 'RESOLVED').length;
     
-    const offlineCameras = cameras.filter(c => c.status === 'offline' || c.status === 'error').length;
     const totalCameras = cameras.length;
     
     // Calculate score: start at 100, deduct points for issues
+    // offlineCameras is computed later after isCamOnline is defined; use placeholder here
+    // and patch after camera section. For now compute inline:
+    const _isCamOnlineEarly = (c: any): boolean => {
+      if (c.health && c.health.length > 0) {
+        const h = c.health[0];
+        if (h.status !== 'ONLINE') return false;
+        return (Date.now() - new Date(h.lastCheck).getTime()) / 1000 < 60;
+      }
+      if (c.metadata?.lastSeenAt) {
+        return (Date.now() - new Date(c.metadata.lastSeenAt).getTime()) < 5 * 60 * 1000;
+      }
+      return false;
+    };
+    const offlineCameras = cameras.filter(c => !_isCamOnlineEarly(c)).length;
+
     let currentScore = 100;
     currentScore -= criticalAlerts * 10; // -10 per critical alert
     currentScore -= highAlerts * 5; // -5 per high alert
@@ -282,9 +304,20 @@ export async function GET(request: NextRequest) {
     // ============================================
     // 6. CAMERA STATUS (reuse cameras from section 1)
     // ============================================
-    const onlineCameras = cameras.filter(c => 
-      c.status === 'online' || c.status === 'active'
-    ).length;
+    // Use the same authoritative logic as the dashboard:
+    // CameraHealth heartbeat (< 60s) → then lastSeenAt → else offline
+    const isCamOnline = (c: any): boolean => {
+      if (c.health && c.health.length > 0) {
+        const h = c.health[0];
+        if (h.status !== 'ONLINE') return false;
+        return (Date.now() - new Date(h.lastCheck).getTime()) / 1000 < 60;
+      }
+      if (c.metadata?.lastSeenAt) {
+        return (Date.now() - new Date(c.metadata.lastSeenAt).getTime()) < 5 * 60 * 1000;
+      }
+      return false;
+    };
+    const onlineCameras = cameras.filter(isCamOnline).length;
 
     // Calculate uptime percentage
     const uptimePercentage = cameras.length > 0
@@ -311,9 +344,7 @@ export async function GET(request: NextRequest) {
     });
 
     const resolvedAlerts = alerts.filter(a => a.status === 'RESOLVED');
-    const pendingAlerts = alerts.filter(a => 
-      a.status === 'ACTIVE' || a.status === 'ACKNOWLEDGED'
-    );
+    const pendingAlerts = alerts.filter(a => a.status !== 'RESOLVED');
 
     // Calculate average response time for resolved alerts
     const responseTimes = resolvedAlerts
