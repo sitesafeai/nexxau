@@ -200,7 +200,8 @@ export async function GET(request: NextRequest) {
     }));
 
     // ── Period totals ────────────────────────────────────────────────────────
-    const periodTotals = { safetyViolations: total, alerts: total };
+    const activeAlerts = alerts.filter(a => a.status === 'ACTIVE').length;
+    const periodTotals = { safetyViolations: total, alerts: total, activeAlerts };
 
     // ── Safety score trend ───────────────────────────────────────────────────
     let safetyScoreTrend: { date: string; label: string; safetyScore: number }[] = [];

@@ -61,7 +61,7 @@ export default function WorksiteAnalyticsCharts({
   const [cameraViolationHotspots,setCameraViolationHotspots] = useState<CameraViolationHotspot[]>([]);
   const [alertsByCamera,         setAlertsByCamera]         = useState<AlertCameraSummary[]>([]);
   const [recentAlertsWithCamera, setRecentAlertsWithCamera] = useState<RecentAlertRow[]>([]);
-  const [periodTotals,           setPeriodTotals]           = useState<{ safetyViolations: number; alerts: number }>({ safetyViolations: 0, alerts: 0 });
+  const [periodTotals,           setPeriodTotals]           = useState<{ safetyViolations: number; alerts: number; activeAlerts?: number }>({ safetyViolations: 0, alerts: 0 });
   const [alertsByType,           setAlertsByType]           = useState<AlertTypeRow[]>([]);
   const [violationsByType,       setViolationsByType]       = useState<ViolationRow[]>([]);
   const [responseTime,           setResponseTime]           = useState<{ overall: number; bySeverity: { HIGH: number; MEDIUM: number; LOW: number }; sampleCount: number }>({ overall: 0, bySeverity: { HIGH: 0, MEDIUM: 0, LOW: 0 }, sampleCount: 0 });
@@ -182,7 +182,7 @@ export default function WorksiteAnalyticsCharts({
         {/* Total alerts */}
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4">
           <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Alerts</p>
-          <p className="text-2xl font-bold text-white">{loading ? '…' : periodTotals.alerts}</p>
+          <p className="text-2xl font-bold text-white">{loading ? '…' : (periodTotals.activeAlerts ?? periodTotals.alerts)}</p>
           {!loading && periodComparison && (
             <div className="flex items-center gap-1.5 mt-1">
               <ChangeChip pct={periodComparison.alertChangePct} invert />
@@ -379,11 +379,15 @@ export default function WorksiteAnalyticsCharts({
                     ? 'bg-amber-500/60'
                     : 'bg-blue-500/40';
                   return (
-                    <div
-                      key={h.hour}
-                      title={`${h.label}: ${h.count} alert${h.count !== 1 ? 's' : ''}`}
-                      className={`h-8 rounded ${bg} transition cursor-default`}
-                    />
+                    <div key={h.hour} className="relative group">
+                      <div className={`h-8 rounded ${bg} transition cursor-default`} />
+                      {h.count > 0 && (
+                        <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-xs text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="font-semibold">{h.label}</span>
+                          <span className="text-slate-400"> · {h.count} alert{h.count !== 1 ? 's' : ''}</span>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
