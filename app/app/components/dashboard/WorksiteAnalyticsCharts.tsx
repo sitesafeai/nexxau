@@ -27,6 +27,25 @@ function fmtHour(h: number) {
   return h < 12 ? `${h}am` : `${h - 12}pm`;
 }
 
+/** Format a duration in minutes → "X.X min" or "X.X hrs" */
+function fmtDuration(minutes: number): { value: string; unit: string } {
+  if (minutes <= 0) return { value: '—', unit: '' };
+  if (minutes < 60) return { value: minutes.toFixed(1), unit: 'min' };
+  return { value: (minutes / 60).toFixed(1), unit: 'hrs' };
+}
+
+/** Small ⓘ icon with a hover tooltip */
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <span className="relative group ml-1.5 inline-flex align-middle">
+      <span className="cursor-help select-none text-slate-500 hover:text-slate-300 text-[11px]">ⓘ</span>
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 w-60 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs leading-relaxed text-slate-300 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity">
+        {text}
+      </span>
+    </span>
+  );
+}
+
 function ChangeChip({ pct, invert = false }: { pct: number; invert?: boolean }) {
   // invert=true means "more = worse" (alerts, violations)
   const isNeutral  = pct === 0;
@@ -181,7 +200,9 @@ export default function WorksiteAnalyticsCharts({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Total alerts */}
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Alerts</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">
+            Alerts<InfoTooltip text="Active alerts raised in this period. An alert is created when YOLO detects a violation matching one of your custom rules. Only ACTIVE (unresolved) alerts are counted here." />
+          </p>
           <p className="text-2xl font-bold text-white">{loading ? '…' : (periodTotals.activeAlerts ?? periodTotals.alerts)}</p>
           {!loading && periodComparison && (
             <div className="flex items-center gap-1.5 mt-1">
@@ -192,7 +213,9 @@ export default function WorksiteAnalyticsCharts({
         </div>
         {/* Violations */}
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Violations</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">
+            Violations<InfoTooltip text="Total detection events logged in this period (all statuses). Every time a rule triggers, a violation record is created — even if the alert is later resolved or marked false positive." />
+          </p>
           <p className="text-2xl font-bold text-white">{loading ? '…' : periodTotals.safetyViolations}</p>
           {!loading && periodComparison && (
             <div className="flex items-center gap-1.5 mt-1">
@@ -203,7 +226,9 @@ export default function WorksiteAnalyticsCharts({
         </div>
         {/* Resolution rate */}
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Resolved</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">
+            Resolved<InfoTooltip text="Percentage of alerts in this period that were marked Resolved. Higher is better — it means your team is closing out alerts rather than letting them pile up." />
+          </p>
           <p className="text-2xl font-bold text-white">
             {loading ? '…' : resolutionStats ? `${resolutionStats.resolvedPct}%` : '—'}
           </p>
@@ -213,7 +238,9 @@ export default function WorksiteAnalyticsCharts({
         </div>
         {/* Peak hour */}
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Peak Hour</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">
+            Peak Hour<InfoTooltip text="The hour of the day when the most alerts were triggered. Use this to decide when to increase supervision or camera coverage." />
+          </p>
           <p className="text-2xl font-bold text-white">
             {loading ? '…' : peakHour !== null ? fmtHour(peakHour) : '—'}
           </p>
@@ -228,7 +255,9 @@ export default function WorksiteAnalyticsCharts({
 
         {/* Safety score trend */}
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
-          <h3 className="mb-4 text-base font-semibold text-white">Safety Score Trend</h3>
+          <h3 className="mb-4 text-base font-semibold text-white">
+            Safety Score Trend<InfoTooltip text="Your site's daily safety score over time (0–100). The score drops when alerts are raised and recovers as violations are resolved. A declining trend means risk is increasing — act before it bottoms out." />
+          </h3>
           {loading ? (
             <p className="text-sm text-slate-400">Loading…</p>
           ) : safetyPoints.length === 0 ? (
@@ -264,7 +293,9 @@ export default function WorksiteAnalyticsCharts({
 
         {/* Alert volume by day */}
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
-          <h3 className="mb-1 text-base font-semibold text-white">Alert Volume</h3>
+          <h3 className="mb-1 text-base font-semibold text-white">
+            Alert Volume<InfoTooltip text="Number of alerts triggered per day. Spikes indicate high-risk days — cross-reference with shift schedules or weather to understand the root cause. Consistent spikes on the same day of the week may signal a recurring pattern." />
+          </h3>
           <p className="mb-4 text-xs text-slate-500">Alerts created per day — bars taller = more alerts that day.</p>
           {loading ? (
             <p className="text-sm text-slate-400">Loading…</p>
@@ -321,7 +352,9 @@ export default function WorksiteAnalyticsCharts({
 
         {/* Severity breakdown */}
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
-          <h3 className="mb-1 text-base font-semibold text-white">Alert Severity Breakdown</h3>
+          <h3 className="mb-1 text-base font-semibold text-white">
+            Alert Severity Breakdown<InfoTooltip text="Distribution of alerts by severity level. HIGH = immediate danger requiring urgent action. MEDIUM = potential hazard to monitor. LOW = informational, review when convenient. Severity is set by the alert rule that triggered it." />
+          </h3>
           <p className="mb-4 text-xs text-slate-500">Distribution of alert severity for this period.</p>
           {loading ? (
             <p className="text-sm text-slate-400">Loading…</p>
@@ -358,7 +391,9 @@ export default function WorksiteAnalyticsCharts({
 
         {/* 24-hour heatmap */}
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
-          <h3 className="mb-1 text-base font-semibold text-white">Peak Activity Hours</h3>
+          <h3 className="mb-1 text-base font-semibold text-white">
+            Peak Activity Hours<InfoTooltip text="A heatmap of alert activity across all 24 hours of the day. Red = very busy, amber = moderate, blue = low. Hover any cell to see the exact count. Use this to staff more supervisors during peak windows." />
+          </h3>
           <p className="mb-4 text-xs text-slate-500">When do most alerts fire? Brighter = more alerts at that hour.</p>
           {loading ? (
             <p className="text-sm text-slate-400">Loading…</p>
@@ -418,7 +453,9 @@ export default function WorksiteAnalyticsCharts({
       {/* ── Row 3: Camera analysis ───────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
-          <h3 className="mb-1 text-base font-semibold text-white">Top Cameras — Violations</h3>
+          <h3 className="mb-1 text-base font-semibold text-white">
+            Top Cameras — Violations<InfoTooltip text="Cameras ranked by the number of safety violation detections logged. A camera near the top consistently may need repositioning, or the area it covers may need a physical safety intervention (barriers, signage, etc.)." />
+          </h3>
           <p className="mb-4 text-xs text-slate-500">Cameras with the most safety detection violations. % = share of all violations at this site.</p>
           {loading ? (
             <p className="text-sm text-slate-400">Loading…</p>
@@ -450,7 +487,9 @@ export default function WorksiteAnalyticsCharts({
         </div>
 
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
-          <h3 className="mb-1 text-base font-semibold text-white">Top Cameras — Alerts</h3>
+          <h3 className="mb-1 text-base font-semibold text-white">
+            Top Cameras — Alerts<InfoTooltip text="Cameras ranked by alerts generated. Unlike violations, alerts are only created when a custom rule matches — so this shows which cameras are most actively enforcing your safety rules. A camera with 0 alerts may mean no rule covers its area." />
+          </h3>
           <p className="mb-4 text-xs text-slate-500">Cameras that triggered the most alerts. % = share of all alerts.</p>
           {loading ? (
             <p className="text-sm text-slate-400">Loading…</p>
@@ -479,7 +518,9 @@ export default function WorksiteAnalyticsCharts({
 
         {/* Most frequent alert types */}
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
-          <h3 className="mb-1 text-sm font-semibold text-white">Most Frequent Alerts</h3>
+          <h3 className="mb-1 text-sm font-semibold text-white">
+            Most Frequent Alerts<InfoTooltip text="Alert types ranked by how often they fire. The type comes from the detection class your rule targets (e.g. 'Person Detected', 'Hardhat Missing'). High frequency types are candidates for stricter rules or on-site safety training." />
+          </h3>
           <p className="mb-4 text-xs text-slate-500">Top alert types by title — highest volume first.</p>
           {loading ? (
             <p className="text-sm text-slate-400">Loading…</p>
@@ -508,7 +549,9 @@ export default function WorksiteAnalyticsCharts({
 
         {/* Resolution funnel */}
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
-          <h3 className="mb-1 text-sm font-semibold text-white">Resolution Funnel</h3>
+          <h3 className="mb-1 text-sm font-semibold text-white">
+            Resolution Funnel<InfoTooltip text="Tracks what happened to each alert. 'Resolved' means a supervisor confirmed and closed it. 'False positive' means it was a bad detection — high false positives may mean your rule confidence threshold is too low. 'Still active' = unreviewed." />
+          </h3>
           <p className="mb-4 text-xs text-slate-500">What happened to the alerts that were raised?</p>
           {loading ? (
             <p className="text-sm text-slate-400">Loading…</p>
@@ -538,46 +581,61 @@ export default function WorksiteAnalyticsCharts({
                   </div>
                 );
               })}
-              {resolutionStats.avgResolutionMinutes > 0 && (
-                <div className="pt-2 border-t border-slate-700/40 text-xs">
-                  <div className="flex justify-between text-slate-400">
-                    <span>Avg resolution time</span>
-                    <span className="font-semibold text-white">{resolutionStats.avgResolutionMinutes} min</span>
+              {resolutionStats.avgResolutionMinutes > 0 && (() => {
+                const dur = fmtDuration(resolutionStats.avgResolutionMinutes);
+                return (
+                  <div className="pt-2 border-t border-slate-700/40 text-xs">
+                    <div className="flex justify-between text-slate-400">
+                      <span>Avg resolution time</span>
+                      <span className="font-semibold text-white">{dur.value} {dur.unit}</span>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           )}
         </div>
 
         {/* Response time */}
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
-          <h3 className="mb-1 text-sm font-semibold text-white">Avg Response Time</h3>
-          <p className="mb-3 text-xs text-slate-500">Minutes from alert created → first response. {responseTime.sampleCount} sample{responseTime.sampleCount !== 1 ? 's' : ''}.</p>
-          <div className="space-y-4">
-            <div className="text-center">
-              <p className="text-4xl font-bold text-emerald-400">
-                {loading ? '…' : responseTime.overall > 0 ? responseTime.overall.toFixed(1) : '—'}
-              </p>
-              <p className="text-xs text-slate-400">minutes overall</p>
-            </div>
-            <div className="space-y-2">
-              {(['HIGH', 'MEDIUM', 'LOW'] as const).map(sev => (
-                <div key={sev} className="flex justify-between text-sm">
-                  <span className={`text-xs ${SEV_TEXT[sev]}`}>{sev}</span>
-                  <span className="text-slate-200 text-xs">
-                    {loading ? '…' : responseTime.bySeverity[sev] > 0 ? `${responseTime.bySeverity[sev].toFixed(1)} min` : 'N/A'}
-                  </span>
+          <h3 className="mb-1 text-sm font-semibold text-white">
+            Avg Response Time<InfoTooltip text="Time from when an alert is created to when it is first resolved. Faster = better. A high response time (especially on HIGH severity) means alerts are sitting unreviewed — consider assigning on-call supervisors or enabling email notifications." />
+          </h3>
+          <p className="mb-3 text-xs text-slate-500">Time from alert created → resolved. {responseTime.sampleCount} sample{responseTime.sampleCount !== 1 ? 's' : ''}.</p>
+          {(() => {
+            const overall = fmtDuration(responseTime.overall);
+            return (
+              <div className="space-y-4">
+                <div className="text-center">
+                  <p className="text-4xl font-bold text-emerald-400">
+                    {loading ? '…' : overall.value}
+                  </p>
+                  <p className="text-xs text-slate-400">{overall.unit || 'overall'}</p>
                 </div>
-              ))}
-            </div>
-          </div>
+                <div className="space-y-2">
+                  {(['HIGH', 'MEDIUM', 'LOW'] as const).map(sev => {
+                    const d = fmtDuration(responseTime.bySeverity[sev]);
+                    return (
+                      <div key={sev} className="flex justify-between text-sm">
+                        <span className={`text-xs ${SEV_TEXT[sev]}`}>{sev}</span>
+                        <span className="text-slate-200 text-xs">
+                          {loading ? '…' : responseTime.bySeverity[sev] > 0 ? `${d.value} ${d.unit}` : 'N/A'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
       {/* ── Violations by type grid ──────────────────────────────────────────── */}
       <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
-        <h3 className="mb-1 text-sm font-semibold text-white">Violations by Type</h3>
+        <h3 className="mb-1 text-sm font-semibold text-white">
+          Violations by Type<InfoTooltip text="Breaks down what kinds of hazards were detected most — e.g. 'Person Detected', 'No Hardhat'. Use this to identify which safety rules are firing most and whether additional training or signage is needed for specific hazard types." />
+        </h3>
         <p className="mb-4 text-xs text-slate-500">Detection-based violations in this period.</p>
         {loading ? (
           <p className="text-sm text-slate-400">Loading…</p>
@@ -608,7 +666,9 @@ export default function WorksiteAnalyticsCharts({
 
       {/* ── Recent alerts ────────────────────────────────────────────────────── */}
       <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
-        <h3 className="mb-1 text-sm font-semibold text-white">Recent Alerts</h3>
+        <h3 className="mb-1 text-sm font-semibold text-white">
+          Recent Alerts<InfoTooltip text="The 10 most recent alerts in this period. Use this as a quick audit log — if you see the same alert type repeating from the same camera, consider escalating or reviewing the area in person." />
+        </h3>
         <p className="mb-4 text-xs text-slate-500">Newest first — camera that raised the alert when available.</p>
         {loading ? (
           <p className="text-sm text-slate-400">Loading…</p>
