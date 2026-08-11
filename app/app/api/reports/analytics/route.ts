@@ -64,19 +64,25 @@ export async function GET(request: NextRequest) {
 
     const total = alerts.length;
 
-    // ── Alert volume by day ──────────────────────────────────────────────────
+    // ── Alert volume by day (every day in the selected range, 0-filled) ────────
     const dayMap = new Map<string, number>();
     for (const a of alerts) {
       const d = new Date(a.createdAt).toISOString().split('T')[0];
       dayMap.set(d, (dayMap.get(d) ?? 0) + 1);
     }
-    const alertVolumeByDay = Array.from(dayMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, count]) => ({
-        date,
-        label: new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        count,
-      }));
+    const alertVolumeByDay: { date: string; label: string; count: number }[] = [];
+    {
+      const cursor = new Date(dateFrom);
+      while (cursor <= dateTo) {
+        const dateStr = cursor.toISOString().split('T')[0];
+        alertVolumeByDay.push({
+          date:  dateStr,
+          label: new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          count: dayMap.get(dateStr) ?? 0,
+        });
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    }
 
     // ── Alerts by hour ───────────────────────────────────────────────────────
     const hourMap = new Map<number, number>();
@@ -221,6 +227,22 @@ export async function GET(request: NextRequest) {
       });
     } catch (_) {
       // SafetyScore table may not exist in this environment — safe to skip
+    }
+
+    // If no stored safety scores, simulate using the same rolling-7-day formula
+    // as the overview's live calc: score = 100 - (alerts in trailing 7 days × 2), 0–100.
+    if (safetyScoreTrend.length === 0 && alertVolumeByDay.length > 0) {
+      safetyScoreTrend = alertVolumeByDay.map((day, idx) => {
+        const start = Math.max(0, idx - 6);
+        const trailing7 = alertVolumeByDay
+          .slice(start, idx + 1)
+          .reduce((s, d) => s + d.count, 0);
+        return {
+          date:        day.date,
+          label:       day.label,
+          safetyScore: Math.max(0, Math.min(100, 100 - trailing7 * 2)),
+        };
+      });
     }
 
     // ── Response time by severity ────────────────────────────────────────────

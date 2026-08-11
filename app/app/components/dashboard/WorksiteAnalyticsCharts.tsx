@@ -145,8 +145,8 @@ export default function WorksiteAnalyticsCharts({
   }
 
   // Derived chart data
-  const safetyPoints  = trendData.length > 0 ? (trendData.length > 24 ? trendData.slice(-24) : trendData) : [];
-  const volumePoints  = alertVolumeByDay.length > 0 ? (alertVolumeByDay.length > 45 ? alertVolumeByDay.slice(-45) : alertVolumeByDay) : [];
+  const safetyPoints  = trendData.length > 0 ? trendData.slice(-(trendDays + 1)) : [];
+  const volumePoints  = alertVolumeByDay.length > 0 ? alertVolumeByDay.slice(-(trendDays + 1)) : [];
   const maxVolume     = volumePoints.reduce((m, p) => Math.max(m, p.count), 1);
   const maxHour       = alertsByHour.reduce((m, h) => Math.max(m, h.count), 1);
 
