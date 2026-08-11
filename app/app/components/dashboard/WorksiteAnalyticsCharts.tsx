@@ -73,6 +73,9 @@ export default function WorksiteAnalyticsCharts({
       setLoading(true);
       const res  = await fetch(`/api/reports/analytics?worksiteId=${siteFilter}&days=${trendDays}`);
       const json = await res.json();
+      if (!json.success) {
+        console.error('[WorksiteAnalyticsCharts] API error:', res.status, json.error);
+      }
       if (json.success && json.data) {
         const d = json.data;
         setViolationsByType(d.violationsByType          || []);
@@ -92,7 +95,7 @@ export default function WorksiteAnalyticsCharts({
         setPeakHour(d.peakHour ?? null);
       }
     } catch (e) {
-      console.error('Worksite analytics fetch failed:', e);
+      console.error('[WorksiteAnalyticsCharts] fetch failed:', e);
     } finally {
       setLoading(false);
     }

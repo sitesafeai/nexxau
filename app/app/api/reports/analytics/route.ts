@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/lib/auth';
+import { getCachedSession } from '@/app/lib/session-cache';
 import { getWorksiteReportAnalyticsData } from '@/app/lib/worksite-report-analytics';
 import type { Prisma } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getCachedSession(request);
     if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
     const user = session.user;
