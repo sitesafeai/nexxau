@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getCachedSession } from '@/app/lib/session-cache';
 import { getWorksiteReportAnalyticsData } from '@/app/lib/worksite-report-analytics';
-import type { Prisma } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,36 +10,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = session.user;
     const { searchParams } = new URL(request.url);
     const worksiteId = searchParams.get('worksiteId');
     const daysRaw = searchParams.get('days') || '30';
     const days = Math.min(365, Math.max(1, parseInt(daysRaw, 10) || 30));
 
-    const userRole = user.role?.toUpperCase() || '';
-    const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'SUPERADMIN';
-    const isCompanyAdmin = userRole === 'COMPANY_ADMIN' || userRole === 'COMPANYADMIN';
-
-    let worksiteWhere: Prisma.WorksiteWhereInput = {};
-    if (!isSuperAdmin) {
-      if (isCompanyAdmin && user.companyId) {
-        worksiteWhere.companyId = user.companyId;
-      } else {
-        worksiteWhere.worksiteUsers = {
-          some: { userId: user.id },
-        };
-      }
-    }
-
-    if (worksiteId) {
-      const canAccess = await prisma.worksite.findFirst({
-        where: { id: worksiteId, ...worksiteWhere },
-        select: { id: true },
-      });
-      if (!canAccess) {
-        return NextResponse.json({ success: false, error: 'Worksite not found or access denied' }, { status: 403 });
-      }
-      worksiteWhere = { id: worksiteId };
+    // worksiteId is required for this endpoint
+    if (!worksiteId) {
+      return NextResponse.json({ success: false, error: 'worksiteId is required' }, { status: 400 });
     }
 
     const dateTo = new Date();
@@ -50,7 +27,7 @@ export async function GET(request: NextRequest) {
     dateFrom.setHours(0, 0, 0, 0);
 
     const data = await getWorksiteReportAnalyticsData(prisma, {
-      worksiteWhere,
+      worksiteWhere: { id: worksiteId },
       singleWorksiteId: worksiteId,
       dateFrom,
       dateTo,
@@ -67,7 +44,6 @@ export async function GET(request: NextRequest) {
         alertsByType:            data.alertsByType,
         safetyScoreTrend:        data.safetyScoreTrend,
         responseTime:            data.responseTime,
-        // trend additions
         alertVolumeByDay:        data.alertVolumeByDay,
         alertsByHour:            data.alertsByHour,
         alertsBySeverity:        data.alertsBySeverity,
