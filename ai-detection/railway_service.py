@@ -93,7 +93,9 @@ VIOLATION_LABELS = {
 
 # Compliant/info detections — not actionable, skip posting to save noise.
 # Only violations + person_detected fire alerts.
-SKIP_VTYPES = {'gloves', 'goggles', 'helmet', 'ladder', 'mask', 'safety_cone', 'vest'}
+SKIP_VTYPES = {'gloves', 'goggles', 'ladder', 'mask', 'safety_cone'}
+# 'helmet' and 'vest' are intentionally NOT skipped — supervisors want to see
+# compliant PPE confirmations (Helmet ✓, Safety Vest ✓) in Live Detections.
 
 cooldowns = {}
 cooldown_lock = threading.Lock()
