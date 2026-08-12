@@ -19,10 +19,10 @@ export const DETECTION_CLASSES: DetectionClass[] = [
   // PPE (Personal Protective Equipment)
   // ========================================
   {
-    id: 'person_with_hardhat',
-    name: 'Person With Hard Hat',
+    id: 'helmet',
+    name: 'Helmet ✓ (Compliant)',
     category: 'ppe',
-    description: 'Worker wearing proper hard hat/helmet',
+    description: 'Worker wearing hard hat — matches YOLO class "helmet". Use to log/confirm compliant PPE.',
     severity: 'low',
     color: '#10b981' // green
   },
@@ -35,10 +35,10 @@ export const DETECTION_CLASSES: DetectionClass[] = [
     color: '#ef4444' // red
   },
   {
-    id: 'person_with_safety_vest',
-    name: 'Person With Safety Vest',
+    id: 'vest',
+    name: 'Safety Vest ✓ (Compliant)',
     category: 'ppe',
-    description: 'Worker wearing high-visibility vest',
+    description: 'Worker wearing high-vis vest — matches YOLO class "vest". Use to log/confirm compliant PPE.',
     severity: 'low',
     color: '#10b981' // green
   },
@@ -51,10 +51,10 @@ export const DETECTION_CLASSES: DetectionClass[] = [
     color: '#f59e0b' // orange
   },
   {
-    id: 'person_with_gloves',
-    name: 'Person With Gloves',
+    id: 'gloves',
+    name: 'Gloves ✓ (Compliant)',
     category: 'ppe',
-    description: 'Worker wearing protective gloves',
+    description: 'Worker wearing gloves — matches YOLO class "gloves".',
     severity: 'low',
     color: '#10b981' // green
   },
@@ -67,10 +67,10 @@ export const DETECTION_CLASSES: DetectionClass[] = [
     color: '#f59e0b' // orange
   },
   {
-    id: 'person_with_safety_goggles',
-    name: 'Person With Safety Goggles',
+    id: 'goggles',
+    name: 'Goggles ✓ (Compliant)',
     category: 'ppe',
-    description: 'Worker wearing eye protection',
+    description: 'Worker wearing eye protection — matches YOLO class "goggles".',
     severity: 'low',
     color: '#10b981' // green
   },
@@ -141,6 +141,14 @@ export const DETECTION_CLASSES: DetectionClass[] = [
     description: 'Person on ground / fall incident detected — matches YOLO class "fall_detected"',
     severity: 'critical',
     color: '#ef4444' // red
+  },
+  {
+    id: 'mask',
+    name: 'Mask ✓ (Compliant)',
+    category: 'ppe',
+    description: 'Worker wearing face mask — matches YOLO class "mask".',
+    severity: 'low',
+    color: '#10b981' // green
   },
   {
     id: 'no_mask',
