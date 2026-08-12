@@ -27,10 +27,10 @@ export const DETECTION_CLASSES: DetectionClass[] = [
     color: '#10b981' // green
   },
   {
-    id: 'person_without_hardhat',
-    name: 'Person Without Hard Hat',
+    id: 'no_helmet',
+    name: 'No Helmet (Violation)',
     category: 'ppe',
-    description: 'Worker NOT wearing hard hat (VIOLATION)',
+    description: 'Worker NOT wearing hard hat (VIOLATION) — matches YOLO class "no_helmet"',
     severity: 'critical',
     color: '#ef4444' // red
   },
@@ -43,10 +43,10 @@ export const DETECTION_CLASSES: DetectionClass[] = [
     color: '#10b981' // green
   },
   {
-    id: 'person_without_safety_vest',
-    name: 'Person Without Safety Vest',
+    id: 'no_vest',
+    name: 'No Safety Vest (Violation)',
     category: 'ppe',
-    description: 'Worker NOT wearing safety vest (VIOLATION)',
+    description: 'Worker NOT wearing safety vest (VIOLATION) — matches YOLO class "no_vest"',
     severity: 'high',
     color: '#f59e0b' // orange
   },
@@ -59,10 +59,10 @@ export const DETECTION_CLASSES: DetectionClass[] = [
     color: '#10b981' // green
   },
   {
-    id: 'person_without_gloves',
-    name: 'Person Without Gloves',
+    id: 'no_gloves',
+    name: 'No Gloves (Violation)',
     category: 'ppe',
-    description: 'Worker NOT wearing gloves (VIOLATION)',
+    description: 'Worker NOT wearing gloves (VIOLATION) — matches YOLO class "no_gloves"',
     severity: 'high',
     color: '#f59e0b' // orange
   },
@@ -75,10 +75,10 @@ export const DETECTION_CLASSES: DetectionClass[] = [
     color: '#10b981' // green
   },
   {
-    id: 'person_without_safety_goggles',
-    name: 'Person Without Safety Goggles',
+    id: 'no_goggles',
+    name: 'No Goggles (Violation)',
     category: 'ppe',
-    description: 'Worker NOT wearing eye protection (VIOLATION)',
+    description: 'Worker NOT wearing eye protection (VIOLATION) — matches YOLO class "no_goggles"',
     severity: 'high',
     color: '#f59e0b' // orange
   },
@@ -107,10 +107,10 @@ export const DETECTION_CLASSES: DetectionClass[] = [
     color: '#10b981' // green
   },
   {
-    id: 'person_without_safety_boots',
-    name: 'Person Without Safety Boots',
+    id: 'no_boots',
+    name: 'No Safety Boots (Violation)',
     category: 'ppe',
-    description: 'Worker NOT wearing proper footwear (VIOLATION)',
+    description: 'Worker NOT wearing proper footwear (VIOLATION) — matches YOLO class "no_boots"',
     severity: 'medium',
     color: '#f59e0b' // orange
   },
@@ -135,12 +135,20 @@ export const DETECTION_CLASSES: DetectionClass[] = [
     color: '#3b82f6' // blue
   },
   {
-    id: 'person_fallen',
-    name: 'Person Fallen/Down',
+    id: 'fall_detected',
+    name: 'Fall Detected',
     category: 'behavior',
-    description: 'Person on ground (potential fall incident)',
+    description: 'Person on ground / fall incident detected — matches YOLO class "fall_detected"',
     severity: 'critical',
     color: '#ef4444' // red
+  },
+  {
+    id: 'no_mask',
+    name: 'No Mask (Violation)',
+    category: 'ppe',
+    description: 'Worker NOT wearing face mask — matches YOLO class "no_mask"',
+    severity: 'medium',
+    color: '#f59e0b' // orange
   },
   {
     id: 'person_climbing',

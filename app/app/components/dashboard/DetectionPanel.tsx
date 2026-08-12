@@ -41,12 +41,27 @@ interface DetectionPanelProps {
   cameras: CameraItem[];
 }
 
+// Keys must match exactly what railway_service.py posts as `type` in the violations array.
+// Violations (red/amber) — these trigger rules and create alerts.
+// Compliant/info (green/blue) — logged to DetectionLog only, no alert.
 const TYPE_META: Record<string, { label: string; icon: string; tone: string }> = {
-  no_helmet: { label: 'No Helmet', icon: '⚠', tone: 'text-red-300' },
-  no_vest: { label: 'No Vest', icon: '⚠', tone: 'text-red-300' },
-  helmet: { label: 'Helmet ✓', icon: '✓', tone: 'text-emerald-300' },
-  vest: { label: 'Vest ✓', icon: '✓', tone: 'text-emerald-300' },
-  person_detected: { label: 'Person Detected', icon: '●', tone: 'text-blue-300' },
+  // ── Violations ─────────────────────────────────────────────────────────────
+  fall_detected:  { label: 'Fall Detected',    icon: '🚨', tone: 'text-red-400' },
+  no_helmet:      { label: 'No Helmet',        icon: '⚠',  tone: 'text-red-300' },
+  no_vest:        { label: 'No Safety Vest',   icon: '⚠',  tone: 'text-red-300' },
+  no_gloves:      { label: 'No Gloves',        icon: '⚠',  tone: 'text-amber-300' },
+  no_goggles:     { label: 'No Goggles',       icon: '⚠',  tone: 'text-amber-300' },
+  no_mask:        { label: 'No Mask',          icon: '⚠',  tone: 'text-amber-300' },
+  no_boots:       { label: 'No Safety Boots',  icon: '⚠',  tone: 'text-amber-300' },
+  // ── Info / compliant ───────────────────────────────────────────────────────
+  person_detected: { label: 'Person Detected', icon: '●',  tone: 'text-blue-300' },
+  helmet:          { label: 'Helmet ✓',        icon: '✓',  tone: 'text-emerald-300' },
+  vest:            { label: 'Safety Vest ✓',   icon: '✓',  tone: 'text-emerald-300' },
+  gloves:          { label: 'Gloves ✓',        icon: '✓',  tone: 'text-emerald-300' },
+  goggles:         { label: 'Goggles ✓',       icon: '✓',  tone: 'text-emerald-300' },
+  mask:            { label: 'Mask ✓',          icon: '✓',  tone: 'text-emerald-300' },
+  ladder:          { label: 'Ladder',          icon: '●',  tone: 'text-slate-300' },
+  safety_cone:     { label: 'Safety Cone',     icon: '●',  tone: 'text-slate-300' },
 };
 
 function humanizeFallback(value: string): string {
