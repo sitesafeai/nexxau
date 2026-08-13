@@ -599,10 +599,12 @@ function AlertBuilderPageContent() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { id: 'person_without_hardhat',     label: 'No Hard Hat',     emoji: '⛑️', desc: 'Worker missing helmet' },
-                    { id: 'person_without_safety_vest', label: 'No Safety Vest',  emoji: '🦺', desc: 'Worker missing hi-vis vest' },
-                    { id: 'person_without_gloves',      label: 'No Gloves',       emoji: '🧤', desc: 'Worker missing protective gloves' },
-                    { id: 'person_without_safety_boots',label: 'No Safety Boots', emoji: '👢', desc: 'Worker missing safety footwear' },
+                    { id: 'no_helmet',  label: 'No Hard Hat',     emoji: '⛑️', desc: 'Worker missing helmet' },
+                    { id: 'no_vest',    label: 'No Safety Vest',  emoji: '🦺', desc: 'Worker missing hi-vis vest' },
+                    { id: 'no_gloves',  label: 'No Gloves',       emoji: '🧤', desc: 'Worker missing protective gloves' },
+                    { id: 'no_boots',   label: 'No Safety Boots', emoji: '👢', desc: 'Worker missing safety footwear' },
+                    { id: 'no_mask',    label: 'No Mask',         emoji: '😷', desc: 'Worker missing face mask' },
+                    { id: 'fall_detected', label: 'Fall Detected', emoji: '🚨', desc: 'Person on ground / fall incident' },
                   ].map(item => (
                     <button
                       key={item.id}
@@ -630,10 +632,10 @@ function AlertBuilderPageContent() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { id: 'person_detected',          label: 'Person Detected',  emoji: '👤', desc: 'Any person enters camera view' },
-                    { id: 'person_with_hardhat',       label: 'Hard Hat Worn',    emoji: '⛑️', desc: 'Worker wearing helmet' },
-                    { id: 'person_with_safety_vest',   label: 'Safety Vest Worn', emoji: '🦺', desc: 'Worker wearing hi-vis vest' },
-                    { id: 'person_with_gloves',        label: 'Gloves Worn',      emoji: '🧤', desc: 'Worker wearing gloves' },
+                    { id: 'person_detected', label: 'Person Detected',  emoji: '👤', desc: 'Any person enters camera view' },
+                    { id: 'helmet',          label: 'Hard Hat Worn',    emoji: '⛑️', desc: 'Worker wearing helmet' },
+                    { id: 'vest',            label: 'Safety Vest Worn', emoji: '🦺', desc: 'Worker wearing hi-vis vest' },
+                    { id: 'gloves',          label: 'Gloves Worn',      emoji: '🧤', desc: 'Worker wearing gloves' },
                   ].map(item => (
                     <button
                       key={item.id}
