@@ -428,6 +428,33 @@ export async function GET(request: NextRequest) {
     // PART D: FORMAT RESPONSE
     // ============================================================
 
+    // Count CustomRules that apply to each camera (camera-scoped OR global worksite rules)
+    const cameraIds = cameras.map((c: any) => c.id);
+    const wsId = cameras[0]?.worksiteId;
+    let ruleCountMap = new Map<string, number>();
+    if (wsId && cameraIds.length > 0) {
+      const customRules = await prisma.customRule.findMany({
+        where: {
+          isActive: true,
+          OR: [
+            { cameraIds: { hasSome: cameraIds } },
+            { cameraId: { in: cameraIds } },
+            { worksiteId: wsId, cameraId: null, cameraIds: { isEmpty: true } },
+          ],
+        },
+        select: { id: true, cameraId: true, cameraIds: true, worksiteId: true },
+      });
+      const globalCount = customRules.filter(
+        r => !r.cameraId && (!r.cameraIds || r.cameraIds.length === 0)
+      ).length;
+      for (const camId of cameraIds) {
+        const cameraSpecific = customRules.filter(
+          r => r.cameraId === camId || (Array.isArray(r.cameraIds) && r.cameraIds.includes(camId))
+        ).length;
+        ruleCountMap.set(camId, globalCount + cameraSpecific);
+      }
+    }
+
     console.log(`[API /cameras] [${requestId}] Step 6: Formatting camera data...`);
     let formattedCameras;
     try {
@@ -455,6 +482,8 @@ export async function GET(request: NextRequest) {
         zone: c.location || (c.metadata as any)?.zone || null,
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
+        // Number of active CustomRules that apply to this camera (camera-scoped + global worksite)
+        rules: Array.from({ length: ruleCountMap.get(c.id) ?? 0 }),
       }));
       const formatDuration = Date.now() - formatStart;
       console.log(`[API /cameras] [${requestId}] Formatting took ${formatDuration}ms`);
