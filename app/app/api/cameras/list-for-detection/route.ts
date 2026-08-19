@@ -21,14 +21,28 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Fetch all active cameras (online/active) plus push cameras (they may be 'pending' status
-    // but actively streaming — detection service reads from MediaMTX internal RTSP directly)
+    // Fetch every camera that's plausibly watchable. Previously this only matched
+    // status IN ('online','active') OR metadata.ingestMode === 'push' — but camera.status
+    // is a manually-tracked string that this same codebase already documents as
+    // unreliable (see app/app/lib/camera-status.ts: "camera.status is not trustworthy
+    // here"). A camera registered through the normal pull-mode flow that's actually being
+    // pushed to MediaMTX out-of-band (e.g. a Pi/ffmpeg loop the app never registered as
+    // ingestMode='push') could sit at status='pending' forever and silently never be
+    // picked up here — fully visible/playable in the dashboard via MediaMTX, but invisible
+    // to YOLO. So: include 'pending' too, and treat "has a resolvable MediaMTX/stream path"
+    // as sufficient on its own, since that's a stronger signal than the status string.
     const cameras = await prisma.camera.findMany({
       where: {
         OR: [
-          { status: { in: ['online', 'active'] } },
+          { status: { in: ['online', 'active', 'pending'] } },
           // Push cameras pushed from Pi — include regardless of status so YOLO can read them
           { metadata: { path: ['ingestMode'], equals: 'push' } },
+          // Anything wired to MediaMTX or with a known stream URL is watchable regardless
+          // of what the status column says.
+          { mediamtxPath: { not: null } },
+          { hlsUrl: { not: null } },
+          { ingestUrl: { not: null } },
+          { streamUrl: { not: null } },
         ],
       },
       select: {
