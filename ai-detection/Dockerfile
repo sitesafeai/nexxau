@@ -16,10 +16,15 @@ WORKDIR /app
 RUN pip install --no-cache-dir numpy==1.26.3
 
 # Install CPU-only PyTorch first (saves ~2GB vs default CUDA build)
+# NOTE: --extra-index-url, not --index-url — the latter replaces PyPI entirely for this
+# command, forcing transitive deps (typing_extensions, sympy, jinja2, networkx, filelock)
+# to resolve from PyTorch's narrow CPU-wheel index instead of real PyPI. That broke the
+# build once pip resolved typing_extensions to a version only available there as a source
+# tarball needing flit_core>=3.11, which that index also doesn't carry.
 RUN pip install --no-cache-dir \
     torch==2.0.1+cpu \
     torchvision==0.15.2+cpu \
-    --index-url https://download.pytorch.org/whl/cpu
+    --extra-index-url https://download.pytorch.org/whl/cpu
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
