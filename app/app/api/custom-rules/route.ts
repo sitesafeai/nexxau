@@ -164,7 +164,13 @@ export async function POST(request: NextRequest) {
     const cameraId: string | null = body.cameraId || null;
     const cameraIds: string[]  = Array.isArray(body.cameraIds) ? body.cameraIds.filter(Boolean) : [];
     const worksiteId: string | null = body.worksiteId || null;
-    const minConfidence: number = body.minConfidence ?? body.confidenceThreshold ?? 0.6;
+    // Default matches the YOLO service's own detection floor (YOLO_CONFIDENCE, default 0.5
+    // in ai-detection/railway_service.py). Previously this defaulted to 0.6, which is HIGHER
+    // than the confidence YOLO needs to log a detection at all — so any rule created without
+    // manually touching the confidence slider silently required a stricter bar than the
+    // detector itself, and detections in the 0.5-0.6 range would show up in DetectionLog but
+    // could never trigger an alert. If you change YOLO_CONFIDENCE on Railway, change this too.
+    const minConfidence: number = body.minConfidence ?? body.confidenceThreshold ?? 0.5;
 
     // Detection criteria
     let detectionType: string;

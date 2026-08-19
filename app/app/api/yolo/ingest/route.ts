@@ -120,25 +120,49 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  // Diagnostic: always log what came in and how many rules are even in scope for this
+  // camera, so "why didn't this fire" is answerable from Railway logs in 10 seconds
+  // instead of guessing. This was previously completely silent either way.
+  const incomingSummary = violations
+    .map((v) => `${v.type ?? 'unknown'}@${Math.round((v.confidence ?? 0) * 100)}%`)
+    .join(', ');
+  console.log(`[ingest] camera=${camera_id} received [${incomingSummary}] — ${customRules.length} active rule(s) in scope`);
+
   // 3. Evaluate each rule against the incoming violations
   for (const rule of customRules) {
     const criteria      = rule.detectionCriteria as Record<string, any>;
     const targetClass   = criteria?.objectClass as string | undefined;
     const minConf       = rule.confidenceThreshold ?? 0.5;
 
-    if (!targetClass) continue;
+    if (!targetClass) {
+      console.log(`[ingest] rule ${rule.id} (${rule.name}) skipped — no objectClass in detectionCriteria`);
+      continue;
+    }
 
-    // Find a matching detection with sufficient confidence
-    const match = violations.find(
-      (v: { type?: string; confidence?: number }) =>
-        v.type === targetClass && (v.confidence ?? 0) >= minConf
-    );
-    if (!match) continue;
+    // Find the best matching detection of this class, regardless of confidence, so we
+    // can tell the difference between "class not detected" and "detected but too low
+    // confidence" — those are very different bugs to chase.
+    const candidates = violations.filter((v: { type?: string }) => v.type === targetClass);
+    const match = candidates.find((v: { confidence?: number }) => (v.confidence ?? 0) >= minConf);
 
-    // Per-rule cooldown so we don't flood notifications
+    if (!match) {
+      if (candidates.length > 0) {
+        const best = Math.max(...candidates.map((c) => c.confidence ?? 0));
+        console.log(`[ingest] rule ${rule.id} (${rule.name}) target=${targetClass} SEEN at ${Math.round(best * 100)}% but rule requires >=${Math.round(minConf * 100)}% — not triggered`);
+      }
+      continue;
+    }
+
+    // Per-rule cooldown so we don't flood notifications. Duration now comes from the
+    // rule's own cooldownMinutes (previously hardcoded to 60s for every rule regardless
+    // of what was configured in the dashboard).
     const cooldownKey = `${camera_id}:rule:${rule.id}`;
-    if (isOnCooldown(camera_id, cooldownKey)) continue;
-    setCooldown(camera_id, cooldownKey);
+    if (isOnCooldown(camera_id, cooldownKey)) {
+      console.log(`[ingest] rule ${rule.id} (${rule.name}) matched but on cooldown — skipping`);
+      continue;
+    }
+    const cooldownMs = Math.max(1, rule.cooldownMinutes ?? 1) * 60_000;
+    setCooldown(camera_id, cooldownKey, cooldownMs);
 
     const conf     = match.confidence as number;
     const severity = SEVERITY_MAP[(rule.severity ?? 'medium').toLowerCase()] ?? 'MEDIUM';
