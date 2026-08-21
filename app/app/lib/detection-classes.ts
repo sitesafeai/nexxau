@@ -348,13 +348,13 @@ export const DETECTION_TYPES = [
 
 // Actions that can be triggered
 export const ALERT_ACTIONS = [
-  { id: 'create_alert', name: 'Create Alert', description: 'Create alert record in database' },
-  { id: 'send_email', name: 'Send Email', description: 'Email notification to supervisors' },
-  { id: 'send_sms', name: 'Send SMS', description: 'SMS notification to emergency contacts' },
-  { id: 'sound_alarm', name: 'Sound Alarm', description: 'Trigger audible alarm on-site' },
-  { id: 'log_event', name: 'Log Event', description: 'Log to system logs only' },
-  { id: 'capture_video', name: 'Capture Video', description: 'Record 30-second video clip as evidence' },
-  { id: 'notify_dashboard', name: 'Dashboard Notification', description: 'Show real-time notification on dashboard' }
+  { id: 'create_alert',     name: 'Create Alert',           description: 'Create alert record in database' },
+  { id: 'send_email',       name: 'Send Email',             description: 'Email notification to supervisors' },
+  { id: 'log_event',        name: 'Log Event',              description: 'Log to system logs only' },
+  { id: 'notify_dashboard', name: 'Dashboard Notification', description: 'Show real-time notification on dashboard' },
+  { id: 'send_sms',         name: 'Send SMS',               description: 'SMS notification to emergency contacts', comingSoon: true },
+  { id: 'sound_alarm',      name: 'Sound Alarm',            description: 'Trigger audible alarm on-site', comingSoon: true },
+  { id: 'capture_video',    name: 'Capture Video',          description: 'Record 30-second video clip as evidence', comingSoon: true },
 ];
 
 // Severity levels

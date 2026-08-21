@@ -812,16 +812,20 @@ function AlertBuilderPageContent() {
                   {ALERT_ACTIONS.map(action => (
                     <label
                       key={action.id}
-                      className={`flex items-start gap-4 p-4 rounded-xl cursor-pointer transition-all border-2 ${
-                        formData.actions.includes(action.id)
-                          ? 'bg-blue-600/20 border-blue-500'
-                          : 'bg-gray-900/50 border-gray-700 hover:border-gray-600'
+                      className={`flex items-start gap-4 p-4 rounded-xl transition-all border-2 ${
+                        (action as any).comingSoon
+                          ? 'bg-gray-900/30 border-gray-800 opacity-50 cursor-not-allowed'
+                          : formData.actions.includes(action.id)
+                          ? 'bg-blue-600/20 border-blue-500 cursor-pointer'
+                          : 'bg-gray-900/50 border-gray-700 hover:border-gray-600 cursor-pointer'
                       }`}
                     >
                       <input
                         type="checkbox"
+                        disabled={!!(action as any).comingSoon}
                         checked={formData.actions.includes(action.id)}
                         onChange={(e) => {
+                          if ((action as any).comingSoon) return;
                           if (e.target.checked) {
                             setFormData({...formData, actions: [...formData.actions, action.id]});
                           } else {
@@ -831,7 +835,12 @@ function AlertBuilderPageContent() {
                         className="mt-1 w-5 h-5 rounded border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500"
                       />
                       <div className="flex-1">
-                        <div className="font-semibold text-white mb-1">{action.name}</div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-white">{action.name}</span>
+                          {(action as any).comingSoon && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-700 text-gray-400 font-medium">Coming soon</span>
+                          )}
+                        </div>
                         <div className="text-sm text-gray-400">{action.description}</div>
                       </div>
                     </label>
@@ -1114,8 +1123,8 @@ function AlertBuilderPageContent() {
                   </div>
 
                   <div>
-                    <label className="text-gray-400 text-sm">Severity</label>
-                    <span 
+                    <label className="text-gray-400 text-sm block mb-1">Severity</label>
+                    <span
                       className="inline-block px-3 py-1 rounded-full text-white font-semibold text-sm"
                       style={{ backgroundColor: selectedSeverity?.color }}
                     >
@@ -1174,7 +1183,7 @@ function AlertBuilderPageContent() {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  className="px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-xl font-semibold transition-all shadow-lg hover:shadow-green-500/25"
+                  className="px-8 py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg font-semibold transition-colors"
                 >
                   {isEditMode ? '✓ Update Alert' : '✓ Create Alert'}
                 </button>
