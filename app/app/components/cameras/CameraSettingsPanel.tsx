@@ -1,9 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
 import { X, Trash2, RefreshCw, Activity, Copy, Check } from 'lucide-react';
+import { normalizeRole } from '../../lib/roles';
+import AIVisionTab from './AIVisionTab';
 
-const TABS = ['Details', 'Health'] as const;
+const BASE_TABS = ['Details', 'Health'] as const;
+const AI_VISION_TAB = 'AI Vision';
+type Tab = (typeof BASE_TABS)[number] | typeof AI_VISION_TAB;
 
 interface HealthData {
   cameraId: string;
@@ -61,8 +66,24 @@ export default function CameraSettingsPanel({
   onClose,
   onDeleted,
   onUpdated,
+  // Was declared on the props interface and called by handleRefresh but never
+  // destructured — "Refresh Stream" in the Health tab threw instead of reconnecting.
+  onReconnect,
 }: CameraSettingsPanelProps) {
-  const [tab, setTab] = useState<(typeof TABS)[number]>('Details');
+  const { data: session } = useSession();
+  // AI Vision surfaces raw model output (bboxes, per-class confidence). That's a
+  // debugging tool for us, not a customer feature — SUPER_ADMIN only. The API route
+  // behind it enforces the same check server-side; this just hides the tab.
+  const isSuperAdmin = useMemo(
+    () => normalizeRole((session?.user as { role?: string } | undefined)?.role) === 'SUPER_ADMIN',
+    [session?.user]
+  );
+  const tabs = useMemo<Tab[]>(
+    () => (isSuperAdmin ? [...BASE_TABS, AI_VISION_TAB] : [...BASE_TABS]),
+    [isSuperAdmin]
+  );
+
+  const [tab, setTab] = useState<Tab>('Details');
   const [fullCamera, setFullCamera] = useState<FullCamera | null>(null);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState(camera.name ?? '');
@@ -148,6 +169,12 @@ export default function CameraSettingsPanel({
     if (tab === 'Health') fetchHealth();
   }, [tab, camera.id]);
 
+  // Session resolves after first paint. If it comes back as a non-super-admin while
+  // the AI Vision tab is somehow selected, fall back rather than render a dead panel.
+  useEffect(() => {
+    if (tab === AI_VISION_TAB && !isSuperAdmin) setTab('Details');
+  }, [tab, isSuperAdmin]);
+
   async function handleRefresh() {
     setRefreshing(true);
     try {
@@ -184,7 +211,12 @@ export default function CameraSettingsPanel({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+      {/* AI Vision needs real estate for the video — widen the modal on that tab only. */}
+      <div
+        className={`bg-white dark:bg-slate-800 rounded-xl w-full shadow-2xl overflow-hidden transition-[max-width] duration-200 ${
+          tab === AI_VISION_TAB ? 'max-w-3xl' : 'max-w-md'
+        }`}
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
           <h2 className="font-semibold text-slate-900 dark:text-white">Camera Settings</h2>
           <button
@@ -196,7 +228,7 @@ export default function CameraSettingsPanel({
         </div>
 
         <div className="flex border-b border-slate-200 dark:border-slate-700">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -206,13 +238,22 @@ export default function CameraSettingsPanel({
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
               }`}
             >
-              {t}
+              <span className="inline-flex items-center justify-center gap-1.5">
+                {t}
+                {t === AI_VISION_TAB && (
+                  <span className="rounded-full bg-purple-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-500 dark:text-purple-300">
+                    Admin
+                  </span>
+                )}
+              </span>
             </button>
           ))}
         </div>
 
         <div className="px-6 py-6 space-y-5 max-h-[70vh] overflow-y-auto">
-          {tab === 'Health' ? (
+          {tab === AI_VISION_TAB ? (
+            <AIVisionTab cameraId={camera.id} cameraName={cam.name} />
+          ) : tab === 'Health' ? (
             healthLoading ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">Loading health...</p>
             ) : (
@@ -398,7 +439,8 @@ export default function CameraSettingsPanel({
           )}
         </div>
 
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+        {/* AI Vision is read-only — Save/Delete would act on fields that tab never shows. */}
+        <div className={`flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 ${tab === AI_VISION_TAB ? 'hidden' : ''}`}>
           <button
             onClick={handleDelete}
             disabled={deleting}
