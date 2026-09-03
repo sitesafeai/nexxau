@@ -198,13 +198,19 @@ def encode_frame(frame):
         logger.warning(f'[snapshot] Frame encode failed: {e}')
         return None
 
-def post_violations(camera_id, violations, frame_data=None):
+def post_violations(camera_id, violations, frame_data=None, frame_size=None):
     if not violations:
         return
     try:
         payload = {'camera_id': camera_id, 'violations': violations}
         if frame_data:
             payload['frame_data'] = frame_data
+        # encode_frame() downscales the snapshot to <=640px on its longest side, but the
+        # bboxes above stay in ORIGINAL frame pixels. Without the source dimensions the
+        # backend can't rescale them onto the stored JPEG, so the annotated snapshot in
+        # alert emails would draw boxes in the wrong place (or off-image entirely).
+        if frame_size:
+            payload['frame_size'] = frame_size
         r = requests.post(
             f'{BACKEND_URL}/api/yolo/ingest',
             headers={**HEADERS, 'Content-Type': 'application/json'},
@@ -284,8 +290,11 @@ def run_camera(camera, model, stop_event):
 
                 if violations:
                     # Capture the frame at moment of detection
-                    frame_data = encode_frame(result.orig_img) if result.orig_img is not None else None
-                    post_violations(camera_id, violations, frame_data)
+                    orig = result.orig_img
+                    frame_data = encode_frame(orig) if orig is not None else None
+                    # (width, height) of the frame the bboxes were measured against.
+                    frame_size = [int(orig.shape[1]), int(orig.shape[0])] if orig is not None else None
+                    post_violations(camera_id, violations, frame_data, frame_size)
 
         except Exception as e:
             logger.error(f'[{name}] Streaming error: {e}')
@@ -316,8 +325,14 @@ def send_heartbeat(camera_ids: list[str]):
 
 def main():
     logger.info('=== Nexxau Detection Service Starting ===')
-    logger.info(f'Backend: {BACKEND_URL}')
-    logger.info(f'Model:   {MODEL_PATH}')
+    logger.info(f'Backend:    {BACKEND_URL}')
+    logger.info(f'Model:      {MODEL_PATH}')
+    # Logged explicitly because `conf=CONFIDENCE` is passed straight into YOLO's own
+    # inference call below — if this doesn't say 0.5 (or whatever YOLO_CONFIDENCE is set
+    # to on Railway), then every detection you're seeing below that number is proof the
+    # env var isn't actually taking effect (stale deploy, typo, wrong service, etc.) —
+    # not a model-quality problem.
+    logger.info(f'Confidence: {CONFIDENCE} (env YOLO_CONFIDENCE, filters detections at the model call itself)')
 
     if not SERVICE_TOKEN:
         logger.error('INTERNAL_SERVICE_TOKEN not set')

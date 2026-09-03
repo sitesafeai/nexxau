@@ -37,10 +37,14 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { camera_id, violations, frame_data } = body as {
+  const { camera_id, violations, frame_data, frame_size } = body as {
     camera_id: string;
     violations: { type?: string; confidence?: number; bbox?: number[] }[];
     frame_data?: string | null; // base64 JPEG data URI from YOLO service
+    // [width, height] of the frame the bboxes were measured against. The snapshot
+    // itself is downscaled to <=640px, so this is what lets /api/alerts/:id/snapshot
+    // rescale the box onto the stored image. Absent on pre-annotation deploys.
+    frame_size?: number[] | null;
   };
 
   if (!camera_id || !Array.isArray(violations) || violations.length === 0) {
@@ -201,6 +205,13 @@ export async function POST(req: NextRequest) {
           ruleName:    rule.name,
           // store raw base64 here so snapshot endpoint can serve it
           snapshotData: frame_data ?? null,
+          // Box of the ONE detection that tripped this rule, in original-frame pixels,
+          // plus the frame dimensions needed to rescale it onto the downscaled snapshot.
+          // Deliberately not every detection in the payload: when four people are in
+          // frame and one is missing a vest, the email should point at that person.
+          bbox:        Array.isArray(match.bbox) && match.bbox.length === 4 ? match.bbox : null,
+          frameW:      Array.isArray(frame_size) ? frame_size[0] ?? null : null,
+          frameH:      Array.isArray(frame_size) ? frame_size[1] ?? null : null,
         },
       },
     });
