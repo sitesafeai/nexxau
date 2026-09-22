@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { writeAuditLog } from '@/app/lib/audit';
 import { workflowEngine } from '@/app/lib/workflows/workflow-engine';
+import { setDetectorStatus } from '@/app/lib/detector-status';
 
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN ?? '';
 
@@ -23,12 +24,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  let body: { camera_ids?: string[]; camera_id?: string };
+  let body: { camera_ids?: string[]; camera_id?: string; service?: unknown };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
+
+  // The detector piggybacks its loaded-model state on the heartbeat because it runs no
+  // inbound HTTP server. Optional — older detector builds simply omit it.
+  if (body.service) setDetectorStatus(body.service);
 
   // Normalise to an array
   const ids: string[] = body.camera_ids?.length

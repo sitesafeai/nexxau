@@ -22,6 +22,7 @@ import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { normalizeRole } from '@/app/lib/roles';
+import { getDetectorStatus } from '@/app/lib/detector-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,6 +97,9 @@ export async function GET(
       // Count of rows we had to discard for a malformed/absent bbox — surfaced in the
       // UI so "nothing is drawing" is distinguishable from "nothing was detected".
       droppedNoBbox: rows.length - detections.length,
+      // Which weights the detection service actually has loaded, as of its last
+      // heartbeat. Null until one arrives (up to 30s after an app deploy).
+      detectorStatus: getDetectorStatus(),
       fetchedAt: new Date().toISOString(),
     });
   } catch (error) {

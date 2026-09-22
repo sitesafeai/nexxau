@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Loader2 } from 'lucide-react';
+import type { DetectorStatus } from '@/app/lib/detector-status';
 
 interface LiveDetection {
   id: string;
@@ -80,6 +81,9 @@ export default function AIVisionTab({ cameraId, cameraName }: AIVisionTabProps) 
   const [detectionError, setDetectionError] = useState<string | null>(null);
   const [streamLoading, setStreamLoading] = useState(true);
   const [lastFetchAt, setLastFetchAt] = useState<number | null>(null);
+  // Which weights the detection service has loaded, per its last heartbeat. Null until
+  // one arrives — see app/lib/detector-status.ts for why this is in-memory.
+  const [detectorStatus, setDetectorStatus] = useState<DetectorStatus | null>(null);
   const [videoDims, setVideoDims] = useState<{ w: number; h: number } | null>(null);
 
   detectionsRef.current = detections;
@@ -167,6 +171,7 @@ export default function AIVisionTab({ cameraId, cameraName }: AIVisionTabProps) 
         const data = await res.json();
         if (cancelled) return;
         setDetections(data.detections ?? []);
+        setDetectorStatus(data.detectorStatus ?? null);
         setDetectionError(null);
         setLastFetchAt(Date.now());
       } catch {
@@ -345,6 +350,73 @@ export default function AIVisionTab({ cameraId, cameraName }: AIVisionTabProps) 
                 </span>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Loaded models ──────────────────────────────────────────────────────
+          What the detection service actually has in memory, from its last heartbeat.
+          The sha256 is the useful part: it matches the digest GitHub shows on the
+          release asset, which is the only way to confirm the service isn't serving
+          stale weights (MODEL_DOWNLOAD_URL does that silently on a name collision). */}
+      <div>
+        <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Loaded models
+        </h4>
+        {!detectorStatus ? (
+          <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+            Waiting for a heartbeat from the detection service (up to 30s). If this
+            persists, the service is down or running a build that predates model
+            reporting.
+          </p>
+        ) : (
+          <div className="space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs dark:border-slate-700 dark:bg-slate-800/50">
+            {detectorStatus.info.detector?.is_coco_fallback && (
+              <p className="flex items-center gap-1.5 font-semibold text-red-500">
+                <AlertTriangle size={12} />
+                COCO fallback active — the PPE model failed to download. Only Person will
+                ever be detected.
+              </p>
+            )}
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="text-slate-500 dark:text-slate-400">Detector</span>
+              <span className="font-medium text-slate-800 dark:text-slate-200">
+                {detectorStatus.info.detector?.loaded ?? 'unknown'}
+              </span>
+              <code className="text-slate-500 dark:text-slate-400">
+                {detectorStatus.info.detector?.sha256 ?? '—'}
+              </code>
+              <span className="text-slate-500 dark:text-slate-400">
+                {detectorStatus.info.detector?.size_mb ?? '?'}MB ·{' '}
+                {detectorStatus.info.detector?.classes ?? '?'} classes · floor{' '}
+                {detectorStatus.info.detector?.confidence_floor ?? '?'}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="text-slate-500 dark:text-slate-400">Vest</span>
+              {detectorStatus.info.vest_classifier?.active ? (
+                <>
+                  <span className="font-medium text-emerald-500">two-stage classifier</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
+                    {detectorStatus.info.vest_classifier.loaded}
+                  </span>
+                  <code className="text-slate-500 dark:text-slate-400">
+                    {detectorStatus.info.vest_classifier.sha256 ?? '—'}
+                  </code>
+                  <span className="text-slate-500 dark:text-slate-400">
+                    threshold {detectorStatus.info.vest_classifier.threshold}
+                  </span>
+                </>
+              ) : (
+                <span className="font-medium text-amber-500">
+                  detector classes — NO-Safety Vest, recall ~0.14
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500">
+              Reported {detectorStatus.ageSeconds}s ago. Match the sha256 against the
+              GitHub release asset to confirm the weights are current.
+            </p>
           </div>
         )}
       </div>

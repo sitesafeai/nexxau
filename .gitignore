@@ -38,6 +38,11 @@ build/
 *.log
 .DS_Store
 
+# Training datasets pulled from roboflow — 380MB and regenerable by the kaggle
+# scripts, so never in git. `git add -A` will happily commit all of it otherwise.
+ai-detection/data/
+ai-detection/runs/
+
 # Logs
 logs/
 *.log

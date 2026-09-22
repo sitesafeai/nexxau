@@ -11,6 +11,9 @@ import threading
 import requests
 import os
 import base64
+import hashlib
+import json
+from PIL import Image as PILImage
 from ultralytics import YOLO
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
@@ -27,6 +30,25 @@ MAX_READ_FAILURES  = int(os.environ.get('MAX_READ_FAILURES', '10'))
 RECONNECT_DELAY_SEC = int(os.environ.get('RECONNECT_DELAY_SEC', '3'))
 HLS_OPEN_TIMEOUT_SEC = int(os.environ.get('HLS_OPEN_TIMEOUT_SEC', '10'))
 INGEST_TRANSPORT   = os.environ.get('INGEST_TRANSPORT', 'auto').lower()
+
+# ── Two-stage vest classification ─────────────────────────────────────────────
+# The detector cannot judge vests: NO-Safety Vest scores 0.214 mAP / 0.14 recall, while
+# Person scores 0.884 on the same images. "No vest" is the ABSENCE of an object, which is
+# the hardest thing to ask a detector to localise, and two full training runs failed to
+# move it. So when VEST_CLS_MODEL is set, vest state is decided by a binary classifier
+# run on each Person crop instead: 0.926 recall / 0.934 precision on a de-leaked val set.
+#
+# Unset VEST_CLS_MODEL and everything behaves exactly as before — vest vtypes come from
+# the detector. That is the default, so this change is inert until deliberately enabled.
+VEST_CLS_PATH      = os.environ.get('VEST_CLS_MODEL', '')
+VEST_CLS_THRESHOLD = float(os.environ.get('VEST_CLS_THRESHOLD', '0.70'))
+VEST_CLS_MIN_PX    = int(os.environ.get('VEST_CLS_MIN_PX', '32'))
+VEST_CLS_PAD       = float(os.environ.get('VEST_CLS_PAD', '0.10'))
+VEST_CLS_IMGSZ     = int(os.environ.get('VEST_CLS_IMGSZ', '224'))
+
+# Set by main(). None means two-stage is off and the detector's own vest classes are used.
+VEST_CLF = None
+VEST_CLF_NEG_IDX = None
 
 HEADERS = {'Authorization': f'Bearer {SERVICE_TOKEN}'}
 
@@ -126,6 +148,98 @@ def ensure_model(path: str) -> str:
     except Exception as e:
         logger.error(f'Model download failed: {e}. Falling back to yolov8n.pt')
         return 'yolov8n.pt'
+
+def load_vest_classifier():
+    """Load the vest classifier if configured. Returns (model, no_vest_index) or (None, None).
+
+    Deliberately does NOT reuse ensure_model()'s yolov8n.pt fallback. Falling back to a
+    COCO detector here would mean silently classifying every person with a model that has
+    no vest concept at all — the same silent-degradation trap ensure_model() already has.
+    On any failure this returns None and the service keeps using detector vest classes,
+    logged loudly so it is visible in Railway startup logs.
+    """
+    if not VEST_CLS_PATH:
+        logger.info('Vest classifier: disabled (VEST_CLS_MODEL not set) — vest vtypes come from the detector')
+        return None, None
+    path = VEST_CLS_PATH
+    if not os.path.exists(path):
+        url = os.environ.get('VEST_CLS_DOWNLOAD_URL', '')
+        if not url:
+            logger.error(f'Vest classifier: {path} missing and VEST_CLS_DOWNLOAD_URL unset — staying on detector vests')
+            return None, None
+        try:
+            r = requests.get(url, timeout=120)
+            r.raise_for_status()
+            with open(path, 'wb') as f:
+                f.write(r.content)
+            logger.info(f'Vest classifier downloaded: {path} ({len(r.content)//1024}KB)')
+        except Exception as e:
+            logger.error(f'Vest classifier download failed: {e} — staying on detector vests')
+            return None, None
+    try:
+        clf = YOLO(path)
+        names = clf.names or {}
+        neg = next((i for i, n in names.items() if str(n).lower() == 'no_vest'), None)
+        if neg is None:
+            logger.error(f'Vest classifier has no "no_vest" class (names={names}) — staying on detector vests')
+            return None, None
+        logger.info(f'Vest classifier loaded: {path} names={names} no_vest={neg} '
+                    f'threshold={VEST_CLS_THRESHOLD}')
+        return clf, neg
+    except Exception as e:
+        logger.error(f'Vest classifier load failed: {e} — staying on detector vests')
+        return None, None
+
+
+def classify_vest_crops(frame_bgr, person_boxes):
+    """Classify each person crop as vest / no_vest.
+
+    person_boxes: list of [x1, y1, x2, y2] in original frame pixels.
+    Returns a list the same length, each entry (vtype, confidence) or None when the crop
+    was too small to judge.
+
+    Two things here must match kaggle_train_vest_cls.py exactly or accuracy silently drops:
+      - PAD (0.10) and MIN_PX (32), the crop geometry the classifier was trained on.
+      - COLOUR ORDER. OpenCV frames are BGR; ultralytics treats a numpy array as BGR but
+        a PIL image as RGB. Training crops were PIL RGB. Passing the raw BGR numpy crop
+        swaps red and blue — catastrophic for a task whose entire signal is hi-vis orange
+        and yellow, and it would look like a bad model rather than a bug. Hence the
+        explicit cvtColor + PIL conversion below.
+    """
+    if VEST_CLF is None or not person_boxes:
+        return [None] * len(person_boxes)
+
+    H, W = frame_bgr.shape[:2]
+    crops, idxs = [], []
+    for i, (x1, y1, x2, y2) in enumerate(person_boxes):
+        bw, bh = x2 - x1, y2 - y1
+        cx1 = max(0, int(x1 - VEST_CLS_PAD * bw))
+        cy1 = max(0, int(y1 - VEST_CLS_PAD * bh))
+        cx2 = min(W, int(x2 + VEST_CLS_PAD * bw))
+        cy2 = min(H, int(y2 + VEST_CLS_PAD * bh))
+        if cx2 - cx1 < VEST_CLS_MIN_PX or cy2 - cy1 < VEST_CLS_MIN_PX:
+            continue
+        rgb = cv2.cvtColor(frame_bgr[cy1:cy2, cx1:cx2], cv2.COLOR_BGR2RGB)
+        crops.append(PILImage.fromarray(rgb))
+        idxs.append(i)
+
+    out = [None] * len(person_boxes)
+    if not crops:
+        return out
+    try:
+        # One batched call per frame, not one per person — this runs on Railway CPU.
+        results = VEST_CLF.predict(source=crops, imgsz=VEST_CLS_IMGSZ, verbose=False)
+        for i, res in zip(idxs, results):
+            p_no_vest = float(res.probs.data[VEST_CLF_NEG_IDX])
+            if p_no_vest >= VEST_CLS_THRESHOLD:
+                out[i] = ('no_vest', p_no_vest)
+            else:
+                out[i] = ('vest', 1.0 - p_no_vest)
+    except Exception as e:
+        logger.warning(f'[vest-cls] inference failed, skipping vest judgement this frame: {e}')
+        return [None] * len(person_boxes)
+    return out
+
 
 def resolve_ingest_url(camera):
     return (
@@ -264,6 +378,9 @@ def run_camera(camera, model, stop_event):
                     continue
 
                 violations = []
+                person_boxes = []          # fed to the vest classifier below
+                two_stage = VEST_CLF is not None
+
                 for box in boxes:
                     class_id   = int(box.cls[0].cpu().numpy())
                     confidence = float(box.conf[0].cpu().numpy())
@@ -277,16 +394,43 @@ def run_camera(camera, model, stop_event):
                         continue
                     if vtype in SKIP_VTYPES:
                         continue
-                    if is_on_cooldown(camera_id, vtype):
-                        continue
 
                     x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().tolist()
+
+                    # In two-stage mode the detector's own vest opinion is discarded —
+                    # it is the 0.214 class this whole change exists to replace. Emitting
+                    # both would produce contradictory alerts on the same person.
+                    if two_stage and vtype in ('no_vest', 'vest'):
+                        continue
+                    if two_stage and vtype == 'person_detected':
+                        person_boxes.append([x1, y1, x2, y2])
+
+                    if is_on_cooldown(camera_id, vtype):
+                        continue
                     violations.append({
                         'type':       vtype,
                         'confidence': round(confidence, 3),
                         'bbox':       [x1, y1, x2, y2],
                     })
                     set_cooldown(camera_id, vtype)
+
+                # ── Stage 2: judge vests from person crops ───────────────────
+                # Cooldown is applied AFTER classification, unlike stage 1, because the
+                # vtype isn't known until the classifier has run.
+                if two_stage and person_boxes and result.orig_img is not None:
+                    verdicts = classify_vest_crops(result.orig_img, person_boxes)
+                    for pbox, verdict in zip(person_boxes, verdicts):
+                        if verdict is None:
+                            continue
+                        vtype, vconf = verdict
+                        if vtype in SKIP_VTYPES or is_on_cooldown(camera_id, vtype):
+                            continue
+                        violations.append({
+                            'type':       vtype,
+                            'confidence': round(vconf, 3),
+                            'bbox':       pbox,
+                        })
+                        set_cooldown(camera_id, vtype)
 
                 if violations:
                     # Capture the frame at moment of detection
@@ -307,15 +451,75 @@ def run_camera(camera, model, stop_event):
 
 HEARTBEAT_INTERVAL_SEC = int(os.environ.get('HEARTBEAT_INTERVAL_SEC', '30'))
 
+def file_fingerprint(path):
+    """(sha256 prefix, size in MB) for a weights file, or (None, None).
+
+    The sha256 is the point: GitHub shows the same digest on the release asset page, so
+    comparing the two answers "is the service actually running the weights I uploaded?"
+    — which filenames and env vars cannot, given MODEL_DOWNLOAD_URL silently serves
+    stale bytes when a release asset name collides.
+    """
+    try:
+        h = hashlib.sha256()
+        with open(path, 'rb') as f:
+            for chunk in iter(lambda: f.read(1 << 20), b''):
+                h.update(chunk)
+        return h.hexdigest()[:12], round(os.path.getsize(path) / 1e6, 2)
+    except Exception:
+        return None, None
+
+
+def build_model_info(detector, detector_path):
+    """Everything needed to answer 'what is actually loaded right now?' in one dict."""
+    det_sha, det_mb = file_fingerprint(detector_path)
+    names = getattr(detector, 'names', {}) or {}
+    info = {
+        'detector': {
+            'configured': MODEL_PATH,
+            'loaded': detector_path,
+            'sha256': det_sha,
+            'size_mb': det_mb,
+            'classes': len(names),
+            # The silent-degradation case from CLAUDE.md: ensure_model() falls back to
+            # bare COCO when the download fails, and then nothing but person_detected
+            # ever fires. Surfacing it beats reading startup logs after the fact.
+            'is_coco_fallback': detector_path in BASE_MODELS or len(names) < 10,
+            'confidence_floor': CONFIDENCE,
+        },
+        'vest_classifier': {'active': VEST_CLF is not None},
+    }
+    if VEST_CLF is not None:
+        v_sha, v_mb = file_fingerprint(VEST_CLS_PATH)
+        info['vest_classifier'].update({
+            'loaded': VEST_CLS_PATH,
+            'sha256': v_sha,
+            'size_mb': v_mb,
+            'threshold': VEST_CLS_THRESHOLD,
+            'names': {str(k): v for k, v in (VEST_CLF.names or {}).items()},
+        })
+    else:
+        info['vest_classifier']['source'] = 'detector classes (NO-Safety Vest, recall ~0.14)'
+    return info
+
+
+# Built once at startup — hashing the weights on every heartbeat would read 52MB
+# off disk every 30 seconds for no reason.
+MODEL_INFO = {}
+
+
 def send_heartbeat(camera_ids: list[str]):
-    """Ping /api/cameras/heartbeat so the dashboard shows cameras as online."""
+    """Ping /api/cameras/heartbeat so the dashboard shows cameras as online.
+
+    Also carries MODEL_INFO so the app can show which weights are live without the
+    detector needing an inbound HTTP server (it has none — it is a pure client).
+    """
     if not camera_ids:
         return
     try:
         r = requests.post(
             f'{BACKEND_URL}/api/cameras/heartbeat',
             headers={**HEADERS, 'Content-Type': 'application/json'},
-            json={'camera_ids': camera_ids},
+            json={'camera_ids': camera_ids, 'service': MODEL_INFO},
             timeout=5,
         )
         if r.status_code != 200:
@@ -342,6 +546,15 @@ def main():
     resolved_path = ensure_model(MODEL_PATH)
     model = YOLO(resolved_path)
     logger.info('YOLO model loaded')
+
+    global VEST_CLF, VEST_CLF_NEG_IDX, MODEL_INFO
+    VEST_CLF, VEST_CLF_NEG_IDX = load_vest_classifier()
+    logger.info(f'Vest source: {"two-stage classifier on Person crops" if VEST_CLF else "detector classes (NO-Safety Vest, recall ~0.14)"}')
+
+    MODEL_INFO = build_model_info(model, resolved_path)
+    logger.info(f'Model info: {json.dumps(MODEL_INFO)}')
+    if MODEL_INFO['detector']['is_coco_fallback']:
+        logger.error('DETECTOR IS THE COCO FALLBACK — only person_detected will ever fire')
 
     active_threads = {}
 
