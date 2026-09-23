@@ -211,13 +211,19 @@ export default function CameraSettingsPanel({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      {/* AI Vision needs real estate for the video — widen the modal on that tab only. */}
+      {/* AI Vision needs real estate for the video — widen the modal on that tab only.
+          Height: cap the WHOLE modal to the viewport (minus the overlay's p-4 top and
+          bottom) and make it a flex column, so only the body scrolls. Previously just
+          the body was capped at 70vh while the header and tab bar sat outside it, so on
+          a short window the modal totalled more than 100vh; `items-center` on the
+          overlay then split the overflow evenly and pushed the header and tabs off the
+          top edge, unreachable because the fixed overlay doesn't scroll. */}
       <div
-        className={`bg-white dark:bg-slate-800 rounded-xl w-full shadow-2xl overflow-hidden transition-[max-width] duration-200 ${
+        className={`bg-white dark:bg-slate-800 rounded-xl w-full shadow-2xl overflow-hidden transition-[max-width] duration-200 flex flex-col max-h-[calc(100vh-2rem)] ${
           tab === AI_VISION_TAB ? 'max-w-3xl' : 'max-w-md'
         }`}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+        <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
           <h2 className="font-semibold text-slate-900 dark:text-white">Camera Settings</h2>
           <button
             onClick={onClose}
@@ -227,7 +233,7 @@ export default function CameraSettingsPanel({
           </button>
         </div>
 
-        <div className="flex border-b border-slate-200 dark:border-slate-700">
+        <div className="shrink-0 flex border-b border-slate-200 dark:border-slate-700">
           {tabs.map((t) => (
             <button
               key={t}
@@ -250,7 +256,10 @@ export default function CameraSettingsPanel({
           ))}
         </div>
 
-        <div className="px-6 py-6 space-y-5 max-h-[70vh] overflow-y-auto">
+        {/* min-h-0 is load-bearing: a flex child defaults to min-height:auto, which
+            refuses to shrink below its content, so overflow-y-auto would never kick in
+            and the modal would grow past its max-height again. */}
+        <div className="flex-1 min-h-0 px-6 py-6 space-y-5 overflow-y-auto">
           {tab === AI_VISION_TAB ? (
             <AIVisionTab cameraId={camera.id} cameraName={cam.name} />
           ) : tab === 'Health' ? (
