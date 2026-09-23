@@ -66,7 +66,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       images: [post.image],
     },
     alternates: {
-      canonical: `https://nexxau.com/blog/${post.slug}`,
+      canonical: `https://www.nexxau.com/blog/${post.slug}`,
     },
   };
 }

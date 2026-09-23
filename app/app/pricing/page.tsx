@@ -10,10 +10,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Simple, Transparent Pricing | Nexxau',
     description: 'Nexxau pricing: per worksite, per camera, and enterprise options.',
-    url: 'https://nexxau.com/pricing',
+    url: 'https://www.nexxau.com/pricing',
   },
   alternates: {
-    canonical: 'https://nexxau.com/pricing',
+    canonical: 'https://www.nexxau.com/pricing',
   },
 };
 

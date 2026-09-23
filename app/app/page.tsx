@@ -12,12 +12,12 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'AI-Powered PPE Compliance Monitoring for Construction Sites | Nexxau',
     description: 'Automated PPE violation detection for construction and industrial sites. Hardhat, safety vest, and zone compliance monitoring with real-time alerts.',
-    url: 'https://nexxau.com',
+    url: 'https://www.nexxau.com',
     siteName: 'Nexxau',
     type: 'website',
   },
   alternates: {
-    canonical: 'https://nexxau.com',
+    canonical: 'https://www.nexxau.com',
   },
 };
 
@@ -161,28 +161,41 @@ export default function HomePage() {
         </section>
 
         {/* Problem Section */}
-        <section className="py-20 bg-[#0d1f35]">
+        <section className="py-24 bg-[#0d1f35]">
           <div className="container mx-auto px-6">
-            <div className="max-w-3xl mx-auto text-center mb-12">
-              <h2 className="text-3xl font-bold text-white mb-4">The Problem With Manual Safety Checks</h2>
-              <p className="text-[#8b9bb1]">Random patrols catch maybe 5% of violations. The rest go undocumented — until something goes wrong.</p>
-            </div>
-            <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-              <div className="bg-[#1e3a5f] rounded-lg p-6 border border-white/10 text-center">
-                <Eye className="h-8 w-8 text-red-400 mx-auto mb-3" />
-                <p className="text-white font-semibold mb-2">Inconsistent</p>
-                <p className="text-sm text-[#8b9bb1]">Enforcement varies by shift and who's walking the site</p>
+            <div className="max-w-5xl mx-auto grid lg:grid-cols-12 gap-10 lg:gap-16">
+
+              <div className="lg:col-span-7">
+                <div className="w-10 h-0.5 bg-red-400 mb-7" />
+                <h2 className="text-3xl md:text-4xl font-bold text-white leading-[1.15] tracking-tight mb-6">
+                  Nobody wants to be the hardhat cop
+                </h2>
+                <p className="text-lg leading-relaxed text-[#8b9bb1] mb-4">
+                  Ask a superintendent what they like least about the job. Nine times out of ten it's this:
+                  walking over to a guy they've worked next to for six years to say something about his chin strap.
+                </p>
+                <p className="text-lg leading-relaxed text-[#8b9bb1] mb-4">
+                  So it gets skipped. Not out of negligence. It's an ugly conversation, and the guy is almost always fine.
+                </p>
+                <p className="text-xl font-medium text-white">
+                  Then one day he isn't.
+                </p>
               </div>
-              <div className="bg-[#1e3a5f] rounded-lg p-6 border border-white/10 text-center">
-                <Camera className="h-8 w-8 text-red-400 mx-auto mb-3" />
-                <p className="text-white font-semibold mb-2">No Evidence</p>
-                <p className="text-sm text-[#8b9bb1]">When incidents happen, there's no documented history</p>
+
+              <div className="lg:col-span-5">
+                <div className="border-l border-white/10 pl-7 divide-y divide-white/10">
+                  <p className="pb-5 text-base leading-relaxed text-[#8b9bb1]">
+                    A walk covers <span className="text-white font-semibold">where you're standing, while you're standing there.</span>
+                  </p>
+                  <p className="py-5 text-base leading-relaxed text-[#8b9bb1]">
+                    What counts as a violation changes with whoever's on shift. The crews figure that out inside a week.
+                  </p>
+                  <p className="pt-5 text-base leading-relaxed text-[#8b9bb1]">
+                    And when something does happen, the only record of what the site looked like an hour before is whatever people remember.
+                  </p>
+                </div>
               </div>
-              <div className="bg-[#1e3a5f] rounded-lg p-6 border border-white/10 text-center">
-                <Shield className="h-8 w-8 text-red-400 mx-auto mb-3" />
-                <p className="text-white font-semibold mb-2">No Data</p>
-                <p className="text-sm text-[#8b9bb1]">Insurers get nothing but self-reported audits</p>
-              </div>
+
             </div>
           </div>
         </section>

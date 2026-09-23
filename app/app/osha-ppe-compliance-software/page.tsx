@@ -10,10 +10,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'OSHA PPE Compliance Software for Construction & Industry | Nexxau',
     description: 'OSHA PPE compliance software for construction and industrial sites. Automated detection, documentation, and reporting for OSHA inspections.',
-    url: 'https://nexxau.com/osha-ppe-compliance-software',
+    url: 'https://www.nexxau.com/osha-ppe-compliance-software',
   },
   alternates: {
-    canonical: 'https://nexxau.com/osha-ppe-compliance-software',
+    canonical: 'https://www.nexxau.com/osha-ppe-compliance-software',
   },
 };
 

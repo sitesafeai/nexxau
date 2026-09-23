@@ -72,13 +72,13 @@ export default function BlogPage() {
     '@type': 'Blog',
     name: 'Nexxau Blog',
     description: 'Expert insights, industry news, and best practices for industrial safety.',
-    url: 'https://nexxau.com/blog',
+    url: 'https://www.nexxau.com/blog',
     publisher: {
       '@type': 'Organization',
       name: 'Nexxau',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://nexxau.com/logo.png'
+        url: 'https://www.nexxau.com/logo.png'
       }
     },
     blogPost: featuredPosts.map(post => ({
@@ -91,7 +91,7 @@ export default function BlogPage() {
         name: post.author?.name || 'Nexxau Team'
       },
       image: post.featuredImage,
-      url: `https://nexxau.com/blog/${post.slug}`
+      url: `https://www.nexxau.com/blog/${post.slug}`
     }))
   };
 

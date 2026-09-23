@@ -10,10 +10,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Logistics & Warehouse Safety Monitoring | Nexxau',
     description: 'Logistics and warehouse safety monitoring with automated PPE detection, dock door safety monitoring, and forklift proximity alerts.',
-    url: 'https://nexxau.com/industries/logistics',
+    url: 'https://www.nexxau.com/industries/logistics',
   },
   alternates: {
-    canonical: 'https://nexxau.com/industries/logistics',
+    canonical: 'https://www.nexxau.com/industries/logistics',
   },
 };
 

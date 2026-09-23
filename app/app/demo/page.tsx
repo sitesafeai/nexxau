@@ -10,10 +10,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'See Nexxau in Action | Demo',
     description: 'Watch example demonstrations of Nexxau safety monitoring: real-time detection, alert systems, and dashboard analytics.',
-    url: 'https://nexxau.com/demo',
+    url: 'https://www.nexxau.com/demo',
   },
   alternates: {
-    canonical: 'https://nexxau.com/demo',
+    canonical: 'https://www.nexxau.com/demo',
   },
 };
 

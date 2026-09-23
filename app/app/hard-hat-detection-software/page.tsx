@@ -10,10 +10,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Hard Hat Detection Software for Construction Sites | Nexxau',
     description: 'Automated hard hat detection software for construction sites. Real-time detection of missing hardhats with instant alerts.',
-    url: 'https://nexxau.com/hard-hat-detection-software',
+    url: 'https://www.nexxau.com/hard-hat-detection-software',
   },
   alternates: {
-    canonical: 'https://nexxau.com/hard-hat-detection-software',
+    canonical: 'https://www.nexxau.com/hard-hat-detection-software',
   },
 };
 

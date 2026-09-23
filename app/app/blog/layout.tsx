@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://nexxau.com/blog',
+    url: 'https://www.nexxau.com/blog',
     siteName: 'Nexxau Blog',
     title: 'Nexxau Blog - Industrial Safety Insights & Best Practices',
     description: 'Expert insights, industry news, and best practices for industrial safety. Learn about AI-powered safety monitoring, compliance, and workplace protection.',

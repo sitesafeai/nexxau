@@ -9,10 +9,10 @@
       "has": [
         {
           "type": "host",
-          "value": "www.nexxau.com"
+          "value": "nexxau.com"
         }
       ],
-      "destination": "https://nexxau.com/:path*",
+      "destination": "https://www.nexxau.com/:path*",
       "permanent": true
     }
   ]

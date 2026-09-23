@@ -10,10 +10,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Construction Site Safety Monitoring Without Manual Patrols | Nexxau',
     description: 'Automated construction site safety monitoring using existing cameras. Real-time PPE violation detection and compliance logging.',
-    url: 'https://nexxau.com/construction-site-safety-monitoring',
+    url: 'https://www.nexxau.com/construction-site-safety-monitoring',
   },
   alternates: {
-    canonical: 'https://nexxau.com/construction-site-safety-monitoring',
+    canonical: 'https://www.nexxau.com/construction-site-safety-monitoring',
   },
 };
 

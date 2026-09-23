@@ -10,10 +10,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Automated PPE Compliance Monitoring for Active Worksites | Nexxau',
     description: 'Automated PPE compliance monitoring detects missing hardhats, safety vests, and other required equipment in real-time.',
-    url: 'https://nexxau.com/ppe-compliance-monitoring',
+    url: 'https://www.nexxau.com/ppe-compliance-monitoring',
   },
   alternates: {
-    canonical: 'https://nexxau.com/ppe-compliance-monitoring',
+    canonical: 'https://www.nexxau.com/ppe-compliance-monitoring',
   },
 };
 

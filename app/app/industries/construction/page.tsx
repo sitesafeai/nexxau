@@ -10,10 +10,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'AI Safety Monitoring Built for Construction Sites | Nexxau',
     description: 'Construction site safety monitoring with automated PPE detection, zone breach alerts, and compliance logging.',
-    url: 'https://nexxau.com/industries/construction',
+    url: 'https://www.nexxau.com/industries/construction',
   },
   alternates: {
-    canonical: 'https://nexxau.com/industries/construction',
+    canonical: 'https://www.nexxau.com/industries/construction',
   },
 };
 

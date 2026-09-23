@@ -10,10 +10,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'High-Visibility Vest Detection in Real Time | Nexxau',
     description: 'Automated high-visibility vest detection for construction and industrial sites. Real-time detection of missing safety vests.',
-    url: 'https://nexxau.com/high-visibility-vest-detection',
+    url: 'https://www.nexxau.com/high-visibility-vest-detection',
   },
   alternates: {
-    canonical: 'https://nexxau.com/high-visibility-vest-detection',
+    canonical: 'https://www.nexxau.com/high-visibility-vest-detection',
   },
 };
 

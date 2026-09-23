@@ -10,10 +10,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Manufacturing Safety Monitoring with AI Detection | Nexxau',
     description: 'Manufacturing safety monitoring with automated PPE detection, machine zone monitoring, and LOTO compliance tracking.',
-    url: 'https://nexxau.com/industries/manufacturing',
+    url: 'https://www.nexxau.com/industries/manufacturing',
   },
   alternates: {
-    canonical: 'https://nexxau.com/industries/manufacturing',
+    canonical: 'https://www.nexxau.com/industries/manufacturing',
   },
 };
 

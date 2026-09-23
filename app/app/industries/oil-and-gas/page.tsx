@@ -10,10 +10,10 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Oil & Gas Safety Monitoring with AI Detection | Nexxau',
     description: 'Oil and gas safety monitoring with automated FR clothing detection, H2S zone monitoring, and gas detection zone compliance.',
-    url: 'https://nexxau.com/industries/oil-and-gas',
+    url: 'https://www.nexxau.com/industries/oil-and-gas',
   },
   alternates: {
-    canonical: 'https://nexxau.com/industries/oil-and-gas',
+    canonical: 'https://www.nexxau.com/industries/oil-and-gas',
   },
 };
 
