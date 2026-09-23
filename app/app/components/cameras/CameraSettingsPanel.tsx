@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useSession } from 'next-auth/react';
 import { X, Trash2, RefreshCw, Activity, Copy, Check } from 'lucide-react';
 import { normalizeRole } from '../../lib/roles';
@@ -94,6 +95,17 @@ export default function CameraSettingsPanel({
   const [healthData, setHealthData] = useState<HealthData | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // Portal after mount so `position:fixed` is relative to the viewport, not a
+  // transformed/filtered dashboard ancestor that would clip the header off the top.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -206,23 +218,26 @@ export default function CameraSettingsPanel({
     }
   }
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[100] overflow-y-auto bg-black/60 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      {/* AI Vision needs real estate for the video — widen the modal on that tab only.
-          Height: cap the WHOLE modal to the viewport (minus the overlay's p-4 top and
-          bottom) and make it a flex column, so only the body scrolls. Previously just
-          the body was capped at 70vh while the header and tab bar sat outside it, so on
-          a short window the modal totalled more than 100vh; `items-center` on the
-          overlay then split the overflow evenly and pushed the header and tabs off the
-          top edge, unreachable because the fixed overlay doesn't scroll. */}
+      {/* min-h-full + items-center keeps short tabs (Health) vertically centered.
+          When the panel is taller than the viewport, the wrapper grows downward
+          from the top instead of overflowing equally — items-center on a
+          non-scrolling overlay used to push "Camera Settings" off-screen. */}
       <div
-        className={`bg-white dark:bg-slate-800 rounded-xl w-full shadow-2xl overflow-hidden transition-[max-width] duration-200 flex flex-col max-h-[calc(100vh-2rem)] ${
-          tab === AI_VISION_TAB ? 'max-w-3xl' : 'max-w-md'
-        }`}
+        className="flex min-h-full items-center justify-center p-4"
+        onClick={(e) => e.target === e.currentTarget && onClose()}
       >
+        <div
+          className={`bg-white dark:bg-slate-800 rounded-xl w-full shadow-2xl overflow-hidden transition-[max-width] duration-200 flex flex-col min-h-0 max-h-[calc(100dvh-2rem)] ${
+            tab === AI_VISION_TAB ? 'max-w-3xl' : 'max-w-md'
+          }`}
+        >
         <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
           <h2 className="font-semibold text-slate-900 dark:text-white">Camera Settings</h2>
           <button
@@ -466,7 +481,9 @@ export default function CameraSettingsPanel({
             {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

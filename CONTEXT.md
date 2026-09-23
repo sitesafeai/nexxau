@@ -17,7 +17,17 @@ Entry format:
 
 ---
 
-## 2026-09-18 — pivot to a two-stage vest classifier; found the benchmark is contaminated
+## 2026-09-22 — camera settings popup clipped at the top
+
+**Asked:** On the Cameras tab, the camera settings popup sits too high; Details/AI Vision hide the "Camera Settings" header.
+
+**Did:** Portaled `CameraSettingsPanel` to `document.body`. Overlay is now `overflow-y-auto` with a `min-h-full` centering wrapper; the panel itself is `max-h-[calc(100dvh-2rem)] min-h-0` so the title bar stays on-screen and the body scrolls.
+
+**Learned:** `fixed inset-0` + `items-center` on a non-scrolling overlay splits overflow equally, so a tall Details/AI Vision panel pushes the header off the top. Health looked fine because it was short enough to fit.
+
+**Open:** App-only change — needs a Next.js Railway deploy. Not live on production until then.
+
+---
 
 **Asked:** `NO-Safety Vest` is stuck at 0.214 after two failed detector runs. What now?
 
