@@ -9,6 +9,7 @@ import {
   ALERT_ACTIONS, 
   SEVERITY_LEVELS,
   getClassesByCategory,
+  isClassSupported,
   DetectionClass
 } from '@/app/lib/detection-classes';
 import ZoneDrawingTool from '@/app/components/ZoneDrawingTool';
@@ -605,22 +606,39 @@ function AlertBuilderPageContent() {
                     { id: 'no_boots',   label: 'No Safety Boots', emoji: '👢', desc: 'Worker missing safety footwear' },
                     { id: 'no_mask',    label: 'No Mask',         emoji: '😷', desc: 'Worker missing face mask' },
                     { id: 'fall_detected', label: 'Fall Detected', emoji: '🚨', desc: 'Person on ground / fall incident' },
-                  ].map(item => (
+                  ].map(item => {
+                    // The current model can't emit every class in the catalog. Letting
+                    // someone save a rule that can never fire is worse than not offering
+                    // it — they'd believe the hazard was covered.
+                    const supported = isClassSupported(item.id);
+                    return (
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => setFormData({...formData, objectClass: item.id, detectionType: 'object_present'})}
-                      className={`p-4 rounded-xl text-left transition-all border-2 ${
-                        formData.objectClass === item.id
+                      disabled={!supported}
+                      title={supported ? undefined : 'Not detected by the current model yet'}
+                      onClick={() => supported && setFormData({...formData, objectClass: item.id, detectionType: 'object_present'})}
+                      className={`p-4 rounded-xl text-left transition-all border-2 relative ${
+                        !supported
+                          ? 'bg-gray-900/30 border-gray-800 opacity-50 cursor-not-allowed'
+                          : formData.objectClass === item.id
                           ? 'bg-red-600/20 border-red-500'
                           : 'bg-gray-900/50 border-gray-700 hover:border-red-900/60'
                       }`}
                     >
+                      {!supported && (
+                        <span className="absolute top-2 right-2 rounded-full bg-gray-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-300">
+                          Coming soon
+                        </span>
+                      )}
                       <div className="text-2xl mb-2">{item.emoji}</div>
                       <div className="font-semibold text-white text-sm">{item.label}</div>
-                      <div className="text-xs text-gray-400 mt-1">{item.desc}</div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {supported ? item.desc : 'Not detected by the current model yet'}
+                      </div>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -636,22 +654,36 @@ function AlertBuilderPageContent() {
                     { id: 'helmet',          label: 'Hard Hat Worn',    emoji: '⛑️', desc: 'Worker wearing helmet' },
                     { id: 'vest',            label: 'Safety Vest Worn', emoji: '🦺', desc: 'Worker wearing hi-vis vest' },
                     { id: 'gloves',          label: 'Gloves Worn',      emoji: '🧤', desc: 'Worker wearing gloves' },
-                  ].map(item => (
+                  ].map(item => {
+                    const supported = isClassSupported(item.id);
+                    return (
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => setFormData({...formData, objectClass: item.id, detectionType: 'object_present'})}
-                      className={`p-4 rounded-xl text-left transition-all border-2 ${
-                        formData.objectClass === item.id
+                      disabled={!supported}
+                      title={supported ? undefined : 'Not detected by the current model yet'}
+                      onClick={() => supported && setFormData({...formData, objectClass: item.id, detectionType: 'object_present'})}
+                      className={`p-4 rounded-xl text-left transition-all border-2 relative ${
+                        !supported
+                          ? 'bg-gray-900/30 border-gray-800 opacity-50 cursor-not-allowed'
+                          : formData.objectClass === item.id
                           ? 'bg-green-600/20 border-green-500'
                           : 'bg-gray-900/50 border-gray-700 hover:border-green-900/60'
                       }`}
                     >
+                      {!supported && (
+                        <span className="absolute top-2 right-2 rounded-full bg-gray-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-300">
+                          Coming soon
+                        </span>
+                      )}
                       <div className="text-2xl mb-2">{item.emoji}</div>
                       <div className="font-semibold text-white text-sm">{item.label}</div>
-                      <div className="text-xs text-gray-400 mt-1">{item.desc}</div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {supported ? item.desc : 'Not detected by the current model yet'}
+                      </div>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -660,28 +692,26 @@ function AlertBuilderPageContent() {
                 <div className="flex items-center gap-3 mb-3">
                   <span className="text-xs font-semibold uppercase tracking-wider text-blue-400">Advanced</span>
                 </div>
+                {/* Disabled on purpose. /api/yolo/ingest has NO zone geometry handling —
+                    it only matches detectionCriteria.objectClass against incoming types.
+                    A zone rule therefore saved objectClass 'person_detected' and fired on
+                    every person anywhere in frame, ignoring the drawn area entirely. That
+                    is worse than not offering it: the customer gets constant alerts that
+                    look like the feature working, and stops trusting alerts generally.
+                    Re-enable once ingest does a point-in-polygon test on the bbox. */}
                 <button
                   type="button"
-                  onClick={() => setFormData({
-                    ...formData,
-                    detectionType: formData.detectionType === 'zone_violation' ? 'object_present' : 'zone_violation',
-                    objectClass: 'person_detected'
-                  })}
-                  className={`w-full p-4 rounded-xl text-left transition-all border-2 ${
-                    formData.detectionType === 'zone_violation'
-                      ? 'bg-blue-600/20 border-blue-500'
-                      : 'bg-gray-900/30 border-gray-700/60 hover:border-gray-600'
-                  }`}
+                  disabled
+                  title="Zone geometry isn't evaluated yet"
+                  className="w-full p-4 rounded-xl text-left border-2 bg-gray-900/30 border-gray-800 opacity-50 cursor-not-allowed relative"
                 >
+                  <span className="absolute top-2 right-2 rounded-full bg-gray-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-300">
+                    Coming soon
+                  </span>
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">📍</span>
                     <div>
-                      <div className="font-semibold text-white text-sm">
-                        Zone Violation
-                        {formData.detectionType === 'zone_violation' && (
-                          <span className="ml-2 text-xs text-blue-400">✓ selected</span>
-                        )}
-                      </div>
+                      <div className="font-semibold text-white text-sm">Zone Violation</div>
                       <div className="text-xs text-gray-400 mt-0.5">Draw a restricted area on your camera — alert when someone enters it</div>
                     </div>
                   </div>

@@ -96,6 +96,20 @@ The YOLO model emits 14 class names; `PPE_CLASS_MAP` maps them to internal vtype
 
 `app/app/lib/detection-classes.ts` is the UI-facing catalog used by the alert builder — its ids are what land in `rule.detectionCriteria.objectClass`, so they must match the vtypes above.
 
+**That file also holds `MODEL_SUPPORTED_CLASS_IDS`, which must mirror `PPE_CLASS_MAP`
+exactly.** The catalog lists 34 classes for UI purposes; the model emits 14. The alert
+builder greys out the rest as "Coming soon" based on that set — without it, a customer
+could save a CRITICAL rule (e.g. "Person Without Fall Harness") that can never fire,
+see it listed as active, and believe the hazard was covered. When a new model ships,
+update `PPE_CLASS_MAP` and `MODEL_SUPPORTED_CLASS_IDS` together.
+
+**Zone Violation is disabled in the alert builder and should stay that way until
+`/api/yolo/ingest` does a point-in-polygon test on the bbox.** There is no zone geometry
+handling anywhere in ingest — it only matches `detectionCriteria.objectClass` — so a zone
+rule saved `objectClass: 'person_detected'` and fired on every person in frame regardless
+of the drawn area. The drawing UI was already gutted too ("Camera feed functionality has
+been removed"), gated on a `formData.cameraId` field that doesn't exist (it's `cameraIds`).
+
 ## Bounding-box coordinate spaces (easy to get wrong)
 
 `bbox` is always `[x1,y1,x2,y2]` in **original frame pixels**. But the stored snapshot JPEG is downscaled to ≤640px longest side (`encode_frame`). So:

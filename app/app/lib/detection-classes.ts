@@ -46,6 +46,40 @@ export function isCompliancePass(id: string | null | undefined): boolean {
   return !!id && COMPLIANCE_PASS_CLASS_IDS.has(id);
 }
 
+/**
+ * The vtypes the production model can actually emit.
+ *
+ * MUST mirror PPE_CLASS_MAP in ai-detection/railway_service.py. The catalog above lists
+ * 34 classes; the model emits 14. Everything else was selectable in the alert builder
+ * and could never fire — a customer could save a CRITICAL "Person Without Fall Harness"
+ * rule, see it listed as active, and never get an alert. On a safety product that is the
+ * worst failure mode: the customer believes they are covered and nothing says otherwise.
+ *
+ * When a new model ships with different classes, update this and PPE_CLASS_MAP together
+ * (see the class-name sync list in CLAUDE.md).
+ */
+export const MODEL_SUPPORTED_CLASS_IDS = new Set<string>([
+  'fall_detected',
+  'gloves',
+  'goggles',
+  'helmet',
+  'ladder',
+  'mask',
+  'no_gloves',
+  'no_goggles',
+  'no_helmet',
+  'no_mask',
+  'no_vest',
+  'person_detected',
+  'safety_cone',
+  'vest',
+]);
+
+/** True when the live model can emit this class, i.e. a rule targeting it can fire. */
+export function isClassSupported(id: string | null | undefined): boolean {
+  return !!id && MODEL_SUPPORTED_CLASS_IDS.has(id);
+}
+
 export const DETECTION_CLASSES: DetectionClass[] = [
   // ========================================
   // PPE (Personal Protective Equipment)
