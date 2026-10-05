@@ -78,7 +78,7 @@ export default function BlogPage() {
       name: 'Nexxau',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://www.nexxau.com/logo.png'
+        url: 'https://www.nexxau.com/nexxau-logo.png'
       }
     },
     blogPost: featuredPosts.map(post => ({

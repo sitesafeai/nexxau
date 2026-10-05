@@ -14,6 +14,38 @@ export interface DetectionClass {
   color: string; // For UI display
 }
 
+/**
+ * Detections that confirm PPE was WORN. These can never be safety violations.
+ *
+ * Previously this distinction lived only in the human-readable `name`
+ * ("Safety Vest ✓ (Compliant)"), so no code could act on it. A CustomRule could target
+ * `vest` with severity "high", the ingest route created a HIGH alert, and the dashboard
+ * listed "Safety Vest ✓" under Active Violations — a correctly-equipped worker surfaced
+ * as a high-severity safety event.
+ *
+ * Deliberately a deny-list, not an allow-list of violations. Hazard and context classes
+ * (crane, scaffolding, person_climbing, person_near_equipment, person_without_fall_harness)
+ * are legitimate things to alert on at the rule's configured severity, and a class added
+ * to the catalog later should default to alerting normally rather than being silently
+ * clamped to LOW.
+ *
+ * Keep in sync with PPE_CLASS_MAP in ai-detection/railway_service.py — see CLAUDE.md.
+ */
+export const COMPLIANCE_PASS_CLASS_IDS = new Set<string>([
+  'helmet',
+  'vest',
+  'gloves',
+  'goggles',
+  'mask',
+  'person_with_fall_harness',
+  'person_with_safety_boots',
+]);
+
+/** True when this detection confirms PPE was worn, i.e. it is the opposite of a violation. */
+export function isCompliancePass(id: string | null | undefined): boolean {
+  return !!id && COMPLIANCE_PASS_CLASS_IDS.has(id);
+}
+
 export const DETECTION_CLASSES: DetectionClass[] = [
   // ========================================
   // PPE (Personal Protective Equipment)

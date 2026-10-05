@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { isOnCooldown, setCooldown } from '@/app/lib/cooldown';
 import { emitAlertCreated } from '@/app/lib/alert-events';
+import { isCompliancePass } from '@/app/lib/detection-classes';
 import { sendEmailAlert } from '@/lib/notifications';
 
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN ?? '';
@@ -168,8 +169,24 @@ export async function POST(req: NextRequest) {
     const cooldownMs = Math.max(1, rule.cooldownMinutes ?? 1) * 60_000;
     setCooldown(camera_id, cooldownKey, cooldownMs);
 
-    const conf     = match.confidence as number;
-    const severity = SEVERITY_MAP[(rule.severity ?? 'medium').toLowerCase()] ?? 'MEDIUM';
+    const conf = match.confidence as number;
+
+    // A rule may legitimately target a COMPLIANT class (vest, helmet) to log that PPE
+    // was confirmed. Those must never carry violation severity: the dashboard, the
+    // safety score and the alert emails all read severity, so a "Safety Vest ✓" rule
+    // left at high was surfacing a correctly-equipped worker as a high-severity safety
+    // event. Clamp rather than reject, so existing rules keep logging as intended.
+    const compliancePass = isCompliancePass(targetClass);
+    const severity = compliancePass
+      ? 'LOW'
+      : SEVERITY_MAP[(rule.severity ?? 'medium').toLowerCase()] ?? 'MEDIUM';
+    if (compliancePass && (rule.severity ?? '').toLowerCase() !== 'low') {
+      console.log(
+        `[ingest] rule ${rule.id} (${rule.name}) targets compliant class "${targetClass}" ` +
+        `with severity="${rule.severity}" — clamped to LOW. Compliance confirmations are ` +
+        `not violations; edit the rule if you meant to target no_${targetClass}.`
+      );
+    }
 
     // Always log a SafetyViolation record
     await prisma.safetyViolation.create({
@@ -177,7 +194,10 @@ export async function POST(req: NextRequest) {
         cameraId:      camera_id,
         worksiteId:    camera.worksiteId,
         violationType: targetClass,
-        severity:      rule.severity?.toLowerCase() ?? 'medium',
+        // Same clamp as the Alert above — the SafetyViolation row feeds the safety
+        // score, so a compliant detection logged as "high" would drag the score down
+        // for a worker who was correctly equipped.
+        severity:      severity.toLowerCase(),
         location:      camera.zone ?? camera.name,
         description:   rule.name,
         confidence:    conf,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { isCompliancePass } from '@/app/lib/detection-classes';
 
 type CameraItem = {
   name: string;
@@ -84,6 +85,16 @@ function timeAgo(isoString: string): string {
 export default function DetectionPanel({ siteId, cameras }: DetectionPanelProps) {
   const [detections, setDetections] = useState<DetectionItem[]>([]);
   const [violations, setViolations] = useState<ViolationItem[]>([]);
+
+  // "Active Violations" must only contain actual violations. A CustomRule can legally
+  // target a compliant class (vest, helmet) to log compliance confirmations, and the
+  // ingest route creates an Alert for it — so without this filter a worker CORRECTLY
+  // wearing a vest showed up under Active Violations, at whatever severity the rule
+  // happened to carry. Compliance passes still appear in Live Detections above.
+  const actualViolations = useMemo(
+    () => violations.filter((v) => !isCompliancePass(v.violationType)),
+    [violations]
+  );
   const [cameras_db, setCamerasDb] = useState<CameraInfo[]>([]);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
@@ -198,13 +209,13 @@ export default function DetectionPanel({ siteId, cameras }: DetectionPanelProps)
 
       <div className="mt-4">
         <h4 className="mb-2 text-sm font-semibold text-slate-200">Active Violations</h4>
-        {violations.length === 0 ? (
+        {actualViolations.length === 0 ? (
           <div className="rounded-lg border border-slate-700 bg-slate-800/40 p-3 text-sm text-slate-400">
             No active violations in the last 5 minutes
           </div>
         ) : (
           <div className="space-y-2">
-            {violations.map((violation) => (
+            {actualViolations.map((violation) => (
               <div
                 key={violation.id}
                 className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-800/50 p-3"
