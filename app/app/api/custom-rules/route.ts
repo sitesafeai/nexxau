@@ -197,6 +197,10 @@ export async function POST(request: NextRequest) {
         detectionType,
         objectClass,
         zoneCoordinates,
+        // Limits the rule to a polygon drawn on the camera (Camera.metadata.zones).
+        // /api/yolo/ingest reads this and point-in-polygon tests the detection's bbox.
+        // Null/absent means the rule covers the whole frame, which is the default.
+        zoneId: body.zoneId || null,
         zoneObjectTriggers: conditions.zoneObjectTriggers || null,
       };
       triggerConditionsJson  = conditions;

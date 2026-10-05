@@ -6,10 +6,15 @@ import { useSession } from 'next-auth/react';
 import { X, Trash2, RefreshCw, Activity, Copy, Check } from 'lucide-react';
 import { normalizeRole } from '../../lib/roles';
 import AIVisionTab from './AIVisionTab';
+import ZoneEditor from './ZoneEditor';
 
 const BASE_TABS = ['Details', 'Health'] as const;
 const AI_VISION_TAB = 'AI Vision';
-type Tab = (typeof BASE_TABS)[number] | typeof AI_VISION_TAB;
+const ZONES_TAB = 'Zones';
+type Tab = (typeof BASE_TABS)[number] | typeof AI_VISION_TAB | typeof ZONES_TAB;
+
+/** Tabs that need the wide modal — anything showing the camera picture. */
+const WIDE_TABS: string[] = [AI_VISION_TAB, ZONES_TAB];
 
 interface HealthData {
   cameraId: string;
@@ -79,8 +84,11 @@ export default function CameraSettingsPanel({
     () => normalizeRole((session?.user as { role?: string } | undefined)?.role) === 'SUPER_ADMIN',
     [session?.user]
   );
+  // Zones are a normal operator feature (a safety manager decides what's restricted),
+  // unlike AI Vision which is a raw debugging surface. The API enforces the real check;
+  // this just decides what's worth showing.
   const tabs = useMemo<Tab[]>(
-    () => (isSuperAdmin ? [...BASE_TABS, AI_VISION_TAB] : [...BASE_TABS]),
+    () => (isSuperAdmin ? [...BASE_TABS, ZONES_TAB, AI_VISION_TAB] : [...BASE_TABS, ZONES_TAB]),
     [isSuperAdmin]
   );
 
@@ -235,7 +243,7 @@ export default function CameraSettingsPanel({
       >
         <div
           className={`bg-white dark:bg-slate-800 rounded-xl w-full shadow-2xl overflow-hidden transition-[max-width] duration-200 flex flex-col min-h-0 max-h-[calc(100dvh-2rem)] ${
-            tab === AI_VISION_TAB ? 'max-w-3xl' : 'max-w-md'
+            WIDE_TABS.includes(tab) ? 'max-w-3xl' : 'max-w-md'
           }`}
         >
         <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
@@ -277,6 +285,8 @@ export default function CameraSettingsPanel({
         <div className="flex-1 min-h-0 px-6 py-6 space-y-5 overflow-y-auto">
           {tab === AI_VISION_TAB ? (
             <AIVisionTab cameraId={camera.id} cameraName={cam.name} />
+          ) : tab === ZONES_TAB ? (
+            <ZoneEditor cameraId={camera.id} cameraName={cam.name} />
           ) : tab === 'Health' ? (
             healthLoading ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">Loading health...</p>
@@ -464,7 +474,9 @@ export default function CameraSettingsPanel({
         </div>
 
         {/* AI Vision is read-only — Save/Delete would act on fields that tab never shows. */}
-        <div className={`flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 ${tab === AI_VISION_TAB ? 'hidden' : ''}`}>
+        {/* Zones saves itself per-area, so the panel's Save/Delete would act on fields
+            that tab never shows — same reason AI Vision hides them. */}
+        <div className={`flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 ${WIDE_TABS.includes(tab) ? 'hidden' : ''}`}>
           <button
             onClick={handleDelete}
             disabled={deleting}

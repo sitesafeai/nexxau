@@ -19,6 +19,11 @@ function AlertBuilderPageContent() {
   const searchParams = useSearchParams();
   const worksiteParam = searchParams.get('worksite');
   const [cameras, setCameras] = useState<any[]>([]);
+  // Zones belong to a single camera, so this only loads when exactly one is selected.
+  const [availableZones, setAvailableZones] = useState<
+    { id: string; name: string; kind: string; color?: string }[]
+  >([]);
+  const [zonesLoading, setZonesLoading] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const [step, setStep] = useState(1);
@@ -36,6 +41,9 @@ function AlertBuilderPageContent() {
     actions: ['create_alert', 'log_event', 'send_email'],
     cameraIds: [] as string[],
     zoneCoordinates: null as any,
+    // Optional polygon this rule is limited to — an id from Camera.metadata.zones.
+    // Empty string means the whole camera view.
+    zoneId: '',
     zoneName: '',
     zoneType: 'restricted' as 'restricted' | 'safe' | 'monitored',
     zoneObjectTriggers: ['person_standing'] as string[], // What objects trigger this zone
@@ -93,6 +101,23 @@ function AlertBuilderPageContent() {
   }, []);
 
   // Fetch cameras for the worksite so the user can pick which ones the rule applies to
+  // Load the selected camera's zones. Only with exactly one camera — a zoneId from one
+  // camera doesn't exist on another, and the rule would fail open there.
+  useEffect(() => {
+    if (formData.cameraIds.length !== 1) {
+      setAvailableZones([]);
+      return;
+    }
+    let cancelled = false;
+    setZonesLoading(true);
+    fetch(`/api/cameras/${formData.cameraIds[0]}/zones`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : { zones: [] }))
+      .then((d) => { if (!cancelled) setAvailableZones(d.zones ?? []); })
+      .catch(() => { if (!cancelled) setAvailableZones([]); })
+      .finally(() => { if (!cancelled) setZonesLoading(false); });
+    return () => { cancelled = true; };
+  }, [formData.cameraIds]);
+
   useEffect(() => {
     if (!worksiteParam) return;
     let cancelled = false;
@@ -237,8 +262,11 @@ function AlertBuilderPageContent() {
               ? rule.cameraIds
               : rule.cameraId ? [rule.cameraId] : [],
             zoneCoordinates: zoneCoordinates,
-            zoneName: rule.triggerConditions?.zoneName || 
-                     rule.detectionCriteria?.zoneName || 
+            // Which drawn area this rule is limited to, so editing a zone-scoped rule
+            // doesn't silently widen it back to the whole frame on save.
+            zoneId: rule.detectionCriteria?.zoneId || '',
+            zoneName: rule.triggerConditions?.zoneName ||
+                     rule.detectionCriteria?.zoneName ||
                      '',
             zoneType: (rule.triggerConditions?.zoneType || 
                       rule.detectionCriteria?.zoneType || 
@@ -288,6 +316,8 @@ function AlertBuilderPageContent() {
         detectionType: formData.detectionType,
         objectClass: formData.objectClass,
         minConfidence: formData.minConfidence,
+        // Only meaningful with a single camera — zones live on one camera's metadata.
+        zoneId: formData.cameraIds.length === 1 ? formData.zoneId || null : null,
         conditions: {
           object: formData.objectClass,
           state: formData.detectionType === 'object_missing' ? 'missing' : 'present',
@@ -780,8 +810,71 @@ function AlertBuilderPageContent() {
                 </div>
               </div>
 
-              {/* Camera Feed with Zone Drawing */}
-              {formData.cameraId && (
+              {/* Limit this rule to a drawn area.
+                  Zones are stored per camera, so a zoneId only means something when
+                  exactly one camera is selected — with several, the same id wouldn't
+                  exist on all of them and the rule would fail open on the others. */}
+              <div>
+                <label className="block text-gray-300 font-medium mb-2">
+                  Limit to an area <span className="text-gray-500 text-sm font-normal">(optional)</span>
+                </label>
+                {formData.cameraIds.length !== 1 ? (
+                  <p className="rounded-xl border border-gray-700/60 bg-gray-900/30 p-3 text-sm text-gray-400">
+                    Select exactly one camera in Step 1 to limit this rule to an area.
+                    Areas are drawn per camera, under Camera Settings → Zones.
+                  </p>
+                ) : zonesLoading ? (
+                  <p className="text-sm text-gray-500">Loading areas…</p>
+                ) : availableZones.length === 0 ? (
+                  <p className="rounded-xl border border-gray-700/60 bg-gray-900/30 p-3 text-sm text-gray-400">
+                    This camera has no areas yet. Draw one under Camera Settings → Zones,
+                    or leave this rule covering the whole view.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, zoneId: '' })}
+                      className={`w-full rounded-xl border-2 p-3 text-left text-sm transition-all ${
+                        !formData.zoneId
+                          ? 'border-blue-500 bg-blue-600/20 text-white'
+                          : 'border-gray-700 bg-gray-900/50 text-gray-300 hover:border-gray-600'
+                      }`}
+                    >
+                      Whole camera view
+                      <span className="block text-xs text-gray-400">Alert anywhere in frame</span>
+                    </button>
+                    {availableZones.map((z) => (
+                      <button
+                        key={z.id}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, zoneId: z.id })}
+                        className={`w-full rounded-xl border-2 p-3 text-left text-sm transition-all ${
+                          formData.zoneId === z.id
+                            ? 'border-blue-500 bg-blue-600/20 text-white'
+                            : 'border-gray-700 bg-gray-900/50 text-gray-300 hover:border-gray-600'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="h-3 w-3 rounded-sm" style={{ backgroundColor: z.color || '#ef4444' }} />
+                          {z.name}
+                          <span className="text-xs text-gray-500">{z.kind}</span>
+                        </span>
+                        <span className="block text-xs text-gray-400 mt-0.5">
+                          Only alert when the person is standing inside this area
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Camera Feed with Zone Drawing.
+                  Was gated on formData.cameraId — a field that does not exist; the form
+                  holds cameraIds (plural) since the builder moved to multi-select. So
+                  this block never rendered and the warning below always did. tsc caught
+                  it, but next.config.ts sets typescript.ignoreBuildErrors, so it shipped. */}
+              {formData.cameraIds.length > 0 && (
                 <div>
                   <label className="block text-gray-300 font-medium mb-3">Draw Zone on Camera Feed</label>
                   <div className="bg-gray-900 rounded-xl overflow-hidden border-2 border-gray-700 relative">
@@ -797,7 +890,7 @@ function AlertBuilderPageContent() {
                 </div>
               )}
 
-              {!formData.cameraId && (
+              {formData.cameraIds.length === 0 && (
                 <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-xl p-4 flex gap-3">
                   <AlertTriangle className="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" />
                   <div className="text-sm text-yellow-200">

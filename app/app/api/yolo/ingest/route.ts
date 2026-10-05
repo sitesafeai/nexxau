@@ -19,6 +19,7 @@ import { prisma } from '@/app/lib/prisma';
 import { isOnCooldown, setCooldown } from '@/app/lib/cooldown';
 import { emitAlertCreated } from '@/app/lib/alert-events';
 import { isCompliancePass } from '@/app/lib/detection-classes';
+import { isDetectionInZone, zonesFromCameraMetadata } from '@/app/lib/zones';
 import { sendEmailAlert } from '@/lib/notifications';
 
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN ?? '';
@@ -133,6 +134,12 @@ export async function POST(req: NextRequest) {
     .join(', ');
   console.log(`[ingest] camera=${camera_id} received [${incomingSummary}] — ${customRules.length} active rule(s) in scope`);
 
+  // Zones are normalised polygons stored on the camera; bboxes arrive in original frame
+  // pixels. frame_size is what bridges the two — see app/lib/zones.ts.
+  const cameraZones = zonesFromCameraMetadata(camera.metadata);
+  const frameW = Array.isArray(frame_size) ? Number(frame_size[0]) || 0 : 0;
+  const frameH = Array.isArray(frame_size) ? Number(frame_size[1]) || 0 : 0;
+
   // 3. Evaluate each rule against the incoming violations
   for (const rule of customRules) {
     const criteria      = rule.detectionCriteria as Record<string, any>;
@@ -148,7 +155,40 @@ export async function POST(req: NextRequest) {
     // can tell the difference between "class not detected" and "detected but too low
     // confidence" — those are very different bugs to chase.
     const candidates = violations.filter((v: { type?: string }) => v.type === targetClass);
-    const match = candidates.find((v: { confidence?: number }) => (v.confidence ?? 0) >= minConf);
+    const confident = candidates.filter((v: { confidence?: number }) => (v.confidence ?? 0) >= minConf);
+
+    // ── Zone scoping ──────────────────────────────────────────────────────────
+    // Any rule can be limited to a drawn area via detectionCriteria.zoneId. This
+    // replaces the old "zone_violation" detectionType, which never worked: ingest only
+    // ever matched objectClass, so a zone rule fired on every person in frame no matter
+    // where the drawn area was.
+    //
+    // Needs frame_size to denormalise the polygon. The detector has sent it since the
+    // snapshot-annotation work; if it's missing (older detector build) we FAIL OPEN and
+    // let the rule fire, logging loudly. On a safety product a missed alert is worse
+    // than a wrongly-scoped one.
+    const zoneId = criteria?.zoneId as string | undefined;
+    let match = confident[0];
+    if (zoneId && confident.length > 0) {
+      const zone = cameraZones.find((z) => z.id === zoneId);
+      if (!zone) {
+        console.warn(`[ingest] rule ${rule.id} (${rule.name}) references zone "${zoneId}" which no longer exists on this camera — firing unscoped`);
+      } else if (!frameW || !frameH) {
+        console.warn(`[ingest] rule ${rule.id} (${rule.name}) is zone-scoped but the payload carried no frame_size — cannot test the polygon, firing unscoped`);
+      } else {
+        const anchor = (criteria?.zoneAnchor as 'feet' | 'center') ?? undefined;
+        const inZone = confident.filter((v) =>
+          Array.isArray(v.bbox) && v.bbox.length === 4
+            ? isDetectionInZone(v.bbox as [number, number, number, number], frameW, frameH, zone, anchor)
+            : false
+        );
+        if (inZone.length === 0) {
+          console.log(`[ingest] rule ${rule.id} (${rule.name}) target=${targetClass} detected but outside zone "${zone.name}" — not triggered`);
+          continue;
+        }
+        match = inZone[0];
+      }
+    }
 
     if (!match) {
       if (candidates.length > 0) {
