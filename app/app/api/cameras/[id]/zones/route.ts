@@ -19,6 +19,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { normalizeRole } from '@/app/lib/roles';
 import { parseZones, zonesFromCameraMetadata } from '@/app/lib/zones';
+import { writeAuditLog } from '@/app/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,7 +111,58 @@ export async function PUT(
       data: { metadata: { ...existingMeta, zones } as object },
     });
 
-    console.log(`[zones] camera=${cameraId} saved ${zones.length} zone(s)`);
+    // ── Audit ────────────────────────────────────────────────────────────────
+    // Zones decide whether a safety rule fires. Deleting one silently widens every
+    // rule that referenced it to the whole frame (ingest fails open by design), and
+    // the compliance record customers hand to insurers only means something if you
+    // can show what counted as restricted on a given date. So log per-zone changes,
+    // not a vague "zones updated" — the diff is the point.
+    const before = zonesFromCameraMetadata(camera.metadata);
+    const beforeById = new Map(before.map((z) => [z.id, z]));
+    const afterById = new Map(zones.map((z) => [z.id, z]));
+
+    const audit = (
+      action: string,
+      zoneName: string,
+      zoneId: string,
+      changes?: { old?: unknown; new?: unknown }
+    ) =>
+      writeAuditLog({
+        userId: session.user.id,
+        worksiteId: camera.worksiteId,
+        action,
+        entity: 'CAMERA',
+        entityId: camera.id,
+        entityName: camera.name,
+        // Deleting a zone loosens safety coverage, so it is not routine INFO.
+        severity: action === 'ZONE_DELETED' ? 'WARNING' : 'INFO',
+        result: 'SUCCESS',
+        details: { zoneId, zoneName, cameraId: camera.id },
+        ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
+        userAgent: request.headers.get('user-agent'),
+        changes,
+      });
+
+    const writes: Promise<void>[] = [];
+    for (const z of zones) {
+      const prev = beforeById.get(z.id);
+      if (!prev) {
+        writes.push(audit('ZONE_CREATED', z.name, z.id, { new: z }));
+      } else if (JSON.stringify(prev) !== JSON.stringify(z)) {
+        writes.push(audit('ZONE_UPDATED', z.name, z.id, { old: prev, new: z }));
+      }
+    }
+    for (const z of before) {
+      if (!afterById.has(z.id)) {
+        writes.push(audit('ZONE_DELETED', z.name, z.id, { old: z }));
+      }
+    }
+    // writeAuditLog never throws, so this cannot fail the save.
+    await Promise.all(writes);
+
+    console.log(
+      `[zones] camera=${cameraId} saved ${zones.length} zone(s) — ${writes.length} change(s) audited`
+    );
     return NextResponse.json({ cameraId, zones, dropped });
   } catch (error) {
     console.error('[API /cameras/:id/zones PUT]', error);
