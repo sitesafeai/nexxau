@@ -113,6 +113,19 @@ export async function PATCH(
     if (body.cameraId !== undefined) updateData.cameraId = body.cameraId || null;
     if (body.cameraIds !== undefined) updateData.cameraIds = Array.isArray(body.cameraIds) ? body.cameraIds.filter(Boolean) : [];
 
+    // Snapshot the fields that change whether and how this rule fires, BEFORE the
+    // update. The audit entry used to record only { isActive, ruleSeverity }, which
+    // can't answer the question anyone actually asks later: "this rule stopped
+    // catching things — what changed and who changed it?" Dropping
+    // confidenceThreshold or repointing objectClass/zoneId are exactly the edits that
+    // silently stop alerts, and they were invisible.
+    const AUDITED_FIELDS = [
+      'name', 'isActive', 'severity', 'confidenceThreshold', 'cooldownMinutes',
+      'detectionCriteria', 'cameraId', 'cameraIds',
+      'smsEnabled', 'emailEnabled', 'dashboardEnabled',
+    ] as const;
+    const beforeRule = await prisma.customRule.findUnique({ where: { id } });
+
     const rule = await retryDatabaseOperation(async () => {
       return await prisma.customRule.update({
         where: { id },
@@ -139,6 +152,31 @@ export async function PATCH(
     console.log(`[Custom Rules API] Rule ${id} updated successfully. New isActive: ${rule.isActive}`);
     logger.info(`Custom rule updated: ${rule.name}`, { ruleId: id, isActive: rule.isActive });
 
+    // Diff only the fields that affect firing behaviour, so the log stays readable.
+    const before: Record<string, unknown> = {};
+    const after: Record<string, unknown> = {};
+    if (beforeRule) {
+      for (const f of AUDITED_FIELDS) {
+        const o = (beforeRule as Record<string, unknown>)[f];
+        const n = (rule as Record<string, unknown>)[f];
+        if (JSON.stringify(o) !== JSON.stringify(n)) {
+          before[f] = o;
+          after[f] = n;
+        }
+      }
+    }
+    const changedFields = Object.keys(after);
+
+    // Loosening detection is the dangerous direction: a lower threshold floods
+    // alerts, but deactivating a rule or raising its threshold stops them silently.
+    // Flag those so they stand out when someone scans the log months later.
+    const deactivated = 'isActive' in after && after.isActive === false;
+    const raisedThreshold =
+      'confidenceThreshold' in after &&
+      Number(after.confidenceThreshold) > Number(before.confidenceThreshold ?? 0);
+    const auditSeverity: 'INFO' | 'WARNING' =
+      deactivated || raisedThreshold ? 'WARNING' : 'INFO';
+
     // Audit log (fire-and-forget)
     getServerSession(authOptions).then(session => {
       writeAuditLog({
@@ -148,9 +186,18 @@ export async function PATCH(
         entity: 'RULE',
         entityId: rule.id,
         entityName: rule.name,
-        severity: 'INFO',
+        severity: auditSeverity,
         result: 'SUCCESS',
-        details: { isActive: rule.isActive, ruleSeverity: rule.severity },
+        details: {
+          isActive: rule.isActive,
+          ruleSeverity: rule.severity,
+          changedFields,
+          // Spelled out because "RULE_UPDATED" alone tells a reader nothing.
+          summary: changedFields.length
+            ? `Changed: ${changedFields.join(', ')}`
+            : 'No audited field changed',
+        },
+        changes: changedFields.length ? { old: before, new: after } : undefined,
       });
     }).catch(() => {});
 
