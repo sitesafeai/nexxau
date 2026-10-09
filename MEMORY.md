@@ -36,6 +36,31 @@ too. `CONTEXT.md` is history; `CLAUDE.md` is truth.
 - Don't send him on side-quests mid-run. If something can wait until the current job
   finishes, say so plainly.
 
+## Git
+
+**Never run git commands that write from the sandbox** — not `add`, `commit`, `stash`,
+nothing. The mount can't remove `.git/index.lock`, so a failed write leaves a stale lock
+and Luiz gets `Another git process seems to be running`. This has happened twice, once
+from a bare `git status` and once from a `git stash`. Read-only inspection
+(`git show HEAD:<file>`, `git diff --stat`, `git status --porcelain`) is usually fine,
+but prefer plain file reads where they answer the question. Hand Luiz the commands to run.
+
+When handing over a commit, chain with `&&` so a failed `add` can't leave him committing
+an empty index — and remember his pre-commit hooks are broken, so always `--no-verify`.
+If a push fails with `Failed to connect to github.com port 443`, that's his school wifi,
+not git: the commit is already safe locally and just needs `git push` on another network.
+
+## Verify the edit, don't trust it
+
+Write a throwaway script that checks the change did what you intended, especially for
+anything safety-affecting. This session it caught a fix of mine that silently downgraded
+`person_without_fall_harness`, `crane` and `scaffolding` to LOW severity — the exact
+wrong direction to fail on a safety product. The check costs two minutes.
+
+Tests that can't fail aren't tests. A harness built on white-noise fixtures "passed" a
+perceptual-hash de-leak that was catching nothing, because JPEG destroys noise. Make the
+fixture resemble the real input.
+
 ## Being wrong
 
 Own it in one line and move on. No spiralling.
