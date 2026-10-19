@@ -6,8 +6,28 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { getAuthorizedStreamCamera } from '@/app/lib/camera-stream-auth';
 import * as path from 'path';
 import * as fs from 'fs';
+
+async function authorizeStreamFile(cameraId: string): Promise<NextResponse | null> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const access = await getAuthorizedStreamCamera(session.user, cameraId);
+  if (access.status === 'not_found') {
+    return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
+  }
+  if (access.status === 'forbidden') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  return null;
+}
 
 export async function GET(
   request: NextRequest,
@@ -34,6 +54,11 @@ export async function GET(
         { error: 'Invalid path' },
         { status: 400 }
       );
+    }
+
+    const authError = await authorizeStreamFile(cameraId);
+    if (authError) {
+      return authError;
     }
 
     // Determine the correct path
@@ -257,6 +282,11 @@ export async function HEAD(
         { error: 'Invalid path' },
         { status: 400 }
       );
+    }
+
+    const authError = await authorizeStreamFile(cameraId);
+    if (authError) {
+      return authError;
     }
 
     // Determine file path (same as GET)

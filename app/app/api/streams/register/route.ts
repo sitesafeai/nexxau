@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { isSuperAdmin } from '@/app/lib/camera-stream-auth';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
@@ -28,6 +31,14 @@ async function regenerateMediaMTXConfig() {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!isSuperAdmin(session.user)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const { name, streamUrl, mediamtxPath, worksiteId } = await request.json();
     if (!name || !streamUrl || !mediamtxPath) {

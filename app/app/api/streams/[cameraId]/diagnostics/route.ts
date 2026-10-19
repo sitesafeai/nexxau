@@ -9,6 +9,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { isSuperAdmin } from '@/app/lib/camera-stream-auth';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ffmpegManager } from '@/app/lib/streaming/ffmpeg';
@@ -26,6 +29,14 @@ export async function GET(
         { error: 'Camera ID is required' },
         { status: 400 }
       );
+    }
+
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!isSuperAdmin(session.user)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const diagnostics: any = {
