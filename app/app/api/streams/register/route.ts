@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/lib/auth';
+import { normalizeRole } from '@/app/lib/roles';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
@@ -28,6 +31,13 @@ async function regenerateMediaMTXConfig() {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  const role = normalizeRole(session?.user?.role);
+
+  if (!session?.user || role !== 'SUPER_ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const { name, streamUrl, mediamtxPath, worksiteId } = await request.json();
     if (!name || !streamUrl || !mediamtxPath) {
