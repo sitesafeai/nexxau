@@ -17,6 +17,13 @@ import { seedDefaultRules } from '@/app/lib/defaultRules';
 
 export const runtime = 'nodejs';
 
+const SUPPORTED_STREAM_URL_PREFIXES = ['rtsp://', 'rtsps://', 'rtmp://', 'https://', 'http://'];
+
+function isSupportedStreamUrl(streamUrl: string): boolean {
+  const lowerUrl = streamUrl.toLowerCase().trim();
+  return SUPPORTED_STREAM_URL_PREFIXES.some((prefix) => lowerUrl.startsWith(prefix));
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -72,20 +79,20 @@ export async function POST(
       );
     }
 
-    // --- Add camera with RTSP URL (create MediaMTX stream) ---
+    // --- Add camera with stream URL (create MediaMTX stream) ---
     if (!rtspUrl || typeof rtspUrl !== 'string' || !rtspUrl.trim()) {
       return NextResponse.json(
-        { success: false, error: 'RTSP URL is required' },
+        { success: false, error: 'Stream URL is required' },
         { status: 400 }
       );
     }
 
     const rtspUrlTrimmed = rtspUrl.trim();
-    if (!rtspUrlTrimmed || !rtspUrlTrimmed.startsWith('rtsp://')) {
+    if (!rtspUrlTrimmed || !isSupportedStreamUrl(rtspUrlTrimmed)) {
       const toLog = rtspUrlTrimmed ? rtspUrlTrimmed.replace(/:[^:@]+@/, ':****@') : '(empty)';
-      console.log('[API /worksites/:id/cameras] RTSP validation failed for URL:', toLog);
+      console.log('[API /worksites/:id/cameras] Stream URL validation failed for URL:', toLog);
       return NextResponse.json(
-        { success: false, error: 'Invalid RTSP URL — must start with rtsp://' },
+        { success: false, error: 'Invalid stream URL — must start with rtsp://, rtsps://, rtmp://, https://, or http://' },
         { status: 400 }
       );
     }
@@ -106,7 +113,7 @@ export async function POST(
 
     console.log(`[API /worksites/:id/cameras] [${requestId}] ✅ Worksite found: ${worksite.name}`);
 
-    // Step 6: RTSP format already validated above (must start with rtsp://). No ffprobe — accepts IP, hostname, test streams.
+    // Step 6: Stream URL scheme already validated above. No ffprobe — accepts IP, hostname, test streams.
 
     // Step 7: Create camera in DB first (to get camera ID)
     const camera = await prisma.camera.create({
