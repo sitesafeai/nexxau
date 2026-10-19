@@ -1,9 +1,9 @@
-type CacheEntry<T> = {
+type InflightCacheEntry<T> = {
   data: T;
   expires: number;
 };
 
-const cache = new Map<string, CacheEntry<unknown>>();
+const cache = new Map<string, InflightCacheEntry<unknown>>();
 const inflight = new Map<string, Promise<unknown>>();
 
 export async function withCache<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
