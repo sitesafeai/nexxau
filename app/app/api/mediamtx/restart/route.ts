@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { requireSuperAdminSession } from '@/app/lib/api-auth';
 
 const execAsync = promisify(exec);
 
 // POST /api/mediamtx/restart - Restart MediaMTX to apply config changes
 export async function POST() {
   try {
+    const { response } = await requireSuperAdminSession();
+    if (response) return response;
+
     console.log('Restarting MediaMTX...');
     
     // Stop and remove existing container

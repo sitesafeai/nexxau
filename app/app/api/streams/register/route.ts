@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { requireSuperAdminSession } from '@/app/lib/api-auth';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
@@ -29,6 +30,9 @@ async function regenerateMediaMTXConfig() {
 
 export async function POST(request: NextRequest) {
   try {
+    const { response } = await requireSuperAdminSession();
+    if (response) return response;
+
     const { name, streamUrl, mediamtxPath, worksiteId } = await request.json();
     if (!name || !streamUrl || !mediamtxPath) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
