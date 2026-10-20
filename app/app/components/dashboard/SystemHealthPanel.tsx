@@ -12,12 +12,19 @@ export default function SystemHealthPanel({ cameras, loading }: SystemHealthPane
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filter, setFilter] = useState<'all' | 'online' | 'offline' | 'ai-on' | 'ai-off'>('all');
 
+  // `status` is a raw DB string that is never set back to 'offline' when a camera
+  // stops reporting, so counting on it overstated how many cameras were live.
+  // `isOnline` is derived server-side by isCameraOnline() with freshness rules.
+  // Falls back to the old behaviour if an older payload omits the field.
+  const onlineOf = (c: { isOnline?: boolean; status?: string }) =>
+    c.isOnline ?? c.status === 'online';
+
   const filteredCameras = cameras.filter(camera => {
     switch (filter) {
       case 'online':
-        return camera.status === 'online';
+        return onlineOf(camera);
       case 'offline':
-        return camera.status === 'offline';
+        return !onlineOf(camera);
       case 'ai-on':
         return camera.aiEnabled;
       case 'ai-off':
@@ -29,8 +36,8 @@ export default function SystemHealthPanel({ cameras, loading }: SystemHealthPane
 
   const stats = {
     total: cameras.length,
-    online: cameras.filter(c => c.status === 'online').length,
-    offline: cameras.filter(c => c.status === 'offline').length,
+    online: cameras.filter(onlineOf).length,
+    offline: cameras.filter(c => !onlineOf(c)).length,
     aiEnabled: cameras.filter(c => c.aiEnabled).length
   };
 
@@ -143,12 +150,12 @@ export default function SystemHealthPanel({ cameras, loading }: SystemHealthPane
                   <CameraThumbnail
                     cameraId={camera.id}
                     cameraName={camera.name}
-                    isOnline={camera.status === 'online'}
+                    isOnline={onlineOf(camera)}
                   />
                 </div>
 
                 {/* Status Indicator */}
-                <div className={`absolute top-2 left-2 w-2 h-2 rounded-full ${getStatusColor(camera.status)} ${camera.status === 'online' ? '' : 'animate-pulse'}`} />
+                <div className={`absolute top-2 left-2 w-2 h-2 rounded-full ${onlineOf(camera) ? 'bg-green-400' : getStatusColor(camera.status)} ${onlineOf(camera) ? '' : 'animate-pulse'}`} />
 
                 {/* AI Badge */}
                 {camera.aiEnabled && (

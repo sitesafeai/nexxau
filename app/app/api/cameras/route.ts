@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getCachedSession } from '@/app/lib/session-cache';
 import { normalizeRole } from '@/app/lib/roles';
+import { isCameraOnline } from '@/app/lib/camera-status';
 import { validateRtspStream } from '@/app/lib/rtsp-validation';
 import { addStreamToMediaMTX, registerPublisherPath, getMediaMTXRtspPushUrl } from '@/app/lib/services/mediamtxClient';
 
@@ -368,6 +369,13 @@ export async function GET(request: NextRequest) {
             type: true,
             createdAt: true,
             updatedAt: true,
+            // Needed to derive a trustworthy online state — see the isOnline mapping
+            // below. The raw `status` string is not reliable on its own.
+            health: {
+              orderBy: { lastCheck: 'desc' },
+              take: 1,
+              select: { status: true, lastCheck: true },
+            },
           },
           orderBy: {
             createdAt: 'desc',
@@ -463,6 +471,21 @@ export async function GET(request: NextRequest) {
         id: c.id,
         name: c.name || 'Unnamed Camera',
         status: c.status || 'pending',
+        // Derived online state, and the only one the UI should trust.
+        //
+        // `status` above is a raw DB string that is NOT reliable: 'active' is the
+        // default for a camera that has never connected, and 'online' is whatever the
+        // last heartbeat wrote — it is never set back to offline when the heartbeat
+        // stops. That is why the Cameras tab showed a green dot and "Online" for a
+        // camera the dashboard correctly counted as 0/1, with last activity 10 days
+        // earlier. isCameraOnline() applies the freshness rules (health record < 60s,
+        // or metadata.lastSeenAt < 5 min) that the KPI counter already used.
+        isOnline: isCameraOnline({
+          id: c.id,
+          status: c.status,
+          metadata: c.metadata as Record<string, unknown> | null,
+          health: c.health,
+        }),
         location: c.location || null,
         streamUrl: c.streamUrl || null,
         hlsUrl: c.hlsUrl || null,

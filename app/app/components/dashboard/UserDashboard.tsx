@@ -1245,7 +1245,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
           </div>
           <div className="flex items-center gap-3">
           <span className="text-sm text-slate-400">
-            {cameras.filter(c => c.status === 'online').length} / {cameras.length} online
+            {cameras.filter((c: any) => c.isOnline ?? c.status === 'online').length} / {cameras.length} online
           </span>
             {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'COMPANY_ADMIN') && <button
               onClick={async () => {
@@ -1617,7 +1617,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
               </div>
               <div className="flex items-center gap-3">
                 <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full border ${
-                  selectedCameraForLive.status === 'online' 
+                  ((selectedCameraForLive as any).isOnline ?? selectedCameraForLive.status === 'online') 
                     ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
                     : 'bg-red-500/20 text-red-400 border-red-500/30'
                 }`}>
@@ -1801,7 +1801,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
                   <div>
                     <span className="text-slate-400 text-sm">Status:</span>
                     <p className={`mt-1 inline-block px-2 py-1 rounded text-xs font-medium ${
-                      selectedCameraForInfo.status === 'online' ? 'bg-green-500/20 text-green-400' :
+                      ((selectedCameraForInfo as any).isOnline ?? selectedCameraForInfo.status === 'online') ? 'bg-green-500/20 text-green-400' :
                       selectedCameraForInfo.status === 'offline' ? 'bg-red-500/20 text-red-400' :
                       'bg-yellow-500/20 text-yellow-400'
                     }`}>

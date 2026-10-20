@@ -12,7 +12,10 @@ interface CameraTileProps {
     id: string;
     name: string;
     zone?: string | null;
+    /** Raw DB string. Unreliable — see isOnline. Kept for display/debugging only. */
     status?: string;
+    /** Derived by isCameraOnline() server-side in /api/cameras. The trustworthy one. */
+    isOnline?: boolean;
     rules?: any[];
     streamUrl?: string | null;
     location?: string | null;
@@ -111,15 +114,28 @@ export default function CameraTile({ camera, onDeleted, onUpdated }: CameraTileP
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [hlsUrl, startHls, snapToLive]);
 
-  const status =
-    streamState?.status === 'connected' || streamState?.status === 'live'
-      ? 'online'
-      : streamState?.status === 'failed'
-        ? 'error'
-        : 'offline';
+  // Two different questions, previously conflated into one green dot:
+  //
+  //   streamState — can THIS BROWSER play the HLS stream right now?
+  //   camera.isOnline — has the YOLO detector seen frames recently?
+  //
+  // The dot showed the first and was labelled "Online", so a camera whose stream
+  // still served while the detector hadn't ingested for 10 days read as online here
+  // and 0/1 on the dashboard. The dot now reflects the camera (what a safety manager
+  // means by online); stream playback is reported separately underneath.
+  const cameraOnline = camera.isOnline === true;
+  // useGo2RTCStream only ever emits 'connecting' | 'connected' | 'failed' | 'idle'.
+  // The old code also tested for 'live', which the hook never produces — a dead
+  // comparison tsc had been flagging.
+  const streamLive = streamState?.status === 'connected';
+  const streamFailed = streamState?.status === 'failed';
 
-  const statusColor =
-    status === 'online' ? 'bg-green-400' : status === 'error' ? 'bg-red-400' : 'bg-slate-400';
+  const status = cameraOnline ? 'online' : 'offline';
+  const statusColor = cameraOnline
+    ? 'bg-green-400'
+    : streamFailed
+      ? 'bg-red-400'
+      : 'bg-slate-400';
 
   const rulesCount = camera.rules?.length ?? 0;
 
@@ -153,7 +169,18 @@ export default function CameraTile({ camera, onDeleted, onUpdated }: CameraTileP
           </div>
         </div>
         <div className="px-3 py-2 flex items-center justify-between">
-          <span className="text-xs text-slate-500 dark:text-slate-400 capitalize">{status}</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 capitalize">
+            {status}
+            {/* Called out separately because they genuinely differ: the relay can keep
+                serving video after the detector has stopped ingesting, and that gap is
+                exactly what made this tile disagree with the dashboard. */}
+            {!cameraOnline && streamLive && (
+              <span className="ml-1.5 text-amber-500">· stream live, not detecting</span>
+            )}
+            {cameraOnline && streamFailed && (
+              <span className="ml-1.5 text-amber-500">· detecting, stream won&apos;t play</span>
+            )}
+          </span>
           <span className="text-xs text-slate-400">{rulesCount} rules</span>
         </div>
       </div>
