@@ -760,7 +760,12 @@ function AlertBuilderPageContent() {
                 </label>
                 <input
                   type="range"
-                  min="0.5"
+                  // Floor is 25%, not 50%, because YOLO_CONFIDENCE (the env floor in the
+                  // Python service) is 0.25 — nothing below that ever reaches the backend,
+                  // so a rule set lower could never fire. Detector confidence on correct
+                  // detections routinely sits at 30-45%, so a 50% minimum made several
+                  // classes unusable: the detection arrived and the rule silently dropped it.
+                  min="0.25"
                   max="0.95"
                   step="0.05"
                   value={formData.minConfidence}
@@ -768,9 +773,15 @@ function AlertBuilderPageContent() {
                   className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                 />
                 <div className="flex justify-between text-xs text-gray-600 mt-1">
-                  <span>50% lenient</span>
+                  <span>25% lenient</span>
                   <span>95% strict</span>
                 </div>
+                {formData.minConfidence <= 0.3 && (
+                  <p className="mt-2 text-xs text-amber-400">
+                    Below 30% you will start seeing false alarms on most classes. Check a
+                    few real detections in the AI Vision tab before leaving it this low.
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-between">

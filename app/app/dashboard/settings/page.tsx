@@ -234,7 +234,10 @@ function SettingsPageContent() {
                 </label>
                 <input
                   type="range"
-                  min="0.5"
+                  // 0.25 matches YOLO_CONFIDENCE, the floor in the Python service.
+                  // Detector confidence on correct detections is often 30-45%, so a 50%
+                  // minimum put several classes out of reach.
+                  min="0.25"
                   max="1"
                   step="0.05"
                   value={settings.camera.detectionConfidence}
