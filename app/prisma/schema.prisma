@@ -88,6 +88,8 @@ model User {
   supportTicketsCreated SupportTicket[]      @relation("SupportTicketCreatedBy")
   supportTicketMessages SupportTicketMessage[] @relation("SupportTicketMessageAuthor")
   fpReviewsMarked      FalsePositiveReview[] @relation("FpReviewMarkedBy")
+  alertOverrideAudits  AlertOverrideAuditLog[] @relation("AlertOverrideAudits")
+  falsePositiveReports FalsePositiveReport[]   @relation("FalsePositiveReports")
   fpReviewsDone        FalsePositiveReview[] @relation("FpReviewReviewedBy")
   fpDisputesSubmitted  FalsePositiveDispute[] @relation("FpDisputeSubmittedBy")
   disputeMessages      DisputeMessage[]       @relation("DisputeMessageAuthor")
@@ -273,6 +275,22 @@ model Alert {
   resolutionType    String?
   resolvedBy        String?
   overrideBy        String?
+  // Supervisor verdict on whether the detection was real. The override routes have
+  // read and written these since they were written, but the columns were never added
+  // — so POST /api/alerts/:id/override threw "Unknown argument" on every call and the
+  // false-positive button in AlertDetailDrawer 500'd. All nullable/defaulted, so
+  // adding them is purely additive.
+  // 'false_positive' | 'confirmed_violation'
+  overrideStatus    String?
+  overrideAt        DateTime?
+  overrideReason    String?
+  // Marks the alert's snapshot as worth feeding back into training. This is the
+  // labelling flywheel — a supervisor dismissing a bad alert produces a labelled
+  // example from a real customer camera.
+  isTrainingCandidate Boolean            @default(false)
+  // Which model produced the detection, so a later accuracy review can tell whether a
+  // false positive came from weights that are still deployed.
+  modelVersion      String?
   snoozeUntil       DateTime?
   violationType     String?
   workerId          String?
@@ -284,6 +302,67 @@ model Alert {
   responses         AlertResponse[]
   resolutionLogs    AlertResolutionLog[]
   fpReview          FalsePositiveReview?
+  overrideAudits    AlertOverrideAuditLog[]
+}
+
+/// Append-only trail of supervisor verdicts on an alert.
+///
+/// Three routes have written to this since they were authored — override, resolve and
+/// bulk-override — but the model was never added to the schema, so
+/// `prisma.alertOverrideAuditLog` was `undefined` and `.create()` threw a TypeError.
+/// Field names mirror exactly what those routes already pass.
+///
+/// Distinct from AlertResolutionLog on purpose: that records how an alert was *closed*
+/// (status, notes, duration), this records whether the detection was *correct*. The
+/// second is what you grade the model on.
+model AlertOverrideAuditLog {
+  id                   String   @id @default(cuid())
+  alertId              String
+  userId               String
+  /// Previous overrideStatus; null the first time an alert is judged.
+  oldStatus            String?
+  /// 'false_positive' | 'confirmed_violation'
+  newStatus            String
+  oldTrainingCandidate Boolean  @default(false)
+  newTrainingCandidate Boolean  @default(false)
+  reason               String?
+  notes                String?
+  createdAt            DateTime @default(now())
+
+  alert Alert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  user  User  @relation("AlertOverrideAudits", fields: [userId], references: [id])
+
+  @@index([alertId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+/// Supervisor feedback on a raw Detection, as opposed to an Alert.
+///
+/// Called by /api/detections/:id/feedback, which likewise threw because the model did
+/// not exist. Field names mirror the reportData object that route builds.
+model FalsePositiveReport {
+  id           String   @id @default(cuid())
+  /// Nullable: the feedback route notes Alert has no detectionId, so it cannot always
+  /// resolve the originating alert.
+  alertId      String?
+  detectionId  String
+  worksiteId   String?
+  cameraId     String?
+  reportedBy   String
+  description  String?
+  incidentType String?
+  videoUrl     String?
+  imageUrl     String?
+  timestamp    DateTime @default(now())
+  reviewed     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  reporter User @relation("FalsePositiveReports", fields: [reportedBy], references: [id])
+
+  @@index([detectionId])
+  @@index([worksiteId])
+  @@index([reviewed])
 }
 
 model AlertResolutionLog {

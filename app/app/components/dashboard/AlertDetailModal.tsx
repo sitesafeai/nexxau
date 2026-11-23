@@ -163,12 +163,15 @@ export default function AlertDetailModal({
 
           {!loading && tab === 'overview' && (
             <div className="space-y-4">
+              {/* object-contain, not object-cover: phone cameras publish portrait
+                  (e.g. 720x1280), and cropping that to a wide box throws away most of
+                  the frame — including, often, the annotated bounding box itself. */}
               {listAlert.detectionSnapshot && (
                 <div className="overflow-hidden rounded-xl border border-slate-700/40 bg-slate-950/40">
                   <img
                     src={listAlert.detectionSnapshot}
                     alt="Detection snapshot"
-                    className="max-h-64 w-full cursor-pointer object-cover object-center"
+                    className="h-72 w-full cursor-pointer object-contain object-center"
                     onClick={() => window.open(listAlert.detectionSnapshot!, '_blank')}
                   />
                 </div>

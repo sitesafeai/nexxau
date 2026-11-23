@@ -2530,7 +2530,9 @@ function AlertResolutionModal({
   const [notes, setNotes] = useState('');
   const [fpReason, setFpReason] = useState('');
   const [violationType, setViolationType] = useState('');
-  const [workerId, setWorkerId] = useState('');
+  // Worker ID intentionally removed — incident evaluations are anonymous. Detections
+  // identify a PPE violation, not a person, and attaching an identity to one turns a
+  // safety signal into a disciplinary record. Do not reintroduce this field.
   const [snoozeDuration, setSnoozeDuration] = useState(30);
   const [openIncidentReport, setOpenIncidentReport] = useState(false);
   const [isTrainingCandidate, setIsTrainingCandidate] = useState(false);
@@ -2614,7 +2616,9 @@ function AlertResolutionModal({
           notes,
           fpReason: resolutionType === 'FALSE_POSITIVE' ? fpReason : null,
           violationType: resolutionType === 'CONFIRMED' ? violationType : null,
-          workerId: workerId || null,
+          // Always null — evaluations are anonymous by design. The API still accepts
+          // the field so older stored rows keep working, but we never send an identity.
+          workerId: null,
           snoozeDuration: resolutionType === 'SNOOZED' ? snoozeDuration : null,
           openIncidentReport,
           isTrainingCandidate: resolutionType === 'FALSE_POSITIVE' ? isTrainingCandidate : false,
@@ -2910,12 +2914,6 @@ function AlertResolutionModal({
                           <div>
                             <p className="text-slate-500 text-xs">Violation Type</p>
                             <p className="text-red-400">{VIOLATION_TYPES.find(v => v.id === alertData.violationType)?.label || alertData.violationType}</p>
-                          </div>
-                        )}
-                        {alertData.workerId && (
-                          <div>
-                            <p className="text-slate-500 text-xs">Worker ID</p>
-                            <p className="text-white">{alertData.workerId}</p>
                           </div>
                         )}
                         {alertData.resolutionNotes && (
@@ -3314,14 +3312,10 @@ function AlertResolutionModal({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">Worker ID (optional)</label>
-                      <input
-                        type="text"
-                        value={workerId}
-                        onChange={(e) => setWorkerId(e.target.value)}
-                        placeholder="Enter worker ID if known"
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-600 text-white rounded text-sm"
-                      />
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        Evaluations are anonymous — detections record a PPE violation,
+                        not a person.
+                      </p>
                     </div>
                   </div>
                   
@@ -3482,12 +3476,6 @@ function AlertResolutionModal({
                         <p className="text-slate-500">Violation Type</p>
                         <p className="text-white">{VIOLATION_TYPES.find(v => v.id === violationType)?.label || 'Not specified'}</p>
                       </div>
-                      {workerId && (
-                        <div>
-                          <p className="text-slate-500">Worker ID</p>
-                          <p className="text-white">{workerId}</p>
-                        </div>
-                      )}
                     </>
                   )}
                   {resolutionType === 'FALSE_POSITIVE' && (
