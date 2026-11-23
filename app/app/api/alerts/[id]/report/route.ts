@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
+import { enforceWorksiteAccess } from '@/app/lib/worksite-access';
 
 /**
  * GET /api/alerts/[id]/report
@@ -82,6 +83,24 @@ export async function GET(
       );
     }
 
+    // Tenant check: the alert must belong to a worksite this user can access.
+    // Without it, any logged-in user from any company could read any alert's report.
+    // Alerts with no worksite are only visible to super admins.
+    const role = String((session.user as { role?: string }).role || '').toUpperCase();
+    const isSuperAdmin = role === 'SUPER_ADMIN' || role === 'SUPERADMIN';
+    if (!isSuperAdmin) {
+      if (!alert.worksiteId) {
+        return NextResponse.json({ error: 'Alert not found' }, { status: 404 });
+      }
+      const denied = await enforceWorksiteAccess(request, alert.worksiteId);
+      if (denied) {
+        // 404, not 403: don't confirm to another tenant that this alert exists.
+        return denied.status === 403
+          ? NextResponse.json({ error: 'Alert not found' }, { status: 404 })
+          : denied;
+      }
+    }
+
     const metadata = alert.metadata as any;
     const acknowledgment = metadata?.acknowledgment;
 
@@ -101,8 +120,18 @@ export async function GET(
         source: alert.source,
         location: alert.location,
         createdAt: alert.createdAt.toISOString(),
-        resolvedAt: alert.resolvedAt?.toISOString() || null
+        resolvedAt: alert.resolvedAt?.toISOString() || null,
+        snapshotUrl: alert.detectionSnapshot || null,
       },
+      camera: alert.camera ? { name: alert.camera.name, location: alert.camera.location } : null,
+      // The supervisor's evaluation. Anonymous by design — no workerId.
+      resolution: alert.resolutionType ? {
+        type: alert.resolutionType,
+        violationType: alert.violationType,
+        falsePositiveReason: alert.fpReason,
+        notes: alert.resolutionNotes,
+        resolvedAt: alert.resolvedAt?.toISOString() || null,
+      } : null,
       worksite: {
         name: alert.worksite?.name || 'Unknown',
         location: alert.worksite?.location || 'Unknown',

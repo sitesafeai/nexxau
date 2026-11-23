@@ -2334,8 +2334,8 @@ function SitesPage({ sites, currentUser, companies }: { sites: any[]; currentUse
       </div>
 
       {/* Sites Table */}
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-hidden">
-        <table className="w-full">
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead className="bg-slate-900/50">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Site</th>
@@ -2535,7 +2535,6 @@ function AlertResolutionModal({
   // safety signal into a disciplinary record. Do not reintroduce this field.
   const [snoozeDuration, setSnoozeDuration] = useState(30);
   const [openIncidentReport, setOpenIncidentReport] = useState(false);
-  const [isTrainingCandidate, setIsTrainingCandidate] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
   const [reopenReason, setReopenReason] = useState('');
@@ -2607,6 +2606,11 @@ function AlertResolutionModal({
     if (!canSubmit) return;
     
     setIsSubmitting(true);
+    // Open the tab synchronously on click — popup blockers (Safari especially) kill a
+    // window.open that runs after an await. Point it at the report once the save lands.
+    const reportTab = openIncidentReport && resolutionType !== 'SNOOZED'
+      ? window.open('about:blank', '_blank')
+      : null;
     try {
       const res = await fetch(`/api/alerts/${alertData.id}/resolve`, {
         method: 'POST',
@@ -2621,18 +2625,22 @@ function AlertResolutionModal({
           workerId: null,
           snoozeDuration: resolutionType === 'SNOOZED' ? snoozeDuration : null,
           openIncidentReport,
-          isTrainingCandidate: resolutionType === 'FALSE_POSITIVE' ? isTrainingCandidate : false,
+          // No UI promises this any more — nothing consumes it for training yet.
+          isTrainingCandidate: false,
         })
       });
 
       if (res.ok) {
         const data = await res.json();
+        if (reportTab) reportTab.location.href = `/incident-report/${alertData.id}`;
         onResolved(data.data.alert);
       } else {
+        reportTab?.close();
         const error = await res.json();
         window.alert('Failed to resolve alert: ' + (error.error || 'Unknown error'));
       }
     } catch (error) {
+      reportTab?.close();
       console.error('Error resolving alert:', error);
       window.alert('Failed to resolve alert');
     } finally {
@@ -3385,19 +3393,6 @@ function AlertResolutionModal({
                     />
                   </div>
 
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isTrainingCandidate}
-                      onChange={(e) => setIsTrainingCandidate(e.target.checked)}
-                      className="rounded border-slate-500 bg-slate-700 text-amber-600"
-                    />
-                    <span className="text-sm text-slate-300">Include this sample in future training datasets</span>
-                  </label>
-
-                  <p className="text-xs text-slate-500">
-                    This feedback will be used to improve detection accuracy for this camera.
-                  </p>
                 </div>
               )}
 
@@ -3512,7 +3507,7 @@ function AlertResolutionModal({
 
                 {openIncidentReport && (
                   <div className="pt-4 border-t border-slate-700">
-                    <p className="text-sm text-amber-400">A full incident report will be created after saving.</p>
+                    <p className="text-sm text-amber-400">The incident report will open in a new tab after saving.</p>
                   </div>
                 )}
               </div>
@@ -3979,8 +3974,8 @@ function AlertsPage({ currentSite }: { currentSite: any }) {
       </div>
 
       {/* Alerts Table */}
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-hidden">
-        <table className="w-full">
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead className="bg-slate-900/50">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Severity</th>
@@ -4965,8 +4960,8 @@ function ReportsPage({ currentSite }: { currentSite: any }) {
       </div>
       
       {/* Report Types Table */}
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-hidden">
-        <table className="w-full">
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead className="bg-slate-900/50">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Report Type</th>
@@ -5268,8 +5263,8 @@ function WorkflowsPage({ currentSite }: { currentSite: any }) {
           <p className="text-slate-400 text-sm">Default workflows will be auto-provisioned when the first alert is created.</p>
         </div>
       ) : (
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-hidden">
-        <table className="w-full">
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead className="bg-slate-900/50">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Workflow</th>
@@ -5846,8 +5841,8 @@ function AlertRulesPage({ currentSite }: { currentSite: any }) {
       </div>
 
       {/* Rules Table */}
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-hidden">
-        <table className="w-full">
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead className="bg-slate-900/50">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase">Rule</th>
