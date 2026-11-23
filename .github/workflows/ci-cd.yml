@@ -1,10 +1,11 @@
 name: CI/CD Pipeline
 
+# Manual-only (Nov 2026). This is a leftover Kubernetes template: it deploys with kubectl
+# to clusters that don't exist. Production deploys via Railway's own GitHub integration,
+# so this pipeline never gated anything — it just failed on every push. Re-enable push
+# triggers only after rewriting it for the real stack.
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
