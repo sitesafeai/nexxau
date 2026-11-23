@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
+import { enforceAlertAccess } from '@/app/lib/alert-access';
 
 // POST /api/alerts/[id]/snooze - Snooze an alert
 export async function POST(
@@ -10,6 +11,8 @@ export async function POST(
 ) {
   try {
     const { id: alertId } = await params;
+    const accessDenied = await enforceAlertAccess(request, alertId);
+    if (accessDenied) return accessDenied;
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

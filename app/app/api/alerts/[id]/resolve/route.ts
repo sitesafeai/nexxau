@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { writeAuditLog } from '@/app/lib/audit';
 import { falsePositiveHandler } from '@/app/lib/workflows/false-positive-handler';
+import { enforceAlertAccess } from '@/app/lib/alert-access';
 
 // POST /api/alerts/[id]/resolve - Resolve an alert with full workflow
 export async function POST(
@@ -17,6 +18,10 @@ export async function POST(
     }
 
     const { id: alertId } = await params;
+
+    const accessDenied = await enforceAlertAccess(request, alertId);
+
+    if (accessDenied) return accessDenied;
     const body = await request.json();
     const {
       resolutionType, // CONFIRMED, FALSE_POSITIVE, SNOOZED

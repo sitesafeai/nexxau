@@ -4,6 +4,7 @@ import { authOptions } from '@/app/lib/auth';
 import { prisma } from '@/app/lib/prisma';
 import { z } from 'zod';
 import { writeAuditLog } from '@/app/lib/audit';
+import { enforceAlertAccess } from '@/app/lib/alert-access';
 
 const overrideSchema = z.object({
   overrideStatus: z.enum(['false_positive', 'confirmed_violation']),
@@ -31,6 +32,8 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const accessDenied = await enforceAlertAccess(request, id);
+    if (accessDenied) return accessDenied;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {

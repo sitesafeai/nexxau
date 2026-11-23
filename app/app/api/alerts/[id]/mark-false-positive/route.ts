@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getSession } from '@/app/lib/auth';
+import { enforceAlertAccess } from '@/app/lib/alert-access';
 
 /**
  * POST /api/alerts/[id]/mark-false-positive
@@ -17,6 +18,8 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const accessDenied = await enforceAlertAccess(request, id);
+    if (accessDenied) return accessDenied;
     const session = await getSession();
 
     if (!session?.user) {

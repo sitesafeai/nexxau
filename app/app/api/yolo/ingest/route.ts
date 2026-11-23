@@ -21,6 +21,7 @@ import { emitAlertCreated } from '@/app/lib/alert-events';
 import { isCompliancePass } from '@/app/lib/detection-classes';
 import { isDetectionInZone, zonesFromCameraMetadata } from '@/app/lib/zones';
 import { sendEmailAlert } from '@/lib/notifications';
+import { signedSnapshotUrl } from '@/app/lib/snapshot-token';
 
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN ?? '';
 
@@ -313,7 +314,8 @@ export async function POST(req: NextRequest) {
 
     if (allRecipients.length > 0) {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
-      const snapshotUrl = frame_data ? `${appUrl}/api/alerts/${alert.id}/snapshot` : undefined;
+      // Signed: the snapshot route requires login, which an email client can't do.
+      const snapshotUrl = frame_data ? signedSnapshotUrl(alert.id, appUrl) : undefined;
       sendEmailAlert(allRecipients, {
         cameraName:   camera.name,
         worksiteName: camera.worksite?.name ?? 'Unknown Worksite',

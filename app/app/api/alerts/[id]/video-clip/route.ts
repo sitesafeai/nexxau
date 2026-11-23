@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { enforceAlertAccess } from '@/app/lib/alert-access';
 
 /**
  * GET /api/alerts/[id]/video-clip
@@ -11,6 +12,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const accessDenied = await enforceAlertAccess(request, id);
+    if (accessDenied) return accessDenied;
     const alert = await prisma.alert.findUnique({
       where: { id },
       include: {

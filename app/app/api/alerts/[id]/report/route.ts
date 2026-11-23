@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
-import { enforceWorksiteAccess } from '@/app/lib/worksite-access';
+import { enforceAlertAccess } from '@/app/lib/alert-access';
 
 /**
  * GET /api/alerts/[id]/report
@@ -14,6 +14,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const accessDenied = await enforceAlertAccess(request, id);
+    if (accessDenied) return accessDenied;
     const session = await getServerSession(authOptions);
     
     if (!session?.user) {
@@ -81,24 +83,6 @@ export async function GET(
         { error: 'Alert not found' },
         { status: 404 }
       );
-    }
-
-    // Tenant check: the alert must belong to a worksite this user can access.
-    // Without it, any logged-in user from any company could read any alert's report.
-    // Alerts with no worksite are only visible to super admins.
-    const role = String((session.user as { role?: string }).role || '').toUpperCase();
-    const isSuperAdmin = role === 'SUPER_ADMIN' || role === 'SUPERADMIN';
-    if (!isSuperAdmin) {
-      if (!alert.worksiteId) {
-        return NextResponse.json({ error: 'Alert not found' }, { status: 404 });
-      }
-      const denied = await enforceWorksiteAccess(request, alert.worksiteId);
-      if (denied) {
-        // 404, not 403: don't confirm to another tenant that this alert exists.
-        return denied.status === 403
-          ? NextResponse.json({ error: 'Alert not found' }, { status: 404 })
-          : denied;
-      }
     }
 
     const metadata = alert.metadata as any;

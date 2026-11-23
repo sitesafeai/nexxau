@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
+import { enforceAlertAccess } from '@/app/lib/alert-access';
 
 // GET /api/alerts/[id] - Get a single alert with full details
 export async function GET(
@@ -15,6 +16,10 @@ export async function GET(
     }
 
     const { id: alertId } = await params;
+
+    const accessDenied = await enforceAlertAccess(request, alertId);
+
+    if (accessDenied) return accessDenied;
 
     const alert = await prisma.alert.findUnique({
       where: { id: alertId },
@@ -154,6 +159,10 @@ export async function PATCH(
     }
 
     const { id: alertId } = await params;
+
+    const accessDenied = await enforceAlertAccess(request, alertId);
+
+    if (accessDenied) return accessDenied;
     const body = await request.json();
 
     const alert = await prisma.alert.findUnique({

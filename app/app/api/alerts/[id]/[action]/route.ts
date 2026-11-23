@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { enforceAlertAccess } from '@/app/lib/alert-access';
 
 // POST /api/alerts/[id]/[action] - Perform state transition on alert
 export async function POST(
@@ -8,6 +9,8 @@ export async function POST(
 ) {
   try {
     const { id, action } = await params;
+    const accessDenied = await enforceAlertAccess(request, id);
+    if (accessDenied) return accessDenied;
     const body = await request.json();
 
     // Validate alert exists

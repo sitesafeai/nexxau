@@ -8,6 +8,7 @@ import {
   type NotificationRecipientInput,
   type NotifyChannel,
 } from '@/app/lib/acknowledgment-team-notify';
+import { enforceAlertAccess } from '@/app/lib/alert-access';
 
 /**
  * POST /api/alerts/[id]/acknowledge
@@ -19,6 +20,8 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const accessDenied = await enforceAlertAccess(request, id);
+    if (accessDenied) return accessDenied;
     const session = await getServerSession(authOptions);
     
     if (!session?.user) {

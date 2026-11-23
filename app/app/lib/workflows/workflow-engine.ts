@@ -7,6 +7,7 @@
 
 import { prisma } from '../prisma';
 import { sendAlertNotificationEmail } from '../email-service';
+import { signedSnapshotUrl } from '@/app/lib/snapshot-token';
 
 export interface WorkflowContext {
   alertId?: string;
@@ -262,8 +263,16 @@ export class WorkflowEngine {
     const severity: string =
       alert?.severity || 'MEDIUM';
     const detailsUrl = `${process.env.NEXTAUTH_URL || ''}/app/dashboard/alerts/${alertId || ''}`;
-    const snapshotUrl: string | undefined =
+    // Our own snapshot route stores a relative path, which can't load inside an email
+    // and now requires login — swap it for an absolute signed link. External URLs
+    // (cloud uploads) pass through unchanged.
+    const rawSnapshot: string | undefined =
       alert?.detectionSnapshot || alert?.snapshotUrl || undefined;
+    const appBase = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || '';
+    const snapshotUrl: string | undefined =
+      rawSnapshot && alertId && rawSnapshot.startsWith('/api/alerts/') && appBase
+        ? signedSnapshotUrl(alertId, appBase)
+        : rawSnapshot;
 
     console.log(`[Workflow Email] Sending alert notification to: ${recipients.join(', ')}`);
 

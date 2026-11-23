@@ -3,7 +3,10 @@
  * Serves the detection snapshot JPEG for an alert, with the triggering detection
  * annotated — a labelled bounding box around the one object that tripped the rule.
  *
- * Public endpoint — alert IDs are cryptographically random (cuid), unguessable.
+ * Access: a signed-in user who can access the alert's worksite, OR a valid ?t= token
+ * (lib/snapshot-token.ts) — emails use the token because mail clients can't log in.
+ * This used to be fully public on the theory that cuids are unguessable; they are hard
+ * to guess, but ids leak (URLs, logs, screenshots) and these are photos of workers.
  * The image bytes live in alert.metadata.snapshotData (base64 data URI).
  *
  * This is the image alert emails embed via <img src>, so annotating here means the
@@ -21,6 +24,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import sharp from 'sharp';
+import { enforceAlertAccess } from '@/app/lib/alert-access';
+import { verifySnapshotToken } from '@/app/lib/snapshot-token';
 
 // Mirrors TYPE_META in components/dashboard/DetectionPanel.tsx and VIOLATION_LABELS
 // in ai-detection/railway_service.py. Keys are the `type` values the YOLO service posts.
@@ -66,10 +71,17 @@ function escapeXml(s: string): string {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  // Emails carry ?t=<signed token> (email clients can't log in). Everyone else must be
+  // signed in with access to this alert's worksite.
+  if (!verifySnapshotToken(id, req.nextUrl.searchParams.get('t'))) {
+    const accessDenied = await enforceAlertAccess(req, id);
+    if (accessDenied) return accessDenied;
+  }
 
   const alert = await prisma.alert.findUnique({
     where: { id },
@@ -101,8 +113,9 @@ export async function GET(
       headers: {
         'Content-Type': 'image/jpeg',
         'Content-Length': String(buf.byteLength),
-        // Cache for 1 hour — an alert's snapshot never changes once written.
-        'Cache-Control': 'public, max-age=3600, immutable',
+        // Cache for 1 hour — an alert's snapshot never changes once written. `private`:
+        // these are photos of a customer's workers; no shared cache may store them.
+        'Cache-Control': 'private, max-age=3600, immutable',
       },
     });
 
