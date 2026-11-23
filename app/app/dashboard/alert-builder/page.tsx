@@ -9,7 +9,7 @@ import {
   ALERT_ACTIONS, 
   SEVERITY_LEVELS,
   getClassesByCategory,
-  isClassSupported,
+  isClassOffered,
   DetectionClass
 } from '@/app/lib/detection-classes';
 import ZoneDrawingTool from '@/app/components/ZoneDrawingTool';
@@ -640,13 +640,13 @@ function AlertBuilderPageContent() {
                     // The current model can't emit every class in the catalog. Letting
                     // someone save a rule that can never fire is worse than not offering
                     // it — they'd believe the hazard was covered.
-                    const supported = isClassSupported(item.id);
+                    const supported = isClassOffered(item.id);
                     return (
                     <button
                       key={item.id}
                       type="button"
                       disabled={!supported}
-                      title={supported ? undefined : 'Not detected by the current model yet'}
+                      title={supported ? undefined : 'Not available yet'}
                       onClick={() => supported && setFormData({...formData, objectClass: item.id, detectionType: 'object_present'})}
                       className={`p-4 rounded-xl text-left transition-all border-2 relative ${
                         !supported
@@ -664,7 +664,7 @@ function AlertBuilderPageContent() {
                       <div className="text-2xl mb-2">{item.emoji}</div>
                       <div className="font-semibold text-white text-sm">{item.label}</div>
                       <div className="text-xs text-gray-400 mt-1">
-                        {supported ? item.desc : 'Not detected by the current model yet'}
+                        {supported ? item.desc : 'Not available yet'}
                       </div>
                     </button>
                     );
@@ -685,13 +685,13 @@ function AlertBuilderPageContent() {
                     { id: 'vest',            label: 'Safety Vest Worn', emoji: '🦺', desc: 'Worker wearing hi-vis vest' },
                     { id: 'gloves',          label: 'Gloves Worn',      emoji: '🧤', desc: 'Worker wearing gloves' },
                   ].map(item => {
-                    const supported = isClassSupported(item.id);
+                    const supported = isClassOffered(item.id);
                     return (
                     <button
                       key={item.id}
                       type="button"
                       disabled={!supported}
-                      title={supported ? undefined : 'Not detected by the current model yet'}
+                      title={supported ? undefined : 'Not available yet'}
                       onClick={() => supported && setFormData({...formData, objectClass: item.id, detectionType: 'object_present'})}
                       className={`p-4 rounded-xl text-left transition-all border-2 relative ${
                         !supported
@@ -709,7 +709,7 @@ function AlertBuilderPageContent() {
                       <div className="text-2xl mb-2">{item.emoji}</div>
                       <div className="font-semibold text-white text-sm">{item.label}</div>
                       <div className="text-xs text-gray-400 mt-1">
-                        {supported ? item.desc : 'Not detected by the current model yet'}
+                        {supported ? item.desc : 'Not available yet'}
                       </div>
                     </button>
                     );

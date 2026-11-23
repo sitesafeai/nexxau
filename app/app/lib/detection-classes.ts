@@ -80,6 +80,32 @@ export function isClassSupported(id: string | null | undefined): boolean {
   return !!id && MODEL_SUPPORTED_CLASS_IDS.has(id);
 }
 
+/**
+ * The classes we stand behind and let customers build rules on.
+ *
+ * A strict subset of MODEL_SUPPORTED_CLASS_IDS. "The model can emit it" is not the same
+ * as "it works": mask, gloves, goggles, ladder and cone fire on real footage but have
+ * never been validated, and a noisy class makes the good ones look bad. Fall detection
+ * is held back until it's tested on real footage — claiming to detect falls and missing
+ * one is the worst possible failure on a safety product.
+ *
+ * Unlike MODEL_SUPPORTED_CLASS_IDS this is a product decision, not a mirror of the model.
+ * To release a class: prove it on footage, then add it here. Existing rules on unreleased
+ * classes keep firing — this only gates creating new ones.
+ */
+export const RELEASED_CLASS_IDS = new Set<string>([
+  'no_helmet',
+  'helmet',
+  'no_vest',
+  'vest',
+  'person_detected', // needed for restricted-zone rules
+]);
+
+/** True when customers may create a rule on this class: the model emits it AND we've released it. */
+export function isClassOffered(id: string | null | undefined): boolean {
+  return isClassSupported(id) && RELEASED_CLASS_IDS.has(id as string);
+}
+
 export const DETECTION_CLASSES: DetectionClass[] = [
   // ========================================
   // PPE (Personal Protective Equipment)
