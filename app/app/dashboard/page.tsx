@@ -3297,26 +3297,38 @@ function AlertResolutionModal({
                 <div className="space-y-4 p-4 bg-red-500/5 border border-red-500/20 rounded">
                   <h5 className="text-sm font-medium text-red-400">Confirm Violation Details</h5>
                   
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs text-slate-400 mb-1">Violation Type</label>
-                      <select
-                        value={violationType}
-                        onChange={(e) => setViolationType(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-600 text-white rounded text-sm"
-                      >
-                        <option value="">Select violation type...</option>
-                        {VIOLATION_TYPES.map(v => (
-                          <option key={v.id} value={v.id}>{v.label}</option>
-                        ))}
-                      </select>
+                  <div>
+                    <div className="mb-1 flex items-center gap-1.5">
+                      <label className="text-xs text-slate-400">Violation Type</label>
+                      {/* Info tooltip: hover or keyboard-focus to read. */}
+                      <span className="group relative inline-flex">
+                        <button
+                          type="button"
+                          aria-label="Evaluations are anonymous — detections record a PPE violation, not a person."
+                          className="text-slate-500 hover:text-slate-300 focus:text-slate-300 focus:outline-none"
+                        >
+                          <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5" aria-hidden="true">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                        <span
+                          role="tooltip"
+                          className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-64 -translate-x-1/2 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs leading-relaxed text-slate-300 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                        >
+                          Evaluations are anonymous — detections record a PPE violation, not a person.
+                        </span>
+                      </span>
                     </div>
-                    <div>
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        Evaluations are anonymous — detections record a PPE violation,
-                        not a person.
-                      </p>
-                    </div>
+                    <select
+                      value={violationType}
+                      onChange={(e) => setViolationType(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-600 text-white rounded text-sm"
+                    >
+                      <option value="">Select violation type...</option>
+                      {VIOLATION_TYPES.map(v => (
+                        <option key={v.id} value={v.id}>{v.label}</option>
+                      ))}
+                    </select>
                   </div>
                   
                   <div>
