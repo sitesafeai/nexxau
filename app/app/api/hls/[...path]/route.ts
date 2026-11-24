@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { enforceStreamAccess } from '@/app/lib/stream-access';
 
 export async function GET(
   request: NextRequest,
@@ -9,6 +10,10 @@ export async function GET(
     if (!path?.length) {
       return NextResponse.json({ error: 'Missing HLS path' }, { status: 400 });
     }
+
+    // Login + the camera's worksite must be the viewer's. path[0] is the stream path.
+    const accessDenied = await enforceStreamAccess(request, path[0]);
+    if (accessDenied) return accessDenied;
 
     const upstreamOrigin = (process.env.MEDIAMTX_HLS_ORIGIN || 'http://localhost:8888').replace(/\/$/, '');
     const user = process.env.MEDIAMTX_API_USERNAME || 'admin';
