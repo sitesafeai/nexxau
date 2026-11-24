@@ -586,6 +586,18 @@ def main():
         logger.error('INTERNAL_SERVICE_TOKEN not set')
         return
 
+    # PyTorch starts one intra-op thread per visible core. On a large Railway host that
+    # means many spinning threads per frame — CPU graphs showed ~4.5 vCPU bursts for work
+    # measured at ~0.45 core-seconds/frame. TORCH_THREADS caps it. Unset = PyTorch default.
+    torch_threads = os.environ.get('TORCH_THREADS', '').strip()
+    if torch_threads:
+        try:
+            import torch
+            torch.set_num_threads(max(1, int(torch_threads)))
+            logger.info(f'Torch threads: {torch.get_num_threads()} (env TORCH_THREADS)')
+        except Exception as e:
+            logger.warning(f'TORCH_THREADS={torch_threads!r} not applied: {e}')
+
     logger.info('Loading YOLO model...')
     resolved_path = ensure_model(MODEL_PATH)
     model = YOLO(resolved_path)
