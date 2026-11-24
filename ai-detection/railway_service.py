@@ -57,6 +57,11 @@ VEST_CLF = None
 # COCO instead: they feed the vest classifier AND become the person_detected vtype
 # (zones). Unset = exactly the old behaviour. Only active when the vest classifier is.
 # Trade-off: a second inference per frame on Railway CPU.
+# Analyse 1 of every N frames. Default 1 = every frame (old behaviour). A phone pushes
+# ~30 fps; inferring on all of it pegged Railway at ~6 vCPU (Nov 2026) — roughly $100+/mo
+# per camera. Offline scoring at 2 fps still flagged no-vest within 0.5–3.5 s, so
+# VID_STRIDE=10 (≈3 fps from a 30 fps source) costs almost nothing in alert latency.
+VID_STRIDE        = max(1, int(os.environ.get('VID_STRIDE', '1')))
 PERSON_MODEL_NAME = os.environ.get('PERSON_MODEL', '').strip()
 PERSON_CONF       = float(os.environ.get('PERSON_CONFIDENCE', '0.25'))
 PERSON_DET        = None
@@ -371,6 +376,7 @@ def run_camera(camera, model, stop_event):
                 conf=CONFIDENCE,
                 verbose=False,
                 imgsz=640,
+                vid_stride=VID_STRIDE,
             )
 
             for result in results:
@@ -518,6 +524,7 @@ def build_model_info(detector, detector_path):
             # ever fires. Surfacing it beats reading startup logs after the fact.
             'is_coco_fallback': detector_path in BASE_MODELS or len(names) < 10,
             'confidence_floor': CONFIDENCE,
+            'vid_stride': VID_STRIDE,
         },
         'vest_classifier': {'active': VEST_CLF is not None},
         'person_detector': {'active': PERSON_DET is not None,
@@ -573,6 +580,7 @@ def main():
     # env var isn't actually taking effect (stale deploy, typo, wrong service, etc.) —
     # not a model-quality problem.
     logger.info(f'Confidence: {CONFIDENCE} (env YOLO_CONFIDENCE, filters detections at the model call itself)')
+    logger.info(f'Frame stride: analysing 1 of every {VID_STRIDE} frames (env VID_STRIDE)')
 
     if not SERVICE_TOKEN:
         logger.error('INTERNAL_SERVICE_TOKEN not set')
