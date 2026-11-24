@@ -166,8 +166,17 @@ export default function DetectionPanel({ siteId, cameras }: DetectionPanelProps)
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-lg font-semibold text-white">Live Detections</h3>
         <div className="flex items-center gap-2 text-xs text-slate-300">
-          <span className={`h-2.5 w-2.5 rounded-full ${isFresh ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
-          {isFresh ? (detections.length === 0 ? 'Live (no detections yet)' : 'Live') : 'Stale'}
+          {/* Green only when detections are actually arriving. It used to pulse green
+              whenever the panel's own polling was fresh, so an offline camera still read
+              "Live" — which is the camera's state to a customer, not the panel's. */}
+          <span className={`h-2.5 w-2.5 rounded-full ${
+            isFresh && detections.length > 0 ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
+          }`} />
+          {!isFresh
+            ? 'Reconnecting…'
+            : detections.length > 0
+            ? 'Live'
+            : 'Waiting for camera activity'}
         </div>
       </div>
 
