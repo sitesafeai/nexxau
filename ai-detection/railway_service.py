@@ -48,6 +48,18 @@ VEST_CLS_IMGSZ     = int(os.environ.get('VEST_CLS_IMGSZ', '224'))
 
 # Set by main(). None means two-stage is off and the detector's own vest classes are used.
 VEST_CLF = None
+
+# Stage-1 person source for the two-stage pipeline (Nov 2026).
+# The PPE detector's own Person class found the subject in only 7-14% of frames on
+# Luiz's test clips, while a stock COCO yolov8n found him in 83-95% of the SAME frames.
+# The vest classifier is 99% correct on whatever crops it gets (286/289), so person
+# recall was the whole ceiling. Set PERSON_MODEL=yolov8n.pt to take person boxes from
+# COCO instead: they feed the vest classifier AND become the person_detected vtype
+# (zones). Unset = exactly the old behaviour. Only active when the vest classifier is.
+# Trade-off: a second inference per frame on Railway CPU.
+PERSON_MODEL_NAME = os.environ.get('PERSON_MODEL', '').strip()
+PERSON_CONF       = float(os.environ.get('PERSON_CONFIDENCE', '0.25'))
+PERSON_DET        = None
 VEST_CLF_NEG_IDX = None
 
 HEADERS = {'Authorization': f'Bearer {SERVICE_TOKEN}'}
@@ -380,6 +392,7 @@ def run_camera(camera, model, stop_event):
                 violations = []
                 person_boxes = []          # fed to the vest classifier below
                 two_stage = VEST_CLF is not None
+                person_from_coco = two_stage and PERSON_DET is not None and result.orig_img is not None
 
                 for box in boxes:
                     class_id   = int(box.cls[0].cpu().numpy())
@@ -402,6 +415,10 @@ def run_camera(camera, model, stop_event):
                     # both would produce contradictory alerts on the same person.
                     if two_stage and vtype in ('no_vest', 'vest'):
                         continue
+                    # COCO supplies people when PERSON_DET is on; drop the PPE model's
+                    # own (low-recall) Person boxes so we don't double-count.
+                    if person_from_coco and vtype == 'person_detected':
+                        continue
                     if two_stage and vtype == 'person_detected':
                         person_boxes.append([x1, y1, x2, y2])
 
@@ -413,6 +430,22 @@ def run_camera(camera, model, stop_event):
                         'bbox':       [x1, y1, x2, y2],
                     })
                     set_cooldown(camera_id, vtype)
+
+                # ── Stage 1b: people from the COCO detector (PERSON_MODEL) ─────
+                if person_from_coco:
+                    try:
+                        pr = PERSON_DET.predict(result.orig_img, conf=PERSON_CONF, imgsz=640,
+                                                classes=[0], verbose=False)[0]
+                        for pb, pc in zip(pr.boxes.xyxy.cpu().numpy().tolist(),
+                                          pr.boxes.conf.cpu().numpy().tolist()):
+                            person_boxes.append(pb)
+                            if 'person_detected' in SKIP_VTYPES or is_on_cooldown(camera_id, 'person_detected'):
+                                continue
+                            violations.append({'type': 'person_detected',
+                                               'confidence': round(float(pc), 3), 'bbox': pb})
+                            set_cooldown(camera_id, 'person_detected')
+                    except Exception as e:
+                        logger.warning(f'[person-det] inference failed this frame: {e}')
 
                 # ── Stage 2: judge vests from person crops ───────────────────
                 # Cooldown is applied AFTER classification, unlike stage 1, because the
@@ -487,6 +520,9 @@ def build_model_info(detector, detector_path):
             'confidence_floor': CONFIDENCE,
         },
         'vest_classifier': {'active': VEST_CLF is not None},
+        'person_detector': {'active': PERSON_DET is not None,
+                            'model': PERSON_MODEL_NAME or None,
+                            'confidence': PERSON_CONF},
     }
     if VEST_CLF is not None:
         v_sha, v_mb = file_fingerprint(VEST_CLS_PATH)
@@ -549,6 +585,18 @@ def main():
 
     global VEST_CLF, VEST_CLF_NEG_IDX, MODEL_INFO
     VEST_CLF, VEST_CLF_NEG_IDX = load_vest_classifier()
+
+    global PERSON_DET
+    if PERSON_MODEL_NAME and VEST_CLF is not None:
+        try:
+            PERSON_DET = YOLO(PERSON_MODEL_NAME)   # yolov8n.pt auto-downloads from ultralytics
+            logger.info(f'Person source: {PERSON_MODEL_NAME} (COCO class 0, conf>={PERSON_CONF})')
+        except Exception as e:
+            PERSON_DET = None
+            logger.error(f'Person detector load failed: {e} — using PPE model Person boxes')
+    else:
+        logger.info('Person source: PPE detector Person class'
+                    + (' (PERSON_MODEL set but vest classifier off — ignored)' if PERSON_MODEL_NAME else ''))
     logger.info(f'Vest source: {"two-stage classifier on Person crops" if VEST_CLF else "detector classes (NO-Safety Vest, recall ~0.14)"}')
 
     MODEL_INFO = build_model_info(model, resolved_path)
