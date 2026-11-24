@@ -888,6 +888,9 @@ function WorksiteCamerasTab({ worksiteId }: { worksiteId: string }) {
           zone: c.zone ?? c.location,
           location: c.location,
           status: c.status,
+          // Derived by /api/cameras (fresh heartbeat). Without it CameraTile always read
+          // undefined → "Offline", even while detections were arriving.
+          isOnline: c.isOnline,
           streamUrl: c.streamUrl,
           rules: c.rules ?? [],
         }))}
