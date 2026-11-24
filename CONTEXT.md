@@ -17,6 +17,37 @@ Entry format:
 
 ---
 
+## 2026-11-23/24 — back from a 2-month pause; security lockdown; first real accuracy numbers
+
+**Asked:** Get Nexxau sellable right after Thanksgiving break — fix everything, accurate
+detection on the classes buyers need.
+
+**Did:**
+- Login 401 after unpausing Supabase: pooler hadn't re-registered the tenant yet; resolved itself.
+- Shipped the uncommitted false-positive schema (manual SQL: `add_alert_override_audit_manual.sql`),
+  anonymous evaluations, real printable incident report (`/incident-report/[id]`), mobile table scroll.
+- **Security:** none of the 12 `/api/alerts/[id]/*` routes checked tenancy (5 had no auth at all);
+  the whole rules API was unauthenticated; live HLS video was public; `/api/alerts` logged session
+  cookies. All fixed (see CLAUDE.md "Access control"). 31 unused/debug handlers → super-admin only.
+- **Rule edits never saved** confidence/class/zone/actions (PATCH ignored builder field names). Fixed.
+- **Camera tile always "Offline"**: parents didn't pass `isOnline`. Fixed. stream-event also matches hlsUrl.
+- Builder only offers released classes; rules cut from 7 to 2 (no hardhat 35%, no vest 40%).
+  `YOLO_CONFIDENCE` was 0.30 on Railway, set back to 0.25.
+- Disabled the dead k8s GitHub Actions pipeline (manual-only).
+- Scored 6 recorded clips offline with production weights. Built `PERSON_MODEL` (COCO person stage).
+
+**Learned:**
+- Vest classifier: 286/289 correct; first no-vest alert 0.5–3.5 s with COCO persons (was up to 6.5 s).
+  Zero false alarms on an empty frame. No-hardhat: caught in every clip within ≤20.5 s; per-frame
+  "helmet" vs "no helmet" confidences overlap on bare heads (~0.36 vs ~0.36) — hardhat is weak.
+- One subject, indoor lobby, chest-height camera. Optimistic vs a real site. No outdoor/multi-worker data.
+
+**Open:** lock remaining dashboard routes; clear ~10k junk alerts (health check reads "unhealthy");
+hardhat head-crop classifier if live no-hardhat is slow; outdoor + vest-at-50ft clips; rotate
+`NEXTAUTH_SECRET` (a super-admin cookie was in logs — Luiz deferred); Supabase plan/backup card.
+
+---
+
 > Note: an entry for 2026-09-18 (the two-stage vest classifier) was lost — most likely
 > overwritten when `CONTEXT.md` was committed alongside the modal fix. The durable facts
 > survived in `CLAUDE.md`, which is the split working as intended. Watch for it if an

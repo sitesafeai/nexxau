@@ -121,7 +121,9 @@ been removed"), gated on a `formData.cameraId` field that doesn't exist (it's `c
 
 Weights are **not in git** — `.gitignore` blocks `*.pt`. They ship as GitHub Release assets and are fetched at boot by `ensure_model()` via `MODEL_DOWNLOAD_URL`.
 
-- Current: `best_ppe_v4.pt`, 14 classes, mAP@50 ≈ 0.786
+- Current in production: `best_ppe_v5.pt` (sha256 `231bc59752fe…`), 14 classes. Release asset
+  `releases/download/v5/best_ppe_v5.pt`. Vest classifier: `releases/download/vest-cls-1/vest_cls_v1.pt`
+  (sha256 `9f1debe2738e…`). The AI Vision tab shows both fingerprints live.
 - Always upload the **stripped** checkpoint (~52MB). An unstripped one is ~155MB and re-downloads on every cold start.
 - GitHub appends `.1` to a release asset whose filename collides — delete the old asset first, or `MODEL_DOWNLOAD_URL` silently serves stale weights.
 - Weakest class by far: `NO-Safety Vest` (recall 0.14). Known, being worked on.
@@ -173,7 +175,47 @@ d2 has no Person and no vest classes at all.
 
 If the model download fails, `ensure_model()` falls back to `yolov8n.pt` — bare COCO, **zero PPE classes**. Everything except `person_detected` silently stops detecting. Check startup logs for `Model:` and the downloaded KB figure.
 
+### Person stage: `PERSON_MODEL` (Nov 2026)
+
+The PPE model's own Person class found the subject in only **7–14% of frames** on real test
+clips; stock COCO `yolov8n` found him in **83–95%** of the same frames. The vest classifier is
+**99% correct (286/289)** on whatever crops it gets, so person recall was the whole ceiling.
+
+With `PERSON_MODEL=yolov8n.pt` set on the yolo service (and the vest classifier active), person
+boxes come from COCO: they feed the vest classifier AND become the `person_detected` vtype (zones).
+Unset = old behaviour. `PERSON_CONFIDENCE` (default 0.25). Costs a second inference per frame on
+Railway CPU — if detections lag, unset it. Startup log line: `Person source: …`.
+
+Test clips live in `test-footage/` (1–5, 7; 4/5/7 were recorded sideways — rotate 90° CCW).
+Score offline with the release weights rather than through the live stream: it's repeatable.
+
+## Released classes vs model classes
+
+`RELEASED_CLASS_IDS` in `lib/detection-classes.ts` is a product decision, separate from
+`MODEL_SUPPORTED_CLASS_IDS` (which mirrors the model). The alert builder only offers
+released classes: `no_helmet`, `helmet`, `no_vest`, `vest`, `person_detected`. Mask, gloves,
+goggles and fall are emitted by the model but unvalidated. Release a class by proving it on
+footage first.
+
+## Access control (Nov 2026 audit)
+
+API routes handle their own auth — `app/middleware.ts` passes `/api/*` through. Helpers:
+- `lib/alert-access.ts` `enforceAlertAccess` — every `/api/alerts/[id]/*` route.
+- `lib/rule-access.ts` — `/api/custom-rules` (+ cameras on a rule must be in its worksite).
+- `lib/stream-access.ts` — `/api/hls/*` live video, allow-cache 60 s (players poll every 1–2 s).
+- `lib/snapshot-token.ts` — snapshot links in emails are HMAC-signed (`?t=`), keyed by
+  `SNAPSHOT_SIGNING_SECRET` or `NEXTAUTH_SECRET`. Rotating that secret breaks old email images.
+- Unused/debug routes are `requireSuperAdmin()`-gated rather than deleted.
+Foreign-tenant ids answer **404, not 403**. Still open: analytics, safety-score, alerts/stream,
+streams/*, yolo/detections, cameras/test, invitations/send, users/onboard.
+
 ## Gotchas
+
+- **Editing a rule** in the alert builder sends `minConfidence`/`objectClass`/`zoneId`/`actions`;
+  the PATCH route maps them (it used to silently drop all four — fixed Nov 2026).
+- **Camera tiles need `isOnline` passed through** from `/api/cameras` by every parent that renders
+  `CameraGrid`; without it the tile reads Offline forever.
+- Never log request headers unredacted — `/api/alerts` once dumped session cookies to Railway logs.
 
 - `npx tsc --noEmit` reports ~256 **pre-existing** errors. Don't try to fix them; just
   confirm your own files are clean (`npx tsc --noEmit --pretty false | grep <yourfile>`).
