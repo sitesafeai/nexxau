@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import notificationService from '@/app/lib/notification-service';
 import { prisma } from '@/app/lib/prisma';
+import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 
 export async function POST(request: NextRequest) {
+  // Not used by any screen. Locked to super admins (Nov 2026 audit): it was
+  // reachable by anyone on the internet with no login.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   try {
     const body = await request.json();
     const { 
@@ -111,6 +117,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  // Not used by any screen. Locked to super admins (Nov 2026 audit): it was
+  // reachable by anyone on the internet with no login.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   try {
     const configStatus = notificationService.getConfigurationStatus();
     

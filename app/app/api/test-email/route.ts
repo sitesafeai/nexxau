@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { sendResendHtml, isResendConfigured } from '@/app/lib/resend-mail';
+import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 
 /**
  * GET /api/test-email — sends a test message via Resend.
  * Set TEST_EMAIL_TO (or RESEND_TEST_TO) to the recipient address.
  */
 export async function GET() {
+  // Not used by any screen. Locked to super admins (Nov 2026 audit): it was
+  // reachable by anyone on the internet with no login.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   try {
     if (!isResendConfigured()) {
       return NextResponse.json(

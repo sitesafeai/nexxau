@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 
 /**
  * Pre-warm MediaMTX HLS stream
@@ -101,6 +102,11 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ cameraId: string }> }
 ) {
+  // Not used by any screen. Locked to super admins (Nov 2026 audit): it was
+  // reachable by anyone on the internet with no login.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   try {
     const { cameraId } = await params;
 

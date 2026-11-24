@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadFile } from '@/app/lib/cloud-storage';
+import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 
 /**
  * GET /api/test-cloudinary
  * Test endpoint to verify Cloudinary is working
  */
 export async function GET(request: NextRequest) {
+  // Not used by any screen. Locked to super admins (Nov 2026 audit): it was
+  // reachable by anyone on the internet with no login.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   try {
     console.log('🧪 Testing Cloudinary connection...');
     

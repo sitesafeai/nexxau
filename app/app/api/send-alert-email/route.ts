@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendAlertNotificationEmail } from '@/app/lib/email-service';
+import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 
 /**
  * POST /api/send-alert-email
@@ -7,6 +8,11 @@ import { sendAlertNotificationEmail } from '@/app/lib/email-service';
  * Called by AI detection service when alerts are triggered
  */
 export async function POST(request: NextRequest) {
+  // Not used by any screen. Locked to super admins (Nov 2026 audit): it was
+  // reachable by anyone on the internet with no login.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   try {
     const body = await request.json();
     const { recipients, alertType, location, severity, timestamp, alertId } = body;

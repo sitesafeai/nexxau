@@ -3,11 +3,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { errorHandler } from '@/app/lib/error-handler';
 import { customRuleEngine } from '@/app/lib/custom-rule-engine';
+import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Not used by any screen. Locked to super admins (Nov 2026 audit): it was
+  // reachable by anyone on the internet with no login.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   const { id } = await params;
   try {
   const { testData } = await req.json();

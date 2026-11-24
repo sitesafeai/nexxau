@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 
 /**
  * Debug endpoint to test Prisma client and database connectivity
@@ -7,6 +8,11 @@ import { prisma } from '@/app/lib/prisma';
  * No auth required - for debugging only
  */
 export async function GET() {
+  // Not used by any screen. Locked to super admins (Nov 2026 audit): it was
+  // reachable by anyone on the internet with no login.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   // No auth check - this is a debug endpoint
   const results: any = {
     timestamp: new Date().toISOString(),

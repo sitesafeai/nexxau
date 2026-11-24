@@ -1,8 +1,14 @@
 import { NextRequest } from 'next/server';
+import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
+  // Not used by any screen. Locked to super admins (Nov 2026 audit): it was
+  // reachable by anyone on the internet with no login.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   const { searchParams } = new URL(request.url);
   const cameraId = searchParams.get('cameraId') || 'unknown';
 

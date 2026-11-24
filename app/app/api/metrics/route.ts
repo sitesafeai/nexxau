@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { metricsCollector } from '@/app/lib/metrics';
 import { securityMiddleware, addSecurityHeaders } from '@/app/lib/security';
+import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 
 export async function GET(request: NextRequest) {
+  // Not used by any screen. Locked to super admins (Nov 2026 audit): it was
+  // reachable by anyone on the internet with no login.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   // Apply security middleware
   const securityCheck = securityMiddleware(request);
   if (securityCheck) return securityCheck;

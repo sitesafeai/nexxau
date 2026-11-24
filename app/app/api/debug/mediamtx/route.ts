@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 
 export async function GET() {
+  // Not used by any screen. Locked to super admins (Nov 2026 audit): it was
+  // reachable by anyone on the internet with no login.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   const hlsOrigin = (process.env.MEDIAMTX_HLS_ORIGIN || 'http://localhost:8888').replace(/\/$/, '');
   const apiUrl = (process.env.MEDIAMTX_API_URL || 'http://localhost:9000');
   const user = process.env.MEDIAMTX_API_USERNAME || 'admin';

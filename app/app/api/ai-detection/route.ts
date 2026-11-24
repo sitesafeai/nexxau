@@ -3,8 +3,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { errorHandler } from '@/app/lib/error-handler';
 import { aiDetectionIntegration } from '@/app/lib/ai-detection-integration';
 import logger from '@/app/lib/logger';
+import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 
 export async function POST(req: NextRequest) {
+  // Not used by any screen. Locked to super admins (Nov 2026 audit): it was
+  // reachable by anyone on the internet with no login.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   try {
     const detectionData = await req.json();
 
@@ -37,6 +43,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  // Not used by any screen. Locked to super admins (Nov 2026 audit): it was
+  // reachable by anyone on the internet with no login.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   try {
     const stats = aiDetectionIntegration.getProcessingStats();
     

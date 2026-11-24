@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSystemConfig, patchSystemConfig } from '@/app/lib/system-config-store';
+import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 
 export async function GET(request: NextRequest) {
+  // Platform-wide settings: super admins only. Was open to anyone, read AND write.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   try {
     return NextResponse.json(getSystemConfig());
   } catch (error) {
@@ -11,6 +16,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  // Platform-wide settings: super admins only. Was open to anyone, read AND write.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   try {
     const body = await request.json();
 

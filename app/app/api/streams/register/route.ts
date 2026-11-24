@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { requireSuperAdmin } from '@/app/lib/require-super-admin';
 
 const execAsync = promisify(exec);
 
@@ -28,6 +29,11 @@ async function regenerateMediaMTXConfig() {
 }
 
 export async function POST(request: NextRequest) {
+  // Not used by any screen. Locked to super admins (Nov 2026 audit): it was
+  // reachable by anyone on the internet with no login.
+  const superAdminGate = await requireSuperAdmin();
+  if (!superAdminGate.ok) return superAdminGate.response;
+
   try {
     const { name, streamUrl, mediamtxPath, worksiteId } = await request.json();
     if (!name || !streamUrl || !mediamtxPath) {
