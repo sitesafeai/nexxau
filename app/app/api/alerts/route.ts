@@ -24,8 +24,12 @@ export async function GET(request: NextRequest) {
   console.log(`[Alerts API] [${requestId}] Request method:`, request.method);
   try {
     const headersObj: Record<string, string> = {};
+    // Never log credentials. This used to dump every header verbatim, which put live
+    // session cookies (incl. super-admin) into Railway's logs — anyone with log access
+    // could replay them and be logged in as that user.
+    const SECRET_HEADERS = new Set(['cookie', 'authorization', 'x-internal-token', 'x-api-key']);
     request.headers.forEach((value, key) => {
-      headersObj[key] = value;
+      headersObj[key] = SECRET_HEADERS.has(key.toLowerCase()) ? '[redacted]' : value;
     });
     console.log(`[Alerts API] [${requestId}] Request headers:`, headersObj);
   } catch (headerError: any) {
