@@ -594,7 +594,11 @@ def main():
         try:
             import torch
             torch.set_num_threads(max(1, int(torch_threads)))
-            logger.info(f'Torch threads: {torch.get_num_threads()} (env TORCH_THREADS)')
+            # OpenCV (decode, resize, letterbox) keeps its own pool sized to every core;
+            # with only torch capped, streaming still sat at ~3 vCPU on an 8-vCPU host.
+            cv2.setNumThreads(max(1, int(torch_threads)))
+            logger.info(f'Torch threads: {torch.get_num_threads()}, OpenCV threads: '
+                        f'{cv2.getNumThreads()} (env TORCH_THREADS)')
         except Exception as e:
             logger.warning(f'TORCH_THREADS={torch_threads!r} not applied: {e}')
 
