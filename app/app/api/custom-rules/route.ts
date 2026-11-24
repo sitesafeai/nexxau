@@ -5,6 +5,9 @@ import { retryDatabaseOperation } from '@/app/lib/retry';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { writeAuditLog } from '@/app/lib/audit';
+import { getCachedSession } from '@/app/lib/session-cache';
+import { enforceWorksiteAccess } from '@/app/lib/worksite-access';
+import { enforceRuleCreateAccess, isSuperAdmin } from '@/app/lib/rule-access';
 
 // GET /api/custom-rules - Get all custom rules
 export async function GET(request: NextRequest) {
@@ -18,9 +21,25 @@ export async function GET(request: NextRequest) {
     const worksiteId = searchParams.get('worksiteId');
 
     console.log('[API /custom-rules] Query params:', { activeOnly, worksiteId, cameraId });
+
+    // Tenant gate. Without a worksite filter, non-super-admins only ever see their own
+    // company's rules — this endpoint used to return every company's rules to anyone.
+    const session = await getCachedSession(request);
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(session);
+    if (worksiteId && !superAdmin) {
+      const denied = await enforceWorksiteAccess(request, worksiteId);
+      if (denied) return denied;
+    }
+    const companyScope = !worksiteId && !superAdmin
+      ? ((session.user as { companyId?: string }).companyId || '__no_company__')
+      : null;
     
     const rules = await retryDatabaseOperation(async () => {
       const whereClause: any = {};
+      if (companyScope) whereClause.worksite = { companyId: companyScope };
       
       if (activeOnly) {
         whereClause.isActive = true;
@@ -152,6 +171,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Tenant gate: the rule's worksite and every camera on it must be the caller's.
+    const createDenied = await enforceRuleCreateAccess(request, body);
+    if (createDenied) return createDenied;
 
     // ── normalise both shapes into one set of locals ─────────────────────────
     // Shape 1 (alert-builder) uses top-level detectionType / objectClass / actions / conditions

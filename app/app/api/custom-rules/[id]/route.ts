@@ -5,6 +5,8 @@ import { retryDatabaseOperation } from '@/app/lib/retry';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
 import { writeAuditLog } from '@/app/lib/audit';
+import { getCachedSession } from '@/app/lib/session-cache';
+import { enforceRuleAccess, enforceCamerasInWorksite, cameraIdList, isSuperAdmin } from '@/app/lib/rule-access';
 
 // GET /api/custom-rules/[id] - Get a specific rule
 export async function GET(
@@ -13,6 +15,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const accessDenied = await enforceRuleAccess(request, id);
+    if (accessDenied) return accessDenied;
 
     const rule = await prisma.customRule.findUnique({
       where: { id },
@@ -83,6 +87,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const accessDenied = await enforceRuleAccess(request, id);
+  if (accessDenied) return accessDenied;
   try {
     const body = await request.json();
 
@@ -112,6 +118,64 @@ export async function PATCH(
     if (body.detectionCriteria !== undefined) updateData.detectionCriteria = body.detectionCriteria;
     if (body.cameraId !== undefined) updateData.cameraId = body.cameraId || null;
     if (body.cameraIds !== undefined) updateData.cameraIds = Array.isArray(body.cameraIds) ? body.cameraIds.filter(Boolean) : [];
+
+    // Cameras added on edit must sit in the rule's own worksite (see rule-access.ts).
+    const newCameras = cameraIdList({ cameraId: body.cameraId, cameraIds: body.cameraIds });
+    if (newCameras.length > 0 && !isSuperAdmin(await getCachedSession(request))) {
+      const owner = await prisma.customRule.findUnique({
+        where: { id },
+        select: { worksiteId: true, camera: { select: { worksiteId: true } } },
+      });
+      const ownerSite = owner?.worksiteId ?? owner?.camera?.worksiteId ?? null;
+      if (!ownerSite) return NextResponse.json({ error: 'Rule not found' }, { status: 404 });
+      const camDenied = await enforceCamerasInWorksite(newCameras, ownerSite);
+      if (camDenied) return camDenied;
+    }
+
+    // The alert builder edits with the same shape it creates with: minConfidence,
+    // detectionType, objectClass, zoneId, conditions, actions. This route only understood
+    // the old modal's field names, so editing a rule's confidence, class, zone or actions
+    // in the builder returned 200 and changed nothing. Map it the same way POST does,
+    // merging into the stored JSON so fields the builder doesn't send survive.
+    const isBuilderShape =
+      body.minConfidence !== undefined || body.detectionType !== undefined || body.objectClass !== undefined;
+    if (isBuilderShape) {
+      const existing = await prisma.customRule.findUnique({
+        where: { id },
+        select: { detectionCriteria: true, alertSettings: true },
+      });
+      const prevCriteria = (existing?.detectionCriteria as Record<string, any>) || {};
+      const prevSettings = (existing?.alertSettings as Record<string, any>) || {};
+      const conditions = (body.conditions as Record<string, any>) || {};
+
+      if (body.minConfidence !== undefined && body.confidenceThreshold === undefined) {
+        updateData.confidenceThreshold = body.minConfidence;
+      }
+      if (body.detectionCriteria === undefined) {
+        updateData.detectionCriteria = {
+          ...prevCriteria,
+          detectionType: body.detectionType ?? prevCriteria.detectionType ?? 'object_present',
+          objectClass: body.objectClass ?? prevCriteria.objectClass,
+          zoneCoordinates: body.zoneCoordinates !== undefined ? body.zoneCoordinates : (prevCriteria.zoneCoordinates ?? null),
+          zoneId: body.zoneId !== undefined ? (body.zoneId || null) : (prevCriteria.zoneId ?? null),
+          zoneObjectTriggers: conditions.zoneObjectTriggers ?? prevCriteria.zoneObjectTriggers ?? null,
+        };
+      }
+      if (body.conditions !== undefined && body.triggerConditions === undefined) {
+        updateData.triggerConditions = body.conditions;
+      }
+      if (Array.isArray(body.actions) && body.alertSettings === undefined) {
+        updateData.alertSettings = {
+          ...prevSettings,
+          actions: body.actions,
+          severity: body.severity ?? prevSettings.severity,
+          smsRecipients: body.smsRecipients ?? prevSettings.smsRecipients ?? [],
+          emailRecipients: body.emailRecipients ?? prevSettings.emailRecipients ?? [],
+        };
+        updateData.smsEnabled = body.actions.includes('send_sms');
+        updateData.emailEnabled = body.actions.includes('send_email');
+      }
+    }
 
     // Snapshot the fields that change whether and how this rule fires, BEFORE the
     // update. The audit entry used to record only { isActive, ruleSeverity }, which
@@ -230,6 +294,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const accessDenied = await enforceRuleAccess(request, id);
+  if (accessDenied) return accessDenied;
   try {
     // Fetch before delete so we can capture name/worksiteId for audit
     const existingRule = await prisma.customRule.findUnique({

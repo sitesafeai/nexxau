@@ -49,12 +49,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Look up the camera by mediamtxPath or id (the stream path is usually the camera ID)
+  // Look up the camera by mediamtxPath, id, or the path inside its hlsUrl. The last one
+  // matters: /api/cameras/list-for-detection derives the stream path from hlsUrl when
+  // mediamtxPath is empty, so a camera could be detected on a path this lookup didn't
+  // recognise — the dashboard then showed "Offline / Not Detecting" while detections
+  // were arriving every few seconds (seen Nov 2026 after the camera was re-created).
   const camera = await prisma.camera.findFirst({
     where: {
       OR: [
         { mediamtxPath: streamPath },
         { id: streamPath },
+        { hlsUrl: { contains: `/${streamPath}/` } },
       ],
     },
     select: { id: true, name: true, worksiteId: true, status: true },
