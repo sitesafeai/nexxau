@@ -186,6 +186,16 @@ boxes come from COCO: they feed the vest classifier AND become the `person_detec
 Unset = old behaviour. `PERSON_CONFIDENCE` (default 0.25). Costs a second inference per frame on
 Railway CPU — if detections lag, unset it. Startup log line: `Person source: …`.
 
+**Production setting (Nov 25 2026): `VID_STRIDE=60`** (1 check / 2 s from a 30 fps phone),
+`PERSON_CONFIDENCE=0.5`, `TORCH_THREADS=2`, `OMP/MKL/OPENBLAS_NUM_THREADS=2`. Measured on Railway:
+stride 15 ≈ 6 vCPU while streaming (~$120/mo/camera at $20/vCPU-month); stride 60 ≈ 0.6 vCPU
+(~$12/mo CPU). Thread caps did NOT reduce it — inference itself is the cost, and the big
+`best_ppe_v5` detector is ~88% of per-frame compute (0.40 of 0.45 core-s; yolov8n 0.05,
+vest cls 0.009). Its only remaining job is hardhats → a head-crop hardhat classifier would
+let stride drop back to ~15 at today's cost. Trade-off at 60: a person in frame <2 s can be missed.
+`PERSON_CONFIDENCE=0.5`: real people scored 0.83–0.93 median; false persons (a vest on a shelf,
+an arm at the frame edge) 0.26–0.48. 0.5 keeps 98% of real-person frames.
+
 Test clips live in `test-footage/` (1–5, 7; 4/5/7 were recorded sideways — rotate 90° CCW).
 Score offline with the release weights rather than through the live stream: it's repeatable.
 
