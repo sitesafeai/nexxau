@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSiteKpis } from '@/app/lib/site-kpis';
 import { prisma } from '@/app/lib/prisma';
 import { getCachedSession } from '@/app/lib/session-cache';
 import { logCreate } from '@/app/lib/audit-logger';
@@ -145,23 +146,32 @@ export async function GET(request: NextRequest) {
       console.warn('[worksites API] No worksites found with filter:', JSON.stringify(whereClause));
     }
 
-    // Keep this endpoint light: avoid per-worksite query bursts that exhaust DB pools.
-    const enrichedWorksites = worksites.map((worksite) => {
-      const onlineCameras = worksite.cameras.filter((c: { id: string; status: string | null }) =>
-        c.status?.toLowerCase() === 'online' ||
-        c.status?.toLowerCase() === 'active'
-      ).length;
-      const totalCameras = worksite.cameras.length;
+    // Batched KPIs (a few grouped queries total, not per-site) — lib/site-kpis.ts
+    const kpis = await withCache(
+      `worksites:kpis:${worksites.map((w) => w.id).sort().join(',')}`,
+      15_000,
+      () => getSiteKpis(worksites.map((w) => w.id))
+    ).catch((e) => {
+      console.error('[worksites API] KPI error', e);
+      return new Map();
+    });
 
-      let status = worksite.status || 'active';
-      if (!worksite.status) {
-        if (totalCameras === 0) {
-          status = 'inactive';
-        } else if (onlineCameras === 0) {
-          status = 'offline';
-        } else if (onlineCameras < totalCameras * 0.5) {
-          status = 'active';
-        }
+    const enrichedWorksites = worksites.map((worksite) => {
+      const k = kpis.get(worksite.id);
+      const onlineCameras = k?.camerasOnline ?? 0;
+      const totalCameras = k?.camerasTotal ?? worksite.cameras.length;
+
+      // DB stores 'ACTIVE' but every badge compares lowercase 'active', so it always
+      // rendered red. Normalise, then say what's actually true right now:
+      //   active  = site enabled AND at least one camera streaming (green)
+      //   offline = site enabled but no camera streaming (amber)
+      //   setup   = site enabled, no cameras added yet (grey)
+      //   anything else (inactive / suspended / maintenance) passes through.
+      const dbStatus = String(worksite.status || 'active').toLowerCase();
+      let status = dbStatus;
+      if (dbStatus === 'active') {
+        if (totalCameras === 0) status = 'setup';
+        else if (onlineCameras === 0) status = 'offline';
       }
 
       return {
@@ -175,11 +185,15 @@ export async function GET(request: NextRequest) {
         companyId: worksite.companyId,
         company: worksite.company || null,
         status,
+        siteStatus: dbStatus,
         cameras: worksite._count.cameras,
-        alerts: worksite._count.alerts,
+        // `alerts` used to be the all-time count (10k+ junk) — now open alerts only
+        alerts: k?.openAlerts ?? 0,
+        activeAlerts: k?.openAlerts ?? 0,
+        onlineCameras,
         workers: worksite._count.workers,
         lastActivity: 'No activity',
-        safetyScore: null,
+        safetyScore: k?.safetyScore ?? null,
         grade: null,
         cameraSystemType: worksite.cameraSystemType,
         createdAt: worksite.createdAt,

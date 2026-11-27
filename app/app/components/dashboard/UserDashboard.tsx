@@ -58,6 +58,13 @@ import OverviewCameraThumb from '@/app/components/cameras/OverviewCameraThumb';
 // ============================================================
 
 type AlertSeverity = 'high' | 'medium' | 'low';
+function formatMinutes(min: number | null): string {
+  if (min == null) return '—';
+  if (min < 60) return `${Math.max(1, Math.round(min))}m`;
+  if (min < 60 * 24) return `${(min / 60).toFixed(1)}h`;
+  return `${(min / 1440).toFixed(1)}d`;
+}
+
 type AlertStatus = 'active' | 'acknowledged' | 'snoozed' | 'resolved';
 type CameraStatus = 'online' | 'offline';
 type UserRole = 'SITE_MANAGER' | 'SAFETY_OFFICER' | 'VIEWER' | 'SUPER_ADMIN' | 'COMPANY_ADMIN' | 'SUPERVISOR' | 'WORKER';
@@ -75,7 +82,8 @@ interface SiteMetrics {
   lastActivity: string | null;
   avgResponseTime: number | null;
   violations24h: number;
-  cameraUptime7d: number;
+  cameraUptime7d: number | null;
+  resolved30d: number;
   lastSync: string;
 }
 
@@ -675,7 +683,8 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
         lastActivity: data.lastActivity ?? null,
         avgResponseTime: data.avgResponseTime ?? null,
         violations24h: data.violations24h ?? 0,
-        cameraUptime7d: data.cameraUptime7d ?? 99.5,
+        cameraUptime7d: data.cameraUptime7d ?? null,
+        resolved30d: data.resolved30d ?? 0,
         lastSync: new Date().toISOString(),
       });
     };
@@ -1027,7 +1036,9 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
     );
   }
 
-  const activeAlertCount = alerts.filter(a => a.status === 'active').length;
+  // Server count (lib/site-kpis.ts) — the local list is capped at the newest alerts,
+  // so counting it undercounted and disagreed with every other page.
+  const activeAlertCount = metrics?.totalAlerts ?? alerts.filter(a => a.status === 'active').length;
 
   return (
     <div className="space-y-6">
@@ -1065,7 +1076,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <KPICard
           title="Safety Score"
-          tooltip="Overall site safety score from 0–100. Calculated from violation frequency, camera uptime, and alert resolution time. Recalculates daily or on demand."
+          tooltip="0–100. Starts at 100 and drops with every real violation in the last 7 days — false positives don't count. Click to recalculate."
           value={
             metrics?.safetyScore != null
               ? Math.round(metrics.safetyScore).toString()
@@ -1087,7 +1098,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
         />
         <KPICard
           title="Active Alerts"
-          tooltip="PPE violations and safety events that have been detected but not yet resolved. High severity alerts require immediate attention."
+          tooltip="Alerts that still need someone: new, acknowledged or escalated. Resolved and false-positive alerts are not counted."
           value={activeAlertCount}
           icon={AlertTriangle}
           color={metrics?.highAlerts && metrics.highAlerts > 0 ? 'red' : activeAlertCount > 0 ? 'yellow' : 'green'}
@@ -1103,15 +1114,15 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
         />
         <KPICard
           title="Violations (24h)"
-          tooltip="Total PPE violations detected by AI in the last 24 hours across all cameras on this site."
+          tooltip="Alerts created on this site in the last 24 hours, not counting ones marked false positive."
           value={metrics?.violations24h ?? 0}
           icon={Activity}
           color="gray"
         />
         <KPICard
           title="Avg Response"
-          tooltip="Average time in minutes between a violation being detected and an alert being acknowledged by a supervisor."
-          value={metrics?.avgResponseTime ? `${metrics.avgResponseTime}m` : '—'}
+          tooltip="Average time from an alert firing to someone resolving it, over the last 30 days. Shows — until at least one alert has been resolved."
+          value={formatMinutes(metrics?.avgResponseTime ?? null)}
           icon={Clock}
           color="blue"
         />
@@ -1192,7 +1203,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
             <div className="flex items-center justify-between">
               <span className="text-sm text-slate-400">Camera Uptime (7d)</span>
               <span className="text-sm font-semibold text-white">
-                {metrics?.cameraUptime7d?.toFixed(1) ?? '—'}%
+                {metrics?.cameraUptime7d != null ? `${metrics.cameraUptime7d.toFixed(1)}%` : 'No data yet'}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -1241,7 +1252,7 @@ export default function UserDashboard({ currentUser, selectedSite }: UserDashboa
         <div className="px-5 py-4 border-b border-slate-700/50 flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-white">Camera Monitoring</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Live camera previews (go2rtc)</p>
+            <p className="text-xs text-slate-500 mt-0.5">Live camera previews</p>
           </div>
           <div className="flex items-center gap-3">
           <span className="text-sm text-slate-400">

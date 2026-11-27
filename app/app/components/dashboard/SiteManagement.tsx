@@ -73,7 +73,7 @@ export default function SiteManagement({ currentUser }: SiteManagementProps) {
 
     // Status filter
     if (statusFilter !== 'all') {
-      result = result.filter(site => site.status === statusFilter);
+      result = result.filter(site => ((site as any).siteStatus ?? site.status) === statusFilter);
     }
 
     // Safety score filter
@@ -140,6 +140,7 @@ export default function SiteManagement({ currentUser }: SiteManagementProps) {
       case 'inactive':
         return 'bg-red-500/20 text-red-400 border-red-500/30';
       case 'maintenance':
+      case 'offline':
         return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
       default:
         return 'bg-slate-500/20 text-slate-400 border-slate-500/30';

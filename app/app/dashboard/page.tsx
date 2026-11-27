@@ -251,7 +251,8 @@ function DashboardContent() {
                       <span className="text-xs text-slate-400">Status</span>
                       <span className={`inline-flex px-2 py-0.5 text-xs font-bold uppercase tracking-wide rounded ${
                         selectedSite.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' :
-                        selectedSite.status === 'maintenance' ? 'bg-amber-500/20 text-amber-400' :
+                        (selectedSite.status === 'maintenance' || selectedSite.status === 'offline') ? 'bg-amber-500/20 text-amber-400' :
+                        selectedSite.status === 'setup' ? 'bg-slate-500/20 text-slate-300' :
                         'bg-red-500/20 text-red-400'
                     }`}>
                       {selectedSite.status}
@@ -368,7 +369,8 @@ function DashboardContent() {
                       <span className="text-xs text-slate-400">Status</span>
                       <span className={`inline-flex px-2 py-0.5 text-xs font-bold uppercase rounded ${
                         selectedSite.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' :
-                        selectedSite.status === 'maintenance' ? 'bg-amber-500/20 text-amber-400' :
+                        (selectedSite.status === 'maintenance' || selectedSite.status === 'offline') ? 'bg-amber-500/20 text-amber-400' :
+                        selectedSite.status === 'setup' ? 'bg-slate-500/20 text-slate-300' :
                         'bg-red-500/20 text-red-400'
                     }`}>
                       {selectedSite.status}
@@ -623,7 +625,8 @@ function OverviewPage({ currentSite }: { currentSite: any }) {
           <div className="flex items-center space-x-2">
             <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
               currentSite.status === 'active' ? 'bg-green-900 text-green-300' :
-              currentSite.status === 'maintenance' ? 'bg-yellow-900 text-yellow-300' :
+              (currentSite.status === 'maintenance' || currentSite.status === 'offline') ? 'bg-yellow-900 text-yellow-300' :
+              currentSite.status === 'setup' ? 'bg-slate-700 text-slate-300' :
               'bg-red-900 text-red-300'
             }`}>
               {currentSite.status}
@@ -2008,7 +2011,8 @@ function SitesTab({ currentSite }: { currentSite: any }) {
         name: currentSite.name || '',
         address: currentSite.address || '',
         location: currentSite.location || '',
-        status: currentSite.status || 'active'
+        // siteStatus = the stored value; status is the live display state (offline/setup)
+        status: currentSite.siteStatus || currentSite.status || 'active'
       });
     }
   }, [currentSite]);
@@ -2248,7 +2252,7 @@ function SitesTab({ currentSite }: { currentSite: any }) {
           
           {/* Configure Alerts Button */}
           <button 
-            onClick={() => canConfigureAlerts && router.push(`/dashboard/alerts${currentSite?.id ? `?worksite=${currentSite.id}` : ''}`)}
+            onClick={() => canConfigureAlerts && window.dispatchEvent(new CustomEvent('switchTab', { detail: 'alert-rules' }))}
             disabled={!canConfigureAlerts}
             className={`p-4 rounded-lg text-center transition-colors border ${
               canConfigureAlerts
@@ -5738,57 +5742,47 @@ function AlertRulesPage({ currentSite }: { currentSite: any }) {
   const [rules, setRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (currentSite?.id) {
-      setLoading(true);
-      console.log('[AlertRulesPage] Fetching rules for worksite:', currentSite.id, 'worksite name:', currentSite.name);
-      fetch(`/api/custom-rules?worksiteId=${currentSite.id}`)
-        .then(res => {
-          console.log('[AlertRulesPage] Response status:', res.status);
-          if (!res.ok) {
-            return res.json().then(err => {
-              console.error('[AlertRulesPage] API error:', err);
-              throw new Error(err.error || 'Failed to fetch rules');
-            });
-          }
-          return res.json();
-        })
-        .then(data => {
-          console.log('[AlertRulesPage] API response:', data);
-          const allRules = Array.isArray(data) ? data : (data.data || []);
-          console.log('[AlertRulesPage] All rules received:', allRules.length);
-          console.log('[AlertRulesPage] Rules details:', allRules.map((r: any) => ({
-            id: r.id,
-            name: r.name,
-            worksiteId: r.worksiteId,
-            worksiteName: r.worksite?.name
-          })));
-          // Filter to ensure only rules for this worksite
-          const filteredRules = allRules.filter((rule: any) => {
-            const matches = rule.worksiteId === currentSite.id;
-            if (!matches) {
-              console.log('[AlertRulesPage] Rule filtered out:', {
-                ruleId: rule.id,
-                ruleName: rule.name,
-                ruleWorksiteId: rule.worksiteId,
-                expectedWorksiteId: currentSite.id,
-                worksiteName: rule.worksite?.name
-              });
-            }
-            return matches;
-          });
-          console.log('[AlertRulesPage] Filtered rules count:', filteredRules.length);
-          setRules(filteredRules);
-        })
-        .catch((err) => {
-          console.error('[AlertRulesPage] Error fetching rules:', err);
-          setRules([]);
-        })
-        .finally(() => setLoading(false));
-    } else {
+  // Refetch whenever the list could be stale: site change, coming back from the
+  // alert builder (tab refocus / bfcache), or switching to this tab. The tab stays
+  // mounted while hidden, so a one-shot fetch on mount showed old rules forever.
+  const loadRules = useCallback(async (showSpinner = false) => {
+    if (!currentSite?.id) {
+      setLoading(false);
+      return;
+    }
+    if (showSpinner) setLoading(true);
+    try {
+      const res = await fetch(`/api/custom-rules?worksiteId=${currentSite.id}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Failed to fetch rules');
+      const data = await res.json();
+      const allRules = Array.isArray(data) ? data : (data.data || []);
+      setRules(allRules.filter((rule: any) => rule.worksiteId === currentSite.id));
+    } catch (err) {
+      console.error('[AlertRulesPage] Error fetching rules:', err);
+      if (showSpinner) setRules([]);
+    } finally {
       setLoading(false);
     }
   }, [currentSite?.id]);
+
+  useEffect(() => {
+    loadRules(true);
+    const onFocus = () => loadRules(false);
+    const onVisible = () => { if (document.visibilityState === 'visible') loadRules(false); };
+    const onSwitch = (e: Event) => {
+      if ((e as CustomEvent<string>).detail === 'alert-rules') loadRules(false);
+    };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('pageshow', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('switchTab', onSwitch as EventListener);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('pageshow', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('switchTab', onSwitch as EventListener);
+    };
+  }, [loadRules]);
 
   const handleToggleRule = async (ruleId: string, isActive: boolean) => {
     try {

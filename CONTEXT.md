@@ -17,6 +17,14 @@ Entry format:
 
 ---
 
+## 2026-11-27 — one source of truth for KPIs; status badge; rules list refresh
+**Asked:** sidebar/Reports safety score N/A, Avg Response dead, status not green, Configure Alerts stale, exports accurate.
+**Did:** new `app/app/lib/site-kpis.ts` (`getSiteKpis(ids)`, batched groupBy) now feeds overview (`worksite-metrics-payload`), `/api/worksites` list (sidebar, Site Mgmt), `/api/reports/analytics`, `/api/analytics` (+ its CSV/JSON/PDF), worksite PDF. Avg response = creation→resolvedAt (old code was always 0 / read never-written AlertResponse rows). Uptime fake 99.5 → real CameraHealth % or "No data". `/api/analytics` had NO auth and `/api/reports/analytics` only checked login — both now `enforceWorksiteAccess` (403→404). Worksite status: DB 'ACTIVE' vs UI 'active' made every badge red; now lowercase + live `offline`/`setup`; stored value in `siteStatus`. Rules list refetches on focus/tab switch; Site Mgmt "Configure Alerts" opens the Alert Rules tab instead of the old `/dashboard/alerts` page.
+**Learned:** `/api/worksites` had `safetyScore: null` hard-coded and `alerts` = all-time count. Overview Active Alerts counted only the newest 50 fetched.
+**Open:** billing-overdue behaviour undecided; 10k junk alerts drive the score to 0 until bulk-cleared.
+
+---
+
 ## 2026-11-23/24 — back from a 2-month pause; security lockdown; first real accuracy numbers
 
 **Asked:** Get Nexxau sellable right after Thanksgiving break — fix everything, accurate

@@ -185,7 +185,7 @@ function AnalyticsPageContent() {
                   <BarChart3 className="h-5 w-5 text-blue-400" />
                 </div>
                 <div className="text-3xl font-bold text-white mb-1">
-                  {analytics?.cameras?.uptime || 0}%
+                  {analytics?.cameras?.uptime != null ? `${analytics.cameras.uptime}%` : 'No data'}
                 </div>
                 <div className="text-sm text-gray-400">
                   {analytics?.cameras?.online || 0}/{analytics?.cameras?.total || 0} online
@@ -310,7 +310,7 @@ function AnalyticsPageContent() {
                   </div>
                   <div className="flex justify-between items-center pt-4 border-t border-gray-700">
                     <span className="text-gray-400">Uptime</span>
-                    <span className="text-2xl font-bold text-blue-400">{analytics?.cameras?.uptime || 0}%</span>
+                    <span className="text-2xl font-bold text-blue-400">{analytics?.cameras?.uptime != null ? `${analytics.cameras.uptime}%` : 'No data'}</span>
                   </div>
                 </div>
               </div>
@@ -469,7 +469,7 @@ function ExportButton({ analytics, worksiteId, timeRange }: { analytics: any; wo
         csvRows.push(`Total,${analytics.cameras?.total || 0}`);
         csvRows.push(`Online,${analytics.cameras?.online || 0}`);
         csvRows.push(`Offline,${analytics.cameras?.offline || 0}`);
-        csvRows.push(`Uptime,${analytics.cameras?.uptime || 0}%`);
+        csvRows.push(`Uptime (7d),${analytics.cameras?.uptime != null ? analytics.cameras.uptime + '%' : 'No data'}`);
         csvRows.push('');
         
         // Alerts

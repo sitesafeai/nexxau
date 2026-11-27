@@ -92,7 +92,7 @@ export async function buildAnalyticsReportPdf(analytics: any, opts: AnalyticsPdf
 
   const cam = analytics?.cameras;
   kv('Cameras online', `${cam?.online ?? 0} / ${cam?.total ?? 0}`);
-  kv('Camera uptime', `${cam?.uptime ?? 0}%`);
+  kv('Camera uptime (7d)', cam?.uptime != null ? `${cam.uptime}%` : 'No data yet');
 
   const al = analytics?.alerts;
   kv('Total alerts', al?.total ?? 0);

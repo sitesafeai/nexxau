@@ -1,34 +1,6 @@
 import { prisma } from '@/app/lib/prisma';
 import { Cache, CacheKeys } from '@/app/lib/cache';
-import { isCameraOnline } from '@/app/lib/camera-status';
-
-function getAlertMetrics(alerts: any[]): {
-  totalAlerts: number;
-  highAlerts: number;
-  mediumAlerts: number;
-  lowAlerts: number;
-} {
-  const highAlerts = alerts.filter(
-    (a: any) =>
-      a.severity?.toLowerCase() === 'high' ||
-      a.severity?.toLowerCase() === 'critical'
-  ).length;
-
-  const mediumAlerts = alerts.filter(
-    (a: any) => a.severity?.toLowerCase() === 'medium'
-  ).length;
-
-  const lowAlerts = alerts.filter(
-    (a: any) => a.severity?.toLowerCase() === 'low'
-  ).length;
-
-  return {
-    totalAlerts: alerts.length,
-    highAlerts,
-    mediumAlerts,
-    lowAlerts,
-  };
-}
+import { getOneSiteKpis } from '@/app/lib/site-kpis';
 
 /** Scores are stored 0–100; tolerate legacy 0–1 fractions. */
 export function normalizeSafetyScoreDisplay(raw: number | null | undefined): number | null {
@@ -36,33 +8,6 @@ export function normalizeSafetyScoreDisplay(raw: number | null | undefined): num
   const n = Number(raw);
   if (n > 0 && n <= 1) return Math.round(n * 1000) / 10;
   return Math.round(n * 10) / 10;
-}
-
-function getSafetyScoreMetrics(safetyScores: any[]): {
-  safetyScore: number | null;
-  safetyScoreChange: number;
-} {
-  if (!safetyScores?.length) {
-    return { safetyScore: null, safetyScoreChange: 0 };
-  }
-  const latest = safetyScores[0];
-  const prev = safetyScores[1];
-  const score = normalizeSafetyScoreDisplay(latest?.safetyScore ?? null);
-
-  let safetyScoreChange = 0;
-  if (score != null) {
-    const y = normalizeSafetyScoreDisplay(latest?.yesterdayScore ?? null);
-    if (y != null) {
-      safetyScoreChange = Math.round((score - y) * 10) / 10;
-    } else if (prev?.safetyScore != null) {
-      const prevN = normalizeSafetyScoreDisplay(prev.safetyScore);
-      if (prevN != null) {
-        safetyScoreChange = Math.round((score - prevN) * 10) / 10;
-      }
-    }
-  }
-
-  return { safetyScore: score, safetyScoreChange };
 }
 
 async function getLastActivity(
@@ -112,175 +57,64 @@ export type WorksiteMetricsPayload = {
   offlineCameras: number;
   totalCameras: number;
   aiEnabledCameras: number;
+  /** Open alerts (ACTIVE/ACKNOWLEDGED/ESCALATED) — see lib/site-kpis.ts */
   totalAlerts: number;
   highAlerts: number;
   mediumAlerts: number;
   lowAlerts: number;
+  resolved30d: number;
   safetyScore: number | null;
-  /** vs prior day when available (from SafetyScore.yesterdayScore or previous row) */
   safetyScoreChange: number;
-  /** Detections in the last 24h for this worksite */
+  safetyScoreSource: 'calculated' | 'live';
+  /** Real alerts (not false positives) created in the last 24h */
   violations24h: number;
+  /** Mean minutes from alert to resolution, last 30 days; null = nothing resolved yet */
+  avgResponseTime: number | null;
+  /** null = no heartbeat data, NOT 100% */
+  cameraUptime7d: number | null;
   lastActivity: string | null;
 };
 
 /**
  * Aggregated metrics for a worksite (same shape as GET /api/worksites/:id/metrics).
+ * All numbers come from getSiteKpis() so every page agrees.
  * Returns null if the worksite does not exist.
  */
 export async function getWorksiteMetricsPayload(
   worksiteId: string
 ): Promise<WorksiteMetricsPayload | null> {
-  let worksite;
-  try {
-    worksite = await prisma.worksite.findUnique({
-      where: { id: worksiteId },
-      include: {
-        cameras: {
-          select: {
-            id: true,
-            status: true,
-          },
-        },
-        alerts: {
-          where: {
-            status: { in: ['ACTIVE', 'ACKNOWLEDGED'] },
-          },
-          select: {
-            id: true,
-            severity: true,
-            createdAt: true,
-          },
-        },
-      },
-    });
-  } catch (dbError: any) {
-    console.error('Database query error:', dbError.message);
-    worksite = await prisma.worksite.findUnique({
-      where: { id: worksiteId },
-    });
-    if (worksite) {
-      (worksite as any).cameras = [];
-      (worksite as any).alerts = [];
-    }
-  }
+  const worksite = await prisma.worksite.findUnique({
+    where: { id: worksiteId },
+    select: { id: true, updatedAt: true },
+  });
+  if (!worksite) return null;
 
-  if (!worksite) {
-    return null;
-  }
-
-  const cameraMetricsData = await Cache.wrap(
-    CacheKeys.cameraMetrics(worksiteId),
-    async () => {
-      const camerasWithHealth = await prisma.camera.findMany({
-        where: { worksiteId },
-        select: {
-          id: true,
-          status: true,
-          metadata: true,
-          health: {
-            orderBy: { lastCheck: 'desc' },
-            take: 1,
-            select: {
-              status: true,
-              lastCheck: true,
-            },
-          },
-        },
-      });
-
-      let activeCameras = 0;
-      let offlineCameras = 0;
-      let aiEnabledCameras = 0;
-
-      for (const camera of camerasWithHealth) {
-        if (isCameraOnline(camera)) {
-          activeCameras++;
-        } else {
-          offlineCameras++;
-        }
-
-        if (camera.metadata && typeof camera.metadata === 'object') {
-          const metadata = camera.metadata as any;
-          if (metadata.aiEnabled === true) {
-            aiEnabledCameras++;
-          }
-        }
-      }
-
-      return {
-        activeCameras,
-        offlineCameras,
-        totalCameras: camerasWithHealth.length,
-        aiEnabledCameras,
-      };
-    },
-    { ttl: 60 }
-  );
-
-  const [alertMetrics, safetyScoreMetrics, lastActivityTimestamp, violations24h] =
-    await Promise.all([
-      Cache.wrap(
-        CacheKeys.alertMetrics(worksiteId),
-        () =>
-          Promise.resolve(
-            getAlertMetrics((worksite as any).alerts || [])
-          ),
-        { ttl: 10 }
-      ),
-
-      // Always read latest scores from DB — avoids stale 5m cache showing N/A while reports still chart history
-      (async () => {
-        const latestScores = await prisma.safetyScore.findMany({
-          where: { worksiteId },
-          orderBy: { date: 'desc' },
-          take: 2,
-          select: {
-            safetyScore: true,
-            yesterdayScore: true,
-            date: true,
-          },
-        });
-        return getSafetyScoreMetrics(latestScores);
-      })(),
-
-      Cache.wrap(
-        CacheKeys.lastActivity(worksiteId),
-        () => getLastActivity(worksiteId, worksite.updatedAt),
-        { ttl: 30 }
-      ),
-
-      // DetectionLog is written by the YOLO ingest service (Detection table is unused by YOLO)
-      prisma.detectionLog
-        .count({
-          where: {
-            worksiteId,
-            timestamp: {
-              gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
-            },
-          },
-        })
-        .catch(() => 0),
-    ]);
-
-  // When no SafetyScore rows exist yet, compute a live score from recent alert activity.
-  // Formula: 100 pts baseline — each alert in the last 7 days costs 2 pts, floor at 0.
-  let { safetyScore, safetyScoreChange } = safetyScoreMetrics;
-  if (safetyScore == null) {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const alerts7d = await prisma.alert
-      .count({ where: { worksiteId, createdAt: { gte: sevenDaysAgo } } })
-      .catch(() => 0);
-    safetyScore = Math.max(0, Math.min(100, 100 - alerts7d * 2));
-    safetyScoreChange = 0; // no historical row to diff against
-  }
+  const [k, lastActivityTimestamp] = await Promise.all([
+    getOneSiteKpis(worksiteId),
+    Cache.wrap(
+      CacheKeys.lastActivity(worksiteId),
+      () => getLastActivity(worksiteId, worksite.updatedAt),
+      { ttl: 30 }
+    ),
+  ]);
+  if (!k) return null;
 
   return {
-    ...cameraMetricsData,
-    ...alertMetrics,
-    safetyScore,
-    safetyScoreChange,
-    violations24h,
+    activeCameras: k.camerasOnline,
+    offlineCameras: k.camerasOffline,
+    totalCameras: k.camerasTotal,
+    aiEnabledCameras: k.aiEnabledCameras,
+    totalAlerts: k.openAlerts,
+    highAlerts: k.highAlerts,
+    mediumAlerts: k.mediumAlerts,
+    lowAlerts: k.lowAlerts,
+    resolved30d: k.resolved30d,
+    safetyScore: k.safetyScore,
+    safetyScoreChange: k.safetyScoreChange,
+    safetyScoreSource: k.safetyScoreSource,
+    violations24h: k.violations24h,
+    avgResponseTime: k.avgResolveMin,
+    cameraUptime7d: k.cameraUptime7d,
     lastActivity: lastActivityTimestamp
       ? new Date(lastActivityTimestamp).toISOString()
       : null,

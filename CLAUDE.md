@@ -219,6 +219,12 @@ API routes handle their own auth — `app/middleware.ts` passes `/api/*` through
 Foreign-tenant ids answer **404, not 403**. Still open: analytics, safety-score, alerts/stream,
 streams/*, yolo/detections, cameras/test, invitations/send, users/onboard.
 
+## KPIs — one function
+
+Every per-site number (open alerts, safety score, cameras online, uptime, resolved, violations 24h,
+avg response) comes from `app/app/lib/site-kpis.ts`. Don't compute these inline in a route or
+component again — that's how five pages ended up showing five different alert counts.
+
 ## Gotchas
 
 - **Editing a rule** in the alert builder sends `minConfidence`/`objectClass`/`zoneId`/`actions`;

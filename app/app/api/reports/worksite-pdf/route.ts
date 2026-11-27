@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getOneSiteKpis } from '@/app/lib/site-kpis';
 import { prisma } from '@/app/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
       select: { id: true, name: true, worksiteName: true },
     });
     if (!canAccess) {
-      return NextResponse.json({ success: false, error: 'Worksite not found or access denied' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'Worksite not found' }, { status: 404 });
     }
 
     const dateTo = new Date();
@@ -60,7 +61,8 @@ export async function GET(request: NextRequest) {
     });
 
     const title = data.worksiteName || canAccess.name || canAccess.worksiteName || 'Worksite';
-    const pdf = await buildWorksiteSummaryPdf(data, title);
+    const current = await getOneSiteKpis(worksiteId).catch(() => null);
+    const pdf = await buildWorksiteSummaryPdf(data, title, current);
 
     const safeName = title.replace(/[^\w\-]+/g, '_').slice(0, 48);
     return new NextResponse(pdf, {

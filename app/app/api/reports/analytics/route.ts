@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
 import { getCachedSession } from '@/app/lib/session-cache';
+import { enforceWorksiteAccess } from '@/app/lib/worksite-access';
+import { getOneSiteKpis } from '@/app/lib/site-kpis';
 
 const COLORS = ['#3b82f6', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316'];
 
@@ -24,6 +26,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'worksiteId is required' }, { status: 400 });
     }
 
+    // Tenant gate: this route used to only check "logged in", so any user could pull
+    // any site's report by id. Foreign sites answer 404 like the alert routes.
+    const denied = await enforceWorksiteAccess(request, worksiteId);
+    if (denied) {
+      return denied.status === 403
+        ? NextResponse.json({ success: false, error: 'Worksite not found' }, { status: 404 })
+        : denied;
+    }
+
     const dateTo = new Date();
     dateTo.setHours(23, 59, 59, 999);
     const dateFrom = new Date(dateTo);
@@ -37,7 +48,8 @@ export async function GET(request: NextRequest) {
     prevDateFrom.setHours(0, 0, 0, 0);
 
     // Fetch everything in parallel — same direct queries as site-summary
-    const [worksite, alerts, prevAlertCount] = await Promise.all([
+    const [current, worksite, alerts, prevAlertCount] = await Promise.all([
+      getOneSiteKpis(worksiteId),
       prisma.worksite.findUnique({
         where: { id: worksiteId },
         select: { name: true, worksiteName: true },
@@ -206,7 +218,8 @@ export async function GET(request: NextRequest) {
     }));
 
     // ── Period totals ────────────────────────────────────────────────────────
-    const activeAlerts = alerts.filter(a => a.status === 'ACTIVE').length;
+    // Open right now (any age) — same number as the overview card
+    const activeAlerts = current?.openAlerts ?? alerts.filter(a => a.status === 'ACTIVE').length;
     const periodTotals = { safetyViolations: total, alerts: total, activeAlerts };
 
     // ── Safety score trend ───────────────────────────────────────────────────
@@ -260,6 +273,18 @@ export async function GET(request: NextRequest) {
       sampleCount:  resolvedAlerts.length,
     };
 
+    // Today's point always equals the live number on the overview (lib/site-kpis.ts)
+    if (current?.safetyScore != null) {
+      const today = new Date().toISOString().split('T')[0];
+      const last = safetyScoreTrend[safetyScoreTrend.length - 1];
+      if (last?.date === today) last.safetyScore = Math.round(current.safetyScore);
+      else safetyScoreTrend.push({
+        date: today,
+        label: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        safetyScore: Math.round(current.safetyScore),
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -271,6 +296,7 @@ export async function GET(request: NextRequest) {
         alertsByType,
         safetyScoreTrend,
         responseTime,
+        current,
         alertVolumeByDay,
         alertsByHour,
         alertsBySeverity,

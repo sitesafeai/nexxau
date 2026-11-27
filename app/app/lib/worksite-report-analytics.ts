@@ -469,27 +469,26 @@ export async function getWorksiteReportAnalyticsData(
     }
   }
 
+  // Time to resolve. This used to read AlertResponse rows, which nothing in the
+  // product writes, so the PDF always said N/A. Same definition as lib/site-kpis.ts.
   const alertsWithResponses = await prisma.alert.findMany({
     where: {
       worksite: worksiteWhere,
       createdAt: { gte: dateFrom, lte: dateTo },
-      responses: { some: {} },
+      status: 'RESOLVED',
+      resolvedAt: { not: null },
     },
     select: {
       severity: true,
       createdAt: true,
-      responses: {
-        orderBy: { createdAt: 'asc' },
-        take: 1,
-        select: { createdAt: true },
-      },
+      resolvedAt: true,
     },
   });
 
   const responseTimes: { severity: string; timeMs: number }[] = [];
   for (const a of alertsWithResponses) {
-    if (a.responses.length === 0) continue;
-    const ms = new Date(a.responses[0].createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (!a.resolvedAt) continue;
+    const ms = new Date(a.resolvedAt).getTime() - new Date(a.createdAt).getTime();
     if (Number.isFinite(ms) && ms >= 0) {
       responseTimes.push({ severity: a.severity, timeMs: ms });
     }

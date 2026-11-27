@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/app/lib/prisma';
+import { enforceWorksiteAccess } from '@/app/lib/worksite-access';
+import { getOneSiteKpis, OPEN_ALERT_STATUSES } from '@/app/lib/site-kpis';
 
 /**
  * GET /api/analytics?worksiteId=xxx&timeRange=7d
@@ -18,6 +20,15 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // This route had NO auth check at all — anyone with a worksite id could read it.
+    const denied = await enforceWorksiteAccess(request, worksiteId);
+    if (denied) {
+      return denied.status === 403
+        ? NextResponse.json({ success: false, error: 'Worksite not found' }, { status: 404 })
+        : denied;
+    }
+    const kpis = await getOneSiteKpis(worksiteId);
 
     // Calculate date range
     const endDate = new Date();
@@ -344,27 +355,26 @@ export async function GET(request: NextRequest) {
     });
 
     const resolvedAlerts = alerts.filter(a => a.status === 'RESOLVED');
-    const pendingAlerts = alerts.filter(a => a.status !== 'RESOLVED');
+    // "Pending" = still needs a human. False positives/archived are closed, not pending.
+    const openSet = new Set<string>(OPEN_ALERT_STATUSES as readonly string[]);
+    const pendingAlerts = alerts.filter(a => openSet.has(String(a.status)));
 
-    // Calculate average response time for resolved alerts
-    const responseTimes = resolvedAlerts
-      // Note: acknowledgedAt doesn't exist, using status === 'ACKNOWLEDGED' as proxy
-      .filter(a => a.status === 'ACKNOWLEDGED' && a.createdAt)
-      .map(a => {
-        const created = new Date(a.createdAt).getTime();
-        // Cannot calculate MTTA without acknowledgedAt field - use createdAt as placeholder
-        const acknowledged = new Date(a.createdAt).getTime();
-        return acknowledged - created;
-      });
-
-    const avgResponseTime = responseTimes.length > 0
-      ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length
-      : 0;
-
-    const avgResponseMinutes = Math.round(avgResponseTime / (1000 * 60));
-    const avgResponseDisplay = avgResponseMinutes < 60
-      ? `${avgResponseMinutes} min`
-      : `${Math.round(avgResponseMinutes / 60)} hr`;
+    // Time-to-resolve for alerts resolved in this period. (The old code filtered
+    // RESOLVED alerts for status ACKNOWLEDGED, which is never true, so it was always 0.)
+    const resolveMins = resolvedAlerts
+      .filter(a => a.resolvedAt)
+      .map(a => (new Date(a.resolvedAt as Date).getTime() - new Date(a.createdAt).getTime()) / 60000)
+      .filter(m => m >= 0);
+    const avgResponseMinutes = resolveMins.length
+      ? Math.round(resolveMins.reduce((x, y) => x + y, 0) / resolveMins.length)
+      : null;
+    const avgResponseDisplay = avgResponseMinutes == null
+      ? 'N/A'
+      : avgResponseMinutes < 60
+        ? `${Math.max(1, avgResponseMinutes)} min`
+        : avgResponseMinutes < 1440
+          ? `${(avgResponseMinutes / 60).toFixed(1)} hr`
+          : `${(avgResponseMinutes / 1440).toFixed(1)} days`;
 
     // ============================================
     // 8. CUSTOM RULE VIOLATIONS (using AlertRule alerts)
@@ -425,7 +435,14 @@ export async function GET(request: NextRequest) {
           end: endDate.toISOString(),
           label: timeRange
         },
-        safetyScore,
+        // Current score is the shared one (lib/site-kpis.ts) so this page, the
+        // overview and every export agree. `previous` keeps this route's old
+        // period-over-period estimate only for the trend arrow.
+        safetyScore: {
+          ...safetyScore,
+          current: kpis?.safetyScore != null ? Math.round(kpis.safetyScore) : safetyScore.current,
+          trend: (kpis?.safetyScore ?? safetyScore.current) >= safetyScore.previous ? 'up' : 'down',
+        },
         violations: {
           total: violations.length,
           major: majorViolations.length,
@@ -439,16 +456,20 @@ export async function GET(request: NextRequest) {
           change: Math.abs(complianceChange)
         },
         cameras: {
-          total: cameras.length,
-          online: onlineCameras,
-          offline: offlineCameras,
-          uptime: uptimePercentage
+          total: kpis?.camerasTotal ?? cameras.length,
+          online: kpis?.camerasOnline ?? onlineCameras,
+          offline: kpis?.camerasOffline ?? offlineCameras,
+          // Real 7-day uptime from heartbeat history; null = no data (was "online now %")
+          uptime: kpis?.cameraUptime7d ?? null,
+          onlineNowPct: uptimePercentage
         },
         alerts: {
           total: alerts.length,
           resolved: resolvedAlerts.length,
           pending: pendingAlerts.length,
-          avgResponseTime: avgResponseDisplay
+          openNow: kpis?.openAlerts ?? pendingAlerts.length,
+          avgResponseTime: avgResponseDisplay,
+          avgResponseMinutes
         },
         violationsByType: topViolations,
         hourlyViolations: workHours

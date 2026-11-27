@@ -1,10 +1,15 @@
 import type { WorksiteReportAnalytics } from '@/app/lib/worksite-report-analytics';
+import type { SiteKpis } from '@/app/lib/site-kpis';
 
 function esc(s: string): string {
   return s.replace(/\u2013|\u2014/g, '-').replace(/[^\x20-\x7E\n\r]/g, '?');
 }
 
-export async function buildWorksiteSummaryPdf(data: WorksiteReportAnalytics, titleSuffix: string): Promise<Uint8Array> {
+export async function buildWorksiteSummaryPdf(
+  data: WorksiteReportAnalytics,
+  titleSuffix: string,
+  current?: SiteKpis | null
+): Promise<Uint8Array> {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
   const pageW = doc.internal.pageSize.getWidth();
@@ -36,8 +41,22 @@ export async function buildWorksiteSummaryPdf(data: WorksiteReportAnalytics, tit
   doc.setTextColor(0);
   y += 8;
 
+  // Same numbers the dashboard shows right now (lib/site-kpis.ts)
+  if (current) {
+    doc.setFontSize(13);
+    doc.text('Right now', margin, y);
+    y += 18;
+    addLine(`Safety score: ${current.safetyScore != null ? Math.round(current.safetyScore) + ' / 100' : 'N/A'}`, 10, 13);
+    addLine(`Open alerts: ${current.openAlerts} (high ${current.highAlerts}, medium ${current.mediumAlerts}, low ${current.lowAlerts})`, 10, 13);
+    addLine(`Violations in last 24h: ${current.violations24h}`, 10, 13);
+    addLine(`Resolved in last 30 days: ${current.resolved30d}`, 10, 13);
+    addLine(`Cameras online: ${current.camerasOnline} / ${current.camerasTotal}`, 10, 13);
+    addLine(`Camera uptime (7d): ${current.cameraUptime7d != null ? current.cameraUptime7d + '%' : 'No data yet'}`, 10, 13);
+    y += 8;
+  }
+
   addLine(
-    `Average response time: ${data.responseTime.overall > 0 ? `${data.responseTime.overall.toFixed(1)} minutes` : 'N/A'} (based on ${data.responseTime.sampleCount} alert(s) with a logged first response).`,
+    `Average time to resolve: ${data.responseTime.overall > 0 ? `${data.responseTime.overall.toFixed(1)} minutes` : 'N/A'} (based on ${data.responseTime.sampleCount} resolved alert(s)).`,
     10,
     13
   );
